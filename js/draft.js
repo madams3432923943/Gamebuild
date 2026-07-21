@@ -1,7 +1,7 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { SLOTS, STARTER_SLOTS } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, BOT_SKILL } from "./constants.js";
 import { impact } from "./engine.js";
 
 /** Groups the flat PLAYERS array into squads keyed by "Team|Decade". */
@@ -90,20 +90,27 @@ export class DraftState {
     this.history.push({ side, squad: this.currentSquad, player, slot });
   }
 
-  /** Bot picks the (player, slot) combo from the current squad that
-   * maximizes impact() for one of its open slots. No-op if none legal. */
+  /** Bot pick: usually a random legal (player, slot) combo, occasionally
+   * (BOT_SKILL chance) the objectively best one. A bot that always drafts
+   * optimally plays a solved game and isn't fun to face - this keeps it
+   * beatable while still capable of the occasional sharp pick. */
   botAutoPick(side = "B") {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
-    let best = null;
+    const combos = [];
     for (const player of this.currentSquad.players) {
       for (const slot of eligibleOpenSlots(player, roster)) {
-        const score = impact(player);
-        if (!best || score > best.score) best = { player, slot, score };
+        combos.push({ player, slot, score: impact(player) });
       }
     }
-    if (best) this.makePick(side, best.player, best.slot);
-    return best;
+    let choice;
+    if (Math.random() < BOT_SKILL) {
+      choice = combos.reduce((best, c) => (c.score > best.score ? c : best));
+    } else {
+      choice = combos[Math.floor(Math.random() * combos.length)];
+    }
+    this.makePick(side, choice.player, choice.slot);
+    return choice;
   }
 }
 

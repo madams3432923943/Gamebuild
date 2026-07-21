@@ -3,12 +3,33 @@
 
 import { SLOTS } from "./constants.js";
 import { eligibleOpenSlots } from "./draft.js";
-import { currentTier, nextTier } from "./progression.js";
+import { currentTier, nextTier, mostDraftedPlayer } from "./profile.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
-const LINE_LABELS = { pts: "PTS", reb: "REB", ast: "AST", stl: "STL", blk: "BLK", tov: "TOV" };
+const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
 
-export function renderRosterPanel(container, roster, label, isTurn) {
+export function renderPositionSelector(container, roster, selectedSlot, onSelect) {
+  container.innerHTML = "";
+  for (const slot of SLOTS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "position-btn" + (slot === selectedSlot ? " selected" : "");
+    const filled = !!roster[slot];
+    btn.textContent = filled ? `${SLOT_LABELS[slot]} ✓` : SLOT_LABELS[slot];
+    btn.disabled = filled;
+    if (!filled) btn.addEventListener("click", () => onSelect(slot));
+    container.appendChild(btn);
+  }
+}
+
+/**
+ * @param opts.pendingSlots slots filled this round but not yet revealed
+ *   (rendered as "locked in" rather than the real player).
+ * @param opts.revealSlots slots that should play the flip-reveal animation
+ *   on this render pass (the round that just resolved).
+ */
+export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
+  const { pendingSlots = [], revealSlots = [] } = opts;
   container.innerHTML = "";
   const h3 = document.createElement("h3");
   h3.textContent = label + (isTurn ? " •" : "");
@@ -24,8 +45,11 @@ export function renderRosterPanel(container, roster, label, isTurn) {
 
     const value = document.createElement("span");
     const player = roster[slot];
-    if (player) {
-      value.className = "slot-filled";
+    if (player && pendingSlots.includes(slot)) {
+      value.className = "slot-locked";
+      value.textContent = "🔒 Locked in";
+    } else if (player) {
+      value.className = "slot-filled" + (revealSlots.includes(slot) ? " slot-reveal" : "");
       value.textContent = `${player.name} (${player.team} ${player.decade})`;
     } else {
       value.className = "slot-empty";
@@ -36,36 +60,31 @@ export function renderRosterPanel(container, roster, label, isTurn) {
   }
 }
 
-function statLine(p) {
-  return `${p.ppg.toFixed(1)} PPG · ${p.rpg.toFixed(1)} RPG · ${p.apg.toFixed(1)} APG · ${p.spg.toFixed(1)} SPG · ${p.bpg.toFixed(1)} BPG · ${p.tov.toFixed(1)} TOV`;
-}
-
 /**
- * Renders the current squad's player pool. `onPick(player)` fires when a
- * player card is clicked; the caller decides (via slot count) whether to
- * apply the pick directly or show the slot-picker chip UI.
+ * Renders the current squad's player pool - names and positions only, no
+ * stats (the whole point is drafting on real basketball knowledge).
+ * `onPick(player)` fires when an eligible-for-`selectedSlot` card is clicked.
  */
-export function renderPool(container, squad, filterText, roster, onPick) {
+export function renderPool(container, squad, filterText, roster, selectedSlot, onPick) {
   container.innerHTML = "";
   const filter = filterText.trim().toLowerCase();
   const players = squad.players.filter((p) => p.name.toLowerCase().includes(filter));
 
   if (players.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "player-stats";
+    empty.className = "empty-note";
     empty.textContent = "No players match that search.";
     container.appendChild(empty);
     return;
   }
 
   for (const p of players) {
-    const slots = eligibleOpenSlots(p, roster);
+    const eligible = eligibleOpenSlots(p, roster).includes(selectedSlot);
     const card = document.createElement("div");
-    card.className = "player-card" + (slots.length === 0 ? " disabled" : "");
+    card.className = "player-card" + (eligible ? "" : " disabled");
 
-    const top = document.createElement("div");
-    top.className = "player-card-top";
     const name = document.createElement("span");
+    name.className = "player-card-name";
     name.textContent = p.name;
     for (const pos of p.pos) {
       const chip = document.createElement("span");
@@ -73,46 +92,13 @@ export function renderPool(container, squad, filterText, roster, onPick) {
       chip.textContent = pos;
       name.appendChild(chip);
     }
-    top.appendChild(name);
-    card.appendChild(top);
+    card.appendChild(name);
 
-    const stats = document.createElement("div");
-    stats.className = "player-stats";
-    stats.textContent = statLine(p);
-    card.appendChild(stats);
-
-    if (slots.length > 0) {
+    if (eligible) {
       card.addEventListener("click", () => onPick(p));
     }
     container.appendChild(card);
   }
-}
-
-/** Renders the slot-choice chip UI for a multi-eligible player. */
-export function renderSlotPicker(container, player, slots, onChooseSlot) {
-  container.innerHTML = "";
-  container.classList.remove("hidden");
-
-  const title = document.createElement("div");
-  title.className = "slot-picker-title";
-  title.textContent = `${player.name} is eligible for multiple open slots — choose one:`;
-  container.appendChild(title);
-
-  const row = document.createElement("div");
-  row.className = "chip-row";
-  for (const slot of slots) {
-    const chip = document.createElement("div");
-    chip.className = "chip";
-    chip.textContent = SLOT_LABELS[slot];
-    chip.addEventListener("click", () => onChooseSlot(slot));
-    row.appendChild(chip);
-  }
-  container.appendChild(row);
-}
-
-export function hideSlotPicker(container) {
-  container.classList.add("hidden");
-  container.innerHTML = "";
 }
 
 function r(n) {
@@ -136,58 +122,83 @@ export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, bo
   container.innerHTML = boxTable(rosterA, boxA, labelA) + boxTable(rosterB, boxB, labelB);
 }
 
-export function renderQuarterTabs(container, quarterBoxScores, onSelect, activeIndex) {
+/** Live quarter-by-quarter scoreboard - a running score display, not a
+ * detailed per-quarter stat table. `periodLabel` e.g. "Q2" or "Final". */
+export function renderScoreboard(container, labelA, scoreA, labelB, scoreB, periodLabel, isLive) {
   container.innerHTML = "";
-  quarterBoxScores.forEach((q, i) => {
-    const tab = document.createElement("div");
-    tab.className = "quarter-tab" + (i === activeIndex ? " active" : "");
-    tab.textContent = q.overtime ? `OT${i - 3}` : `Q${i + 1}`;
-    tab.addEventListener("click", () => onSelect(i));
-    container.appendChild(tab);
-  });
+  const teams = document.createElement("div");
+  teams.className = "scoreboard-teams";
+  teams.innerHTML = `
+    <span class="scoreboard-team-name">${labelA}</span>
+    <span class="scoreboard-score">${Math.round(scoreA)}</span>
+    <span class="scoreboard-dash">–</span>
+    <span class="scoreboard-score">${Math.round(scoreB)}</span>
+    <span class="scoreboard-team-name">${labelB}</span>
+  `;
+  container.appendChild(teams);
+
+  const period = document.createElement("div");
+  period.className = "scoreboard-period" + (isLive ? " live" : "");
+  period.textContent = periodLabel;
+  container.appendChild(period);
 }
 
-export function renderQuarterPanel(container, quarterEntry, rosterA, labelA, rosterB, labelB) {
-  container.innerHTML =
-    boxTable(rosterA, quarterEntry.a, labelA) + boxTable(rosterB, quarterEntry.b, labelB);
-}
+export function renderTierSummary(badgeContainer, captionContainer, onlineWins) {
+  const tier = currentTier(onlineWins);
+  const next = nextTier(onlineWins);
 
-export function renderTierSummary(container, wins) {
-  const tier = currentTier(wins);
-  const next = nextTier(wins);
-  container.innerHTML = "";
-
-  const badge = document.createElement("div");
+  badgeContainer.innerHTML = "";
+  const badge = document.createElement("span");
   badge.className = "tier-badge";
   badge.textContent = tier.name;
-  container.appendChild(badge);
+  badgeContainer.appendChild(badge);
 
   const track = document.createElement("div");
   track.className = "progress-bar-track";
   const fill = document.createElement("div");
   fill.className = "progress-bar-fill";
-  const pct = next ? Math.min(100, (100 * (wins - tier.minWins)) / (next.minWins - tier.minWins)) : 100;
+  const pct = next ? Math.min(100, (100 * (onlineWins - tier.minWins)) / (next.minWins - tier.minWins)) : 100;
   fill.style.width = `${pct}%`;
   track.appendChild(fill);
-  container.appendChild(track);
+  badgeContainer.appendChild(track);
 
-  const caption = document.createElement("div");
-  caption.className = "player-stats";
-  caption.textContent = next
-    ? `${wins} wins — ${next.minWins - wins} more to reach ${next.name}`
-    : `${wins} wins — you've reached the top tier, Legend.`;
-  container.appendChild(caption);
+  captionContainer.textContent = next
+    ? `${onlineWins} online wins — ${next.minWins - onlineWins} more to reach ${next.name}`
+    : `${onlineWins} online wins — you've reached the top tier, Legend.`;
 }
 
-export function renderLeaderboard(tierContainer, bodyContainer, state) {
-  renderTierSummary(tierContainer, state.wins);
+export function renderProfileScreen(refs, profile) {
+  refs.usernameInput.value = profile.username || "";
+  renderTierSummary(refs.tierBadge, refs.tierCaption, profile.onlineWins);
 
-  bodyContainer.innerHTML = "";
-  for (const entry of state.history) {
+  refs.onlineRecord.textContent = `${profile.onlineWins}-${profile.onlineLosses}`;
+  refs.offlineRecord.textContent = `${profile.offlineWins}-${profile.offlineLosses}`;
+
+  const top = mostDraftedPlayer(profile);
+  refs.mostDrafted.innerHTML = top
+    ? `<div class="performance-row"><span>${top.name}</span><span class="performance-line">${top.count}x drafted</span></div>`
+    : `<div class="empty-note">Play a draft to start tracking this.</div>`;
+
+  refs.topPerformances.innerHTML = "";
+  if (profile.topPerformances.length === 0) {
+    refs.topPerformances.innerHTML = `<div class="empty-note">No games played yet.</div>`;
+  } else {
+    for (const perf of profile.topPerformances.slice(0, 5)) {
+      const row = document.createElement("div");
+      row.className = "performance-row";
+      const line = perf.line || {};
+      row.innerHTML = `<span>${perf.playerName}</span><span class="performance-line">${r(line.pts)}/${r(line.reb)}/${r(line.ast)} — vs ${perf.opponentLabel}</span>`;
+      refs.topPerformances.appendChild(row);
+    }
+  }
+
+  refs.historyBody.innerHTML = "";
+  for (const entry of profile.history) {
     const tr = document.createElement("tr");
     tr.className = entry.won ? "win-row" : "loss-row";
     const date = new Date(entry.date).toLocaleDateString();
-    tr.innerHTML = `<td>${date}</td><td>${entry.won ? "Win" : "Loss"} vs ${entry.opponentLabel}</td><td>${entry.scoreFor}-${entry.scoreAgainst}</td><td>${entry.mvpName}</td><td>${entry.tier}</td>`;
-    bodyContainer.appendChild(tr);
+    const modeTag = entry.mode === "online" ? "Online" : "Offline";
+    tr.innerHTML = `<td>${date}</td><td>${entry.won ? "Win" : "Loss"} vs ${entry.opponentLabel} (${modeTag})</td><td>${entry.scoreFor}-${entry.scoreAgainst}</td><td>${entry.mvpName}</td>`;
+    refs.historyBody.appendChild(tr);
   }
 }

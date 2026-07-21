@@ -59,3 +59,17 @@ export const MAX_TEAM_SCORE = 190;
 export const MAX_OT_PERIODS = 4;
 // Overtime periods are shorter than a full quarter (5 real minutes vs 12).
 export const OT_LENGTH_SCALE = 5 / 12;
+
+// Bot draft skill: chance the bot takes the objectively best (player, slot)
+// combo available each round rather than a random legal one. Kept well
+// under 1 so the bot drafts unevenly like a real (beatable) opponent
+// instead of playing a solved game.
+export const BOT_SKILL = 0.35;
+
+// How long the live scoreboard lingers on each quarter before advancing,
+// so a game reads as "played out" rather than dumped on screen at once.
+export const QUARTER_REVEAL_DELAY_MS = 900;
+
+// How long a fully-resolved draft round holds on the "locked in" state
+// before both sides' picks flip-reveal simultaneously.
+export const DRAFT_REVEAL_DELAY_MS = 700;

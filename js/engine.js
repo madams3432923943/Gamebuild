@@ -266,7 +266,7 @@ function roundLine(line) {
   return out;
 }
 
-function gameScore(line) {
+export function gameScore(line) {
   // Simplified Hollinger game score: the standard formula's FG/FTA terms
   // are dropped because this dataset intentionally has no shooting-attempt
   // data (see build spec #9 - shooting percentages are out of scope).

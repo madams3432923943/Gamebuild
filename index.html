@@ -7,17 +7,46 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <header class="app-header">
-    <h1>🏀 Ball Knowledge</h1>
-    <p class="tagline">Draft five decades of NBA legends. Win the game.</p>
+  <header class="top-nav">
+    <button class="brand" id="btn-brand" type="button">
+      <span class="brand-ball">🏀</span> Ball Knowledge
+    </button>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" id="nav-play" type="button">Play</button>
+      <button class="nav-tab" id="nav-profile" type="button">Profile</button>
+    </nav>
   </header>
 
   <main id="app-root">
     <!-- Screens are toggled via JS by adding/removing .hidden -->
 
     <section id="screen-home" class="screen">
-      <div class="card">
-        <h2>New Draft Battle</h2>
+      <h2 class="section-heading">Choose your sport</h2>
+      <div class="sport-grid">
+        <button class="sport-tile active" data-sport="nba" type="button">
+          <span class="sport-icon">🏀</span>
+          <span class="sport-name">NBA</span>
+          <span class="sport-status">Ready to draft</span>
+        </button>
+        <button class="sport-tile locked" type="button" disabled>
+          <span class="sport-icon">🏈</span>
+          <span class="sport-name">NFL</span>
+          <span class="sport-status">Coming soon</span>
+        </button>
+        <button class="sport-tile locked" type="button" disabled>
+          <span class="sport-icon">🏒</span>
+          <span class="sport-name">NHL</span>
+          <span class="sport-status">Coming soon</span>
+        </button>
+        <button class="sport-tile locked" type="button" disabled>
+          <span class="sport-icon">⚽</span>
+          <span class="sport-name">Soccer</span>
+          <span class="sport-status">Coming soon</span>
+        </button>
+      </div>
+
+      <div class="card start-card">
+        <h2>Start a Draft Battle</h2>
         <div class="field-row">
           <label for="input-name-a">Your name</label>
           <input id="input-name-a" type="text" maxlength="20" placeholder="Player 1" />
@@ -25,32 +54,29 @@
         <div class="mode-toggle">
           <label class="radio-option">
             <input type="radio" name="mode" value="bot" checked />
-            vs. Bot
+            vs. Bot <small>(offline)</small>
           </label>
           <label class="radio-option">
             <input type="radio" name="mode" value="local" />
-            Local 2-Player (pass & play)
+            vs. Friend <small>(pass &amp; play)</small>
           </label>
         </div>
+        <p class="hint-text">Online invites &amp; friend matchmaking are coming to the app version.</p>
         <div class="field-row" id="row-name-b" hidden>
-          <label for="input-name-b">Player 2 name</label>
+          <label for="input-name-b">Friend's name</label>
           <input id="input-name-b" type="text" maxlength="20" placeholder="Player 2" />
         </div>
-        <button id="btn-start-draft" class="btn btn-primary">Start Draft</button>
-      </div>
-
-      <div class="card">
-        <h2>Progression</h2>
-        <div id="home-tier-summary"></div>
-        <button id="btn-view-leaderboard" class="btn btn-secondary">View Leaderboard</button>
+        <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
       </div>
     </section>
 
     <section id="screen-draft" class="screen hidden">
-      <div class="draft-header">
+      <div class="draft-meta">
         <div id="draft-round-label" class="round-label"></div>
         <div id="draft-squad-label" class="squad-label"></div>
       </div>
+
+      <div class="position-selector" id="position-selector"></div>
 
       <div id="draft-turn-banner" class="turn-banner"></div>
 
@@ -59,39 +85,69 @@
 
         <div class="draft-pool-panel">
           <input id="pool-search" type="text" placeholder="Search this squad's roster…" autocomplete="off" />
+          <p class="knowledge-hint">No stats shown — draft on knowledge alone.</p>
           <div id="pool-list" class="pool-list"></div>
-          <div id="slot-picker" class="slot-picker hidden"></div>
-          <button id="btn-skip-round" class="btn btn-secondary">Skip Round</button>
+          <button id="btn-skip-round" class="btn btn-secondary btn-block">Skip Round</button>
         </div>
 
         <div class="roster-panel" id="roster-panel-b"></div>
       </div>
     </section>
 
-    <section id="screen-boxscore" class="screen hidden">
-      <div id="final-banner" class="final-banner"></div>
-      <div id="mvp-callout" class="mvp-callout"></div>
+    <section id="screen-game" class="screen hidden">
+      <div class="scoreboard" id="live-scoreboard"></div>
 
-      <div class="quarter-tabs" id="quarter-tabs"></div>
-      <div id="quarter-panel"></div>
+      <div id="final-banner" class="final-banner hidden"></div>
+      <div id="mvp-callout" class="mvp-callout hidden"></div>
 
-      <h3>Full Game Box Score</h3>
-      <div id="full-box-score"></div>
+      <div id="full-box-score" class="hidden"></div>
 
-      <button id="btn-to-leaderboard" class="btn btn-secondary">View Progression</button>
-      <button id="btn-play-again" class="btn btn-primary">Play Again</button>
+      <div class="game-actions">
+        <button id="btn-to-profile" class="btn btn-secondary hidden">View Profile</button>
+        <button id="btn-play-again" class="btn btn-primary hidden">Play Again</button>
+      </div>
     </section>
 
-    <section id="screen-leaderboard" class="screen hidden">
-      <h2>Progression &amp; Leaderboard</h2>
-      <div id="leaderboard-tier"></div>
+    <section id="screen-profile" class="screen hidden">
+      <div class="profile-header">
+        <div class="field-row">
+          <label for="input-profile-username">Your name</label>
+          <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
+        </div>
+        <div id="profile-tier-badge"></div>
+        <div id="profile-tier-caption" class="player-stats"></div>
+      </div>
+
+      <div class="records-row">
+        <div class="record-card">
+          <h4>Online Record</h4>
+          <div id="online-record" class="record-value"></div>
+          <div class="player-stats">vs. other players</div>
+        </div>
+        <div class="record-card">
+          <h4>Offline Record</h4>
+          <div id="offline-record" class="record-value"></div>
+          <div class="player-stats">vs. Bot (practice, not ranked)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Most Drafted Player</h3>
+        <div id="most-drafted"></div>
+      </div>
+
+      <div class="card">
+        <h3>Top Performances</h3>
+        <div id="top-performances"></div>
+      </div>
+
+      <h3>Recent Games</h3>
       <table class="history-table">
         <thead>
-          <tr><th>Date</th><th>Result</th><th>Score</th><th>MVP</th><th>Tier</th></tr>
+          <tr><th>Date</th><th>Result</th><th>Score</th><th>MVP</th></tr>
         </thead>
-        <tbody id="leaderboard-body"></tbody>
+        <tbody id="history-body"></tbody>
       </table>
-      <button id="btn-back-home" class="btn btn-secondary">Back to Home</button>
     </section>
   </main>
 
