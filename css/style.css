@@ -1,20 +1,20 @@
 /* ---- Ball Knowledge design tokens ----
-   An actual arena-at-night palette rather than a generic app accent:
-   ink-navy court, warm hardwood-amber for identity, a scoreboard-yellow
+   Court-under-the-lights palette: warm charcoal (not blue-black navy),
+   a deep court-green as the primary brand/identity color, a scoreboard-gold
    reserved strictly for live score digits, and a buzzer-red reserved for
    reveals/alerts. Numeric displays use a monospace "scoreboard digit"
    treatment; headlines use a heavy condensed-feeling sans. */
 :root {
-  --ink: #0a0e1a;
-  --court: #131b2e;
-  --court-line: #263252;
-  --hardwood: #c6873e;
-  --hardwood-bright: #e0a862;
-  --scoreboard: #f2c14e;
+  --ink: #100f0c;
+  --court: #1c1912;
+  --court-line: #3a3325;
+  --hardwood: #2f9e6b;
+  --hardwood-bright: #4cc98d;
+  --scoreboard: #ffd166;
   --buzzer: #e8433d;
-  --net: #edf1fa;
-  --chalk: #8b96b3;
-  --win: #3fae7a;
+  --net: #f5f1ea;
+  --chalk: #a39c8c;
+  --win: #4cc98d;
 
   --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -28,7 +28,7 @@
 body {
   margin: 0;
   background:
-    radial-gradient(ellipse at 50% -10%, #1c2947 0%, transparent 55%),
+    radial-gradient(ellipse at 50% -10%, #26301f 0%, transparent 55%),
     var(--ink);
   color: var(--net);
   font-family: var(--font-body);
@@ -65,7 +65,7 @@ button, input {
 }
 
 .brand-ball {
-  filter: drop-shadow(0 0 6px rgba(198, 135, 62, 0.6));
+  filter: drop-shadow(0 0 6px rgba(47, 158, 107, 0.6));
 }
 
 .nav-tabs {
@@ -285,7 +285,7 @@ input[type="text"]:focus-visible {
 
 .sport-tile.active {
   border-color: var(--hardwood);
-  box-shadow: 0 0 0 1px var(--hardwood), 0 0 18px rgba(198, 135, 62, 0.35);
+  box-shadow: 0 0 0 1px var(--hardwood), 0 0 18px rgba(47, 158, 107, 0.35);
 }
 
 .sport-tile.active .sport-status {
@@ -298,25 +298,42 @@ input[type="text"]:focus-visible {
 }
 
 /* ---- Draft screen ---- */
-.draft-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.6rem;
-}
-
 .round-label {
   color: var(--chalk);
   font-family: var(--font-mono);
   font-size: 0.85rem;
   letter-spacing: 0.03em;
+  margin-bottom: 0.5rem;
 }
 
-.squad-label {
+/* The squad banner is the most important thing on this screen - it's the
+   category both sides are drafting from this round - so it gets full-width
+   prominence directly above the board rather than sharing a thin header
+   row with the round counter. */
+.squad-banner {
+  background: linear-gradient(135deg, rgba(47, 158, 107, 0.22), rgba(47, 158, 107, 0.04));
+  border: 1px solid var(--hardwood);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.squad-banner-team {
   font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 800;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 1.7rem;
   color: var(--net);
+}
+
+.squad-banner-decade {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--hardwood-bright);
+  margin-left: 0.6rem;
 }
 
 .position-selector {
@@ -337,10 +354,24 @@ input[type="text"]:focus-visible {
   font-family: var(--font-mono);
 }
 
-.position-btn.selected {
+/* Awaiting a slot choice for a just-clicked player: their eligible slots
+   glow and invite a click, everything else (including other open slots
+   that don't fit this player) dims out of the way. */
+.position-btn.eligible {
   border-color: var(--hardwood);
   color: var(--net);
-  background: linear-gradient(180deg, rgba(198, 135, 62, 0.25), transparent);
+  background: linear-gradient(180deg, rgba(47, 158, 107, 0.3), transparent);
+  animation: pulse-eligible 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-eligible {
+  0%, 100% { box-shadow: 0 0 0 rgba(47, 158, 107, 0); }
+  50% { box-shadow: 0 0 10px rgba(47, 158, 107, 0.45); }
+}
+
+.position-btn.awaiting-dim {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .turn-banner {
@@ -485,6 +516,11 @@ input[type="text"]:focus-visible {
   border-color: var(--court-line);
 }
 
+.player-card.pending {
+  border-color: var(--hardwood);
+  background: rgba(47, 158, 107, 0.12);
+}
+
 .player-card-name {
   font-weight: 700;
 }
@@ -505,7 +541,10 @@ input[type="text"]:focus-visible {
   margin-top: 0.6rem;
 }
 
-/* ---- Live scoreboard / game screen ---- */
+/* ---- Live scoreboard / game screen ----
+   Modeled on a broadcast score bug: big score up top for drama, a
+   quarter-by-quarter grid underneath that fills in as the game plays out -
+   the recognizable "NBA on TV" scoreboard shape. */
 .scoreboard {
   background: var(--ink);
   border: 1px solid var(--court-line);
@@ -538,7 +577,7 @@ input[type="text"]:focus-visible {
   color: var(--scoreboard);
   font-variant-numeric: tabular-nums;
   min-width: 3.5ch;
-  text-shadow: 0 0 16px rgba(242, 193, 78, 0.35);
+  text-shadow: 0 0 16px rgba(255, 209, 102, 0.35);
 }
 
 .scoreboard-dash {
@@ -548,7 +587,7 @@ input[type="text"]:focus-visible {
 }
 
 .scoreboard-period {
-  margin-top: 0.75rem;
+  margin: 0.75rem 0 1.1rem;
   font-family: var(--font-mono);
   color: var(--chalk);
   letter-spacing: 0.08em;
@@ -563,6 +602,54 @@ input[type="text"]:focus-visible {
 
 @keyframes blink-live {
   50% { opacity: 0.35; }
+}
+
+.scoreboard-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreboard-grid th, .scoreboard-grid td {
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  border-bottom: 1px solid var(--court-line);
+  border-left: 1px solid var(--court-line);
+}
+
+.scoreboard-grid th:first-child, .scoreboard-grid td:first-child {
+  border-left: none;
+}
+
+.scoreboard-grid thead th {
+  color: var(--chalk);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+.scoreboard-grid td.team-col, .scoreboard-grid th.team-col {
+  text-align: left;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--net);
+  letter-spacing: 0.02em;
+}
+
+.scoreboard-grid td.period-pending {
+  color: var(--court-line);
+}
+
+.scoreboard-grid th.period-current {
+  color: var(--buzzer);
+}
+
+.scoreboard-grid td.grid-total {
+  color: var(--scoreboard);
+  font-weight: 700;
 }
 
 .final-banner {

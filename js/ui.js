@@ -3,21 +3,42 @@
 
 import { SLOTS } from "./constants.js";
 import { eligibleOpenSlots } from "./draft.js";
-import { currentTier, nextTier, mostDraftedPlayer } from "./profile.js";
+import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS } from "./profile.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
 
-export function renderPositionSelector(container, roster, selectedSlot, onSelect) {
+/**
+ * @param eligibleSlotsForPendingPlayer null when no player is pending yet
+ *   (all slots shown as plain status, none clickable) - or an array of the
+ *   pending player's eligible open slots (those glow and are clickable;
+ *   other open slots dim since they don't apply to this player).
+ */
+export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect) {
   container.innerHTML = "";
   for (const slot of SLOTS) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "position-btn" + (slot === selectedSlot ? " selected" : "");
     const filled = !!roster[slot];
-    btn.textContent = filled ? `${SLOT_LABELS[slot]} ✓` : SLOT_LABELS[slot];
-    btn.disabled = filled;
-    if (!filled) btn.addEventListener("click", () => onSelect(slot));
+    let className = "position-btn";
+    let clickable = false;
+
+    if (filled) {
+      btn.textContent = `${SLOT_LABELS[slot]} ✓`;
+    } else {
+      btn.textContent = SLOT_LABELS[slot];
+      if (eligibleSlotsForPendingPlayer) {
+        if (eligibleSlotsForPendingPlayer.includes(slot)) {
+          className += " eligible";
+          clickable = true;
+        } else {
+          className += " awaiting-dim";
+        }
+      }
+    }
+    btn.className = className;
+    btn.disabled = !clickable;
+    if (clickable) btn.addEventListener("click", () => onSelect(slot));
     container.appendChild(btn);
   }
 }
@@ -61,11 +82,14 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
 }
 
 /**
- * Renders the current squad's player pool - names and positions only, no
- * stats (the whole point is drafting on real basketball knowledge).
- * `onPick(player)` fires when an eligible-for-`selectedSlot` card is clicked.
+ * Renders the current squad's full player pool - names and positions only,
+ * no stats (the whole point is drafting on real basketball knowledge).
+ * A card is enabled if the player has ANY eligible open slot; which slot
+ * gets decided afterward via the position selector. `onPick(player)` fires
+ * on click of an eligible card. `pendingPlayerName` highlights the
+ * currently-selected-awaiting-slot player, if any.
  */
-export function renderPool(container, squad, filterText, roster, selectedSlot, onPick) {
+export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick) {
   container.innerHTML = "";
   const filter = filterText.trim().toLowerCase();
   const players = squad.players.filter((p) => p.name.toLowerCase().includes(filter));
@@ -79,9 +103,10 @@ export function renderPool(container, squad, filterText, roster, selectedSlot, o
   }
 
   for (const p of players) {
-    const eligible = eligibleOpenSlots(p, roster).includes(selectedSlot);
+    const slots = eligibleOpenSlots(p, roster);
+    const eligible = slots.length > 0;
     const card = document.createElement("div");
-    card.className = "player-card" + (eligible ? "" : " disabled");
+    card.className = "player-card" + (eligible ? "" : " disabled") + (p.name === pendingPlayerName ? " pending" : "");
 
     const name = document.createElement("span");
     name.className = "player-card-name";
@@ -122,25 +147,49 @@ export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, bo
   container.innerHTML = boxTable(rosterA, boxA, labelA) + boxTable(rosterB, boxB, labelB);
 }
 
-/** Live quarter-by-quarter scoreboard - a running score display, not a
- * detailed per-quarter stat table. `periodLabel` e.g. "Q2" or "Final". */
-export function renderScoreboard(container, labelA, scoreA, labelB, scoreB, periodLabel, isLive) {
+/**
+ * NBA broadcast-style scoreboard: a big score up top, and a quarter-by-
+ * quarter grid underneath that fills in as periods complete.
+ * @param periods array of {label, a, b} for periods played so far
+ * @param periodsRemaining count of regulation periods not yet played (shown
+ *   as "-" placeholder columns, e.g. 4 at tip-off, 0 once Q4 is in)
+ */
+export function renderScoreboard(container, labelA, labelB, periods, periodsRemaining, totalA, totalB, statusLabel, isLive) {
   container.innerHTML = "";
+
   const teams = document.createElement("div");
   teams.className = "scoreboard-teams";
   teams.innerHTML = `
     <span class="scoreboard-team-name">${labelA}</span>
-    <span class="scoreboard-score">${Math.round(scoreA)}</span>
+    <span class="scoreboard-score">${Math.round(totalA)}</span>
     <span class="scoreboard-dash">–</span>
-    <span class="scoreboard-score">${Math.round(scoreB)}</span>
+    <span class="scoreboard-score">${Math.round(totalB)}</span>
     <span class="scoreboard-team-name">${labelB}</span>
   `;
   container.appendChild(teams);
 
   const period = document.createElement("div");
   period.className = "scoreboard-period" + (isLive ? " live" : "");
-  period.textContent = periodLabel;
+  period.textContent = statusLabel;
   container.appendChild(period);
+
+  const headerCells = periods.map((p, i) => `<th${i === periods.length - 1 && isLive ? ' class="period-current"' : ""}>${p.label}</th>`).join("");
+  const pendingCells = Array.from({ length: periodsRemaining }, () => `<th>–</th>`).join("");
+
+  const rowCells = (key) =>
+    periods.map((p) => `<td>${Math.round(p[key])}</td>`).join("") +
+    Array.from({ length: periodsRemaining }, () => `<td class="period-pending">–</td>`).join("");
+
+  const grid = document.createElement("table");
+  grid.className = "scoreboard-grid";
+  grid.innerHTML = `
+    <thead><tr><th class="team-col"></th>${headerCells}${pendingCells}<th>T</th></tr></thead>
+    <tbody>
+      <tr><td class="team-col">${labelA}</td>${rowCells("a")}<td class="grid-total">${Math.round(totalA)}</td></tr>
+      <tr><td class="team-col">${labelB}</td>${rowCells("b")}<td class="grid-total">${Math.round(totalB)}</td></tr>
+    </tbody>
+  `;
+  container.appendChild(grid);
 }
 
 export function renderTierSummary(badgeContainer, captionContainer, onlineWins) {
@@ -180,14 +229,21 @@ export function renderProfileScreen(refs, profile) {
     : `<div class="empty-note">Play a draft to start tracking this.</div>`;
 
   refs.topPerformances.innerHTML = "";
-  if (profile.topPerformances.length === 0) {
+  const bestKeys = Object.keys(STAT_LABELS);
+  const anyBests = bestKeys.some((k) => profile.personalBests[k]);
+  if (!anyBests) {
     refs.topPerformances.innerHTML = `<div class="empty-note">No games played yet.</div>`;
   } else {
-    for (const perf of profile.topPerformances.slice(0, 5)) {
+    for (const key of bestKeys) {
+      const best = profile.personalBests[key];
       const row = document.createElement("div");
       row.className = "performance-row";
-      const line = perf.line || {};
-      row.innerHTML = `<span>${perf.playerName}</span><span class="performance-line">${r(line.pts)}/${r(line.reb)}/${r(line.ast)} — vs ${perf.opponentLabel}</span>`;
+      if (best) {
+        const date = new Date(best.date).toLocaleDateString();
+        row.innerHTML = `<span>Most ${STAT_LABELS[key]} — ${best.playerName}</span><span class="performance-line">${r(best.value)} — ${date}</span>`;
+      } else {
+        row.innerHTML = `<span>Most ${STAT_LABELS[key]}</span><span class="performance-line">—</span>`;
+      }
       refs.topPerformances.appendChild(row);
     }
   }

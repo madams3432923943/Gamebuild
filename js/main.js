@@ -1,8 +1,8 @@
 // App controller: wires draft state + engine + profile to the DOM.
 
 import { PLAYERS } from "./data.js";
-import { computeDatasetStats, simulateGame, gameScore } from "./engine.js";
-import { DraftState, openSlots } from "./draft.js";
+import { computeDatasetStats, simulateGame } from "./engine.js";
+import { DraftState, eligibleOpenSlots } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS } from "./constants.js";
 import { loadProfile, recordResult, recordDraftPicks, setUsername } from "./profile.js";
 import {
@@ -85,7 +85,8 @@ const poolSearch = document.getElementById("pool-search");
 const poolList = document.getElementById("pool-list");
 const positionSelectorEl = document.getElementById("position-selector");
 const draftRoundLabel = document.getElementById("draft-round-label");
-const draftSquadLabel = document.getElementById("draft-squad-label");
+const squadBannerTeam = document.getElementById("squad-banner-team");
+const squadBannerDecade = document.getElementById("squad-banner-decade");
 const draftTurnBanner = document.getElementById("draft-turn-banner");
 const btnSkipRound = document.getElementById("btn-skip-round");
 
@@ -94,7 +95,7 @@ const game = {
   nameA: "Player 1",
   nameB: "Bot",
   draft: null,
-  round: { needNewSquad: true, resolved: {}, activeSide: "A", selectedSlot: null, pendingSlots: {} },
+  round: { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} },
   roundNumber: 0,
 };
 
@@ -117,7 +118,7 @@ function pendingSlotsFor(side) {
 
 function startDraft() {
   game.draft = new DraftState(PLAYERS);
-  game.round = { needNewSquad: true, resolved: {}, activeSide: "A", selectedSlot: null, pendingSlots: {} };
+  game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
   poolSearch.value = "";
   showScreen("draft");
@@ -155,7 +156,7 @@ function advanceDraft() {
   if (pendingHuman) {
     if (draft.hasValidPick(rosterFor(pendingHuman))) {
       game.round.activeSide = pendingHuman;
-      game.round.selectedSlot = openSlots(rosterFor(pendingHuman))[0];
+      game.round.pendingPlayer = null;
       renderDraftRound();
       return;
     }
@@ -185,14 +186,17 @@ function renderDraftRound() {
   const roster = rosterFor(side);
 
   draftRoundLabel.textContent = `Round ${game.roundNumber}`;
-  draftSquadLabel.textContent = `${draft.currentSquad.team} — ${draft.currentSquad.decade}`;
+  squadBannerTeam.textContent = draft.currentSquad.team;
+  squadBannerDecade.textContent = draft.currentSquad.decade;
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
   btnSkipRound.disabled = false;
   poolSearch.hidden = false;
 
-  renderPositionSelector(positionSelectorEl, roster, game.round.selectedSlot, (slot) => {
-    game.round.selectedSlot = slot;
-    renderDraftRound();
+  const pending = game.round.pendingPlayer;
+  const eligibleForPending = pending ? eligibleOpenSlots(pending, roster) : null;
+
+  renderPositionSelector(positionSelectorEl, roster, eligibleForPending, (slot) => {
+    finalizePick(game.round.pendingPlayer, slot);
   });
 
   renderPoolForCurrentState();
@@ -204,11 +208,19 @@ function renderDraftRound() {
 function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
-  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), game.round.selectedSlot, onPoolPick);
+  const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
+  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick);
 }
 
 function onPoolPick(player) {
-  finalizePick(player, game.round.selectedSlot);
+  const roster = rosterFor(game.round.activeSide);
+  const slots = eligibleOpenSlots(player, roster);
+  if (slots.length === 1) {
+    finalizePick(player, slots[0]);
+  } else {
+    game.round.pendingPlayer = player;
+    renderDraftRound();
+  }
 }
 
 function finalizePick(player, slot) {
@@ -216,11 +228,13 @@ function finalizePick(player, slot) {
   game.draft.makePick(side, player, slot);
   game.round.resolved[side] = true;
   game.round.pendingSlots[side] = slot;
+  game.round.pendingPlayer = null;
   advanceDraft();
 }
 
 btnSkipRound.addEventListener("click", () => {
   game.round.resolved[game.round.activeSide] = true;
+  game.round.pendingPlayer = null;
   advanceDraft();
 });
 
@@ -244,7 +258,8 @@ function renderRoundReveal() {
 function renderDraftComplete() {
   const draft = game.draft;
   draftRoundLabel.textContent = "Draft complete";
-  draftSquadLabel.textContent = "";
+  squadBannerTeam.textContent = "Rosters set";
+  squadBannerDecade.textContent = "";
   draftTurnBanner.textContent = "Both rosters are set.";
   poolSearch.hidden = true;
   btnSkipRound.disabled = true;
@@ -282,6 +297,8 @@ function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
   return deltas;
 }
 
+const REGULATION_PERIODS = 4;
+
 function runSimulation() {
   const draft = game.draft;
   const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats);
@@ -296,31 +313,35 @@ function runSimulation() {
   const deltaA = computeDisplayPeriodScores(result.quarterBoxScores, result.teamScoreA, "a");
   const deltaB = computeDisplayPeriodScores(result.quarterBoxScores, result.teamScoreB, "b");
 
+  const periodsSoFar = [];
   let runningA = 0;
   let runningB = 0;
   let i = 0;
 
-  renderScoreboard(liveScoreboard, game.nameA, 0, game.nameB, 0, "Tip-off", true);
+  renderScoreboard(liveScoreboard, game.nameA, game.nameB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
 
   function step() {
     if (i >= deltaA.length) {
-      finishGame(result);
+      finishGame(result, periodsSoFar, runningA, runningB);
       return;
     }
+    const isOt = result.quarterBoxScores[i].overtime;
+    const label = isOt ? `OT${i - REGULATION_PERIODS}` : `Q${i + 1}`;
+    periodsSoFar.push({ label, a: deltaA[i], b: deltaB[i] });
     runningA += deltaA[i];
     runningB += deltaB[i];
-    const isOt = result.quarterBoxScores[i].overtime;
-    const label = isOt ? `End of OT${i - 3}` : `End of Q${i + 1}`;
-    renderScoreboard(liveScoreboard, game.nameA, runningA, game.nameB, runningB, label, true);
+    const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
+    const periodsRemaining = Math.max(0, REGULATION_PERIODS - regulationPlayed);
+    renderScoreboard(liveScoreboard, game.nameA, game.nameB, periodsSoFar, periodsRemaining, runningA, runningB, `End of ${label}`, true);
     i += 1;
     setTimeout(step, QUARTER_REVEAL_DELAY_MS);
   }
   setTimeout(step, QUARTER_REVEAL_DELAY_MS);
 }
 
-function finishGame(result) {
+function finishGame(result, periodsSoFar, runningA, runningB) {
   const draft = game.draft;
-  renderScoreboard(liveScoreboard, game.nameA, result.teamScoreA, game.nameB, result.teamScoreB, "Final", false);
+  renderScoreboard(liveScoreboard, game.nameA, game.nameB, periodsSoFar, 0, runningA, runningB, "Final", false);
 
   const winnerName = result.winner === "A" ? game.nameA : game.nameB;
   finalBanner.textContent = `${winnerName} wins, ${result.teamScoreA}-${result.teamScoreB}${
@@ -342,15 +363,7 @@ function finishGame(result) {
 
   const mode = game.mode === "bot" ? "offline" : "online";
   const opponentLabel = game.mode === "bot" ? "Bot" : game.nameB;
-
-  let bestOwnPerformance = null;
-  for (const slot of SLOTS) {
-    const line = result.boxA[slot];
-    const gs = gameScore(line);
-    if (!bestOwnPerformance || gs > bestOwnPerformance.gameScore) {
-      bestOwnPerformance = { playerName: draft.rosterA[slot].name, gameScore: gs, line };
-    }
-  }
+  const ownLines = SLOTS.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
 
   recordResult({
     mode,
@@ -359,7 +372,7 @@ function finishGame(result) {
     scoreFor: result.teamScoreA,
     scoreAgainst: result.teamScoreB,
     mvpName: mvp.player.name,
-    bestOwnPerformance,
+    ownLines,
   });
   recordDraftPicks(SLOTS.map((slot) => draft.rosterA[slot].name));
 }

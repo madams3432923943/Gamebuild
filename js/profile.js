@@ -4,7 +4,7 @@
 // survives across sessions - the foundation for what becomes a real account
 // once this is a networked app.
 
-const STORAGE_KEY = "ballknowledge_profile_v2";
+const STORAGE_KEY = "ballknowledge_profile_v3";
 
 export const TIERS = [
   { name: "Rookie", minWins: 0 },
@@ -15,6 +15,9 @@ export const TIERS = [
   { name: "Legend", minWins: 30 },
 ];
 
+// One personal-best record per counting stat, each: {value, playerName, date}.
+export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
+
 function defaultProfile() {
   return {
     username: "",
@@ -24,7 +27,7 @@ function defaultProfile() {
     offlineLosses: 0,
     history: [],
     draftCounts: {},
-    topPerformances: [],
+    personalBests: {},
   };
 }
 
@@ -81,11 +84,13 @@ export function mostDraftedPlayer(profile) {
 
 /**
  * @param mode "online" (vs. human) or "offline" (vs. bot)
- * @param bestOwnPerformance {playerName, gameScore, line} - the best game
- *   score from the user's OWN roster this game (not necessarily the MVP,
- *   who may have played for the opponent).
+ * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
+ *   full box score of the user's OWN roster this game, used to update the
+ *   per-stat personal-best records (each stat tracked independently, so a
+ *   41-point game and a 15-assist game from different players and dates
+ *   can both be someone's all-time best in that category).
  */
-export function recordResult({ mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName, bestOwnPerformance }) {
+export function recordResult({ mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName, ownLines }) {
   const profile = loadProfile();
   if (mode === "online") {
     won ? (profile.onlineWins += 1) : (profile.onlineLosses += 1);
@@ -105,15 +110,17 @@ export function recordResult({ mode, won, opponentLabel, scoreFor, scoreAgainst,
   });
   profile.history = profile.history.slice(0, 50);
 
-  if (bestOwnPerformance) {
-    profile.topPerformances.push({
-      date: new Date().toISOString(),
-      opponentLabel,
-      mode,
-      ...bestOwnPerformance,
-    });
-    profile.topPerformances.sort((a, b) => b.gameScore - a.gameScore);
-    profile.topPerformances = profile.topPerformances.slice(0, 10);
+  if (ownLines) {
+    const date = new Date().toISOString();
+    for (const statKey of Object.keys(STAT_LABELS)) {
+      for (const { playerName, line } of ownLines) {
+        const value = line[statKey];
+        const current = profile.personalBests[statKey];
+        if (!current || value > current.value) {
+          profile.personalBests[statKey] = { value, playerName, date };
+        }
+      }
+    }
   }
 
   return saveProfile(profile);
