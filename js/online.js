@@ -2,11 +2,12 @@
 // the server-computed simulation result. Deliberately poll-based rather
 // than realtime - see the comment on watchMatch() for why.
 
-import { supabase, ensureSession } from "./supabaseClient.js";
+import { getSupabase, ensureSession } from "./supabaseClient.js";
 import { SLOTS } from "./constants.js";
 
 export async function joinQueue() {
   await ensureSession();
+  const supabase = await getSupabase();
   const { data, error } = await supabase.rpc("join_queue");
   if (error) throw error;
   return data; // { status: "waiting" } | { status: "matched", match_id }
@@ -14,6 +15,7 @@ export async function joinQueue() {
 
 export async function leaveQueue() {
   await ensureSession();
+  const supabase = await getSupabase();
   await supabase.rpc("leave_queue");
 }
 
@@ -21,6 +23,7 @@ export async function leaveQueue() {
  * would otherwise leak a hidden pick the instant it's written (before the
  * round-reveal rule in get_visible_picks() applies). */
 export async function getMatch(matchId) {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.from("matches_public").select("*").eq("id", matchId).single();
   if (error) throw error;
   return data;
@@ -30,6 +33,7 @@ export async function getMatch(matchId) {
  * enforced server-side: the opponent's current-round pick is simply absent
  * from the result until both sides have acted. */
 export async function getVisiblePicks(matchId) {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.rpc("get_visible_picks", { p_match_id: matchId });
   if (error) throw error;
   return data;
@@ -61,6 +65,7 @@ export function buildVisibleState(picks, currentRound) {
 }
 
 export async function fetchSquadPlayers(team, decade) {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.from("players").select("*").eq("team", team).eq("decade", decade);
   if (error) throw error;
   return data.map((p) => ({
@@ -78,6 +83,7 @@ export async function fetchSquadPlayers(team, decade) {
 }
 
 export async function submitPick(matchId, player, slot) {
+  const supabase = await getSupabase();
   const { error } = await supabase.rpc("submit_pick", {
     p_match_id: matchId,
     p_player_name: player.name,
@@ -89,23 +95,27 @@ export async function submitPick(matchId, player, slot) {
 }
 
 export async function submitSkip(matchId) {
+  const supabase = await getSupabase();
   const { error } = await supabase.rpc("submit_skip", { p_match_id: matchId });
   if (error) throw error;
 }
 
 export async function simulateMatch(matchId) {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.functions.invoke("simulate-match", { body: { match_id: matchId } });
   if (error) throw error;
   return data;
 }
 
 export async function getMatchResult(matchId) {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.from("match_results").select("*").eq("match_id", matchId).maybeSingle();
   if (error) throw error;
   return data;
 }
 
 export async function getUsername(userId) {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.from("profiles").select("username").eq("id", userId).maybeSingle();
   if (error || !data) return "Opponent";
   return data.username || "Opponent";

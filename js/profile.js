@@ -4,7 +4,7 @@
 // win/loss record be authoritative (only the simulate-match Edge Function
 // can write online_wins/online_losses - see the protect_online_record
 // trigger in the schema).
-import { supabase, ensureSession } from "./supabaseClient.js";
+import { getSupabase, ensureSession } from "./supabaseClient.js";
 
 export const TIERS = [
   { name: "Rookie", minWins: 0 },
@@ -54,6 +54,7 @@ function normalize(row) {
 
 export async function loadProfile() {
   const session = await ensureSession();
+  const supabase = await getSupabase();
   const { data, error } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
   if (error) throw error;
   return normalize(data);
@@ -61,6 +62,7 @@ export async function loadProfile() {
 
 export async function setUsername(name) {
   const session = await ensureSession();
+  const supabase = await getSupabase();
   const { error } = await supabase.from("profiles").update({ username: name }).eq("id", session.user.id);
   if (error) throw error;
 }
@@ -74,6 +76,7 @@ export async function recordDraftPicks(playerNames) {
   const draftCounts = { ...profile.draftCounts };
   for (const name of playerNames) draftCounts[name] = (draftCounts[name] || 0) + 1;
   const session = await ensureSession();
+  const supabase = await getSupabase();
   const { error } = await supabase.from("profiles").update({ draft_counts: draftCounts }).eq("id", session.user.id);
   if (error) throw error;
 }
@@ -108,6 +111,7 @@ export async function recordPracticeResult({ mode, won, opponentLabel, scoreFor,
   );
 
   const session = await ensureSession();
+  const supabase = await getSupabase();
   const { error } = await supabase
     .from("profiles")
     .update({
