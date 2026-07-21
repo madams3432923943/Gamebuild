@@ -253,7 +253,7 @@ export function renderProfileScreen(refs, profile) {
     const tr = document.createElement("tr");
     tr.className = entry.won ? "win-row" : "loss-row";
     const date = new Date(entry.date).toLocaleDateString();
-    const modeTag = entry.mode === "online" ? "Online" : "Offline";
+    const modeTag = entry.mode === "online" ? "Online" : entry.mode === "local" ? "Local" : "Offline";
     tr.innerHTML = `<td>${date}</td><td>${entry.won ? "Win" : "Loss"} vs ${entry.opponentLabel} (${modeTag})</td><td>${entry.scoreFor}-${entry.scoreAgainst}</td><td>${entry.mvpName}</td>`;
     refs.historyBody.appendChild(tr);
   }

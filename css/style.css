@@ -183,6 +183,29 @@ input[type="text"]:focus-visible {
   margin: 0.25rem 0 0.9rem;
 }
 
+.search-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  color: var(--chalk);
+  font-size: 0.9rem;
+}
+
+.search-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--court-line);
+  border-top-color: var(--hardwood);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .knowledge-hint {
   color: var(--hardwood-bright);
   font-size: 0.78rem;

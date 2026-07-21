@@ -1,10 +1,10 @@
-// Persistent player profile: identity, tier progression, online (vs. human)
-// and offline (vs. bot) records kept separate, top individual performances,
-// and most-drafted-player tracking. Persisted to localStorage so it
-// survives across sessions - the foundation for what becomes a real account
-// once this is a networked app.
-
-const STORAGE_KEY = "ballknowledge_profile_v3";
+// Persistent player profile, backed by Supabase (table: profiles) instead
+// of localStorage - this is what makes the profile survive across devices
+// once real accounts replace anonymous auth, and it's what lets the online
+// win/loss record be authoritative (only the simulate-match Edge Function
+// can write online_wins/online_losses - see the protect_online_record
+// trigger in the schema).
+import { supabase, ensureSession } from "./supabaseClient.js";
 
 export const TIERS = [
   { name: "Rookie", minWins: 0 },
@@ -18,42 +18,8 @@ export const TIERS = [
 // One personal-best record per counting stat, each: {value, playerName, date}.
 export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
 
-function defaultProfile() {
-  return {
-    username: "",
-    onlineWins: 0,
-    onlineLosses: 0,
-    offlineWins: 0,
-    offlineLosses: 0,
-    history: [],
-    draftCounts: {},
-    personalBests: {},
-  };
-}
-
-export function loadProfile() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultProfile();
-    return { ...defaultProfile(), ...JSON.parse(raw) };
-  } catch {
-    return defaultProfile();
-  }
-}
-
-function saveProfile(profile) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-  return profile;
-}
-
-export function setUsername(name) {
-  const profile = loadProfile();
-  profile.username = name;
-  return saveProfile(profile);
-}
-
-// Tier progression tracks ONLINE (vs. human) wins only - bot games are
-// practice, not rank, since the bot's difficulty isn't a fair ranking bar.
+// Tier progression tracks ONLINE (vs. human) wins only - bot/local games are
+// practice, not rank, since neither is a fair, verified ranking bar.
 export function currentTier(onlineWins) {
   let tier = TIERS[0];
   for (const t of TIERS) if (onlineWins >= t.minWins) tier = t;
@@ -64,16 +30,6 @@ export function nextTier(onlineWins) {
   return TIERS.find((t) => t.minWins > onlineWins) || null;
 }
 
-/** Records every player name drafted onto the user's own roster this game,
- * for the "most drafted player" profile stat. */
-export function recordDraftPicks(playerNames) {
-  const profile = loadProfile();
-  for (const name of playerNames) {
-    profile.draftCounts[name] = (profile.draftCounts[name] || 0) + 1;
-  }
-  return saveProfile(profile);
-}
-
 export function mostDraftedPlayer(profile) {
   let best = null;
   for (const [name, count] of Object.entries(profile.draftCounts)) {
@@ -82,50 +38,84 @@ export function mostDraftedPlayer(profile) {
   return best;
 }
 
+function normalize(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    onlineWins: row.online_wins,
+    onlineLosses: row.online_losses,
+    offlineWins: row.offline_wins,
+    offlineLosses: row.offline_losses,
+    draftCounts: row.draft_counts || {},
+    personalBests: row.personal_bests || {},
+    history: row.history || [],
+  };
+}
+
+export async function loadProfile() {
+  const session = await ensureSession();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+  if (error) throw error;
+  return normalize(data);
+}
+
+export async function setUsername(name) {
+  const session = await ensureSession();
+  const { error } = await supabase.from("profiles").update({ username: name }).eq("id", session.user.id);
+  if (error) throw error;
+}
+
+/** Records every player name drafted onto the user's own roster this game,
+ * for the "most drafted player" profile stat. Only for bot/local games -
+ * online games get this recorded server-side by simulate-match, since a
+ * client can't be trusted to self-report a competitive result. */
+export async function recordDraftPicks(playerNames) {
+  const profile = await loadProfile();
+  const draftCounts = { ...profile.draftCounts };
+  for (const name of playerNames) draftCounts[name] = (draftCounts[name] || 0) + 1;
+  const session = await ensureSession();
+  const { error } = await supabase.from("profiles").update({ draft_counts: draftCounts }).eq("id", session.user.id);
+  if (error) throw error;
+}
+
 /**
- * @param mode "online" (vs. human) or "offline" (vs. bot)
+ * Records a finished bot or local-pass-and-play game. Online (matchmaking)
+ * results are never recorded this way - see js/online.js, which reads the
+ * server-computed outcome instead.
+ * @param mode "offline" (vs. bot) or "local" (pass & play)
  * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
  *   full box score of the user's OWN roster this game, used to update the
- *   per-stat personal-best records (each stat tracked independently, so a
- *   41-point game and a 15-assist game from different players and dates
- *   can both be someone's all-time best in that category).
+ *   per-stat personal-best records.
  */
-export function recordResult({ mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName, ownLines }) {
-  const profile = loadProfile();
-  if (mode === "online") {
-    won ? (profile.onlineWins += 1) : (profile.onlineLosses += 1);
-  } else {
-    won ? (profile.offlineWins += 1) : (profile.offlineLosses += 1);
-  }
+export async function recordPracticeResult({ mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName, ownLines }) {
+  const profile = await loadProfile();
+  const date = new Date().toISOString();
 
-  profile.history.unshift({
-    date: new Date().toISOString(),
-    mode,
-    won,
-    opponentLabel,
-    scoreFor,
-    scoreAgainst,
-    mvpName,
-    tier: currentTier(profile.onlineWins).name,
-  });
-  profile.history = profile.history.slice(0, 50);
-
-  if (ownLines) {
-    const date = new Date().toISOString();
-    for (const statKey of Object.keys(STAT_LABELS)) {
-      for (const { playerName, line } of ownLines) {
-        const value = line[statKey];
-        const current = profile.personalBests[statKey];
-        if (!current || value > current.value) {
-          profile.personalBests[statKey] = { value, playerName, date };
-        }
+  const personalBests = { ...profile.personalBests };
+  for (const statKey of Object.keys(STAT_LABELS)) {
+    for (const { playerName, line } of ownLines) {
+      const value = line[statKey];
+      const current = personalBests[statKey];
+      if (!current || value > current.value) {
+        personalBests[statKey] = { value, playerName, date };
       }
     }
   }
 
-  return saveProfile(profile);
-}
+  const history = [{ date, mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
+    0,
+    50
+  );
 
-export function resetProfile() {
-  return saveProfile(defaultProfile());
+  const session = await ensureSession();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      offline_wins: profile.offlineWins + (won ? 1 : 0),
+      offline_losses: profile.offlineLosses + (won ? 0 : 1),
+      personal_bests: personalBests,
+      history,
+    })
+    .eq("id", session.user.id);
+  if (error) throw error;
 }

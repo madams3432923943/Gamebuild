@@ -1,10 +1,28 @@
 // App controller: wires draft state + engine + profile to the DOM.
+// Three modes share these same screens/DOM elements:
+//   - "bot"/"local": synchronous, client-only (DraftState from draft.js).
+//   - "online": async, server-authoritative (Supabase - see online.js).
 
 import { PLAYERS } from "./data.js";
-import { computeDatasetStats, simulateGame } from "./engine.js";
+import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS } from "./constants.js";
-import { loadProfile, recordResult, recordDraftPicks, setUsername } from "./profile.js";
+import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername } from "./profile.js";
+import { ensureSession } from "./supabaseClient.js";
+import {
+  joinQueue,
+  leaveQueue,
+  getMatch,
+  getVisiblePicks,
+  buildVisibleState,
+  fetchSquadPlayers,
+  submitPick,
+  submitSkip,
+  simulateMatch,
+  getMatchResult,
+  getUsername,
+  watchMatch,
+} from "./online.js";
 import {
   renderPositionSelector,
   renderRosterPanel,
@@ -14,7 +32,15 @@ import {
   renderProfileScreen,
 } from "./ui.js";
 
+// datasetStats for LOCAL (bot/friend) games only - online games are
+// simulated server-side by the simulate-match Edge Function, using its own
+// copy of the same dataset/engine so a client can't fake a result.
+import { computeDatasetStats } from "./engine.js";
 const datasetStats = computeDatasetStats(PLAYERS);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const screens = {
   home: document.getElementById("screen-home"),
@@ -34,15 +60,31 @@ function setActiveNav(which) {
   document.getElementById("nav-profile").classList.toggle("active", which === "profile");
 }
 
+function cleanupOnlineWatcher() {
+  if (game.online && game.online.stopWatcher) {
+    game.online.stopWatcher();
+    game.online.stopWatcher = null;
+  }
+}
+
 // ---- Home screen ----
 
 const inputNameA = document.getElementById("input-name-a");
 const inputNameB = document.getElementById("input-name-b");
 const rowNameB = document.getElementById("row-name-b");
 const modeRadios = document.querySelectorAll('input[name="mode"]');
+const btnStartDraft = document.getElementById("btn-start-draft");
+const btnCancelSearch = document.getElementById("btn-cancel-search");
+const searchStatusEl = document.getElementById("search-status");
 
-const initialProfile = loadProfile();
-if (initialProfile.username) inputNameA.value = initialProfile.username;
+(async () => {
+  try {
+    const profile = await loadProfile();
+    if (profile.username) inputNameA.value = profile.username;
+  } catch (e) {
+    console.error("Failed to load profile on startup:", e);
+  }
+})();
 
 for (const radio of modeRadios) {
   radio.addEventListener("change", () => {
@@ -54,30 +96,86 @@ function getMode() {
   return [...modeRadios].find((r) => r.checked).value;
 }
 
-document.getElementById("btn-start-draft").addEventListener("click", () => {
+let onlineSearchActive = false;
+
+async function startOnlineSearch() {
+  onlineSearchActive = true;
+  btnStartDraft.disabled = true;
+  btnCancelSearch.classList.remove("hidden");
+  searchStatusEl.classList.remove("hidden");
+  searchStatusEl.innerHTML = '<span class="search-spinner"></span> Searching for an opponent…';
+
+  try {
+    while (onlineSearchActive) {
+      const res = await joinQueue();
+      if (res.status === "matched") {
+        await enterOnlineMatch(res.match_id);
+        return;
+      }
+      await sleep(2000);
+    }
+  } catch (e) {
+    searchStatusEl.textContent = "Couldn't reach matchmaking: " + e.message;
+  } finally {
+    if (onlineSearchActive === false) {
+      btnStartDraft.disabled = false;
+      btnCancelSearch.classList.add("hidden");
+      searchStatusEl.classList.add("hidden");
+    }
+  }
+}
+
+btnCancelSearch.addEventListener("click", async () => {
+  onlineSearchActive = false;
+  btnStartDraft.disabled = false;
+  btnCancelSearch.classList.add("hidden");
+  searchStatusEl.classList.add("hidden");
+  try {
+    await leaveQueue();
+  } catch (e) {
+    console.error(e);
+  }
+});
+
+btnStartDraft.addEventListener("click", async () => {
   const mode = getMode();
   const nameA = inputNameA.value.trim() || "Player 1";
+  cleanupOnlineWatcher();
+
+  try {
+    await setUsername(nameA);
+  } catch (e) {
+    console.error("Failed to save username:", e);
+  }
+
+  if (mode === "online") {
+    startOnlineSearch();
+    return;
+  }
+
+  game.mode = mode;
   game.nameA = nameA;
   game.nameB = mode === "local" ? inputNameB.value.trim() || "Player 2" : "Bot";
-  game.mode = mode;
-  setUsername(nameA);
   startDraft();
 });
 
 document.getElementById("btn-brand").addEventListener("click", () => {
+  cleanupOnlineWatcher();
   setActiveNav("play");
   showScreen("home");
 });
 document.getElementById("nav-play").addEventListener("click", () => {
+  cleanupOnlineWatcher();
   setActiveNav("play");
   showScreen("home");
 });
 document.getElementById("nav-profile").addEventListener("click", () => {
+  cleanupOnlineWatcher();
   setActiveNav("profile");
   openProfileScreen();
 });
 
-// ---- Draft screen ----
+// ---- Draft screen (shared DOM for all three modes) ----
 
 const rosterPanelA = document.getElementById("roster-panel-a");
 const rosterPanelB = document.getElementById("roster-panel-b");
@@ -97,7 +195,10 @@ const game = {
   draft: null,
   round: { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} },
   roundNumber: 0,
+  online: null,
 };
+
+// ---- Local (bot/friend) draft flow ----
 
 function humanSides() {
   return game.mode === "local" ? ["A", "B"] : ["A"];
@@ -165,8 +266,6 @@ function advanceDraft() {
     return;
   }
 
-  // Every side that needed to act this round has. If anyone actually
-  // picked, hold on a "locked in" reveal beat before moving on.
   if (Object.keys(game.round.pendingSlots).length === 0) {
     game.round.needNewSquad = true;
     advanceDraft();
@@ -232,17 +331,6 @@ function finalizePick(player, slot) {
   advanceDraft();
 }
 
-btnSkipRound.addEventListener("click", () => {
-  game.round.resolved[game.round.activeSide] = true;
-  game.round.pendingPlayer = null;
-  advanceDraft();
-});
-
-poolSearch.addEventListener("input", () => {
-  if (!game.draft || !game.draft.currentSquad) return;
-  renderPoolForCurrentState();
-});
-
 function renderRoundReveal() {
   const draft = game.draft;
   draftTurnBanner.textContent = "Revealing picks…";
@@ -272,11 +360,148 @@ function renderDraftComplete() {
   const btn = document.createElement("button");
   btn.className = "btn btn-primary btn-block";
   btn.textContent = "Simulate Game";
-  btn.addEventListener("click", runSimulation);
+  btn.addEventListener("click", runLocalSimulation);
   poolList.appendChild(btn);
 }
 
-// ---- Game screen (live scoreboard + final box score) ----
+// ---- Online draft flow ----
+
+async function enterOnlineMatch(matchId) {
+  btnStartDraft.disabled = false;
+  btnCancelSearch.classList.add("hidden");
+  searchStatusEl.classList.add("hidden");
+
+  game.mode = "online";
+  const session = await ensureSession();
+  const match = await getMatch(matchId);
+  const mySide = match.player_a === session.user.id ? "A" : "B";
+  const oppUserId = mySide === "A" ? match.player_b : match.player_a;
+  const oppUsername = await getUsername(oppUserId);
+
+  game.online = {
+    matchId,
+    mySide,
+    oppUsername,
+    pendingPlayer: null,
+    myRoster: {},
+    oppRoster: {},
+    currentSquad: null,
+    stopWatcher: null,
+  };
+
+  showScreen("draft");
+  await renderOnlineDraftRound(match);
+  game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange);
+}
+
+async function onOnlineMatchChange(match) {
+  if (match.status === "ready_to_simulate" || match.status === "complete") {
+    cleanupOnlineWatcher();
+    await runOnlineSimulationFlow(match.id);
+    return;
+  }
+  await renderOnlineDraftRound(match);
+}
+
+async function renderOnlineDraftRound(match) {
+  const o = game.online;
+  if (!o) return;
+
+  draftRoundLabel.textContent = `Round ${match.round_number}`;
+  squadBannerTeam.textContent = match.current_squad_team;
+  squadBannerDecade.textContent = match.current_squad_decade;
+  draftTurnBanner.textContent = "Your Pick";
+  btnSkipRound.disabled = false;
+  poolSearch.hidden = false;
+  o.pendingPlayer = null;
+
+  const [players, picks] = await Promise.all([
+    fetchSquadPlayers(match.current_squad_team, match.current_squad_decade),
+    getVisiblePicks(o.matchId),
+  ]);
+  o.currentSquad = { team: match.current_squad_team, decade: match.current_squad_decade, players };
+
+  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number);
+  o.myRoster = o.mySide === "A" ? rosterA : rosterB;
+  o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
+
+  renderOnlinePositionAndPool();
+  renderRosterPanel(rosterPanelA, o.myRoster, "You", true);
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false);
+}
+
+function renderOnlinePositionAndPool() {
+  const o = game.online;
+  const eligibleForPending = o.pendingPlayer ? eligibleOpenSlots(o.pendingPlayer, o.myRoster) : null;
+  renderPositionSelector(positionSelectorEl, o.myRoster, eligibleForPending, (slot) => {
+    finalizeOnlinePick(o.pendingPlayer, slot);
+  });
+  const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
+  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick);
+}
+
+function onOnlinePoolPick(player) {
+  const o = game.online;
+  const slots = eligibleOpenSlots(player, o.myRoster);
+  if (slots.length === 1) {
+    finalizeOnlinePick(player, slots[0]);
+  } else {
+    o.pendingPlayer = player;
+    renderOnlinePositionAndPool();
+  }
+}
+
+async function finalizeOnlinePick(player, slot) {
+  const o = game.online;
+  o.pendingPlayer = null;
+  draftTurnBanner.textContent = "Locking in pick…";
+  btnSkipRound.disabled = true;
+  poolSearch.hidden = true;
+  positionSelectorEl.innerHTML = "";
+  poolList.innerHTML = "";
+
+  try {
+    await submitPick(o.matchId, player, slot);
+    draftTurnBanner.textContent = "Waiting for opponent…";
+  } catch (e) {
+    draftTurnBanner.textContent = "That pick didn't go through (" + e.message + ") - refreshing round.";
+    const match = await getMatch(o.matchId);
+    await renderOnlineDraftRound(match);
+  }
+}
+
+async function onlineSkip() {
+  const o = game.online;
+  draftTurnBanner.textContent = "Skipping…";
+  btnSkipRound.disabled = true;
+  try {
+    await submitSkip(o.matchId);
+    draftTurnBanner.textContent = "Waiting for opponent…";
+  } catch (e) {
+    const match = await getMatch(o.matchId);
+    await renderOnlineDraftRound(match);
+  }
+}
+
+btnSkipRound.addEventListener("click", () => {
+  if (game.mode === "online") {
+    onlineSkip();
+  } else {
+    game.round.resolved[game.round.activeSide] = true;
+    game.round.pendingPlayer = null;
+    advanceDraft();
+  }
+});
+
+poolSearch.addEventListener("input", () => {
+  if (game.mode === "online") {
+    if (game.online && game.online.currentSquad) renderOnlinePositionAndPool();
+  } else if (game.draft && game.draft.currentSquad) {
+    renderPoolForCurrentState();
+  }
+});
+
+// ---- Game screen (live scoreboard + final box score) - shared by all modes ----
 
 const liveScoreboard = document.getElementById("live-scoreboard");
 const finalBanner = document.getElementById("final-banner");
@@ -284,6 +509,8 @@ const mvpCallout = document.getElementById("mvp-callout");
 const fullBoxScore = document.getElementById("full-box-score");
 const btnToProfile = document.getElementById("btn-to-profile");
 const btnPlayAgain = document.getElementById("btn-play-again");
+
+const REGULATION_PERIODS = 4;
 
 /** Distributes a team's true final score across periods proportionally to
  * that period's raw simulated share, so the live reveal ends up exactly at
@@ -297,12 +524,10 @@ function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
   return deltas;
 }
 
-const REGULATION_PERIODS = 4;
-
-function runSimulation() {
-  const draft = game.draft;
-  const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats);
-
+/** Plays the live quarter-by-quarter reveal and final box score for any
+ * already-computed result (local simulateGame() output or a normalized
+ * server result), then calls onComplete() once everything is on screen. */
+function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete }) {
   finalBanner.classList.add("hidden");
   mvpCallout.classList.add("hidden");
   fullBoxScore.classList.add("hidden");
@@ -318,11 +543,11 @@ function runSimulation() {
   let runningB = 0;
   let i = 0;
 
-  renderScoreboard(liveScoreboard, game.nameA, game.nameB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
+  renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
 
   function step() {
     if (i >= deltaA.length) {
-      finishGame(result, periodsSoFar, runningA, runningB);
+      finish();
       return;
     }
     const isOt = result.quarterBoxScores[i].overtime;
@@ -332,56 +557,163 @@ function runSimulation() {
     runningB += deltaB[i];
     const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
     const periodsRemaining = Math.max(0, REGULATION_PERIODS - regulationPlayed);
-    renderScoreboard(liveScoreboard, game.nameA, game.nameB, periodsSoFar, periodsRemaining, runningA, runningB, `End of ${label}`, true);
+    renderScoreboard(
+      liveScoreboard,
+      labelA,
+      labelB,
+      periodsSoFar,
+      periodsRemaining,
+      runningA,
+      runningB,
+      `End of ${label}`,
+      true
+    );
     i += 1;
     setTimeout(step, QUARTER_REVEAL_DELAY_MS);
   }
+
+  function finish() {
+    renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
+
+    const winnerName = result.winner === "A" ? labelA : labelB;
+    finalBanner.textContent = `${winnerName} wins, ${result.teamScoreA}-${result.teamScoreB}${
+      result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : ""
+    }`;
+    finalBanner.classList.remove("hidden");
+
+    const mvp = result.mvp;
+    const mvpTeamName = mvp.side === "A" ? labelA : labelB;
+    mvpCallout.textContent = `MVP: ${mvp.player.name} (${mvpTeamName}) — ${Math.round(
+      mvp.line.pts
+    )} PTS / ${Math.round(mvp.line.reb)} REB / ${Math.round(mvp.line.ast)} AST`;
+    mvpCallout.classList.remove("hidden");
+
+    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB);
+    fullBoxScore.classList.remove("hidden");
+    btnToProfile.classList.remove("hidden");
+    btnPlayAgain.classList.remove("hidden");
+
+    onComplete();
+  }
+
   setTimeout(step, QUARTER_REVEAL_DELAY_MS);
 }
 
-function finishGame(result, periodsSoFar, runningA, runningB) {
+function runLocalSimulation() {
   const draft = game.draft;
-  renderScoreboard(liveScoreboard, game.nameA, game.nameB, periodsSoFar, 0, runningA, runningB, "Final", false);
+  const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats);
 
-  const winnerName = result.winner === "A" ? game.nameA : game.nameB;
-  finalBanner.textContent = `${winnerName} wins, ${result.teamScoreA}-${result.teamScoreB}${
-    result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : ""
-  }`;
-  finalBanner.classList.remove("hidden");
+  playOutResult({
+    result,
+    labelA: game.nameA,
+    labelB: game.nameB,
+    rosterA: draft.rosterA,
+    rosterB: draft.rosterB,
+    onComplete: () => {
+      const mode = game.mode === "bot" ? "offline" : "local";
+      const opponentLabel = game.mode === "bot" ? "Bot" : game.nameB;
+      const ownLines = SLOTS.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
 
-  const mvp = result.mvp;
-  const mvpTeamName = mvp.side === "A" ? game.nameA : game.nameB;
-  mvpCallout.textContent = `MVP: ${mvp.player.name} (${mvpTeamName}) — ${Math.round(mvp.line.pts)} PTS / ${Math.round(
-    mvp.line.reb
-  )} REB / ${Math.round(mvp.line.ast)} AST`;
-  mvpCallout.classList.remove("hidden");
+      recordPracticeResult({
+        mode,
+        won: result.winner === "A",
+        opponentLabel,
+        scoreFor: result.teamScoreA,
+        scoreAgainst: result.teamScoreB,
+        mvpName: result.mvp.player.name,
+        ownLines,
+      }).catch((e) => console.error("Failed to record result:", e));
 
-  renderFullBoxScore(fullBoxScore, draft.rosterA, result.boxA, game.nameA, draft.rosterB, result.boxB, game.nameB);
-  fullBoxScore.classList.remove("hidden");
-  btnToProfile.classList.remove("hidden");
-  btnPlayAgain.classList.remove("hidden");
-
-  const mode = game.mode === "bot" ? "offline" : "online";
-  const opponentLabel = game.mode === "bot" ? "Bot" : game.nameB;
-  const ownLines = SLOTS.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
-
-  recordResult({
-    mode,
-    won: result.winner === "A",
-    opponentLabel,
-    scoreFor: result.teamScoreA,
-    scoreAgainst: result.teamScoreB,
-    mvpName: mvp.player.name,
-    ownLines,
+      recordDraftPicks(SLOTS.map((slot) => draft.rosterA[slot].name)).catch((e) =>
+        console.error("Failed to record draft picks:", e)
+      );
+    },
   });
-  recordDraftPicks(SLOTS.map((slot) => draft.rosterA[slot].name));
+}
+
+/** Re-expresses a server match_results row (whose a/b sides refer to the
+ * DB's player_a/player_b, not "me") into the "A = me" frame every render
+ * function here already expects. */
+function normalizeServerResult(dbResult, iAmA) {
+  const dbSideIsMe = (side) => side === (iAmA ? "A" : "B");
+  return {
+    teamScoreA: iAmA ? dbResult.score_a : dbResult.score_b,
+    teamScoreB: iAmA ? dbResult.score_b : dbResult.score_a,
+    boxA: iAmA ? dbResult.box_a : dbResult.box_b,
+    boxB: iAmA ? dbResult.box_b : dbResult.box_a,
+    quarterBoxScores: dbResult.period_scores.map((q) => ({
+      a: iAmA ? q.a : q.b,
+      b: iAmA ? q.b : q.a,
+      overtime: q.overtime,
+    })),
+    overtimePeriods: dbResult.overtime_periods,
+    winner: dbSideIsMe(dbResult.winner) ? "A" : "B",
+    mvp: {
+      player: { name: dbResult.mvp.name },
+      side: dbSideIsMe(dbResult.mvp.side) ? "A" : "B",
+      line: dbResult.mvp.line,
+    },
+  };
+}
+
+async function runOnlineSimulationFlow(matchId) {
+  const o = game.online;
+  showScreen("game");
+  finalBanner.classList.add("hidden");
+  mvpCallout.classList.add("hidden");
+  fullBoxScore.classList.add("hidden");
+  btnToProfile.classList.add("hidden");
+  btnPlayAgain.classList.add("hidden");
+  renderScoreboard(liveScoreboard, "You", o.oppUsername, [], REGULATION_PERIODS, 0, 0, "Simulating…", true);
+
+  try {
+    await simulateMatch(matchId);
+  } catch (e) {
+    console.error("simulate-match call failed (may already be done by the other player):", e);
+  }
+
+  let dbResult = await getMatchResult(matchId);
+  let tries = 0;
+  while (!dbResult && tries < 12) {
+    await sleep(500);
+    dbResult = await getMatchResult(matchId);
+    tries += 1;
+  }
+
+  if (!dbResult) {
+    finalBanner.textContent = "Couldn't load the result - check Profile > Recent Games in a moment.";
+    finalBanner.classList.remove("hidden");
+    return;
+  }
+
+  const iAmA = o.mySide === "A";
+  const result = normalizeServerResult(dbResult, iAmA);
+
+  const picks = await getVisiblePicks(matchId);
+  const { rosterA, rosterB } = buildVisibleState(picks, Infinity);
+  const myRosterFinal = iAmA ? rosterA : rosterB;
+  const oppRosterFinal = iAmA ? rosterB : rosterA;
+
+  playOutResult({
+    result,
+    labelA: "You",
+    labelB: o.oppUsername,
+    rosterA: myRosterFinal,
+    rosterB: oppRosterFinal,
+    onComplete: () => {
+      // online_wins/online_losses, personal_bests, draft_counts, and history
+      // were already written server-side by simulate-match.
+    },
+  });
 }
 
 btnPlayAgain.addEventListener("click", () => {
+  cleanupOnlineWatcher();
   setActiveNav("play");
   showScreen("home");
 });
 btnToProfile.addEventListener("click", () => {
+  cleanupOnlineWatcher();
   setActiveNav("profile");
   openProfileScreen();
 });
@@ -399,13 +731,22 @@ const profileRefs = {
   historyBody: document.getElementById("history-body"),
 };
 
-function openProfileScreen() {
-  renderProfileScreen(profileRefs, loadProfile());
+async function openProfileScreen() {
   showScreen("profile");
+  try {
+    const profile = await loadProfile();
+    renderProfileScreen(profileRefs, profile);
+  } catch (e) {
+    console.error("Failed to load profile:", e);
+  }
 }
 
-profileRefs.usernameInput.addEventListener("change", () => {
+profileRefs.usernameInput.addEventListener("change", async () => {
   const name = profileRefs.usernameInput.value.trim();
-  setUsername(name);
+  try {
+    await setUsername(name);
+  } catch (e) {
+    console.error("Failed to save username:", e);
+  }
   inputNameA.value = name;
 });
