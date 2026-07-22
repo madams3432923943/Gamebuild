@@ -12,6 +12,10 @@ export const PLAYERS = [
   { name: "Doc Rivers", team: "Atlanta Hawks", decade: "1980s", pos: ["PG"], ppg: 11.7, rpg: 3.2, apg: 6.9, spg: 1.9, bpg: 0.2, tov: 2.5 },
   { name: "Randy Wittman", team: "Atlanta Hawks", decade: "1980s", pos: ["SG","SF"], ppg: 9.5, rpg: 2.5, apg: 2.8, spg: 0.8, bpg: 0.2, tov: 1.5 },
   { name: "Spud Webb", team: "Atlanta Hawks", decade: "1980s", pos: ["PG"], ppg: 9.9, rpg: 2.3, apg: 5.4, spg: 1.2, bpg: 0.1, tov: 2.0 },
+  { name: "Dan Roundfield", team: "Atlanta Hawks", decade: "1980s", pos: ["PF"], ppg: 13.5, rpg: 9.5, apg: 2.2, spg: 1.2, bpg: 1.0, tov: 1.8 },
+  { name: "Mike Mitchell", team: "Atlanta Hawks", decade: "1980s", pos: ["SF"], ppg: 17.0, rpg: 5.0, apg: 1.5, spg: 0.8, bpg: 0.3, tov: 1.8 },
+  { name: "Antoine Carr", team: "Atlanta Hawks", decade: "1980s", pos: ["PF","C"], ppg: 10.5, rpg: 4.5, apg: 1.0, spg: 0.5, bpg: 0.8, tov: 1.3 },
+  { name: "John Battle", team: "Atlanta Hawks", decade: "1980s", pos: ["PG","SG"], ppg: 9.0, rpg: 1.5, apg: 3.0, spg: 0.8, bpg: 0.1, tov: 1.3 },
 
   // --- Boston Celtics 1980s ---
   { name: "Larry Bird", team: "Boston Celtics", decade: "1980s", pos: ["SF","PF"], ppg: 24.6, rpg: 10.1, apg: 6.3, spg: 1.8, bpg: 0.6, tov: 3.1 },
@@ -20,6 +24,10 @@ export const PLAYERS = [
   { name: "Dennis Johnson", team: "Boston Celtics", decade: "1980s", pos: ["PG","SG"], ppg: 15.6, rpg: 3.5, apg: 5.5, spg: 1.1, bpg: 0.3, tov: 2.2 },
   { name: "Danny Ainge", team: "Boston Celtics", decade: "1980s", pos: ["SG","PG"], ppg: 13.5, rpg: 3.0, apg: 4.5, spg: 1.3, bpg: 0.2, tov: 2.0 },
   { name: "Cedric Maxwell", team: "Boston Celtics", decade: "1980s", pos: ["SF","PF"], ppg: 15.0, rpg: 6.0, apg: 2.5, spg: 0.8, bpg: 0.5, tov: 2.0 },
+  { name: "Bill Walton", team: "Boston Celtics", decade: "1980s", pos: ["C"], ppg: 7.6, rpg: 6.8, apg: 2.1, spg: 0.5, bpg: 1.1, tov: 1.2 },
+  { name: "Scott Wedman", team: "Boston Celtics", decade: "1980s", pos: ["SF","PF"], ppg: 8.0, rpg: 3.0, apg: 1.5, spg: 0.6, bpg: 0.3, tov: 1.0 },
+  { name: "Gerald Henderson", team: "Boston Celtics", decade: "1980s", pos: ["PG","SG"], ppg: 10.5, rpg: 2.5, apg: 4.0, spg: 1.2, bpg: 0.2, tov: 1.8 },
+  { name: "Greg Kite", team: "Boston Celtics", decade: "1980s", pos: ["C"], ppg: 2.5, rpg: 3.0, apg: 0.5, spg: 0.3, bpg: 0.5, tov: 0.8 },
 
   // --- Brooklyn/New Jersey Nets 2000s ---
   { name: "Jason Kidd", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["PG"], ppg: 14.5, rpg: 6.8, apg: 8.9, spg: 1.9, bpg: 0.3, tov: 3.0 },
@@ -28,6 +36,10 @@ export const PLAYERS = [
   { name: "Kenyon Martin", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["PF"], ppg: 13.5, rpg: 7.5, apg: 1.5, spg: 0.9, bpg: 1.2, tov: 2.0 },
   { name: "Kerry Kittles", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["SG"], ppg: 12.5, rpg: 3.5, apg: 2.8, spg: 1.5, bpg: 0.3, tov: 1.7 },
   { name: "Jason Collins", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["C"], ppg: 4.5, rpg: 5.0, apg: 1.0, spg: 0.5, bpg: 0.7, tov: 1.0 },
+  { name: "Aaron Williams", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["PF","C"], ppg: 7.5, rpg: 5.0, apg: 0.8, spg: 0.5, bpg: 1.0, tov: 1.0 },
+  { name: "Anthony Johnson", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["PG"], ppg: 7.0, rpg: 2.0, apg: 3.5, spg: 0.8, bpg: 0.1, tov: 1.3 },
+  { name: "Brian Scalabrine", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["PF"], ppg: 5.5, rpg: 3.0, apg: 0.8, spg: 0.4, bpg: 0.3, tov: 0.8 },
+  { name: "Nenad Krstic", team: "Brooklyn/New Jersey Nets", decade: "2000s", pos: ["C"], ppg: 11.5, rpg: 5.5, apg: 1.0, spg: 0.4, bpg: 1.0, tov: 1.5 },
 
   // --- Charlotte Hornets 1990s ---
   { name: "Larry Johnson", team: "Charlotte Hornets", decade: "1990s", pos: ["PF"], ppg: 19.0, rpg: 9.0, apg: 3.5, spg: 1.0, bpg: 0.4, tov: 2.8 },
@@ -36,6 +48,10 @@ export const PLAYERS = [
   { name: "Dell Curry", team: "Charlotte Hornets", decade: "1990s", pos: ["SG"], ppg: 15.0, rpg: 2.5, apg: 2.5, spg: 1.0, bpg: 0.2, tov: 1.5 },
   { name: "Glen Rice", team: "Charlotte Hornets", decade: "1990s", pos: ["SF","SG"], ppg: 17.0, rpg: 4.5, apg: 2.0, spg: 0.8, bpg: 0.3, tov: 1.8 },
   { name: "Kendall Gill", team: "Charlotte Hornets", decade: "1990s", pos: ["SG","SF"], ppg: 15.0, rpg: 4.0, apg: 3.0, spg: 1.7, bpg: 0.3, tov: 2.0 },
+  { name: "Robert Parish", team: "Charlotte Hornets", decade: "1990s", pos: ["C"], ppg: 6.5, rpg: 5.5, apg: 0.8, spg: 0.4, bpg: 0.8, tov: 1.0 },
+  { name: "Johnny Newman", team: "Charlotte Hornets", decade: "1990s", pos: ["SF","SG"], ppg: 12.0, rpg: 3.0, apg: 1.5, spg: 0.9, bpg: 0.2, tov: 1.3 },
+  { name: "J.R. Reid", team: "Charlotte Hornets", decade: "1990s", pos: ["PF","C"], ppg: 9.5, rpg: 5.5, apg: 1.0, spg: 0.5, bpg: 0.6, tov: 1.3 },
+  { name: "Scott Burrell", team: "Charlotte Hornets", decade: "1990s", pos: ["SF"], ppg: 6.5, rpg: 3.0, apg: 1.3, spg: 0.8, bpg: 0.3, tov: 1.0 },
 
   // --- Chicago Bulls 1990s ---
   { name: "Michael Jordan", team: "Chicago Bulls", decade: "1990s", pos: ["SG"], ppg: 31.5, rpg: 6.0, apg: 5.3, spg: 2.3, bpg: 0.8, tov: 2.7 },
@@ -44,6 +60,10 @@ export const PLAYERS = [
   { name: "Horace Grant", team: "Chicago Bulls", decade: "1990s", pos: ["PF","C"], ppg: 13.0, rpg: 9.5, apg: 2.5, spg: 1.1, bpg: 0.9, tov: 1.9 },
   { name: "B.J. Armstrong", team: "Chicago Bulls", decade: "1990s", pos: ["PG"], ppg: 12.0, rpg: 2.0, apg: 4.5, spg: 1.0, bpg: 0.1, tov: 1.7 },
   { name: "Toni Kukoc", team: "Chicago Bulls", decade: "1990s", pos: ["SF","PF"], ppg: 13.0, rpg: 4.5, apg: 4.0, spg: 1.0, bpg: 0.4, tov: 2.3 },
+  { name: "Ron Harper", team: "Chicago Bulls", decade: "1990s", pos: ["SG","PG"], ppg: 7.5, rpg: 3.0, apg: 3.0, spg: 1.0, bpg: 0.4, tov: 1.5 },
+  { name: "Steve Kerr", team: "Chicago Bulls", decade: "1990s", pos: ["SG","PG"], ppg: 8.5, rpg: 1.5, apg: 2.5, spg: 0.7, bpg: 0.1, tov: 1.0 },
+  { name: "Luc Longley", team: "Chicago Bulls", decade: "1990s", pos: ["C"], ppg: 9.5, rpg: 5.5, apg: 1.8, spg: 0.5, bpg: 0.9, tov: 1.5 },
+  { name: "John Paxson", team: "Chicago Bulls", decade: "1990s", pos: ["PG"], ppg: 8.5, rpg: 1.5, apg: 3.0, spg: 0.6, bpg: 0.1, tov: 1.0 },
 
   // --- Cleveland Cavaliers 2010s ---
   { name: "LeBron James", team: "Cleveland Cavaliers", decade: "2010s", pos: ["SF","PF"], ppg: 26.5, rpg: 7.5, apg: 7.5, spg: 1.5, bpg: 0.7, tov: 3.8 },
@@ -52,6 +72,10 @@ export const PLAYERS = [
   { name: "Tristan Thompson", team: "Cleveland Cavaliers", decade: "2010s", pos: ["C","PF"], ppg: 8.5, rpg: 9.0, apg: 1.0, spg: 0.6, bpg: 0.5, tov: 1.2 },
   { name: "J.R. Smith", team: "Cleveland Cavaliers", decade: "2010s", pos: ["SG","SF"], ppg: 10.5, rpg: 3.0, apg: 2.0, spg: 1.0, bpg: 0.3, tov: 1.3 },
   { name: "Mo Williams", team: "Cleveland Cavaliers", decade: "2010s", pos: ["PG"], ppg: 15.0, rpg: 2.5, apg: 6.0, spg: 0.9, bpg: 0.1, tov: 2.5 },
+  { name: "Timofey Mozgov", team: "Cleveland Cavaliers", decade: "2010s", pos: ["C"], ppg: 7.5, rpg: 4.5, apg: 0.5, spg: 0.3, bpg: 0.9, tov: 1.0 },
+  { name: "Matthew Dellavedova", team: "Cleveland Cavaliers", decade: "2010s", pos: ["PG"], ppg: 5.5, rpg: 2.0, apg: 2.5, spg: 0.6, bpg: 0.1, tov: 1.0 },
+  { name: "Anderson Varejao", team: "Cleveland Cavaliers", decade: "2010s", pos: ["PF","C"], ppg: 9.0, rpg: 8.5, apg: 1.5, spg: 0.8, bpg: 0.5, tov: 1.5 },
+  { name: "Daniel Gibson", team: "Cleveland Cavaliers", decade: "2010s", pos: ["SG"], ppg: 8.5, rpg: 1.5, apg: 2.0, spg: 0.5, bpg: 0.1, tov: 1.0 },
 
   // --- Dallas Mavericks 2000s ---
   { name: "Dirk Nowitzki", team: "Dallas Mavericks", decade: "2000s", pos: ["PF","C"], ppg: 23.5, rpg: 8.5, apg: 2.5, spg: 0.9, bpg: 0.8, tov: 2.5 },
@@ -60,6 +84,10 @@ export const PLAYERS = [
   { name: "Josh Howard", team: "Dallas Mavericks", decade: "2000s", pos: ["SF"], ppg: 15.0, rpg: 6.5, apg: 2.0, spg: 1.2, bpg: 0.6, tov: 1.8 },
   { name: "Jason Terry", team: "Dallas Mavericks", decade: "2000s", pos: ["SG","PG"], ppg: 16.5, rpg: 2.7, apg: 4.0, spg: 1.1, bpg: 0.2, tov: 2.3 },
   { name: "Erick Dampier", team: "Dallas Mavericks", decade: "2000s", pos: ["C"], ppg: 7.5, rpg: 8.5, apg: 0.8, spg: 0.5, bpg: 1.2, tov: 1.2 },
+  { name: "Devin Harris", team: "Dallas Mavericks", decade: "2000s", pos: ["PG"], ppg: 10.5, rpg: 2.5, apg: 4.0, spg: 1.0, bpg: 0.2, tov: 1.8 },
+  { name: "DeSagana Diop", team: "Dallas Mavericks", decade: "2000s", pos: ["C"], ppg: 2.5, rpg: 4.5, apg: 0.3, spg: 0.2, bpg: 1.0, tov: 0.8 },
+  { name: "Marquis Daniels", team: "Dallas Mavericks", decade: "2000s", pos: ["SF","SG"], ppg: 8.5, rpg: 3.5, apg: 2.0, spg: 1.0, bpg: 0.3, tov: 1.3 },
+  { name: "Adrian Griffin", team: "Dallas Mavericks", decade: "2000s", pos: ["SF"], ppg: 4.5, rpg: 2.5, apg: 1.0, spg: 0.6, bpg: 0.2, tov: 0.8 },
 
   // --- Denver Nuggets 1980s ---
   { name: "Alex English", team: "Denver Nuggets", decade: "1980s", pos: ["SF","SG"], ppg: 25.5, rpg: 5.5, apg: 3.5, spg: 1.1, bpg: 0.3, tov: 2.5 },
@@ -68,6 +96,10 @@ export const PLAYERS = [
   { name: "Fat Lever", team: "Denver Nuggets", decade: "1980s", pos: ["PG","SG"], ppg: 15.0, rpg: 6.5, apg: 7.0, spg: 2.2, bpg: 0.3, tov: 3.0 },
   { name: "Calvin Natt", team: "Denver Nuggets", decade: "1980s", pos: ["PF","SF"], ppg: 17.5, rpg: 7.5, apg: 2.0, spg: 1.0, bpg: 0.3, tov: 2.2 },
   { name: "Wayne Cooper", team: "Denver Nuggets", decade: "1980s", pos: ["C"], ppg: 8.0, rpg: 6.5, apg: 1.0, spg: 0.6, bpg: 1.5, tov: 1.5 },
+  { name: "T.R. Dunn", team: "Denver Nuggets", decade: "1980s", pos: ["SG","SF"], ppg: 6.5, rpg: 3.0, apg: 2.0, spg: 1.5, bpg: 0.3, tov: 1.3 },
+  { name: "Bill Hanzlik", team: "Denver Nuggets", decade: "1980s", pos: ["SF","SG"], ppg: 8.0, rpg: 3.0, apg: 2.5, spg: 1.2, bpg: 0.4, tov: 1.5 },
+  { name: "Danny Schayes", team: "Denver Nuggets", decade: "1980s", pos: ["C","PF"], ppg: 9.5, rpg: 6.0, apg: 1.0, spg: 0.5, bpg: 0.9, tov: 1.3 },
+  { name: "Michael Adams", team: "Denver Nuggets", decade: "1980s", pos: ["PG"], ppg: 12.5, rpg: 2.5, apg: 6.5, spg: 1.8, bpg: 0.1, tov: 2.5 },
 
   // --- Detroit Pistons 1980s ---
   { name: "Isiah Thomas", team: "Detroit Pistons", decade: "1980s", pos: ["PG"], ppg: 20.0, rpg: 3.5, apg: 9.5, spg: 2.0, bpg: 0.2, tov: 3.5 },
@@ -76,6 +108,10 @@ export const PLAYERS = [
   { name: "Dennis Rodman", team: "Detroit Pistons", decade: "1980s", pos: ["PF","C"], ppg: 8.5, rpg: 8.5, apg: 1.5, spg: 0.9, bpg: 0.6, tov: 1.3 },
   { name: "Vinnie Johnson", team: "Detroit Pistons", decade: "1980s", pos: ["SG","PG"], ppg: 12.5, rpg: 2.0, apg: 3.0, spg: 0.8, bpg: 0.2, tov: 1.5 },
   { name: "Adrian Dantley", team: "Detroit Pistons", decade: "1980s", pos: ["SF","PF"], ppg: 20.0, rpg: 5.5, apg: 2.5, spg: 0.9, bpg: 0.2, tov: 2.7 },
+  { name: "John Salley", team: "Detroit Pistons", decade: "1980s", pos: ["PF","C"], ppg: 7.5, rpg: 4.5, apg: 1.0, spg: 0.7, bpg: 1.5, tov: 1.0 },
+  { name: "Rick Mahorn", team: "Detroit Pistons", decade: "1980s", pos: ["PF","C"], ppg: 9.5, rpg: 7.5, apg: 1.5, spg: 0.6, bpg: 0.5, tov: 1.5 },
+  { name: "James Edwards", team: "Detroit Pistons", decade: "1980s", pos: ["C"], ppg: 10.5, rpg: 3.5, apg: 1.0, spg: 0.4, bpg: 0.6, tov: 1.0 },
+  { name: "Kelly Tripucka", team: "Detroit Pistons", decade: "1980s", pos: ["SF"], ppg: 16.5, rpg: 3.5, apg: 2.5, spg: 0.9, bpg: 0.2, tov: 2.0 },
 
   // --- Golden State Warriors 2010s ---
   { name: "Stephen Curry", team: "Golden State Warriors", decade: "2010s", pos: ["PG"], ppg: 24.5, rpg: 4.5, apg: 7.5, spg: 1.6, bpg: 0.2, tov: 3.2 },
@@ -84,6 +120,10 @@ export const PLAYERS = [
   { name: "Kevin Durant", team: "Golden State Warriors", decade: "2010s", pos: ["SF","PF"], ppg: 26.5, rpg: 7.5, apg: 5.5, spg: 1.1, bpg: 1.3, tov: 3.0 },
   { name: "Andre Iguodala", team: "Golden State Warriors", decade: "2010s", pos: ["SF","SG"], ppg: 7.5, rpg: 4.0, apg: 3.5, spg: 1.1, bpg: 0.5, tov: 1.3 },
   { name: "Harrison Barnes", team: "Golden State Warriors", decade: "2010s", pos: ["SF","PF"], ppg: 10.5, rpg: 5.0, apg: 1.5, spg: 0.8, bpg: 0.4, tov: 1.3 },
+  { name: "Shaun Livingston", team: "Golden State Warriors", decade: "2010s", pos: ["PG","SG"], ppg: 5.5, rpg: 2.0, apg: 2.5, spg: 0.6, bpg: 0.4, tov: 0.8 },
+  { name: "David Lee", team: "Golden State Warriors", decade: "2010s", pos: ["PF"], ppg: 10.5, rpg: 6.5, apg: 2.0, spg: 0.7, bpg: 0.3, tov: 1.5 },
+  { name: "Zaza Pachulia", team: "Golden State Warriors", decade: "2010s", pos: ["C"], ppg: 6.5, rpg: 5.5, apg: 1.5, spg: 0.5, bpg: 0.3, tov: 1.3 },
+  { name: "Marreese Speights", team: "Golden State Warriors", decade: "2010s", pos: ["PF","C"], ppg: 7.5, rpg: 3.5, apg: 0.8, spg: 0.4, bpg: 0.4, tov: 0.8 },
 
   // --- Houston Rockets 1990s ---
   { name: "Hakeem Olajuwon", team: "Houston Rockets", decade: "1990s", pos: ["C"], ppg: 26.5, rpg: 11.5, apg: 3.5, spg: 1.8, bpg: 3.5, tov: 3.2 },
@@ -92,6 +132,10 @@ export const PLAYERS = [
   { name: "Kenny Smith", team: "Houston Rockets", decade: "1990s", pos: ["PG"], ppg: 12.5, rpg: 3.0, apg: 5.5, spg: 1.3, bpg: 0.2, tov: 2.3 },
   { name: "Vernon Maxwell", team: "Houston Rockets", decade: "1990s", pos: ["SG","PG"], ppg: 13.0, rpg: 3.0, apg: 3.5, spg: 1.3, bpg: 0.3, tov: 2.2 },
   { name: "Robert Horry", team: "Houston Rockets", decade: "1990s", pos: ["SF","PF"], ppg: 9.0, rpg: 5.5, apg: 2.5, spg: 1.2, bpg: 1.0, tov: 1.7 },
+  { name: "Mario Elie", team: "Houston Rockets", decade: "1990s", pos: ["SG","SF"], ppg: 9.5, rpg: 3.0, apg: 2.5, spg: 1.0, bpg: 0.2, tov: 1.3 },
+  { name: "Sam Cassell", team: "Houston Rockets", decade: "1990s", pos: ["PG"], ppg: 9.5, rpg: 2.0, apg: 4.0, spg: 0.9, bpg: 0.1, tov: 1.5 },
+  { name: "Matt Bullard", team: "Houston Rockets", decade: "1990s", pos: ["PF"], ppg: 6.5, rpg: 2.5, apg: 0.8, spg: 0.4, bpg: 0.2, tov: 0.8 },
+  { name: "Carl Herrera", team: "Houston Rockets", decade: "1990s", pos: ["PF"], ppg: 7.0, rpg: 4.5, apg: 0.8, spg: 0.5, bpg: 0.5, tov: 1.0 },
 
   // --- Indiana Pacers 1990s ---
   { name: "Reggie Miller", team: "Indiana Pacers", decade: "1990s", pos: ["SG"], ppg: 20.5, rpg: 3.0, apg: 3.0, spg: 1.1, bpg: 0.2, tov: 1.9 },
@@ -100,6 +144,10 @@ export const PLAYERS = [
   { name: "Mark Jackson", team: "Indiana Pacers", decade: "1990s", pos: ["PG"], ppg: 11.0, rpg: 4.5, apg: 8.5, spg: 1.5, bpg: 0.1, tov: 2.8 },
   { name: "Derrick McKey", team: "Indiana Pacers", decade: "1990s", pos: ["SF","PF"], ppg: 11.5, rpg: 5.5, apg: 3.0, spg: 1.3, bpg: 0.7, tov: 1.8 },
   { name: "Chris Mullin", team: "Indiana Pacers", decade: "1990s", pos: ["SF","SG"], ppg: 13.5, rpg: 3.5, apg: 3.0, spg: 1.0, bpg: 0.2, tov: 1.7 },
+  { name: "Antonio Davis", team: "Indiana Pacers", decade: "1990s", pos: ["PF","C"], ppg: 8.5, rpg: 6.5, apg: 0.8, spg: 0.6, bpg: 1.0, tov: 1.3 },
+  { name: "Vern Fleming", team: "Indiana Pacers", decade: "1990s", pos: ["PG","SG"], ppg: 10.5, rpg: 2.5, apg: 4.0, spg: 1.0, bpg: 0.2, tov: 1.8 },
+  { name: "Haywoode Workman", team: "Indiana Pacers", decade: "1990s", pos: ["PG"], ppg: 6.0, rpg: 2.0, apg: 3.5, spg: 0.8, bpg: 0.1, tov: 1.3 },
+  { name: "LaSalle Thompson", team: "Indiana Pacers", decade: "1990s", pos: ["C","PF"], ppg: 7.5, rpg: 6.0, apg: 1.0, spg: 0.6, bpg: 0.8, tov: 1.3 },
 
   // --- LA Clippers 2010s ---
   { name: "Chris Paul", team: "LA Clippers", decade: "2010s", pos: ["PG"], ppg: 18.5, rpg: 4.5, apg: 10.0, spg: 2.4, bpg: 0.1, tov: 2.5 },
@@ -108,6 +156,10 @@ export const PLAYERS = [
   { name: "J.J. Redick", team: "LA Clippers", decade: "2010s", pos: ["SG"], ppg: 15.5, rpg: 2.0, apg: 2.0, spg: 0.6, bpg: 0.2, tov: 1.5 },
   { name: "Jamal Crawford", team: "LA Clippers", decade: "2010s", pos: ["SG","PG"], ppg: 15.0, rpg: 2.5, apg: 3.5, spg: 0.9, bpg: 0.2, tov: 2.0 },
   { name: "Matt Barnes", team: "LA Clippers", decade: "2010s", pos: ["SF","PF"], ppg: 9.5, rpg: 5.0, apg: 2.0, spg: 1.2, bpg: 0.4, tov: 1.3 },
+  { name: "Austin Rivers", team: "LA Clippers", decade: "2010s", pos: ["SG"], ppg: 8.5, rpg: 2.0, apg: 2.0, spg: 0.6, bpg: 0.2, tov: 1.3 },
+  { name: "Glen Davis", team: "LA Clippers", decade: "2010s", pos: ["PF"], ppg: 8.5, rpg: 4.5, apg: 1.3, spg: 0.5, bpg: 0.3, tov: 1.3 },
+  { name: "Willie Green", team: "LA Clippers", decade: "2010s", pos: ["SG"], ppg: 7.5, rpg: 1.5, apg: 1.5, spg: 0.5, bpg: 0.1, tov: 1.0 },
+  { name: "Spencer Hawes", team: "LA Clippers", decade: "2010s", pos: ["C","PF"], ppg: 6.5, rpg: 4.0, apg: 1.5, spg: 0.4, bpg: 0.5, tov: 1.0 },
 
   // --- LA Lakers 1980s ---
   { name: "Magic Johnson", team: "LA Lakers", decade: "1980s", pos: ["PG"], ppg: 19.5, rpg: 7.5, apg: 11.5, spg: 1.7, bpg: 0.4, tov: 3.7 },
@@ -116,6 +168,10 @@ export const PLAYERS = [
   { name: "Byron Scott", team: "LA Lakers", decade: "1980s", pos: ["SG"], ppg: 15.5, rpg: 3.0, apg: 3.0, spg: 1.2, bpg: 0.2, tov: 1.8 },
   { name: "Michael Cooper", team: "LA Lakers", decade: "1980s", pos: ["SG","SF"], ppg: 10.5, rpg: 3.5, apg: 3.5, spg: 1.5, bpg: 0.6, tov: 1.8 },
   { name: "Jamaal Wilkes", team: "LA Lakers", decade: "1980s", pos: ["SF","PF"], ppg: 15.0, rpg: 6.0, apg: 2.5, spg: 1.0, bpg: 0.5, tov: 1.8 },
+  { name: "Norm Nixon", team: "LA Lakers", decade: "1980s", pos: ["PG"], ppg: 17.5, rpg: 3.0, apg: 8.0, spg: 1.7, bpg: 0.1, tov: 2.8 },
+  { name: "Kurt Rambis", team: "LA Lakers", decade: "1980s", pos: ["PF"], ppg: 7.5, rpg: 6.5, apg: 1.5, spg: 0.9, bpg: 0.6, tov: 1.5 },
+  { name: "Mychal Thompson", team: "LA Lakers", decade: "1980s", pos: ["C","PF"], ppg: 9.0, rpg: 5.0, apg: 1.5, spg: 0.5, bpg: 0.8, tov: 1.3 },
+  { name: "A.C. Green", team: "LA Lakers", decade: "1980s", pos: ["PF"], ppg: 11.5, rpg: 7.5, apg: 1.3, spg: 0.8, bpg: 0.4, tov: 1.5 },
 
   // --- Memphis Grizzlies 2010s ---
   { name: "Mike Conley", team: "Memphis Grizzlies", decade: "2010s", pos: ["PG"], ppg: 15.5, rpg: 3.0, apg: 5.8, spg: 1.4, bpg: 0.2, tov: 2.2 },
@@ -124,6 +180,10 @@ export const PLAYERS = [
   { name: "Tony Allen", team: "Memphis Grizzlies", decade: "2010s", pos: ["SG","SF"], ppg: 8.5, rpg: 3.5, apg: 1.5, spg: 1.7, bpg: 0.4, tov: 1.3 },
   { name: "Rudy Gay", team: "Memphis Grizzlies", decade: "2010s", pos: ["SF","SG"], ppg: 18.5, rpg: 5.5, apg: 2.5, spg: 1.3, bpg: 0.9, tov: 2.5 },
   { name: "O.J. Mayo", team: "Memphis Grizzlies", decade: "2010s", pos: ["SG"], ppg: 17.5, rpg: 3.5, apg: 3.5, spg: 1.1, bpg: 0.2, tov: 2.3 },
+  { name: "Mike Miller", team: "Memphis Grizzlies", decade: "2010s", pos: ["SF","SG"], ppg: 8.5, rpg: 3.5, apg: 2.0, spg: 0.8, bpg: 0.2, tov: 1.0 },
+  { name: "Courtney Lee", team: "Memphis Grizzlies", decade: "2010s", pos: ["SG"], ppg: 10.0, rpg: 2.5, apg: 1.5, spg: 1.0, bpg: 0.2, tov: 1.0 },
+  { name: "Jeff Green", team: "Memphis Grizzlies", decade: "2010s", pos: ["SF","PF"], ppg: 11.5, rpg: 3.5, apg: 1.5, spg: 0.7, bpg: 0.4, tov: 1.3 },
+  { name: "Vince Carter", team: "Memphis Grizzlies", decade: "2010s", pos: ["SG","SF"], ppg: 8.0, rpg: 2.5, apg: 1.8, spg: 0.6, bpg: 0.3, tov: 1.0 },
 
   // --- Miami Heat 2010s ---
   { name: "LeBron James", team: "Miami Heat", decade: "2010s", pos: ["SF","PF"], ppg: 27.0, rpg: 7.5, apg: 6.8, spg: 1.7, bpg: 0.8, tov: 3.4 },
@@ -132,6 +192,10 @@ export const PLAYERS = [
   { name: "Hassan Whiteside", team: "Miami Heat", decade: "2010s", pos: ["C"], ppg: 14.0, rpg: 11.5, apg: 0.5, spg: 0.5, bpg: 2.5, tov: 1.8 },
   { name: "Goran Dragic", team: "Miami Heat", decade: "2010s", pos: ["PG"], ppg: 14.5, rpg: 3.0, apg: 4.5, spg: 1.0, bpg: 0.2, tov: 2.2 },
   { name: "Udonis Haslem", team: "Miami Heat", decade: "2010s", pos: ["PF"], ppg: 6.5, rpg: 6.5, apg: 0.8, spg: 0.5, bpg: 0.3, tov: 0.8 },
+  { name: "Mario Chalmers", team: "Miami Heat", decade: "2010s", pos: ["PG"], ppg: 8.5, rpg: 2.5, apg: 3.5, spg: 1.1, bpg: 0.2, tov: 1.8 },
+  { name: "Shane Battier", team: "Miami Heat", decade: "2010s", pos: ["SF"], ppg: 5.5, rpg: 3.0, apg: 1.3, spg: 0.8, bpg: 0.4, tov: 0.8 },
+  { name: "Ray Allen", team: "Miami Heat", decade: "2010s", pos: ["SG"], ppg: 10.5, rpg: 2.5, apg: 1.8, spg: 0.7, bpg: 0.1, tov: 1.0 },
+  { name: "Norris Cole", team: "Miami Heat", decade: "2010s", pos: ["PG"], ppg: 6.5, rpg: 1.8, apg: 2.5, spg: 0.7, bpg: 0.1, tov: 1.0 },
 
   // --- Milwaukee Bucks 1970s ---
   { name: "Kareem Abdul-Jabbar", team: "Milwaukee Bucks", decade: "1970s", pos: ["C"], ppg: 30.0, rpg: 15.0, apg: 4.5, spg: 1.0, bpg: 3.0, tov: 3.0 },
@@ -140,6 +204,10 @@ export const PLAYERS = [
   { name: "Jon McGlocklin", team: "Milwaukee Bucks", decade: "1970s", pos: ["SG"], ppg: 15.5, rpg: 3.0, apg: 3.0, spg: 1.0, bpg: 0.2, tov: 1.8 },
   { name: "Lucius Allen", team: "Milwaukee Bucks", decade: "1970s", pos: ["PG","SG"], ppg: 13.5, rpg: 3.5, apg: 4.5, spg: 1.5, bpg: 0.2, tov: 2.5 },
   { name: "Marques Johnson", team: "Milwaukee Bucks", decade: "1970s", pos: ["SF","PF"], ppg: 19.5, rpg: 6.0, apg: 3.0, spg: 1.2, bpg: 0.5, tov: 2.3 },
+  { name: "Brian Winters", team: "Milwaukee Bucks", decade: "1970s", pos: ["SG"], ppg: 15.5, rpg: 2.5, apg: 3.5, spg: 0.9, bpg: 0.2, tov: 2.0 },
+  { name: "Junior Bridgeman", team: "Milwaukee Bucks", decade: "1970s", pos: ["SF","SG"], ppg: 11.5, rpg: 3.0, apg: 2.0, spg: 0.8, bpg: 0.3, tov: 1.3 },
+  { name: "Swen Nater", team: "Milwaukee Bucks", decade: "1970s", pos: ["C"], ppg: 9.5, rpg: 8.5, apg: 1.0, spg: 0.5, bpg: 0.8, tov: 1.5 },
+  { name: "Quinn Buckner", team: "Milwaukee Bucks", decade: "1970s", pos: ["PG"], ppg: 8.5, rpg: 3.0, apg: 4.0, spg: 1.5, bpg: 0.2, tov: 2.0 },
 
   // --- Minnesota Timberwolves 2000s ---
   { name: "Kevin Garnett", team: "Minnesota Timberwolves", decade: "2000s", pos: ["PF","C"], ppg: 22.0, rpg: 12.5, apg: 4.5, spg: 1.4, bpg: 1.5, tov: 2.7 },
@@ -148,6 +216,10 @@ export const PLAYERS = [
   { name: "Wally Szczerbiak", team: "Minnesota Timberwolves", decade: "2000s", pos: ["SF","SG"], ppg: 16.0, rpg: 4.0, apg: 2.0, spg: 0.7, bpg: 0.3, tov: 1.8 },
   { name: "Rasho Nesterovic", team: "Minnesota Timberwolves", decade: "2000s", pos: ["C"], ppg: 9.5, rpg: 6.5, apg: 1.5, spg: 0.5, bpg: 1.2, tov: 1.5 },
   { name: "Terrell Brandon", team: "Minnesota Timberwolves", decade: "2000s", pos: ["PG"], ppg: 12.0, rpg: 3.0, apg: 6.5, spg: 1.3, bpg: 0.1, tov: 2.2 },
+  { name: "Trenton Hassell", team: "Minnesota Timberwolves", decade: "2000s", pos: ["SG","SF"], ppg: 6.5, rpg: 3.0, apg: 1.5, spg: 1.3, bpg: 0.2, tov: 1.0 },
+  { name: "Mark Madsen", team: "Minnesota Timberwolves", decade: "2000s", pos: ["PF"], ppg: 3.0, rpg: 3.5, apg: 0.5, spg: 0.3, bpg: 0.3, tov: 0.8 },
+  { name: "Anthony Peeler", team: "Minnesota Timberwolves", decade: "2000s", pos: ["SG"], ppg: 9.5, rpg: 2.5, apg: 1.8, spg: 1.0, bpg: 0.2, tov: 1.0 },
+  { name: "Troy Hudson", team: "Minnesota Timberwolves", decade: "2000s", pos: ["PG"], ppg: 11.5, rpg: 2.0, apg: 3.5, spg: 0.7, bpg: 0.1, tov: 1.5 },
 
   // --- New Orleans Hornets/Pelicans 2000s ---
   { name: "Chris Paul", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["PG"], ppg: 18.5, rpg: 4.5, apg: 10.5, spg: 2.7, bpg: 0.1, tov: 2.8 },
@@ -156,6 +228,10 @@ export const PLAYERS = [
   { name: "Jamal Mashburn", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["SF","PF"], ppg: 19.5, rpg: 5.5, apg: 4.5, spg: 1.1, bpg: 0.3, tov: 2.8 },
   { name: "Peja Stojakovic", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["SF","SG"], ppg: 17.5, rpg: 4.5, apg: 1.5, spg: 0.7, bpg: 0.2, tov: 1.8 },
   { name: "Tyson Chandler", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["C"], ppg: 9.5, rpg: 10.5, apg: 1.0, spg: 0.7, bpg: 1.2, tov: 1.8 },
+  { name: "P.J. Brown", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["PF","C"], ppg: 10.5, rpg: 8.0, apg: 1.5, spg: 0.6, bpg: 0.9, tov: 1.3 },
+  { name: "Jamaal Magloire", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["C"], ppg: 11.5, rpg: 9.5, apg: 1.0, spg: 0.5, bpg: 1.0, tov: 1.8 },
+  { name: "George Lynch", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["SF","PF"], ppg: 8.5, rpg: 6.5, apg: 1.5, spg: 1.0, bpg: 0.3, tov: 1.3 },
+  { name: "Speedy Claxton", team: "New Orleans Hornets/Pelicans", decade: "2000s", pos: ["PG"], ppg: 9.5, rpg: 2.5, apg: 4.5, spg: 1.3, bpg: 0.1, tov: 1.8 },
 
   // --- New York Knicks 1990s ---
   { name: "Patrick Ewing", team: "New York Knicks", decade: "1990s", pos: ["C"], ppg: 23.5, rpg: 10.5, apg: 2.2, spg: 1.0, bpg: 2.7, tov: 2.8 },
@@ -164,6 +240,10 @@ export const PLAYERS = [
   { name: "Charlie Ward", team: "New York Knicks", decade: "1990s", pos: ["PG"], ppg: 6.5, rpg: 2.5, apg: 5.0, spg: 1.0, bpg: 0.1, tov: 1.5 },
   { name: "Allan Houston", team: "New York Knicks", decade: "1990s", pos: ["SG"], ppg: 17.5, rpg: 3.0, apg: 2.5, spg: 0.8, bpg: 0.2, tov: 1.8 },
   { name: "Larry Johnson", team: "New York Knicks", decade: "1990s", pos: ["PF","SF"], ppg: 10.5, rpg: 5.5, apg: 2.5, spg: 0.8, bpg: 0.3, tov: 1.8 },
+  { name: "Anthony Mason", team: "New York Knicks", decade: "1990s", pos: ["PF"], ppg: 10.5, rpg: 8.0, apg: 3.0, spg: 1.0, bpg: 0.5, tov: 1.8 },
+  { name: "Derek Harper", team: "New York Knicks", decade: "1990s", pos: ["PG"], ppg: 9.5, rpg: 2.5, apg: 4.5, spg: 1.0, bpg: 0.1, tov: 1.5 },
+  { name: "Herb Williams", team: "New York Knicks", decade: "1990s", pos: ["C"], ppg: 6.5, rpg: 4.5, apg: 0.8, spg: 0.4, bpg: 0.9, tov: 1.0 },
+  { name: "Greg Anthony", team: "New York Knicks", decade: "1990s", pos: ["PG"], ppg: 7.5, rpg: 2.0, apg: 4.0, spg: 1.2, bpg: 0.1, tov: 1.5 },
 
   // --- Oklahoma City Thunder 2010s ---
   { name: "Kevin Durant", team: "Oklahoma City Thunder", decade: "2010s", pos: ["SF","PF"], ppg: 28.0, rpg: 7.0, apg: 4.5, spg: 1.2, bpg: 1.0, tov: 3.0 },
@@ -172,6 +252,10 @@ export const PLAYERS = [
   { name: "Serge Ibaka", team: "Oklahoma City Thunder", decade: "2010s", pos: ["PF","C"], ppg: 12.5, rpg: 7.5, apg: 1.0, spg: 0.7, bpg: 2.5, tov: 1.3 },
   { name: "Paul George", team: "Oklahoma City Thunder", decade: "2010s", pos: ["SF","SG"], ppg: 21.5, rpg: 6.0, apg: 3.5, spg: 1.8, bpg: 0.4, tov: 2.9 },
   { name: "Nick Collison", team: "Oklahoma City Thunder", decade: "2010s", pos: ["PF","C"], ppg: 5.0, rpg: 5.0, apg: 1.0, spg: 0.5, bpg: 0.4, tov: 0.8 },
+  { name: "Reggie Jackson", team: "Oklahoma City Thunder", decade: "2010s", pos: ["PG","SG"], ppg: 9.5, rpg: 2.5, apg: 3.0, spg: 0.9, bpg: 0.2, tov: 1.5 },
+  { name: "Steven Adams", team: "Oklahoma City Thunder", decade: "2010s", pos: ["C"], ppg: 8.0, rpg: 7.5, apg: 1.0, spg: 0.7, bpg: 1.0, tov: 1.3 },
+  { name: "Andre Roberson", team: "Oklahoma City Thunder", decade: "2010s", pos: ["SF"], ppg: 6.0, rpg: 4.5, apg: 1.0, spg: 1.2, bpg: 0.6, tov: 0.8 },
+  { name: "Kendrick Perkins", team: "Oklahoma City Thunder", decade: "2010s", pos: ["C"], ppg: 5.0, rpg: 6.5, apg: 0.8, spg: 0.4, bpg: 0.9, tov: 1.0 },
 
   // --- Orlando Magic 1990s ---
   { name: "Shaquille O'Neal", team: "Orlando Magic", decade: "1990s", pos: ["C"], ppg: 27.5, rpg: 12.0, apg: 2.8, spg: 0.7, bpg: 2.5, tov: 3.3 },
@@ -180,6 +264,10 @@ export const PLAYERS = [
   { name: "Dennis Scott", team: "Orlando Magic", decade: "1990s", pos: ["SF","SG"], ppg: 12.5, rpg: 3.0, apg: 2.5, spg: 0.9, bpg: 0.2, tov: 1.7 },
   { name: "Horace Grant", team: "Orlando Magic", decade: "1990s", pos: ["PF"], ppg: 13.5, rpg: 8.5, apg: 2.5, spg: 1.1, bpg: 0.8, tov: 1.9 },
   { name: "Darrell Armstrong", team: "Orlando Magic", decade: "1990s", pos: ["PG"], ppg: 10.0, rpg: 2.5, apg: 5.0, spg: 1.5, bpg: 0.1, tov: 1.8 },
+  { name: "Brian Shaw", team: "Orlando Magic", decade: "1990s", pos: ["PG"], ppg: 8.5, rpg: 3.5, apg: 5.0, spg: 1.0, bpg: 0.2, tov: 1.8 },
+  { name: "Donald Royal", team: "Orlando Magic", decade: "1990s", pos: ["SF"], ppg: 7.5, rpg: 3.5, apg: 1.0, spg: 0.6, bpg: 0.3, tov: 1.0 },
+  { name: "Bo Outlaw", team: "Orlando Magic", decade: "1990s", pos: ["PF","C"], ppg: 5.5, rpg: 5.5, apg: 1.5, spg: 1.0, bpg: 1.0, tov: 1.0 },
+  { name: "Anthony Bowie", team: "Orlando Magic", decade: "1990s", pos: ["SG","SF"], ppg: 6.5, rpg: 2.5, apg: 1.8, spg: 0.8, bpg: 0.2, tov: 1.0 },
 
   // --- Philadelphia 76ers 1980s ---
   { name: "Julius Erving", team: "Philadelphia 76ers", decade: "1980s", pos: ["SF"], ppg: 22.0, rpg: 6.5, apg: 3.8, spg: 1.5, bpg: 1.4, tov: 2.8 },
@@ -188,6 +276,10 @@ export const PLAYERS = [
   { name: "Andrew Toney", team: "Philadelphia 76ers", decade: "1980s", pos: ["SG"], ppg: 17.0, rpg: 3.0, apg: 4.5, spg: 1.1, bpg: 0.2, tov: 2.2 },
   { name: "Bobby Jones", team: "Philadelphia 76ers", decade: "1980s", pos: ["SF","PF"], ppg: 10.5, rpg: 5.0, apg: 2.5, spg: 1.3, bpg: 1.2, tov: 1.5 },
   { name: "Charles Barkley", team: "Philadelphia 76ers", decade: "1980s", pos: ["PF","SF"], ppg: 20.0, rpg: 11.5, apg: 3.5, spg: 1.6, bpg: 0.7, tov: 3.0 },
+  { name: "Caldwell Jones", team: "Philadelphia 76ers", decade: "1980s", pos: ["C","PF"], ppg: 7.0, rpg: 7.5, apg: 1.3, spg: 0.7, bpg: 1.5, tov: 1.3 },
+  { name: "Clint Richardson", team: "Philadelphia 76ers", decade: "1980s", pos: ["SG"], ppg: 8.5, rpg: 2.5, apg: 2.0, spg: 1.0, bpg: 0.2, tov: 1.3 },
+  { name: "Marc Iavaroni", team: "Philadelphia 76ers", decade: "1980s", pos: ["PF"], ppg: 5.5, rpg: 4.0, apg: 1.0, spg: 0.5, bpg: 0.5, tov: 1.0 },
+  { name: "Sedale Threatt", team: "Philadelphia 76ers", decade: "1980s", pos: ["PG","SG"], ppg: 9.5, rpg: 2.0, apg: 3.0, spg: 1.0, bpg: 0.2, tov: 1.3 },
 
   // --- Phoenix Suns 2000s ---
   { name: "Steve Nash", team: "Phoenix Suns", decade: "2000s", pos: ["PG"], ppg: 16.5, rpg: 3.5, apg: 10.5, spg: 0.7, bpg: 0.1, tov: 3.3 },
@@ -196,6 +288,10 @@ export const PLAYERS = [
   { name: "Joe Johnson", team: "Phoenix Suns", decade: "2000s", pos: ["SG","SF"], ppg: 17.0, rpg: 3.5, apg: 5.0, spg: 1.1, bpg: 0.3, tov: 2.5 },
   { name: "Raja Bell", team: "Phoenix Suns", decade: "2000s", pos: ["SG"], ppg: 11.5, rpg: 3.0, apg: 2.0, spg: 1.3, bpg: 0.2, tov: 1.3 },
   { name: "Boris Diaw", team: "Phoenix Suns", decade: "2000s", pos: ["PF","C"], ppg: 9.5, rpg: 4.5, apg: 4.0, spg: 0.8, bpg: 0.6, tov: 1.6 },
+  { name: "Leandro Barbosa", team: "Phoenix Suns", decade: "2000s", pos: ["SG"], ppg: 13.5, rpg: 2.0, apg: 2.5, spg: 1.0, bpg: 0.2, tov: 1.5 },
+  { name: "Kurt Thomas", team: "Phoenix Suns", decade: "2000s", pos: ["PF","C"], ppg: 7.5, rpg: 6.5, apg: 1.0, spg: 0.6, bpg: 0.6, tov: 1.0 },
+  { name: "Grant Hill", team: "Phoenix Suns", decade: "2000s", pos: ["SF"], ppg: 13.5, rpg: 4.5, apg: 2.5, spg: 0.9, bpg: 0.4, tov: 1.5 },
+  { name: "Quentin Richardson", team: "Phoenix Suns", decade: "2000s", pos: ["SF","SG"], ppg: 14.5, rpg: 5.5, apg: 1.8, spg: 0.9, bpg: 0.3, tov: 1.5 },
 
   // --- Portland Trail Blazers 1990s ---
   { name: "Clyde Drexler", team: "Portland Trail Blazers", decade: "1990s", pos: ["SG","SF"], ppg: 23.0, rpg: 6.5, apg: 5.8, spg: 2.0, bpg: 0.7, tov: 3.0 },
@@ -204,6 +300,10 @@ export const PLAYERS = [
   { name: "Jerome Kersey", team: "Portland Trail Blazers", decade: "1990s", pos: ["SF","PF"], ppg: 13.5, rpg: 5.5, apg: 2.5, spg: 1.2, bpg: 0.6, tov: 1.8 },
   { name: "Kevin Duckworth", team: "Portland Trail Blazers", decade: "1990s", pos: ["C"], ppg: 12.5, rpg: 6.5, apg: 1.0, spg: 0.4, bpg: 0.9, tov: 1.7 },
   { name: "Rod Strickland", team: "Portland Trail Blazers", decade: "1990s", pos: ["PG"], ppg: 15.5, rpg: 4.0, apg: 8.5, spg: 1.7, bpg: 0.2, tov: 2.9 },
+  { name: "Cliff Robinson", team: "Portland Trail Blazers", decade: "1990s", pos: ["PF","SF"], ppg: 15.0, rpg: 5.5, apg: 1.8, spg: 0.9, bpg: 0.9, tov: 1.8 },
+  { name: "Danny Ainge", team: "Portland Trail Blazers", decade: "1990s", pos: ["SG","PG"], ppg: 11.5, rpg: 2.5, apg: 3.5, spg: 1.0, bpg: 0.2, tov: 1.5 },
+  { name: "Mark Bryant", team: "Portland Trail Blazers", decade: "1990s", pos: ["PF"], ppg: 7.0, rpg: 4.0, apg: 0.8, spg: 0.4, bpg: 0.3, tov: 1.0 },
+  { name: "Alaa Abdelnaby", team: "Portland Trail Blazers", decade: "1990s", pos: ["PF"], ppg: 6.5, rpg: 3.5, apg: 0.5, spg: 0.3, bpg: 0.4, tov: 1.0 },
 
   // --- Sacramento Kings 2000s ---
   { name: "Chris Webber", team: "Sacramento Kings", decade: "2000s", pos: ["PF","C"], ppg: 22.5, rpg: 10.5, apg: 4.5, spg: 1.4, bpg: 1.4, tov: 3.2 },
@@ -212,6 +312,10 @@ export const PLAYERS = [
   { name: "Vlade Divac", team: "Sacramento Kings", decade: "2000s", pos: ["C"], ppg: 11.5, rpg: 8.5, apg: 3.5, spg: 1.1, bpg: 1.2, tov: 2.3 },
   { name: "Doug Christie", team: "Sacramento Kings", decade: "2000s", pos: ["SG","SF"], ppg: 13.0, rpg: 3.5, apg: 3.5, spg: 2.0, bpg: 0.4, tov: 1.7 },
   { name: "Bobby Jackson", team: "Sacramento Kings", decade: "2000s", pos: ["SG","PG"], ppg: 12.5, rpg: 2.5, apg: 3.0, spg: 1.1, bpg: 0.3, tov: 1.5 },
+  { name: "Jason Williams", team: "Sacramento Kings", decade: "2000s", pos: ["PG"], ppg: 12.5, rpg: 2.5, apg: 5.5, spg: 1.3, bpg: 0.2, tov: 2.2 },
+  { name: "Hedo Turkoglu", team: "Sacramento Kings", decade: "2000s", pos: ["SF"], ppg: 9.5, rpg: 3.0, apg: 2.0, spg: 0.8, bpg: 0.3, tov: 1.5 },
+  { name: "Scot Pollard", team: "Sacramento Kings", decade: "2000s", pos: ["C","PF"], ppg: 5.5, rpg: 5.5, apg: 0.8, spg: 0.4, bpg: 0.6, tov: 1.0 },
+  { name: "Gerald Wallace", team: "Sacramento Kings", decade: "2000s", pos: ["SF","SG"], ppg: 6.0, rpg: 3.5, apg: 1.0, spg: 0.9, bpg: 0.5, tov: 1.0 },
 
   // --- San Antonio Spurs 2000s ---
   { name: "Tim Duncan", team: "San Antonio Spurs", decade: "2000s", pos: ["PF","C"], ppg: 23.5, rpg: 11.5, apg: 3.2, spg: 0.7, bpg: 2.5, tov: 2.9 },
@@ -220,6 +324,10 @@ export const PLAYERS = [
   { name: "David Robinson", team: "San Antonio Spurs", decade: "2000s", pos: ["C"], ppg: 14.5, rpg: 9.5, apg: 1.8, spg: 1.1, bpg: 2.3, tov: 2.0 },
   { name: "Bruce Bowen", team: "San Antonio Spurs", decade: "2000s", pos: ["SF","SG"], ppg: 6.5, rpg: 3.0, apg: 1.3, spg: 1.0, bpg: 0.3, tov: 0.8 },
   { name: "Malik Rose", team: "San Antonio Spurs", decade: "2000s", pos: ["PF","C"], ppg: 8.5, rpg: 6.0, apg: 1.0, spg: 0.6, bpg: 0.5, tov: 1.2 },
+  { name: "Michael Finley", team: "San Antonio Spurs", decade: "2000s", pos: ["SG","SF"], ppg: 9.5, rpg: 3.0, apg: 1.8, spg: 0.8, bpg: 0.3, tov: 1.3 },
+  { name: "Robert Horry", team: "San Antonio Spurs", decade: "2000s", pos: ["PF","SF"], ppg: 6.5, rpg: 4.5, apg: 2.0, spg: 0.8, bpg: 0.6, tov: 1.0 },
+  { name: "Brent Barry", team: "San Antonio Spurs", decade: "2000s", pos: ["SG"], ppg: 8.5, rpg: 2.5, apg: 2.5, spg: 0.8, bpg: 0.2, tov: 1.0 },
+  { name: "Fabricio Oberto", team: "San Antonio Spurs", decade: "2000s", pos: ["C"], ppg: 4.5, rpg: 4.5, apg: 1.3, spg: 0.5, bpg: 0.4, tov: 1.0 },
 
   // --- Toronto Raptors 2010s ---
   { name: "DeMar DeRozan", team: "Toronto Raptors", decade: "2010s", pos: ["SG","SF"], ppg: 21.5, rpg: 4.0, apg: 3.5, spg: 1.0, bpg: 0.3, tov: 2.2 },
@@ -228,6 +336,10 @@ export const PLAYERS = [
   { name: "Jonas Valanciunas", team: "Toronto Raptors", decade: "2010s", pos: ["C"], ppg: 12.5, rpg: 9.0, apg: 1.0, spg: 0.5, bpg: 1.0, tov: 1.6 },
   { name: "Kawhi Leonard", team: "Toronto Raptors", decade: "2010s", pos: ["SF","PF"], ppg: 26.5, rpg: 7.5, apg: 3.5, spg: 1.8, bpg: 0.4, tov: 2.0 },
   { name: "DeMarre Carroll", team: "Toronto Raptors", decade: "2010s", pos: ["SF"], ppg: 9.5, rpg: 4.5, apg: 1.5, spg: 1.0, bpg: 0.4, tov: 1.2 },
+  { name: "Fred VanVleet", team: "Toronto Raptors", decade: "2010s", pos: ["PG"], ppg: 7.5, rpg: 2.5, apg: 2.8, spg: 0.8, bpg: 0.2, tov: 1.0 },
+  { name: "Norman Powell", team: "Toronto Raptors", decade: "2010s", pos: ["SG"], ppg: 8.0, rpg: 2.0, apg: 1.0, spg: 0.6, bpg: 0.2, tov: 1.0 },
+  { name: "Patrick Patterson", team: "Toronto Raptors", decade: "2010s", pos: ["PF"], ppg: 7.5, rpg: 3.5, apg: 1.0, spg: 0.5, bpg: 0.4, tov: 0.8 },
+  { name: "Serge Ibaka", team: "Toronto Raptors", decade: "2010s", pos: ["PF","C"], ppg: 15.5, rpg: 6.5, apg: 1.0, spg: 0.6, bpg: 1.6, tov: 1.3 },
 
   // --- Utah Jazz 1990s ---
   { name: "John Stockton", team: "Utah Jazz", decade: "1990s", pos: ["PG"], ppg: 15.5, rpg: 2.7, apg: 11.5, spg: 2.4, bpg: 0.2, tov: 2.9 },
@@ -236,6 +348,10 @@ export const PLAYERS = [
   { name: "Thurl Bailey", team: "Utah Jazz", decade: "1990s", pos: ["PF","SF"], ppg: 13.5, rpg: 5.5, apg: 1.5, spg: 0.6, bpg: 0.7, tov: 1.5 },
   { name: "Antoine Carr", team: "Utah Jazz", decade: "1990s", pos: ["PF","C"], ppg: 10.5, rpg: 4.0, apg: 1.0, spg: 0.5, bpg: 0.6, tov: 1.2 },
   { name: "Bryon Russell", team: "Utah Jazz", decade: "1990s", pos: ["SF","SG"], ppg: 9.5, rpg: 3.5, apg: 1.5, spg: 1.0, bpg: 0.3, tov: 1.2 },
+  { name: "Mark Eaton", team: "Utah Jazz", decade: "1990s", pos: ["C"], ppg: 5.5, rpg: 8.5, apg: 0.8, spg: 0.3, bpg: 3.0, tov: 1.3 },
+  { name: "Blue Edwards", team: "Utah Jazz", decade: "1990s", pos: ["SG","SF"], ppg: 11.5, rpg: 3.5, apg: 1.8, spg: 1.0, bpg: 0.3, tov: 1.5 },
+  { name: "David Benoit", team: "Utah Jazz", decade: "1990s", pos: ["SF","PF"], ppg: 7.5, rpg: 3.5, apg: 0.8, spg: 0.6, bpg: 0.4, tov: 1.0 },
+  { name: "Felton Spencer", team: "Utah Jazz", decade: "1990s", pos: ["C"], ppg: 4.5, rpg: 5.5, apg: 0.5, spg: 0.3, bpg: 0.7, tov: 1.0 },
 
   // --- Washington Bullets 1970s ---
   { name: "Wes Unseld", team: "Washington Bullets", decade: "1970s", pos: ["C"], ppg: 10.5, rpg: 14.0, apg: 3.5, spg: 1.0, bpg: 0.5, tov: 2.5 },
@@ -244,6 +360,10 @@ export const PLAYERS = [
   { name: "Bob Dandridge", team: "Washington Bullets", decade: "1970s", pos: ["SF","PF"], ppg: 19.5, rpg: 6.5, apg: 3.5, spg: 1.3, bpg: 0.5, tov: 2.3 },
   { name: "Kevin Porter", team: "Washington Bullets", decade: "1970s", pos: ["PG"], ppg: 12.5, rpg: 2.5, apg: 7.5, spg: 1.5, bpg: 0.1, tov: 3.0 },
   { name: "Mitch Kupchak", team: "Washington Bullets", decade: "1970s", pos: ["PF","C"], ppg: 12.0, rpg: 7.0, apg: 1.5, spg: 0.7, bpg: 0.5, tov: 1.7 },
+  { name: "Kevin Grevey", team: "Washington Bullets", decade: "1970s", pos: ["SG"], ppg: 15.5, rpg: 3.0, apg: 2.0, spg: 1.0, bpg: 0.2, tov: 1.8 },
+  { name: "Dave Bing", team: "Washington Bullets", decade: "1970s", pos: ["PG"], ppg: 14.5, rpg: 3.0, apg: 4.5, spg: 1.0, bpg: 0.2, tov: 2.2 },
+  { name: "Greg Ballard", team: "Washington Bullets", decade: "1970s", pos: ["SF","PF"], ppg: 12.5, rpg: 5.5, apg: 1.5, spg: 0.9, bpg: 0.5, tov: 1.5 },
+  { name: "Nick Weatherspoon", team: "Washington Bullets", decade: "1970s", pos: ["SF"], ppg: 10.5, rpg: 4.0, apg: 2.0, spg: 0.8, bpg: 0.3, tov: 1.5 },
 
   // --- Seattle SuperSonics 1970s ---
   { name: "Spencer Haywood", team: "Seattle SuperSonics", decade: "1970s", pos: ["PF","C"], ppg: 24.5, rpg: 11.5, apg: 2.0, spg: 0.9, bpg: 1.2, tov: 2.7 },
@@ -252,6 +372,10 @@ export const PLAYERS = [
   { name: "Gus Williams", team: "Seattle SuperSonics", decade: "1970s", pos: ["PG"], ppg: 16.5, rpg: 3.0, apg: 4.5, spg: 2.0, bpg: 0.2, tov: 2.5 },
   { name: "Jack Sikma", team: "Seattle SuperSonics", decade: "1970s", pos: ["C","PF"], ppg: 13.5, rpg: 9.5, apg: 2.5, spg: 0.9, bpg: 0.8, tov: 2.0 },
   { name: "Paul Silas", team: "Seattle SuperSonics", decade: "1970s", pos: ["PF"], ppg: 9.5, rpg: 10.5, apg: 2.0, spg: 1.0, bpg: 0.4, tov: 1.7 },
+  { name: "Slick Watts", team: "Seattle SuperSonics", decade: "1970s", pos: ["PG"], ppg: 8.5, rpg: 3.5, apg: 6.5, spg: 2.5, bpg: 0.2, tov: 3.0 },
+  { name: "Tom Burleson", team: "Seattle SuperSonics", decade: "1970s", pos: ["C"], ppg: 9.0, rpg: 6.5, apg: 1.0, spg: 0.4, bpg: 1.2, tov: 1.5 },
+  { name: "John Johnson", team: "Seattle SuperSonics", decade: "1970s", pos: ["SF"], ppg: 12.5, rpg: 5.5, apg: 3.5, spg: 1.2, bpg: 0.5, tov: 2.0 },
+  { name: "Bruce Seals", team: "Seattle SuperSonics", decade: "1970s", pos: ["SF","PF"], ppg: 8.5, rpg: 4.0, apg: 1.0, spg: 0.6, bpg: 0.5, tov: 1.0 },
 
   // --- Seattle SuperSonics 1980s ---
   { name: "Jack Sikma", team: "Seattle SuperSonics", decade: "1980s", pos: ["C","PF"], ppg: 17.5, rpg: 10.0, apg: 3.5, spg: 0.9, bpg: 0.9, tov: 2.3 },
@@ -260,6 +384,10 @@ export const PLAYERS = [
   { name: "Xavier McDaniel", team: "Seattle SuperSonics", decade: "1980s", pos: ["SF","PF"], ppg: 20.0, rpg: 7.5, apg: 2.0, spg: 1.2, bpg: 0.6, tov: 2.3 },
   { name: "Tom Chambers", team: "Seattle SuperSonics", decade: "1980s", pos: ["PF","SF"], ppg: 20.5, rpg: 6.5, apg: 2.5, spg: 0.8, bpg: 0.6, tov: 2.3 },
   { name: "Nate McMillan", team: "Seattle SuperSonics", decade: "1980s", pos: ["PG"], ppg: 7.5, rpg: 3.5, apg: 7.5, spg: 2.0, bpg: 0.2, tov: 2.2 },
+  { name: "David Thompson", team: "Seattle SuperSonics", decade: "1980s", pos: ["SG","SF"], ppg: 14.0, rpg: 3.0, apg: 2.5, spg: 0.8, bpg: 0.3, tov: 1.8 },
+  { name: "Al Wood", team: "Seattle SuperSonics", decade: "1980s", pos: ["SG","SF"], ppg: 9.5, rpg: 2.5, apg: 1.8, spg: 0.8, bpg: 0.2, tov: 1.3 },
+  { name: "Danny Vranes", team: "Seattle SuperSonics", decade: "1980s", pos: ["PF"], ppg: 6.5, rpg: 3.5, apg: 1.0, spg: 0.7, bpg: 0.5, tov: 1.0 },
+  { name: "Frank Brickowski", team: "Seattle SuperSonics", decade: "1980s", pos: ["PF","C"], ppg: 8.5, rpg: 4.0, apg: 1.0, spg: 0.5, bpg: 0.4, tov: 1.3 },
 
   // --- Seattle SuperSonics 1990s ---
   { name: "Gary Payton", team: "Seattle SuperSonics", decade: "1990s", pos: ["PG"], ppg: 20.5, rpg: 4.5, apg: 7.5, spg: 2.2, bpg: 0.3, tov: 2.7 },
@@ -268,6 +396,10 @@ export const PLAYERS = [
   { name: "Hersey Hawkins", team: "Seattle SuperSonics", decade: "1990s", pos: ["SG"], ppg: 14.5, rpg: 3.5, apg: 2.5, spg: 1.5, bpg: 0.2, tov: 1.7 },
   { name: "Sam Perkins", team: "Seattle SuperSonics", decade: "1990s", pos: ["PF","C"], ppg: 12.5, rpg: 5.5, apg: 1.5, spg: 0.7, bpg: 0.9, tov: 1.3 },
   { name: "Vin Baker", team: "Seattle SuperSonics", decade: "1990s", pos: ["PF","C"], ppg: 15.5, rpg: 8.0, apg: 1.8, spg: 0.7, bpg: 0.9, tov: 2.3 },
+  { name: "Nate McMillan", team: "Seattle SuperSonics", decade: "1990s", pos: ["PG"], ppg: 6.0, rpg: 3.5, apg: 6.5, spg: 1.8, bpg: 0.2, tov: 2.0 },
+  { name: "Eddie Johnson", team: "Seattle SuperSonics", decade: "1990s", pos: ["SF"], ppg: 12.5, rpg: 2.5, apg: 1.5, spg: 0.6, bpg: 0.2, tov: 1.0 },
+  { name: "Kendall Gill", team: "Seattle SuperSonics", decade: "1990s", pos: ["SG"], ppg: 12.0, rpg: 3.5, apg: 2.0, spg: 1.5, bpg: 0.3, tov: 1.5 },
+  { name: "Ervin Johnson", team: "Seattle SuperSonics", decade: "1990s", pos: ["C"], ppg: 4.5, rpg: 5.5, apg: 0.5, spg: 0.4, bpg: 1.3, tov: 1.0 },
 
   // --- Seattle SuperSonics 2000s ---
   { name: "Ray Allen", team: "Seattle SuperSonics", decade: "2000s", pos: ["SG"], ppg: 24.5, rpg: 4.5, apg: 4.0, spg: 1.1, bpg: 0.2, tov: 2.5 },
@@ -276,4 +408,8 @@ export const PLAYERS = [
   { name: "Nick Collison", team: "Seattle SuperSonics", decade: "2000s", pos: ["PF","C"], ppg: 8.5, rpg: 6.5, apg: 1.2, spg: 0.6, bpg: 0.6, tov: 1.2 },
   { name: "Luke Ridnour", team: "Seattle SuperSonics", decade: "2000s", pos: ["PG"], ppg: 12.5, rpg: 2.5, apg: 5.5, spg: 1.0, bpg: 0.2, tov: 2.0 },
   { name: "Kevin Durant", team: "Seattle SuperSonics", decade: "2000s", pos: ["SF"], ppg: 20.5, rpg: 4.5, apg: 2.5, spg: 1.0, bpg: 0.9, tov: 2.8 },
+  { name: "Desmond Mason", team: "Seattle SuperSonics", decade: "2000s", pos: ["SG","SF"], ppg: 12.5, rpg: 4.5, apg: 1.8, spg: 1.0, bpg: 0.3, tov: 1.5 },
+  { name: "Vladimir Radmanovic", team: "Seattle SuperSonics", decade: "2000s", pos: ["SF","PF"], ppg: 10.5, rpg: 4.0, apg: 1.3, spg: 0.6, bpg: 0.4, tov: 1.0 },
+  { name: "Robert Swift", team: "Seattle SuperSonics", decade: "2000s", pos: ["C"], ppg: 6.0, rpg: 5.5, apg: 0.5, spg: 0.3, bpg: 1.0, tov: 1.0 },
+  { name: "Earl Watson", team: "Seattle SuperSonics", decade: "2000s", pos: ["PG"], ppg: 6.5, rpg: 2.0, apg: 4.0, spg: 0.9, bpg: 0.1, tov: 1.5 },
 ];
