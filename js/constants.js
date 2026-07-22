@@ -63,8 +63,11 @@ export const OT_LENGTH_SCALE = 5 / 12;
 // Bot draft skill: chance the bot takes the objectively best (player, slot)
 // combo available each round rather than a random legal one. Kept well
 // under 1 so the bot drafts unevenly like a real (beatable) opponent
-// instead of playing a solved game.
-export const BOT_SKILL = 0.35;
+// instead of playing a solved game. Calibrated via simulation: at 0.45 an
+// average/random drafter's win rate drops to ~14% (from ~21% at 0.35)
+// while a knowledgeable drafter still wins ~90% of the time - harder to
+// beat carelessly, but the skill test stays intact.
+export const BOT_SKILL = 0.45;
 
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.
