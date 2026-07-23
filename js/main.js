@@ -5,8 +5,8 @@
 
 import { PLAYERS } from "./data.js";
 import { simulateGame } from "./engine.js";
-import { DraftState, eligibleOpenSlots } from "./draft.js";
-import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS } from "./constants.js";
+import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
+import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
 import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername } from "./profile.js";
 import { ensureSession } from "./supabaseClient.js";
 import {
@@ -27,6 +27,7 @@ import {
   renderPositionSelector,
   renderRosterPanel,
   renderPool,
+  renderPickTimer,
   renderFullBoxScore,
   renderScoreboard,
   renderProfileScreen,
@@ -65,6 +66,40 @@ function cleanupOnlineWatcher() {
     game.online.stopWatcher();
     game.online.stopWatcher = null;
   }
+}
+
+// ---- Per-pick countdown timer (shared by local + online draft flows) ----
+// Deliberately client-side only - see plan notes on the abandonment gap this
+// doesn't cover for a disconnected online opponent.
+
+let pickTimerInterval = null;
+const pickTimerEl = document.getElementById("pick-timer");
+
+function cleanupPickTimer() {
+  if (pickTimerInterval) {
+    clearInterval(pickTimerInterval);
+    pickTimerInterval = null;
+  }
+  if (pickTimerEl) pickTimerEl.textContent = "";
+}
+
+/** (Re)starts the countdown from PICK_TIMER_SECONDS. Call exactly once per
+ * new turn - never on a re-render of the same turn (e.g. picking a
+ * multi-slot-eligible player just re-renders the position selector, it
+ * doesn't start a new turn) or the clock would never run out. */
+function startPickTimer(onTimeout) {
+  cleanupPickTimer();
+  let secondsRemaining = PICK_TIMER_SECONDS;
+  if (pickTimerEl) renderPickTimer(pickTimerEl, secondsRemaining);
+  pickTimerInterval = setInterval(() => {
+    secondsRemaining -= 1;
+    if (secondsRemaining <= 0) {
+      cleanupPickTimer();
+      onTimeout();
+      return;
+    }
+    if (pickTimerEl) renderPickTimer(pickTimerEl, secondsRemaining);
+  }, 1000);
 }
 
 // ---- Home screen ----
@@ -161,16 +196,19 @@ btnStartDraft.addEventListener("click", async () => {
 
 document.getElementById("btn-brand").addEventListener("click", () => {
   cleanupOnlineWatcher();
+  cleanupPickTimer();
   setActiveNav("play");
   showScreen("home");
 });
 document.getElementById("nav-play").addEventListener("click", () => {
   cleanupOnlineWatcher();
+  cleanupPickTimer();
   setActiveNav("play");
   showScreen("home");
 });
 document.getElementById("nav-profile").addEventListener("click", () => {
   cleanupOnlineWatcher();
+  cleanupPickTimer();
   setActiveNav("profile");
   openProfileScreen();
 });
@@ -218,6 +256,7 @@ function pendingSlotsFor(side) {
 }
 
 function startDraft() {
+  cleanupPickTimer();
   game.draft = new DraftState(PLAYERS);
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
@@ -258,6 +297,8 @@ function advanceDraft() {
     if (draft.hasValidPick(rosterFor(pendingHuman))) {
       game.round.activeSide = pendingHuman;
       game.round.pendingPlayer = null;
+      poolSearch.value = "";
+      startPickTimer(handleLocalTimeout);
       renderDraftRound();
       return;
     }
@@ -308,7 +349,7 @@ function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
-  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick);
+  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, PLAYERS);
 }
 
 function onPoolPick(player) {
@@ -323,6 +364,7 @@ function onPoolPick(player) {
 }
 
 function finalizePick(player, slot) {
+  cleanupPickTimer();
   const side = game.round.activeSide;
   game.draft.makePick(side, player, slot);
   game.round.resolved[side] = true;
@@ -331,7 +373,32 @@ function finalizePick(player, slot) {
   advanceDraft();
 }
 
+/** Manual-skip path (Skip Round button) and the timeout-with-no-eligible-
+ * player path both resolve a turn the same way - no pick gets made, this
+ * side is just marked resolved so the round can move on. */
+function skipLocalTurn() {
+  cleanupPickTimer();
+  game.round.resolved[game.round.activeSide] = true;
+  game.round.pendingPlayer = null;
+  advanceDraft();
+}
+
+/** Pick-timer timeout for a local human turn: auto-picks the worst eligible
+ * (player, slot) combo through the exact same path a manual pick uses, or
+ * skips if nothing is eligible (same precondition as the Skip button). */
+function handleLocalTimeout() {
+  const draft = game.draft;
+  const side = game.round.activeSide;
+  const combo = worstEligiblePick(draft.currentSquad, rosterFor(side));
+  if (combo) {
+    finalizePick(combo.player, combo.slot);
+  } else {
+    skipLocalTurn();
+  }
+}
+
 function renderRoundReveal() {
+  cleanupPickTimer();
   const draft = game.draft;
   draftTurnBanner.textContent = "Revealing picks…";
   poolSearch.hidden = true;
@@ -344,6 +411,7 @@ function renderRoundReveal() {
 }
 
 function renderDraftComplete() {
+  cleanupPickTimer();
   const draft = game.draft;
   draftRoundLabel.textContent = "Draft complete";
   squadBannerTeam.textContent = "Rosters set";
@@ -397,6 +465,7 @@ async function enterOnlineMatch(matchId) {
 async function onOnlineMatchChange(match) {
   if (match.status === "ready_to_simulate" || match.status === "complete") {
     cleanupOnlineWatcher();
+    cleanupPickTimer();
     await runOnlineSimulationFlow(match.id);
     return;
   }
@@ -413,6 +482,7 @@ async function renderOnlineDraftRound(match) {
   draftTurnBanner.textContent = "Your Pick";
   btnSkipRound.disabled = false;
   poolSearch.hidden = false;
+  poolSearch.value = "";
   o.pendingPlayer = null;
 
   const [players, picks] = await Promise.all([
@@ -425,6 +495,7 @@ async function renderOnlineDraftRound(match) {
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
+  startPickTimer(handleOnlineTimeout);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true);
   renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false);
@@ -437,7 +508,7 @@ function renderOnlinePositionAndPool() {
     finalizeOnlinePick(o.pendingPlayer, slot);
   });
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
-  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick);
+  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, PLAYERS);
 }
 
 function onOnlinePoolPick(player) {
@@ -451,7 +522,24 @@ function onOnlinePoolPick(player) {
   }
 }
 
+/** Pick-timer timeout for an online turn: auto-picks the worst eligible
+ * combo through the exact same submitPick path a manual pick uses, or
+ * skips if nothing is eligible - same server-authoritative validation
+ * either way, the server can't tell (and shouldn't need to) whether a pick
+ * was manual or a timeout auto-pick. */
+async function handleOnlineTimeout() {
+  const o = game.online;
+  if (!o || !o.currentSquad) return;
+  const combo = worstEligiblePick(o.currentSquad, o.myRoster);
+  if (combo) {
+    await finalizeOnlinePick(combo.player, combo.slot);
+  } else {
+    await onlineSkip();
+  }
+}
+
 async function finalizeOnlinePick(player, slot) {
+  cleanupPickTimer();
   const o = game.online;
   o.pendingPlayer = null;
   draftTurnBanner.textContent = "Locking in pick…";
@@ -471,6 +559,7 @@ async function finalizeOnlinePick(player, slot) {
 }
 
 async function onlineSkip() {
+  cleanupPickTimer();
   const o = game.online;
   draftTurnBanner.textContent = "Skipping…";
   btnSkipRound.disabled = true;
@@ -487,9 +576,7 @@ btnSkipRound.addEventListener("click", () => {
   if (game.mode === "online") {
     onlineSkip();
   } else {
-    game.round.resolved[game.round.activeSide] = true;
-    game.round.pendingPlayer = null;
-    advanceDraft();
+    skipLocalTurn();
   }
 });
 

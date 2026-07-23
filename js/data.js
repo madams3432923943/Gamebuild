@@ -1,5 +1,5 @@
 // Ball Knowledge - player/squad data
-// 34 squads (team + decade) x 6 players = 204 records
+// 34 squads (team + decade) x 10 players = 340 records
 // Stats are approximate per-game averages representative of the player's
 // tenure with that franchise during that decade. Positions reflect real
 // historical roles, including multi-position "tweener" players.

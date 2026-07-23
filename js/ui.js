@@ -1,8 +1,8 @@
 // Rendering helpers. Pure-ish functions: given data + a container element
 // (and callbacks), they redraw that container's contents.
 
-import { SLOTS } from "./constants.js";
-import { eligibleOpenSlots } from "./draft.js";
+import { SLOTS, MIN_SEARCH_CHARS } from "./constants.js";
+import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS } from "./profile.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
@@ -81,49 +81,90 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
   }
 }
 
-/**
- * Renders the current squad's full player pool - names and positions only,
- * no stats (the whole point is drafting on real basketball knowledge).
- * A card is enabled if the player has ANY eligible open slot; which slot
- * gets decided afterward via the position selector. `onPick(player)` fires
- * on click of an eligible card. `pendingPlayerName` highlights the
- * currently-selected-awaiting-slot player, if any.
- */
-export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick) {
-  container.innerHTML = "";
-  const filter = filterText.trim().toLowerCase();
-  const players = squad.players.filter((p) => p.name.toLowerCase().includes(filter));
+/** Renders one clickable (or disabled) player card - unchanged visuals from
+ * the old always-visible pool, just factored out so both the "in-squad"
+ * match tier and any future reuse can share it. */
+function renderPlayerCard(container, p, roster, pendingPlayerName, onPick) {
+  const slots = eligibleOpenSlots(p, roster);
+  const eligible = slots.length > 0;
+  const card = document.createElement("div");
+  card.className = "player-card" + (eligible ? "" : " disabled") + (p.name === pendingPlayerName ? " pending" : "");
 
-  if (players.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-note";
-    empty.textContent = "No players match that search.";
-    container.appendChild(empty);
+  const name = document.createElement("span");
+  name.className = "player-card-name";
+  name.textContent = p.name;
+  for (const pos of p.pos) {
+    const chip = document.createElement("span");
+    chip.className = "pos-chip";
+    chip.textContent = pos;
+    name.appendChild(chip);
+  }
+  card.appendChild(name);
+
+  if (eligible) {
+    card.addEventListener("click", () => onPick(p));
+  }
+  container.appendChild(card);
+}
+
+function renderNote(container, text, tierClass) {
+  const note = document.createElement("div");
+  note.className = "empty-note" + (tierClass ? ` ${tierClass}` : "");
+  note.textContent = text;
+  container.appendChild(note);
+}
+
+/**
+ * Renders the current squad's search results - no default visible list.
+ * You type a player from memory; nothing appears until MIN_SEARCH_CHARS
+ * letters are typed, and then the tiered result from resolveTypedInput()
+ * decides what shows:
+ *  - in-squad match(es): real clickable player cards, same as before.
+ *  - elsewhere match: an honest "wrong squad" note naming where that real
+ *    player IS in our data, instead of a flat (and misleading) "no match."
+ *  - no match anywhere: an honest "not in our database" note.
+ * `onPick(player)` fires on click of an eligible in-squad card, same
+ * contract as before. `allPlayers` is the full dataset, used only for the
+ * "elsewhere" lookup.
+ */
+export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick, allPlayers) {
+  container.innerHTML = "";
+  const result = resolveTypedInput(filterText, squad, allPlayers);
+
+  if (result.tier === "too-short") {
+    const text =
+      filterText.trim().length === 0
+        ? `Type a player's name from memory (${MIN_SEARCH_CHARS}+ letters) to search this squad.`
+        : `Keep typing — ${MIN_SEARCH_CHARS}+ letters needed to search.`;
+    renderNote(container, text);
     return;
   }
 
-  for (const p of players) {
-    const slots = eligibleOpenSlots(p, roster);
-    const eligible = slots.length > 0;
-    const card = document.createElement("div");
-    card.className = "player-card" + (eligible ? "" : " disabled") + (p.name === pendingPlayerName ? " pending" : "");
-
-    const name = document.createElement("span");
-    name.className = "player-card-name";
-    name.textContent = p.name;
-    for (const pos of p.pos) {
-      const chip = document.createElement("span");
-      chip.className = "pos-chip";
-      chip.textContent = pos;
-      name.appendChild(chip);
+  if (result.tier === "in-squad") {
+    for (const p of result.candidates) {
+      renderPlayerCard(container, p, roster, pendingPlayerName, onPick);
     }
-    card.appendChild(name);
-
-    if (eligible) {
-      card.addEventListener("click", () => onPick(p));
-    }
-    container.appendChild(card);
+    return;
   }
+
+  if (result.tier === "elsewhere") {
+    const named = result.candidates.map((p) => `${p.name} (${p.team} ${p.decade})`).join(", ");
+    renderNote(
+      container,
+      `Not on this squad. We do have ${named} — wrong team/decade for this pick, not a wrong guess.`,
+      "pool-tier2-note"
+    );
+    return;
+  }
+
+  renderNote(container, "No player by that name in our database. Try another name or spelling.", "pool-tier3-note");
+}
+
+/** Countdown display for the per-pick timer. Switches to a "buzzer" warning
+ * style in the final stretch so the pressure is visible, not just numeric. */
+export function renderPickTimer(container, secondsRemaining) {
+  container.textContent = `⏱ ${secondsRemaining}s`;
+  container.classList.toggle("timer-warning", secondsRemaining <= 5);
 }
 
 function r(n) {

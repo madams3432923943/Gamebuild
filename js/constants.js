@@ -76,3 +76,12 @@ export const QUARTER_REVEAL_DELAY_MS = 900;
 // How long a fully-resolved draft round holds on the "locked in" state
 // before both sides' picks flip-reveal simultaneously.
 export const DRAFT_REVEAL_DELAY_MS = 700;
+
+// How long a player has to make each pick before the game auto-picks the
+// worst eligible option for them (or auto-skips if none are eligible).
+export const PICK_TIMER_SECONDS = 30;
+
+// Minimum characters typed before the draft search reveals any matches -
+// with only 10 players per squad, revealing results after 1 character
+// would let someone brute-force the roster letter by letter.
+export const MIN_SEARCH_CHARS = 3;

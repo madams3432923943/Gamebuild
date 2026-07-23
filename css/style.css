@@ -411,6 +411,25 @@ input[type="text"]:focus-visible {
   color: var(--hardwood-bright);
 }
 
+.pick-timer {
+  text-align: center;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+  color: var(--hardwood-bright);
+}
+
+.pick-timer.timer-warning {
+  color: var(--buzzer);
+  animation: pulse-buzzer 0.6s ease-in-out infinite;
+}
+
+@keyframes pulse-buzzer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 .draft-body {
   display: grid;
   grid-template-columns: 1fr 1.4fr 1fr;
@@ -849,4 +868,12 @@ table.box-table th, table.history-table th {
   color: var(--chalk);
   font-size: 0.85rem;
   font-style: italic;
+}
+
+.pool-tier2-note {
+  color: var(--hardwood-bright);
+}
+
+.pool-tier3-note {
+  color: var(--buzzer);
 }
