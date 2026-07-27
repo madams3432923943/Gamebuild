@@ -152,12 +152,12 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
     renderNote(
       container,
       `Not on this squad. We do have ${named} — wrong team/decade for this pick, not a wrong guess.`,
-      "pool-tier2-note"
+      "pool-elsewhere-note"
     );
     return;
   }
 
-  renderNote(container, "No player by that name in our database. Try another name or spelling.", "pool-tier3-note");
+  renderNote(container, "No player by that name in our database. Try another name or spelling.", "pool-none-note");
 }
 
 /** Countdown display for the per-pick timer. Switches to a "buzzer" warning

@@ -870,10 +870,10 @@ table.box-table th, table.history-table th {
   font-style: italic;
 }
 
-.pool-tier2-note {
+.pool-elsewhere-note {
   color: var(--hardwood-bright);
 }
 
-.pool-tier3-note {
+.pool-none-note {
   color: var(--buzzer);
 }

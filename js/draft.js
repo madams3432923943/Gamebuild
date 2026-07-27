@@ -43,6 +43,19 @@ export function eligibleOpenSlots(player, roster) {
   return openSlots(roster).filter((s) => isEligible(player, s));
 }
 
+/** Every legal (player, slot) combo for `roster` in `squad`, each scored by
+ * impact() - the shared building block behind both the bot's best-pick
+ * logic and the pick-timer's worst-pick timeout penalty. */
+function eligibleCombos(squad, roster) {
+  const combos = [];
+  for (const player of squad.players) {
+    for (const slot of eligibleOpenSlots(player, roster)) {
+      combos.push({ player, slot, score: impact(player) });
+    }
+  }
+  return combos;
+}
+
 // ---- Typed-name search (the draft board shows no visible list - you type
 // a player from memory and get an autocomplete dropdown once you've typed
 // enough). See resolveTypedInput() below for the tiered matching this
@@ -94,25 +107,25 @@ function maxAllowedDistance(queryLength) {
  * what lets a correctly-remembered-but-misspelled name still resolve
  * (testing "do you know this player," not "can you spell Szczerbiak") while
  * not accidentally matching an unrelated word that just happens to be close. */
-function fuzzyMatchScore(query, fullName) {
-  const q = normalizeName(query);
+function fuzzyMatchScore(normalizedQuery, fullName) {
   const n = normalizeName(fullName);
-  if (!q) return Infinity;
-  if (n.includes(q)) return 0;
+  if (!normalizedQuery) return Infinity;
+  if (n.includes(normalizedQuery)) return 0;
 
   let best = Infinity;
   for (const token of [n, ...n.split(" ")]) {
-    if (Math.abs(token.length - q.length) > 2) continue;
-    const d = levenshteinDistance(q, token);
+    if (Math.abs(token.length - normalizedQuery.length) > 2) continue;
+    const d = levenshteinDistance(normalizedQuery, token);
     if (d < best) best = d;
   }
   return best;
 }
 
 function rankMatches(query, players) {
-  const threshold = maxAllowedDistance(normalizeName(query).length);
+  const normalizedQuery = normalizeName(query);
+  const threshold = maxAllowedDistance(normalizedQuery.length);
   return players
-    .map((p) => ({ p, score: fuzzyMatchScore(query, p.name) }))
+    .map((p) => ({ p, score: fuzzyMatchScore(normalizedQuery, p.name) }))
     .filter((m) => m.score <= threshold)
     .sort((a, b) => a.score - b.score)
     .map((m) => m.p);
@@ -156,12 +169,7 @@ export function resolveTypedInput(query, currentSquad, allPlayers) {
  * combo at all (the caller should auto-skip instead, same precondition
  * as the Skip button). */
 export function worstEligiblePick(squad, roster) {
-  const combos = [];
-  for (const player of squad.players) {
-    for (const slot of eligibleOpenSlots(player, roster)) {
-      combos.push({ player, slot, score: impact(player) });
-    }
-  }
+  const combos = eligibleCombos(squad, roster);
   if (combos.length === 0) return null;
   return combos.reduce((worst, c) => (c.score < worst.score ? c : worst));
 }
@@ -220,12 +228,7 @@ export class DraftState {
   botAutoPick(side = "B") {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
-    const combos = [];
-    for (const player of this.currentSquad.players) {
-      for (const slot of eligibleOpenSlots(player, roster)) {
-        combos.push({ player, slot, score: impact(player) });
-      }
-    }
+    const combos = eligibleCombos(this.currentSquad, roster);
     let choice;
     if (Math.random() < BOT_SKILL) {
       choice = combos.reduce((best, c) => (c.score > best.score ? c : best));
