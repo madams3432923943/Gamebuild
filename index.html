@@ -109,10 +109,6 @@
           </label>
         </div>
         <p class="hint-text" id="mode-hint"></p>
-
-        <h3 class="tactic-heading">Game plan</h3>
-        <div class="tactic-grid" id="tactic-grid"></div>
-
         <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
         <button id="btn-cancel-search" class="btn btn-secondary btn-block hidden">Cancel Search</button>
         <div id="search-status" class="search-status hidden"></div>
@@ -135,7 +131,14 @@
       <div class="draft-body">
         <div class="roster-panel" id="roster-panel-a"></div>
 
-        <div class="draft-pool-panel">
+        <div class="tactic-phase hidden" id="tactic-phase">
+          <h3 class="tactic-heading">Pick your game plan</h3>
+          <p class="hint-text" id="tactic-phase-hint">Both rosters are set. Choose how this team plays.</p>
+          <div class="tactic-grid" id="tactic-grid"></div>
+          <button id="btn-play-game" class="btn btn-primary btn-block">Play Game</button>
+        </div>
+
+        <div class="draft-pool-panel" id="draft-pool-panel">
           <input id="pool-search" type="text" placeholder="Type a player's name from memory…" autocomplete="off" />
           <p class="knowledge-hint" id="knowledge-hint"></p>
           <div id="pool-list" class="pool-list"></div>

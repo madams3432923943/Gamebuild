@@ -71,7 +71,13 @@ export const BOT_SKILL = 0.45;
 
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.
-export const QUARTER_REVEAL_DELAY_MS = 2100;
+// Time a finished period holds on screen before the next tips off. Generous
+// on purpose: the score also counts up over QUARTER_TICK_MS inside this
+// window, so the gap is filled with motion rather than dead air.
+export const QUARTER_REVEAL_DELAY_MS = 4200;
+
+// How long the running score takes to climb to the new period's total.
+export const QUARTER_TICK_MS = 1500;
 
 // How long a fully-resolved draft round holds on the "locked in" state
 // before both sides' picks flip-reveal simultaneously.
@@ -80,6 +86,11 @@ export const DRAFT_REVEAL_DELAY_MS = 700;
 // How long a player has to make each pick before the game auto-picks the
 // worst eligible option for them (or auto-skips if none are eligible).
 export const PICK_TIMER_SECONDS = 30;
+
+// How long a player has to commit to a game plan once both rosters are set.
+// Longer than a pick timer on purpose: this is one decision made with full
+// information about the team you just built, so it deserves a real beat.
+export const TACTIC_TIMER_SECONDS = 45;
 
 // Minimum characters typed before the draft search reveals any matches -
 // with only 10 players per squad, revealing results after 1 character

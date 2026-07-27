@@ -1599,3 +1599,27 @@ table.box-table th, table.history-table th {
   font-family: var(--font-mono);
   margin-top: 0.1rem;
 }
+
+/* Final-round game-plan phase, shown in place of the draft pool. */
+.tactic-phase {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 1rem;
+  box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(var(--accent-rgb), 0.22);
+}
+
+.tactic-phase .tactic-grid {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.tactic-phase .tactic-card {
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.tactic-phase .tactic-head { flex: 0 0 9.5rem; }

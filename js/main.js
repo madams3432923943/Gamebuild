@@ -10,7 +10,14 @@ import { DEFAULT_TACTIC, TACTICS } from "./tactics.js";
 const TACTIC_IDS = TACTICS.map((t) => t.id);
 import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
-import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
+import {
+  SLOTS,
+  QUARTER_REVEAL_DELAY_MS,
+  QUARTER_TICK_MS,
+  DRAFT_REVEAL_DELAY_MS,
+  PICK_TIMER_SECONDS,
+  TACTIC_TIMER_SECONDS,
+} from "./constants.js";
 import {
   loadProfile,
   recordPracticeResult,
@@ -301,19 +308,6 @@ const MODE_CONFIG = {
 };
 
 const modeHintEl = document.getElementById("mode-hint");
-const tacticGridEl = document.getElementById("tactic-grid");
-
-// Your game plan for the next match. Kept between games so a preferred style
-// sticks rather than resetting to Balanced every time.
-let selectedTactic = DEFAULT_TACTIC;
-
-function renderTactics() {
-  renderTacticPicker(tacticGridEl, selectedTactic, (id) => {
-    selectedTactic = id;
-    renderTactics();
-  });
-}
-renderTactics();
 
 for (const radio of modeRadios) {
   radio.addEventListener("change", renderModeChoice);
@@ -395,6 +389,7 @@ btnStartDraft.addEventListener("click", async () => {
 function goToTab(tab, onArrive) {
   cleanupOnlineWatcher();
   cleanupPickTimer();
+  cleanupTacticTimer();
   setActiveNav(tab);
   onArrive();
 }
@@ -469,6 +464,69 @@ function pendingSlotsFor(side) {
 }
 
 const knowledgeHintEl = document.getElementById("knowledge-hint");
+const tacticPhaseEl = document.getElementById("tactic-phase");
+const tacticGridEl = document.getElementById("tactic-grid");
+const tacticPhaseHintEl = document.getElementById("tactic-phase-hint");
+const draftPoolPanel = document.getElementById("draft-pool-panel");
+const btnPlayGame = document.getElementById("btn-play-game");
+
+// The game plan is chosen AFTER the draft, as a final timed round: you should
+// be picking how to play the team you actually ended up with, not guessing at
+// a style before you know who you'll get.
+let selectedTactic = DEFAULT_TACTIC;
+let tacticTimerInterval = null;
+
+function cleanupTacticTimer() {
+  if (tacticTimerInterval) {
+    clearInterval(tacticTimerInterval);
+    tacticTimerInterval = null;
+  }
+}
+
+function renderTactics() {
+  renderTacticPicker(tacticGridEl, selectedTactic, (id) => {
+    selectedTactic = id;
+    renderTactics();
+  });
+}
+
+/** Final round: both rosters are set, 45 seconds to commit to a plan. Running
+ * out doesn't punish you - it locks in whatever is highlighted - because the
+ * timer exists to keep a match moving, not to tax indecision. */
+function startTacticPhase(onConfirm) {
+  cleanupPickTimer();
+  cleanupTacticTimer();
+  selectedTactic = DEFAULT_TACTIC;
+  renderTactics();
+
+  draftPoolPanel.classList.add("hidden");
+  tacticPhaseEl.classList.remove("hidden");
+  pickTimerEl.hidden = false;
+
+  let remaining = TACTIC_TIMER_SECONDS;
+  renderPickTimer(pickTimerEl, remaining);
+  tacticTimerInterval = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      cleanupTacticTimer();
+      confirm();
+      return;
+    }
+    renderPickTimer(pickTimerEl, remaining);
+  }, 1000);
+
+  function confirm() {
+    cleanupTacticTimer();
+    tacticPhaseEl.classList.add("hidden");
+    draftPoolPanel.classList.remove("hidden");
+    pickTimerEl.hidden = true;
+    pickTimerEl.textContent = "";
+    btnPlayGame.onclick = null;
+    onConfirm();
+  }
+
+  btnPlayGame.onclick = confirm;
+}
 
 /** The draft board reads differently under each ruleset, so the search box
  * and its hint have to say which game is actually being played. */
@@ -494,6 +552,9 @@ function rememberSquad(squadId) {
 
 function startDraft() {
   cleanupPickTimer();
+  cleanupTacticTimer();
+  tacticPhaseEl.classList.add("hidden");
+  draftPoolPanel.classList.remove("hidden");
   applyRulesetToDraftUI();
   game.draft = new DraftState(PLAYERS, recentSquadIds);
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
@@ -661,11 +722,9 @@ function renderDraftComplete() {
   renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false);
 
   poolList.innerHTML = "";
-  const btn = document.createElement("button");
-  btn.className = "btn btn-primary btn-block";
-  btn.textContent = "Simulate Game";
-  btn.addEventListener("click", runLocalSimulation);
-  poolList.appendChild(btn);
+  draftTurnBanner.textContent = "Final round — set your game plan";
+  tacticPhaseHintEl.textContent = `Both rosters are set. ${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
+  startTacticPhase(runLocalSimulation);
 }
 
 // ---- Online draft flow ----
@@ -864,6 +923,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
 
   // Cumulative per-slot totals, grown as each period is revealed, so the live
   // box score builds through the game instead of appearing finished.
+  const scoreTickIntervals = [];
   const liveTotals = { a: {}, b: {} };
   for (const slot of SLOTS) {
     liveTotals.a[slot] = { pts: 0, reb: 0, ast: 0 };
@@ -906,11 +966,36 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     for (const call of calls.slice(0, 2)) pushPlayHeadline(playFeedEl, call.text, call.tone);
   }
 
+  /** Animates the scoreboard from one period's totals to the next. */
+  function tickScoreTo(fromA2, fromB2, toA, toB, periods, remaining, duringLabel, doneLabel) {
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const t = Math.min(1, (Date.now() - started) / QUARTER_TICK_MS);
+      const eased = 1 - Math.pow(1 - t, 2);
+      const done = t >= 1;
+      renderScoreboard(
+        liveScoreboard,
+        labelA,
+        labelB,
+        periods,
+        remaining,
+        Math.round(fromA2 + (toA - fromA2) * eased),
+        Math.round(fromB2 + (toB - fromB2) * eased),
+        done ? doneLabel : duringLabel,
+        true
+      );
+      if (done) clearInterval(tick);
+    }, 60);
+    scoreTickIntervals.push(tick);
+  }
+
   function step() {
     if (i >= deltaA.length) {
       finish();
       return;
     }
+    const fromA = runningA;
+    const fromB = runningB;
     const isOt = result.quarterBoxScores[i].overtime;
     const label = isOt ? `OT${i - REGULATION_PERIODS}` : `Q${i + 1}`;
     periodsSoFar.push({ label, a: deltaA[i], b: deltaB[i] });
@@ -929,16 +1014,18 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
 
     const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
     const periodsRemaining = Math.max(0, REGULATION_PERIODS - regulationPlayed);
-    renderScoreboard(
-      liveScoreboard,
-      labelA,
-      labelB,
-      periodsSoFar,
-      periodsRemaining,
+
+    // Climb to the new totals instead of snapping to them, so a quarter reads
+    // as being played rather than reported.
+    tickScoreTo(
+      fromA,
+      fromB,
       runningA,
       runningB,
-      `End of ${label}`,
-      true
+      periodsSoFar,
+      periodsRemaining,
+      `${label} in progress`,
+      `End of ${label}`
     );
     renderLiveBox(liveBoxEl, rosterA, rosterB, labelA, labelB, liveTotals);
     announcePeriod(i, label);
@@ -953,6 +1040,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
   }
 
   function finish() {
+    for (const t of scoreTickIntervals) clearInterval(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
 
     const winnerName = result.winner === "A" ? labelA : labelB;
