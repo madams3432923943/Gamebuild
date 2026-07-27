@@ -2,11 +2,11 @@
 // the server-computed simulation result. Deliberately poll-based rather
 // than realtime - see the comment on watchMatch() for why.
 
-import { getSupabase, ensureSession } from "./supabaseClient.js";
+import { getSupabase, requireSession } from "./supabaseClient.js";
 import { SLOTS } from "./constants.js";
 
 export async function joinQueue() {
-  await ensureSession();
+  await requireSession();
   const supabase = await getSupabase();
   const { data, error } = await supabase.rpc("join_queue");
   if (error) throw error;
@@ -14,7 +14,7 @@ export async function joinQueue() {
 }
 
 export async function leaveQueue() {
-  await ensureSession();
+  await requireSession();
   const supabase = await getSupabase();
   await supabase.rpc("leave_queue");
 }

@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ball Knowledge</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+    }
+  }
+  </script>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -11,16 +18,44 @@
     <button class="brand" id="btn-brand" type="button">
       <span class="brand-ball">🏀</span> Ball Knowledge
     </button>
-    <nav class="nav-tabs">
+    <nav class="nav-tabs" id="nav-tabs" hidden>
       <button class="nav-tab active" id="nav-play" type="button">Play</button>
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
+      <button class="nav-tab" id="nav-signout" type="button">Sign Out</button>
     </nav>
   </header>
 
   <main id="app-root">
     <!-- Screens are toggled via JS by adding/removing .hidden -->
 
-    <section id="screen-home" class="screen">
+    <section id="screen-auth" class="screen hidden">
+      <div class="card auth-card">
+        <h2 id="auth-heading">Sign In</h2>
+        <p class="hint-text" id="auth-subheading">Sign in to keep your record, badges, and rank.</p>
+
+        <div class="field-row" id="row-auth-username" hidden>
+          <label for="input-auth-username">Username</label>
+          <input id="input-auth-username" type="text" maxlength="20" placeholder="Your display name" autocomplete="username" />
+        </div>
+        <div class="field-row">
+          <label for="input-auth-email">Email</label>
+          <input id="input-auth-email" type="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="field-row">
+          <label for="input-auth-password">Password</label>
+          <input id="input-auth-password" type="password" placeholder="At least 6 characters" autocomplete="current-password" />
+        </div>
+
+        <button id="btn-auth-submit" class="btn btn-primary btn-block">Sign In</button>
+        <div id="auth-status" class="auth-status hidden"></div>
+        <p class="hint-text auth-switch">
+          <span id="auth-switch-label">New here?</span>
+          <button id="btn-auth-toggle" class="link-btn" type="button">Create an account</button>
+        </p>
+      </div>
+    </section>
+
+    <section id="screen-home" class="screen hidden">
       <h2 class="section-heading">Choose your sport</h2>
       <div class="sport-grid">
         <button class="sport-tile active" data-sport="nba" type="button">
@@ -47,10 +82,7 @@
 
       <div class="card start-card">
         <h2>Start a Draft Battle</h2>
-        <div class="field-row">
-          <label for="input-name-a">Your name</label>
-          <input id="input-name-a" type="text" maxlength="20" placeholder="Player 1" />
-        </div>
+        <p class="hint-text">Drafting as <span id="signed-in-as" class="signed-in-as"></span></p>
         <div class="mode-toggle">
           <label class="radio-option">
             <input type="radio" name="mode" value="online" checked />

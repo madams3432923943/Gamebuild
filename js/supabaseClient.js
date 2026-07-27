@@ -24,17 +24,47 @@ export function getSupabase() {
   return clientPromise;
 }
 
-/** Ensures there's a signed-in user, creating an anonymous session on first
- * use. The session persists in the browser (Supabase's own storage), so a
- * returning player keeps their profile without ever seeing a login screen. */
-export async function ensureSession() {
+/** The current signed-in session, or null. Supabase persists this in browser
+ * storage, so a returning player stays signed in across visits. */
+export async function getSession() {
   const supabase = await getSupabase();
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (session) return session;
+  return session;
+}
 
-  const { data, error } = await supabase.auth.signInAnonymously();
+/** The session for an action that requires a signed-in user. Throws rather
+ * than silently creating one - every caller here runs behind the auth gate,
+ * so reaching this without a session is a bug worth surfacing. */
+export async function requireSession() {
+  const session = await getSession();
+  if (!session) throw new Error("You need to be signed in to do that.");
+  return session;
+}
+
+/**
+ * Creates an account. The `handle_new_user` trigger on auth.users creates the
+ * matching profiles row automatically, so there's no row to insert here.
+ * Returns the session, or null when the project requires email confirmation
+ * (in which case the account exists but can't act until the link is clicked).
+ */
+export async function signUp(email, password) {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
   return data.session;
+}
+
+export async function signIn(email, password) {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data.session;
+}
+
+export async function signOut() {
+  const supabase = await getSupabase();
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }

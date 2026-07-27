@@ -8,7 +8,7 @@ import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
 import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername } from "./profile.js";
-import { ensureSession } from "./supabaseClient.js";
+import { getSession, requireSession, signUp, signIn, signOut } from "./supabaseClient.js";
 import {
   joinQueue,
   leaveQueue,
@@ -44,6 +44,7 @@ function sleep(ms) {
 }
 
 const screens = {
+  auth: document.getElementById("screen-auth"),
   home: document.getElementById("screen-home"),
   draft: document.getElementById("screen-draft"),
   game: document.getElementById("screen-game"),
@@ -102,24 +103,141 @@ function startPickTimer(onTimeout) {
   }, 1000);
 }
 
+// ---- Auth screen ----
+// The whole app sits behind this: no anonymous play, so a player's record,
+// badges and rank always belong to a real account they can come back to.
+
+const navTabs = document.getElementById("nav-tabs");
+const authHeading = document.getElementById("auth-heading");
+const authSubheading = document.getElementById("auth-subheading");
+const rowAuthUsername = document.getElementById("row-auth-username");
+const inputAuthUsername = document.getElementById("input-auth-username");
+const inputAuthEmail = document.getElementById("input-auth-email");
+const inputAuthPassword = document.getElementById("input-auth-password");
+const btnAuthSubmit = document.getElementById("btn-auth-submit");
+const btnAuthToggle = document.getElementById("btn-auth-toggle");
+const authSwitchLabel = document.getElementById("auth-switch-label");
+const authStatusEl = document.getElementById("auth-status");
+const signedInAsEl = document.getElementById("signed-in-as");
+
+let authMode = "signin"; // "signin" | "signup"
+
+function setAuthStatus(message, kind) {
+  authStatusEl.textContent = message || "";
+  authStatusEl.classList.toggle("hidden", !message);
+  authStatusEl.classList.toggle("auth-error", kind === "error");
+}
+
+function renderAuthMode() {
+  const isSignup = authMode === "signup";
+  authHeading.textContent = isSignup ? "Create Account" : "Sign In";
+  authSubheading.textContent = isSignup
+    ? "Pick a username - it's what opponents see on the scoreboard."
+    : "Sign in to keep your record, badges, and rank.";
+  btnAuthSubmit.textContent = isSignup ? "Create Account" : "Sign In";
+  btnAuthToggle.textContent = isSignup ? "Sign in instead" : "Create an account";
+  authSwitchLabel.textContent = isSignup ? "Already have an account?" : "New here?";
+  rowAuthUsername.hidden = !isSignup;
+  inputAuthPassword.autocomplete = isSignup ? "new-password" : "current-password";
+  setAuthStatus("");
+}
+
+btnAuthToggle.addEventListener("click", () => {
+  authMode = authMode === "signup" ? "signin" : "signup";
+  renderAuthMode();
+});
+
+function showAuthScreen() {
+  navTabs.hidden = true;
+  renderAuthMode();
+  showScreen("auth");
+}
+
+/** Called once a session exists: loads the profile, shows the app shell, and
+ * stamps the display name the game will use for this player. */
+async function enterApp() {
+  navTabs.hidden = false;
+  setActiveNav("play");
+  showScreen("home");
+  try {
+    const profile = await loadProfile();
+    game.nameA = profile.username || "Player";
+  } catch (e) {
+    console.error("Failed to load profile:", e);
+    game.nameA = "Player";
+  }
+  signedInAsEl.textContent = game.nameA;
+}
+
+btnAuthSubmit.addEventListener("click", async () => {
+  const email = inputAuthEmail.value.trim();
+  const password = inputAuthPassword.value;
+  const username = inputAuthUsername.value.trim();
+
+  if (!email || !password) {
+    setAuthStatus("Email and password are both required.", "error");
+    return;
+  }
+  if (authMode === "signup" && !username) {
+    setAuthStatus("Pick a username so opponents know who they're facing.", "error");
+    return;
+  }
+
+  btnAuthSubmit.disabled = true;
+  setAuthStatus(authMode === "signup" ? "Creating your account…" : "Signing in…");
+
+  try {
+    if (authMode === "signup") {
+      const session = await signUp(email, password);
+      // No session means the project requires email confirmation - the account
+      // exists but can't act until the link is clicked.
+      if (!session) {
+        setAuthStatus("Account created. Check your email for a confirmation link, then sign in.");
+        authMode = "signin";
+        renderAuthMode();
+        setAuthStatus("Account created. Check your email for a confirmation link, then sign in.");
+        return;
+      }
+      await setUsername(username);
+    } else {
+      await signIn(email, password);
+    }
+    inputAuthPassword.value = "";
+    await enterApp();
+  } catch (e) {
+    setAuthStatus(e.message || "That didn't work. Try again.", "error");
+  } finally {
+    btnAuthSubmit.disabled = false;
+  }
+});
+
+for (const el of [inputAuthEmail, inputAuthPassword, inputAuthUsername]) {
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") btnAuthSubmit.click();
+  });
+}
+
+document.getElementById("nav-signout").addEventListener("click", async () => {
+  cleanupOnlineWatcher();
+  cleanupPickTimer();
+  try {
+    await signOut();
+  } catch (e) {
+    console.error("Sign out failed:", e);
+  }
+  inputAuthEmail.value = "";
+  inputAuthPassword.value = "";
+  showAuthScreen();
+});
+
 // ---- Home screen ----
 
-const inputNameA = document.getElementById("input-name-a");
 const inputNameB = document.getElementById("input-name-b");
 const rowNameB = document.getElementById("row-name-b");
 const modeRadios = document.querySelectorAll('input[name="mode"]');
 const btnStartDraft = document.getElementById("btn-start-draft");
 const btnCancelSearch = document.getElementById("btn-cancel-search");
 const searchStatusEl = document.getElementById("search-status");
-
-(async () => {
-  try {
-    const profile = await loadProfile();
-    if (profile.username) inputNameA.value = profile.username;
-  } catch (e) {
-    console.error("Failed to load profile on startup:", e);
-  }
-})();
 
 for (const radio of modeRadios) {
   radio.addEventListener("change", () => {
@@ -174,14 +292,7 @@ btnCancelSearch.addEventListener("click", async () => {
 
 btnStartDraft.addEventListener("click", async () => {
   const mode = getMode();
-  const nameA = inputNameA.value.trim() || "Player 1";
   cleanupOnlineWatcher();
-
-  try {
-    await setUsername(nameA);
-  } catch (e) {
-    console.error("Failed to save username:", e);
-  }
 
   if (mode === "online") {
     startOnlineSearch();
@@ -189,7 +300,6 @@ btnStartDraft.addEventListener("click", async () => {
   }
 
   game.mode = mode;
-  game.nameA = nameA;
   game.nameB = mode === "local" ? inputNameB.value.trim() || "Player 2" : "Bot";
   startDraft();
 });
@@ -440,7 +550,7 @@ async function enterOnlineMatch(matchId) {
   searchStatusEl.classList.add("hidden");
 
   game.mode = "online";
-  const session = await ensureSession();
+  const session = await requireSession();
   const match = await getMatch(matchId);
   const mySide = match.player_a === session.user.id ? "A" : "B";
   const oppUserId = mySide === "A" ? match.player_b : match.player_a;
@@ -830,10 +940,30 @@ async function openProfileScreen() {
 
 profileRefs.usernameInput.addEventListener("change", async () => {
   const name = profileRefs.usernameInput.value.trim();
+  if (!name) return;
   try {
     await setUsername(name);
   } catch (e) {
     console.error("Failed to save username:", e);
+    return;
   }
-  inputNameA.value = name;
+  game.nameA = name;
+  signedInAsEl.textContent = name;
 });
+
+// ---- Bootstrap ----
+// Runs last so every const above it is initialized. Gates the app on an
+// existing session; a Supabase/CDN failure here must not leave a blank page,
+// so any error falls through to the sign-in screen.
+(async () => {
+  try {
+    const session = await getSession();
+    if (session) {
+      await enterApp();
+      return;
+    }
+  } catch (e) {
+    console.error("Couldn't check the existing session:", e);
+  }
+  showAuthScreen();
+})();
