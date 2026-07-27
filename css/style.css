@@ -1399,3 +1399,195 @@ table.box-table th, table.history-table th {
   border-color: var(--accent);
   color: var(--accent-bright);
 }
+
+/* ---- Tactic picker ---- */
+.tactic-heading {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 1rem 0 0.5rem;
+}
+
+.tactic-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 860px) {
+  .tactic-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.tactic-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0.6rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  min-height: 5rem;
+}
+
+.tactic-card.active {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.22), transparent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.tactic-head {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tactic-blurb {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+/* ---- Court backdrop ----
+   Drawn with borders and radial gradients rather than an image, so it stays
+   crisp at any size and ships nothing extra to the app build. */
+.court-stage {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  background: radial-gradient(ellipse at 50% 40%, #1b2740 0%, var(--bg) 70%);
+}
+
+.court {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.court span {
+  position: absolute;
+  border: 2px solid rgba(var(--accent-rgb), 0.35);
+}
+
+.court-circle {
+  width: 22%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.court-halfline {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  border-width: 0 0 0 2px;
+}
+
+.court-key {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16%;
+  height: 42%;
+}
+
+.court-key-left { left: 0; }
+.court-key-right { right: 0; }
+
+.court-arc {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26%;
+  height: 74%;
+  border-radius: 50%;
+}
+
+.court-arc-left { left: -13%; }
+.court-arc-right { right: -13%; }
+
+.court-stage .scoreboard {
+  position: relative;
+  background: transparent;
+  border: none;
+  margin-bottom: 0;
+}
+
+/* ---- Play-by-play feed ---- */
+.play-feed {
+  position: relative;
+  padding: 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 3.2rem;
+}
+
+.play-card {
+  background: rgba(0, 0, 0, 0.45);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+  animation: play-in 0.35s ease;
+}
+
+.play-card.hot {
+  border-left-color: var(--buzzer);
+  color: var(--text);
+}
+
+@keyframes play-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Live box score ---- */
+.live-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 700px) {
+  .live-box { grid-template-columns: 1fr; }
+}
+
+.live-box-head {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.4rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.live-box-team {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+}
+
+.live-box .box-table { margin-bottom: 0; font-size: 0.78rem; }
+.live-box .live-slot { color: var(--muted); width: 3rem; }
+.live-box .live-stat {
+  text-align: right;
+  width: 2.4rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--scoreboard);
+}

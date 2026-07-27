@@ -6,6 +6,7 @@ import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
+import { TACTICS } from "./tactics.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -626,4 +627,63 @@ export function renderProfileScreen(refs, profile) {
     tr.innerHTML = `<td>${date}</td><td>${entry.won ? "Win" : "Loss"} vs ${entry.opponentLabel} (${modeTag})</td><td>${entry.scoreFor}-${entry.scoreAgainst}</td><td>${entry.mvpName}</td>`;
     refs.historyBody.appendChild(tr);
   }
+}
+
+/** Pre-game tactic picker. Five permanent options, one selected at a time. */
+export function renderTacticPicker(container, selectedId, onSelect) {
+  container.innerHTML = "";
+  for (const tactic of TACTICS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tactic-card" + (tactic.id === selectedId ? " active" : "");
+
+    const head = document.createElement("span");
+    head.className = "tactic-head";
+    head.textContent = `${tactic.icon} ${tactic.name}`;
+    btn.appendChild(head);
+
+    const blurb = document.createElement("span");
+    blurb.className = "tactic-blurb";
+    blurb.textContent = tactic.blurb;
+    btn.appendChild(blurb);
+
+    btn.addEventListener("click", () => onSelect(tactic.id));
+    container.appendChild(btn);
+  }
+}
+
+/** Live box score that fills in as the game plays out. Shows cumulative
+ * totals through the periods revealed so far, so you can watch a player's
+ * night build rather than only seeing the finished table. */
+export function renderLiveBox(container, rosterA, rosterB, labelA, labelB, totals) {
+  const side = (roster, label, key) => {
+    let html = `<div class="live-box-team"><div class="team-heading">${label}</div><table class="box-table"><tbody>`;
+    for (const slot of SLOTS) {
+      const player = roster[slot];
+      if (!player) continue;
+      const line = totals[key][slot] || { pts: 0, reb: 0, ast: 0 };
+      html += `<tr><td class="live-slot">${SLOT_LABELS[slot]}</td><td>${player.name}</td>` +
+        `<td class="live-stat">${r(line.pts)}</td><td class="live-stat">${r(line.reb)}</td>` +
+        `<td class="live-stat">${r(line.ast)}</td></tr>`;
+    }
+    return html + "</tbody></table></div>";
+  };
+  container.innerHTML =
+    `<div class="live-box-head"><span>PTS</span><span>REB</span><span>AST</span></div>` +
+    side(rosterA, labelA, "a") +
+    side(rosterB, labelB, "b");
+}
+
+/** A big-play headline. Cards stack newest-first and fade in, so the game
+ * reads as a broadcast rather than a table appearing all at once. */
+export function pushPlayHeadline(container, text, tone = "") {
+  const card = document.createElement("div");
+  card.className = "play-card" + (tone ? ` ${tone}` : "");
+  card.textContent = text;
+  container.prepend(card);
+  while (container.children.length > 3) container.removeChild(container.lastChild);
+}
+
+export function clearPlayFeed(container) {
+  container.innerHTML = "";
 }

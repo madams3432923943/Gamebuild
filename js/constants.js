@@ -71,7 +71,7 @@ export const BOT_SKILL = 0.45;
 
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.
-export const QUARTER_REVEAL_DELAY_MS = 900;
+export const QUARTER_REVEAL_DELAY_MS = 2100;
 
 // How long a fully-resolved draft round holds on the "locked in" state
 // before both sides' picks flip-reveal simultaneously.

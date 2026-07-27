@@ -37,6 +37,7 @@ import {
   MAX_OT_PERIODS,
   OT_LENGTH_SCALE,
 } from "./constants.js";
+import { tacticMods } from "./tactics.js";
 
 const STAT_KEYS = ["ppg", "rpg", "apg", "spg", "bpg", "tov"];
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -121,7 +122,7 @@ function primaryPos(player) {
 
 /** Simulate one quarter for both rosters. Returns per-slot per-line stat
  * objects for each team, e.g. { PG: {pts,reb,ast,stl,blk,tov}, ... }. */
-function simulateQuarter(rosterA, rosterB, datasetStats) {
+function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB) {
   const linesA = {};
   const linesB = {};
 
@@ -131,23 +132,44 @@ function simulateQuarter(rosterA, rosterB, datasetStats) {
     const offB = rosterB[slot];
     const defA = rosterA[slot];
 
-    linesA[slot] = simulatePlayerQuarter(offA, defB, slot, datasetStats);
-    linesB[slot] = simulatePlayerQuarter(offB, defA, slot, datasetStats);
+    linesA[slot] = simulatePlayerQuarter(offA, defB, slot, datasetStats, modsA, modsB);
+    linesB[slot] = simulatePlayerQuarter(offB, defA, slot, datasetStats, modsB, modsA);
   }
 
   // 6th man: additive bonus production, not run through a 1-on-1 positional
   // matchup (true 5v5 covers the starters; the bench spot is a simple
   // fixed-minutes bonus this round - see build spec #7).
-  linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"]);
-  linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"]);
+  linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"], modsA);
+  linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"], modsB);
 
   return { linesA, linesB };
 }
 
-function simulatePlayerQuarter(off, def, slot, datasetStats) {
+/** A player's stats as their tactic has them playing. Tactics have to be
+ * folded in HERE, before matchups are computed, not applied to the finished
+ * stat line: a defensive tactic has to actually suppress the opponent's
+ * scoring, and it only can if the defender's steal/block ratings are already
+ * boosted when the scoring matchup is evaluated. Scaling the output line
+ * instead would inflate the steal column while the opponent scored exactly as
+ * freely as before - defense that shows up in the box score and nowhere else. */
+function effectiveStats(player, mods) {
+  if (!mods) return player;
+  return {
+    ppg: player.ppg * mods.pts,
+    rpg: player.rpg * mods.reb,
+    apg: player.apg * mods.ast,
+    spg: player.spg * mods.stl,
+    bpg: player.bpg * mods.blk,
+    tov: player.tov * mods.tov,
+  };
+}
+
+function simulatePlayerQuarter(offPlayer, defPlayer, slot, datasetStats, offMods, defMods) {
   const scale = minutesScaleFor(slot) * (1 / QUARTERS_PER_GAME);
-  const pos = primaryPos(off);
-  const defPos = primaryPos(def);
+  const pos = primaryPos(offPlayer);
+  const defPos = primaryPos(defPlayer);
+  const off = effectiveStats(offPlayer, offMods);
+  const def = effectiveStats(defPlayer, defMods);
 
   const offScoreRating = ratingVsAvg(off.ppg, posAvg(datasetStats, pos, "ppg"));
   const defScoreRating =
@@ -167,7 +189,7 @@ function simulatePlayerQuarter(off, def, slot, datasetStats) {
   const defStealPressure = ratingVsAvg(def.spg, posAvg(datasetStats, defPos, "spg"));
   const turnoverFactor = matchupFactor(defStealPressure, 1, TURNOVER_K);
 
-  const line = {
+  return {
     pts: off.ppg * scale * scoringFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
     reb: off.rpg * scale * reboundFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
     ast: off.apg * scale * assistFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
@@ -175,12 +197,11 @@ function simulatePlayerQuarter(off, def, slot, datasetStats) {
     blk: off.bpg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
     tov: off.tov * scale * turnoverFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
   };
-
-  return line;
 }
 
-function simulateSixthManQuarter(player) {
+function simulateSixthManQuarter(rawPlayer, mods) {
   const scale = SIXTH_MAN_SCALE * (1 / QUARTERS_PER_GAME);
+  const player = effectiveStats(rawPlayer, mods);
   return {
     pts: player.ppg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
     reb: player.rpg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
@@ -223,7 +244,7 @@ function rosterBaselinePoints(roster) {
 
 /** Runs quarters (or OT periods) and accumulates per-slot totals. lengthScale
  * of 1 = a full quarter; used at < 1 for shorter OT periods. */
-function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1) {
+function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB) {
   const totalsA = {};
   const totalsB = {};
   for (const slot of [...STARTER_SLOTS, "6TH"]) {
@@ -233,7 +254,7 @@ function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1) {
   const quarterBoxScores = [];
 
   for (let i = 0; i < periods; i++) {
-    const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats);
+    const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB);
     const scaledA = {};
     const scaledB = {};
     for (const slot of [...STARTER_SLOTS, "6TH"]) {
@@ -279,10 +300,21 @@ export function gameScore(line) {
  * @param {object} rosterA - { PG, SG, SF, PF, C, "6TH" }
  * @param {object} rosterB - same shape
  * @param {object} datasetStats - from computeDatasetStats()
+ * @param {object} opts - { tacticA, tacticB }: tactic ids chosen before tip-off
  * @returns box score, quarter breakdown, final score, and MVP
  */
-export function simulateGame(rosterA, rosterB, datasetStats) {
-  let { totalsA, totalsB, quarterBoxScores } = runPeriods(rosterA, rosterB, datasetStats, QUARTERS_PER_GAME);
+export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
+  const modsA = tacticMods(opts.tacticA);
+  const modsB = tacticMods(opts.tacticB);
+  let { totalsA, totalsB, quarterBoxScores } = runPeriods(
+    rosterA,
+    rosterB,
+    datasetStats,
+    QUARTERS_PER_GAME,
+    1,
+    modsA,
+    modsB
+  );
 
   applyTurnoverSwing(totalsA, totalsB);
   applyUsageCompression(totalsA, rosterA, datasetStats);
@@ -295,7 +327,7 @@ export function simulateGame(rosterA, rosterB, datasetStats) {
     Math.round(sumTeamLine(totalsA, "pts")) === Math.round(sumTeamLine(totalsB, "pts")) &&
     otPeriods < MAX_OT_PERIODS
   ) {
-    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE);
+    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, modsA, modsB);
     for (const slot of [...STARTER_SLOTS, "6TH"]) {
       addLine(totalsA[slot], ot.totalsA[slot]);
       addLine(totalsB[slot], ot.totalsB[slot]);

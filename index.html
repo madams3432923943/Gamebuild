@@ -109,6 +109,10 @@
           </label>
         </div>
         <p class="hint-text" id="mode-hint"></p>
+
+        <h3 class="tactic-heading">Game plan</h3>
+        <div class="tactic-grid" id="tactic-grid"></div>
+
         <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
         <button id="btn-cancel-search" class="btn btn-secondary btn-block hidden">Cancel Search</button>
         <div id="search-status" class="search-status hidden"></div>
@@ -142,7 +146,19 @@
     </section>
 
     <section id="screen-game" class="screen hidden">
-      <div class="scoreboard" id="live-scoreboard"></div>
+      <div class="court-stage">
+        <div class="court" aria-hidden="true">
+          <span class="court-circle"></span>
+          <span class="court-halfline"></span>
+          <span class="court-key court-key-left"></span>
+          <span class="court-key court-key-right"></span>
+          <span class="court-arc court-arc-left"></span>
+          <span class="court-arc court-arc-right"></span>
+        </div>
+        <div class="scoreboard" id="live-scoreboard"></div>
+        <div id="play-feed" class="play-feed"></div>
+      </div>
+      <div id="live-box" class="live-box hidden"></div>
 
       <div id="final-banner" class="final-banner hidden"></div>
       <div id="game-recap" class="game-recap hidden">

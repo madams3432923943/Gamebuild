@@ -5,6 +5,9 @@
 
 import { PLAYERS } from "./data.js";
 import { buildRecap } from "./recap.js";
+import { DEFAULT_TACTIC, TACTICS } from "./tactics.js";
+
+const TACTIC_IDS = TACTICS.map((t) => t.id);
 import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
@@ -45,6 +48,10 @@ import {
   renderBadgeSportTabs,
   renderBanners,
   renderEquippedBanner,
+  renderTacticPicker,
+  renderLiveBox,
+  pushPlayHeadline,
+  clearPlayFeed,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -293,6 +300,19 @@ const MODE_CONFIG = {
 };
 
 const modeHintEl = document.getElementById("mode-hint");
+const tacticGridEl = document.getElementById("tactic-grid");
+
+// Your game plan for the next match. Kept between games so a preferred style
+// sticks rather than resetting to Balanced every time.
+let selectedTactic = DEFAULT_TACTIC;
+
+function renderTactics() {
+  renderTacticPicker(tacticGridEl, selectedTactic, (id) => {
+    selectedTactic = id;
+    renderTactics();
+  });
+}
+renderTactics();
 
 for (const radio of modeRadios) {
   radio.addEventListener("change", renderModeChoice);
@@ -799,6 +819,8 @@ const liveScoreboard = document.getElementById("live-scoreboard");
 const finalBanner = document.getElementById("final-banner");
 const mvpCallout = document.getElementById("mvp-callout");
 const gameRecapEl = document.getElementById("game-recap");
+const playFeedEl = document.getElementById("play-feed");
+const liveBoxEl = document.getElementById("live-box");
 const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
@@ -839,7 +861,49 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
   let runningB = 0;
   let i = 0;
 
+  // Cumulative per-slot totals, grown as each period is revealed, so the live
+  // box score builds through the game instead of appearing finished.
+  const liveTotals = { a: {}, b: {} };
+  for (const slot of SLOTS) {
+    liveTotals.a[slot] = { pts: 0, reb: 0, ast: 0 };
+    liveTotals.b[slot] = { pts: 0, reb: 0, ast: 0 };
+  }
+
+  clearPlayFeed(playFeedEl);
+  liveBoxEl.classList.remove("hidden");
+  renderLiveBox(liveBoxEl, rosterA, rosterB, labelA, labelB, liveTotals);
   renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
+  pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
+
+  /** Standout lines from the period just played, worth calling out. The
+   * thresholds are per-quarter, so they fire for a genuinely hot stretch
+   * rather than for anyone who merely showed up. */
+  function announcePeriod(periodIndex, label) {
+    const q = result.quarterBoxScores[periodIndex];
+    const calls = [];
+    for (const [key, roster, teamLabel] of [
+      ["a", rosterA, labelA],
+      ["b", rosterB, labelB],
+    ]) {
+      for (const slot of SLOTS) {
+        const line = q[key][slot];
+        const player = roster[slot];
+        if (!line || !player) continue;
+        // Tuned against real per-quarter output: a starter averages roughly
+        // 4-6 points a quarter, so 8+ is a genuinely hot stretch rather than
+        // just showing up.
+        if (line.pts >= 8) calls.push({ text: `${player.name} pours in ${Math.round(line.pts)} in ${label}`, tone: "hot" });
+        else if (line.reb >= 4.5) calls.push({ text: `${player.name} owns the glass — ${Math.round(line.reb)} boards in ${label}`, tone: "" });
+        else if (line.ast >= 3.5) calls.push({ text: `${player.name} carving it up, ${Math.round(line.ast)} dimes in ${label}`, tone: "" });
+        else if (line.blk >= 1.8) calls.push({ text: `${player.name} shutting the rim down in ${label}`, tone: "" });
+      }
+      void teamLabel;
+    }
+    // At most two calls per period: a feed that never stops talking stops
+    // meaning anything.
+    calls.sort(() => Math.random() - 0.5);
+    for (const call of calls.slice(0, 2)) pushPlayHeadline(playFeedEl, call.text, call.tone);
+  }
 
   function step() {
     if (i >= deltaA.length) {
@@ -851,6 +915,17 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     periodsSoFar.push({ label, a: deltaA[i], b: deltaB[i] });
     runningA += deltaA[i];
     runningB += deltaB[i];
+
+    for (const slot of SLOTS) {
+      for (const key of ["a", "b"]) {
+        const src = result.quarterBoxScores[i][key][slot];
+        if (!src) continue;
+        liveTotals[key][slot].pts += src.pts;
+        liveTotals[key][slot].reb += src.reb;
+        liveTotals[key][slot].ast += src.ast;
+      }
+    }
+
     const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
     const periodsRemaining = Math.max(0, REGULATION_PERIODS - regulationPlayed);
     renderScoreboard(
@@ -864,6 +939,14 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
       `End of ${label}`,
       true
     );
+    renderLiveBox(liveBoxEl, rosterA, rosterB, labelA, labelB, liveTotals);
+    announcePeriod(i, label);
+
+    const lead = Math.abs(runningA - runningB);
+    if (i === deltaA.length - 1 && lead <= 4) {
+      pushPlayHeadline(playFeedEl, "Down to the wire!", "hot");
+    }
+
     i += 1;
     setTimeout(step, QUARTER_REVEAL_DELAY_MS);
   }
@@ -903,7 +986,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
 
 function runLocalSimulation() {
   const draft = game.draft;
-  const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats);
+  // The bot commits to a plan too, chosen at random - a fixed opponent plan
+  // would make one counter always correct and collapse the choice.
+  const botTactic = TACTIC_IDS[Math.floor(Math.random() * TACTIC_IDS.length)];
+  const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats, {
+    tacticA: selectedTactic,
+    tacticB: botTactic,
+  });
 
   playOutResult({
     result,
