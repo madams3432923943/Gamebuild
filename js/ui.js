@@ -85,11 +85,15 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
 /** Renders one clickable (or disabled) player card - unchanged visuals from
  * the old always-visible pool, just factored out so both the "in-squad"
  * match tier and any future reuse can share it. */
-function renderPlayerCard(container, p, roster, pendingPlayerName, onPick) {
+function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false) {
   const slots = eligibleOpenSlots(p, roster);
   const eligible = slots.length > 0;
   const card = document.createElement("div");
-  card.className = "player-card" + (eligible ? "" : " disabled") + (p.name === pendingPlayerName ? " pending" : "");
+  card.className =
+    "player-card" +
+    (eligible ? "" : " disabled") +
+    (p.name === pendingPlayerName ? " pending" : "") +
+    (showStats ? " with-stats" : "");
 
   const name = document.createElement("span");
   name.className = "player-card-name";
@@ -100,7 +104,20 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick) {
     chip.textContent = pos;
     name.appendChild(chip);
   }
-  card.appendChild(name);
+
+  if (showStats) {
+    // Practice mode is for learning the pool, so the numbers that drive the
+    // simulation are on the table rather than hidden.
+    const wrap = document.createElement("div");
+    wrap.appendChild(name);
+    const stats = document.createElement("div");
+    stats.className = "player-stats";
+    stats.textContent = `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`;
+    wrap.appendChild(stats);
+    card.appendChild(wrap);
+  } else {
+    card.appendChild(name);
+  }
 
   if (eligible) {
     card.addEventListener("click", () => onPick(p));
@@ -128,8 +145,25 @@ function renderNote(container, text, tierClass) {
  * contract as before. `allPlayers` is the full dataset, used only for the
  * "elsewhere" lookup.
  */
-export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick, allPlayers) {
+export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick, allPlayers, ruleset = "strict") {
   container.innerHTML = "";
+
+  // Easy practice puts the whole squad on screen with stats - it's for
+  // learning the pool, not testing recall. The search box still narrows the
+  // list, it just isn't the only way to see anyone.
+  if (ruleset === "easy") {
+    const q = filterText.trim().toLowerCase();
+    const players = q ? squad.players.filter((p) => p.name.toLowerCase().includes(q)) : squad.players;
+    if (players.length === 0) {
+      renderNote(container, "No players on this squad match that search.");
+      return;
+    }
+    for (const p of players) {
+      renderPlayerCard(container, p, roster, pendingPlayerName, onPick, true);
+    }
+    return;
+  }
+
   const result = resolveTypedInput(filterText, squad, allPlayers);
 
   if (result.tier === "too-short") {
@@ -373,6 +407,11 @@ export function renderProfileScreen(refs, profile) {
 
   refs.onlineRecord.textContent = `${profile.onlineWins}-${profile.onlineLosses}`;
   refs.offlineRecord.textContent = `${profile.offlineWins}-${profile.offlineLosses}`;
+  // Practice games don't move rank, but they are still games you played, so
+  // the total counts every mode.
+  refs.totalGames.textContent = String(
+    profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses
+  );
 
   const top = mostDraftedPlayer(profile);
   refs.mostDrafted.innerHTML = top

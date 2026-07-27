@@ -94,19 +94,23 @@
         <p class="hint-text">Drafting as <span id="signed-in-as" class="signed-in-as"></span></p>
         <div class="mode-toggle">
           <label class="radio-option">
-            <input type="radio" name="mode" value="online" checked />
-            Play Online <small>(matchmaking)</small>
+            <input type="radio" name="mode" value="practice-easy" checked />
+            Practice <small>(vs Bot &middot; all players &amp; stats shown)</small>
           </label>
           <label class="radio-option">
-            <input type="radio" name="mode" value="bot" />
-            vs. Bot <small>(offline)</small>
+            <input type="radio" name="mode" value="practice-hard" />
+            Hard Practice <small>(vs Bot &middot; ranked rules)</small>
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="mode" value="online" />
+            Ranked <small>(online &middot; counts toward your record)</small>
           </label>
           <label class="radio-option">
             <input type="radio" name="mode" value="local" />
             vs. Friend <small>(pass &amp; play)</small>
           </label>
         </div>
-        <p class="hint-text">Friend invites are coming to the app version - for now, Play Online matches you with a random opponent.</p>
+        <p class="hint-text" id="mode-hint"></p>
         <div class="field-row" id="row-name-b" hidden>
           <label for="input-name-b">Friend's name</label>
           <input id="input-name-b" type="text" maxlength="20" placeholder="Player 2" />
@@ -135,7 +139,7 @@
 
         <div class="draft-pool-panel">
           <input id="pool-search" type="text" placeholder="Type a player's name from memory…" autocomplete="off" />
-          <p class="knowledge-hint">No player list shown — draft on knowledge alone. Type 3+ letters to search.</p>
+          <p class="knowledge-hint" id="knowledge-hint"></p>
           <div id="pool-list" class="pool-list"></div>
           <button id="btn-skip-round" class="btn btn-secondary btn-block">Skip Round</button>
         </div>
@@ -175,9 +179,14 @@
           <div class="player-stats">vs. other players</div>
         </div>
         <div class="record-card">
-          <h4>Offline Record</h4>
+          <h4>Practice Record</h4>
           <div id="offline-record" class="record-value"></div>
-          <div class="player-stats">vs. Bot (practice, not ranked)</div>
+          <div class="player-stats">vs. Bot &amp; friends (not ranked)</div>
+        </div>
+        <div class="record-card">
+          <h4>Total Games</h4>
+          <div id="total-games" class="record-value"></div>
+          <div class="player-stats">every mode combined</div>
         </div>
       </div>
 

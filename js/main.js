@@ -255,15 +255,55 @@ const btnStartDraft = document.getElementById("btn-start-draft");
 const btnCancelSearch = document.getElementById("btn-cancel-search");
 const searchStatusEl = document.getElementById("search-status");
 
+// The selector offers four experiences, but underneath there are only two
+// axes: who you're playing (bot / friend / online) and which ruleset applies.
+// "easy" shows the whole squad with stats and no clock; "strict" is the
+// ranked ruleset - type the name from memory, no stats, pick timer running.
+// Only online play touches your rank; bot games are practice by definition.
+const MODE_CONFIG = {
+  "practice-easy": {
+    mode: "bot",
+    ruleset: "easy",
+    hint: "Practice against the bot with every player and their stats on screen. Doesn't affect your rank.",
+  },
+  "practice-hard": {
+    mode: "bot",
+    ruleset: "strict",
+    hint: "Ranked rules against the bot: type names from memory, no stats, pick clock running. Doesn't affect your rank.",
+  },
+  online: {
+    mode: "online",
+    ruleset: "strict",
+    hint: "Ranked: a real opponent, no stats, pick clock on both sides. Wins and losses count toward your rank.",
+  },
+  local: {
+    mode: "local",
+    ruleset: "strict",
+    hint: "Pass one device back and forth. Picks stay hidden until both sides lock in. Doesn't affect your rank.",
+  },
+};
+
+const modeHintEl = document.getElementById("mode-hint");
+
 for (const radio of modeRadios) {
-  radio.addEventListener("change", () => {
-    rowNameB.hidden = getMode() !== "local";
-  });
+  radio.addEventListener("change", renderModeChoice);
 }
 
 function getMode() {
   return [...modeRadios].find((r) => r.checked).value;
 }
+
+function currentModeConfig() {
+  return MODE_CONFIG[getMode()] || MODE_CONFIG["practice-easy"];
+}
+
+function renderModeChoice() {
+  const choice = getMode();
+  rowNameB.hidden = choice !== "local";
+  modeHintEl.textContent = currentModeConfig().hint;
+}
+
+renderModeChoice();
 
 let onlineSearchActive = false;
 
@@ -307,16 +347,18 @@ btnCancelSearch.addEventListener("click", async () => {
 });
 
 btnStartDraft.addEventListener("click", async () => {
-  const mode = getMode();
+  const config = currentModeConfig();
   cleanupOnlineWatcher();
 
-  if (mode === "online") {
+  game.ruleset = config.ruleset;
+
+  if (config.mode === "online") {
     startOnlineSearch();
     return;
   }
 
-  game.mode = mode;
-  game.nameB = mode === "local" ? inputNameB.value.trim() || "Player 2" : "Bot";
+  game.mode = config.mode;
+  game.nameB = config.mode === "local" ? inputNameB.value.trim() || "Player 2" : "Bot";
   startDraft();
 });
 
@@ -371,6 +413,7 @@ const game = {
   draft: null,
   round: { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} },
   roundNumber: 0,
+  ruleset: "easy",
   online: null,
 };
 
@@ -393,8 +436,22 @@ function pendingSlotsFor(side) {
   return slot ? [slot] : [];
 }
 
+const knowledgeHintEl = document.getElementById("knowledge-hint");
+
+/** The draft board reads differently under each ruleset, so the search box
+ * and its hint have to say which game is actually being played. */
+function applyRulesetToDraftUI() {
+  const easy = game.ruleset === "easy";
+  poolSearch.placeholder = easy ? "Filter this squad…" : "Type a player's name from memory…";
+  knowledgeHintEl.textContent = easy
+    ? "Practice mode — full squad and stats shown, no clock."
+    : "No player list shown — draft on knowledge alone. Type 3+ letters to search.";
+  pickTimerEl.hidden = easy;
+}
+
 function startDraft() {
   cleanupPickTimer();
+  applyRulesetToDraftUI();
   game.draft = new DraftState(PLAYERS);
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
@@ -436,7 +493,7 @@ function advanceDraft() {
       game.round.activeSide = pendingHuman;
       game.round.pendingPlayer = null;
       poolSearch.value = "";
-      startPickTimer(handleLocalTimeout);
+      if (game.ruleset !== "easy") startPickTimer(handleLocalTimeout);
       renderDraftRound();
       return;
     }
@@ -487,7 +544,7 @@ function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
-  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, PLAYERS);
+  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, PLAYERS, game.ruleset);
 }
 
 function onPoolPick(player) {
@@ -595,6 +652,7 @@ async function enterOnlineMatch(matchId) {
     stopWatcher: null,
   };
 
+  applyRulesetToDraftUI();
   showScreen("draft");
   await renderOnlineDraftRound(match);
   game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange);
@@ -633,7 +691,7 @@ async function renderOnlineDraftRound(match) {
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
-  startPickTimer(handleOnlineTimeout);
+  if (game.ruleset !== "easy") startPickTimer(handleOnlineTimeout);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true);
   renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false);
@@ -646,7 +704,7 @@ function renderOnlinePositionAndPool() {
     finalizeOnlinePick(o.pendingPlayer, slot);
   });
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
-  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, PLAYERS);
+  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, PLAYERS, game.ruleset);
 }
 
 function onOnlinePoolPick(player) {
@@ -951,6 +1009,7 @@ const profileRefs = {
   tierCaption: document.getElementById("profile-tier-caption"),
   onlineRecord: document.getElementById("online-record"),
   offlineRecord: document.getElementById("offline-record"),
+  totalGames: document.getElementById("total-games"),
   mostDrafted: document.getElementById("most-drafted"),
   topPerformances: document.getElementById("top-performances"),
   historyBody: document.getElementById("history-body"),

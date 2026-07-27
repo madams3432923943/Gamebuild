@@ -1127,3 +1127,15 @@ table.box-table th, table.history-table th {
   font-weight: 600;
   margin: 0;
 }
+
+/* Practice-mode cards carry a stat line under the name, so they need to stack
+   rather than sit on the single baseline the strict-mode cards use. */
+.player-card.with-stats {
+  align-items: flex-start;
+}
+
+.player-card.with-stats .player-stats {
+  margin-top: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
