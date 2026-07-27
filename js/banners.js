@@ -3,6 +3,9 @@
 // fly it on your profile and home screen.
 //
 // Why this shape:
+//  - Only ranked wins count. Practice is client-side and unverified, so
+//    banners earned there would mean nothing; a banner should say you beat a
+//    real opponent with that franchise.
 //  - It rewards depth in a franchise rather than luck, which is the same thing
 //    the game already tests. Farming one team means genuinely knowing its
 //    roster across eras.
@@ -133,8 +136,22 @@ export function unmappedTeams(players = PLAYERS) {
   return [...missing];
 }
 
+/** Every team string that belongs to a franchise, current name included. */
+function teamNamesFor(franchise) {
+  return [franchise.name, ...franchise.aliases];
+}
+
+/**
+ * Progress is stored server-side keyed by the RAW team name on the drafted
+ * player, not by franchise id, and folded into franchises here at read time.
+ * Two reasons: the server never needs a copy of the alias table (it would be
+ * a second source of truth that silently drifts), and if a franchise is
+ * renamed later, historical progress re-aggregates correctly instead of being
+ * stranded under a dead key.
+ */
 export function bannerProgress(franchise, profile) {
-  const drafted = (profile.teamBanners && profile.teamBanners[franchise.id]) || 0;
+  const counts = profile.teamBanners || {};
+  const drafted = teamNamesFor(franchise).reduce((sum, team) => sum + (counts[team] || 0), 0);
   return {
     drafted,
     required: BANNER_THRESHOLD,
@@ -148,16 +165,7 @@ export function bannerSummary(profile) {
   return { unlocked, total: FRANCHISES.length };
 }
 
-/**
- * Per-franchise counts to add after a win, given the teams of the players you
- * drafted. Losses contribute nothing - a banner is meant to say you won with
- * that team, not that you played with them.
- */
-export function bannerGainsFromWin(draftedTeams) {
-  const gains = {};
-  for (const team of draftedTeams) {
-    const id = franchiseIdForTeam(team);
-    if (id) gains[id] = (gains[id] || 0) + 1;
-  }
-  return gains;
-}
+// Banner progress is awarded server-side (a trigger on match_results, see
+// the award_banner_progress migration) and only for ranked wins. Practice
+// runs entirely on the client, so letting the client grant banners would make
+// them self-reportable - and practice isn't supposed to earn them anyway.

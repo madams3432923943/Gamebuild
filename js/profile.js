@@ -5,7 +5,6 @@
 // can write online_wins/online_losses - see the protect_online_record
 // trigger in the schema).
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { bannerGainsFromWin } from "./banners.js";
 
 export const TIERS = [
   { name: "Rookie", minWins: 0 },
@@ -17,6 +16,8 @@ export const TIERS = [
 ];
 
 // One personal-best record per counting stat, each: {value, playerName, date}.
+export const FEATURED_BADGE_SLOTS = 3;
+
 export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
 
 // Tier progression tracks ONLINE (vs. human) wins only - bot games are
@@ -52,6 +53,7 @@ function normalize(row) {
     careerTotals: row.career_totals || {},
     teamBanners: row.team_banners || {},
     equippedBanner: row.equipped_banner || null,
+    featuredBadges: row.featured_badges || [],
     history: row.history || [],
   };
 }
@@ -93,12 +95,9 @@ export async function recordDraftPicks(playerNames) {
  * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
  *   full box score of the user's OWN roster this game, used to update the
  *   per-stat personal-best records.
- * @param draftedTeams team string per player on your roster, for banner
- *   progress.
- * @param ruleset "easy" | "strict" - easy practice puts every player and
- *   their stats on screen, so a win there says nothing about knowledge.
- *   It still counts as a game played, but it does NOT earn banners; farming
- *   a franchise off a screen you can read would make banners meaningless.
+ * Note this never awards banner progress: banners come from ranked wins
+ * only, granted server-side (see the award_banner_progress trigger), because
+ * anything the client can grant itself isn't worth earning.
  */
 export async function recordPracticeResult({
   mode,
@@ -108,8 +107,6 @@ export async function recordPracticeResult({
   scoreAgainst,
   mvpName,
   ownLines,
-  draftedTeams = [],
-  ruleset = "strict",
 }) {
   const profile = await loadProfile();
   const date = new Date().toISOString();
@@ -134,13 +131,6 @@ export async function recordPracticeResult({
     careerTotals[statKey] = (careerTotals[statKey] || 0) + gameTotal;
   }
 
-  const teamBanners = { ...profile.teamBanners };
-  if (won && ruleset !== "easy") {
-    for (const [id, gained] of Object.entries(bannerGainsFromWin(draftedTeams))) {
-      teamBanners[id] = (teamBanners[id] || 0) + gained;
-    }
-  }
-
   const history = [{ date, mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
     0,
     50
@@ -155,7 +145,6 @@ export async function recordPracticeResult({
       offline_losses: profile.offlineLosses + (won ? 0 : 1),
       personal_bests: personalBests,
       career_totals: careerTotals,
-      team_banners: teamBanners,
       history,
     })
     .eq("id", session.user.id);
@@ -170,6 +159,18 @@ export async function setEquippedBanner(franchiseId) {
   const { error } = await supabase
     .from("profiles")
     .update({ equipped_banner: franchiseId })
+    .eq("id", session.user.id);
+  if (error) throw error;
+}
+
+/** The (up to three) badges shown on your player banner. Cosmetic, so the
+ * client writes it directly. */
+export async function setFeaturedBadges(badgeIds) {
+  const session = await requireSession();
+  const supabase = await getSupabase();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ featured_badges: badgeIds.slice(0, FEATURED_BADGE_SLOTS) })
     .eq("id", session.user.id);
   if (error) throw error;
 }

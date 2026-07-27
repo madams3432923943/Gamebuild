@@ -4,10 +4,19 @@
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
 import { PLAYERS } from "./data.js";
+import { buildRecap } from "./recap.js";
 import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
-import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername, setEquippedBanner } from "./profile.js";
+import {
+  loadProfile,
+  recordPracticeResult,
+  recordDraftPicks,
+  setUsername,
+  setEquippedBanner,
+  setFeaturedBadges,
+  FEATURED_BADGE_SLOTS,
+} from "./profile.js";
 import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
 import {
   joinQueue,
@@ -161,8 +170,10 @@ function showAuthScreen() {
 }
 
 const homeHeaderRefs = {
+  card: document.getElementById("player-banner"),
   username: document.getElementById("home-username"),
-  subline: document.getElementById("home-subline"),
+  record: document.getElementById("home-record"),
+  featured: document.getElementById("home-featured-badges"),
   rankStrip: document.getElementById("home-rank-strip"),
   equippedBanner: document.getElementById("home-equipped-banner"),
 };
@@ -787,6 +798,9 @@ poolSearch.addEventListener("input", () => {
 const liveScoreboard = document.getElementById("live-scoreboard");
 const finalBanner = document.getElementById("final-banner");
 const mvpCallout = document.getElementById("mvp-callout");
+const gameRecapEl = document.getElementById("game-recap");
+const recapHeadlineEl = document.getElementById("recap-headline");
+const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
 const btnToProfile = document.getElementById("btn-to-profile");
 const btnPlayAgain = document.getElementById("btn-play-again");
@@ -810,6 +824,7 @@ function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
  * server result), then calls onComplete() once everything is on screen. */
 function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete }) {
   finalBanner.classList.add("hidden");
+  gameRecapEl.classList.add("hidden");
   mvpCallout.classList.add("hidden");
   fullBoxScore.classList.add("hidden");
   btnToProfile.classList.add("hidden");
@@ -861,6 +876,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
       result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : ""
     }`;
     finalBanner.classList.remove("hidden");
+
+    // Why it went that way, not just what the score was.
+    const recap = buildRecap(result, rosterA, rosterB, labelA, labelB);
+    recapHeadlineEl.textContent = recap.headline;
+    recapDetailEl.textContent = recap.detail;
+    gameRecapEl.classList.remove("hidden");
 
     const mvp = result.mvp;
     const mvpTeamName = mvp.side === "A" ? labelA : labelB;
@@ -1042,11 +1063,29 @@ async function openBadgesScreen() {
   });
   try {
     const profile = await loadProfile();
-    renderBadgeCollection(badgeGridEl, badgeSummaryEl, profile, activeBadgeSport);
+    renderBadgeCollection(badgeGridEl, badgeSummaryEl, profile, activeBadgeSport, onToggleFeaturedBadge);
   } catch (e) {
     console.error("Failed to load badges:", e);
     badgeSummaryEl.textContent = "Couldn't load your badges right now.";
   }
+}
+
+/** Toggles a badge on your banner. At the slot limit the oldest pick drops
+ * out rather than erroring - silently swapping is friendlier than telling
+ * someone to go unfeature something first. */
+async function onToggleFeaturedBadge(badgeId) {
+  try {
+    const profile = await loadProfile();
+    const current = profile.featuredBadges || [];
+    const next = current.includes(badgeId)
+      ? current.filter((id) => id !== badgeId)
+      : [...current, badgeId].slice(-FEATURED_BADGE_SLOTS);
+    await setFeaturedBadges(next);
+  } catch (e) {
+    console.error("Failed to update featured badges:", e);
+    return;
+  }
+  await openBadgesScreen();
 }
 
 /** Equipping is cosmetic, so it writes straight from the client. Repaint the

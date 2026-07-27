@@ -3,8 +3,8 @@
 
 import { SLOTS, MIN_SEARCH_CHARS } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
-import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS } from "./profile.js";
-import { badgesForSport, badgeProgress, badgeSummary } from "./badges.js";
+import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS } from "./profile.js";
+import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
@@ -308,11 +308,34 @@ const SPORTS = [
 export function renderHomeHeader(refs, profile) {
   refs.username.textContent = profile.username || "Player";
 
-  const totalGames = profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses;
-  refs.subline.textContent =
-    totalGames === 0
-      ? "No games yet - your first draft is waiting."
-      : `${profile.onlineWins + profile.offlineWins}-${profile.onlineLosses + profile.offlineLosses} all time · ${totalGames} games`;
+  // The banner's own colours wash the card behind the name. Falls back to the
+  // brand accent when nothing is equipped, so the layout never depends on
+  // having earned something.
+  const franchise = profile.equippedBanner ? franchiseById(profile.equippedBanner) : null;
+  const [c1, c2] = franchise ? franchise.colors : ["#2f6fe0", "#0d1117"];
+  refs.card.style.background = `linear-gradient(135deg, ${c1}55 0%, ${c2}33 45%, transparent 100%), var(--panel)`;
+  refs.card.style.borderColor = franchise ? `${c1}aa` : "";
+
+  const rankName = currentTier(profile.onlineWins).name;
+  refs.record.innerHTML = "";
+  const parts = [
+    { label: "Ranked", value: `${profile.onlineWins}-${profile.onlineLosses}` },
+    { label: "Rank", value: rankName },
+    {
+      label: "Games",
+      value: String(profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses),
+    },
+  ];
+  for (const part of parts) {
+    const stat = document.createElement("div");
+    stat.className = "pb-stat";
+    stat.innerHTML = `<span class="pb-stat-value"></span><span class="pb-stat-label"></span>`;
+    stat.querySelector(".pb-stat-value").textContent = part.value;
+    stat.querySelector(".pb-stat-label").textContent = part.label;
+    refs.record.appendChild(stat);
+  }
+
+  renderFeaturedBadges(refs.featured, profile);
 
   refs.rankStrip.innerHTML = "";
   for (const sport of SPORTS) {
@@ -345,6 +368,38 @@ export function renderHomeHeader(refs, profile) {
  * from locked to unlocked once, so an unearned badge still shows what it
  * tracks and how far along you are.
  */
+/** The up-to-three badges a player chose to show off on their banner. Empty
+ * slots are drawn as outlines so the feature reads as "you can fill these"
+ * rather than looking broken. */
+function renderFeaturedBadges(container, profile) {
+  container.innerHTML = "";
+  const ids = (profile.featuredBadges || []).slice(0, FEATURED_BADGE_SLOTS);
+
+  for (let i = 0; i < FEATURED_BADGE_SLOTS; i++) {
+    const id = ids[i];
+    const badge = id ? badgeById(id) : null;
+    const slot = document.createElement("div");
+    slot.className = "pb-badge" + (badge ? "" : " empty");
+
+    if (badge) {
+      const progress = badgeProgress(badge, profile);
+      slot.title = `${badge.name}${progress.tier ? ` — ${progress.tier.name}` : ""}`;
+      const icon = document.createElement("span");
+      icon.className = "pb-badge-icon";
+      icon.textContent = badge.icon;
+      slot.appendChild(icon);
+      const tier = document.createElement("span");
+      tier.className = "pb-badge-tier";
+      tier.textContent = progress.tier ? progress.tier.icon : "";
+      slot.appendChild(tier);
+    } else {
+      slot.textContent = "+";
+      slot.title = "Feature a badge from the Badges tab";
+    }
+    container.appendChild(slot);
+  }
+}
+
 /** Sport subtabs for the badges screen. Sports with no badges yet still get
  * a tab so the roadmap is visible, but it's marked locked and says so when
  * opened rather than showing a confusing empty grid. */
@@ -361,7 +416,7 @@ export function renderBadgeSportTabs(container, activeSport, onSelect) {
   }
 }
 
-export function renderBadgeCollection(container, summaryEl, profile, sport = "nba") {
+export function renderBadgeCollection(container, summaryEl, profile, sport = "nba", onToggleFeature) {
   const list = badgesForSport(sport);
   container.innerHTML = "";
 
@@ -423,6 +478,18 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
       : `${r(progress.value)} ${badge.unit} — maxed out`;
     tile.appendChild(caption);
 
+    // Only earned badges can be shown off - featuring one you haven't earned
+    // would say nothing about you.
+    if (earnedIt && onToggleFeature) {
+      const featured = (profile.featuredBadges || []).includes(badge.id);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-secondary badge-feature" + (featured ? " is-featured" : "");
+      btn.textContent = featured ? "On your banner" : "Feature";
+      btn.addEventListener("click", () => onToggleFeature(badge.id));
+      tile.appendChild(btn);
+    }
+
     container.appendChild(tile);
   }
 }
@@ -463,8 +530,8 @@ export function renderEquippedBanner(container, profile) {
 export function renderBanners(container, summaryEl, profile, onEquip) {
   const { unlocked, total } = bannerSummary(profile);
   summaryEl.textContent =
-    `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise in games you win` +
-    " (easy practice doesn't count)";
+    `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise across ranked wins` +
+    " (practice doesn't count)";
 
   container.innerHTML = "";
   for (const franchise of FRANCHISES) {
@@ -494,7 +561,7 @@ export function renderBanners(container, summaryEl, profile, onEquip) {
       ? equipped
         ? "Flying now"
         : "Unlocked"
-      : `${progress.drafted} / ${progress.required} drafted in wins`;
+      : `${progress.drafted} / ${progress.required} in ranked wins`;
     tile.appendChild(caption);
 
     if (progress.unlocked) {

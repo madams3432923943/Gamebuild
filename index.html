@@ -54,15 +54,16 @@
     </section>
 
     <section id="screen-home" class="screen hidden">
-      <div class="player-header card">
-        <div class="player-header-main">
+      <div class="player-banner card" id="player-banner">
+        <div class="pb-top">
           <span class="player-avatar" id="home-avatar">🏀</span>
-          <div>
+          <div class="pb-identity">
             <div class="player-name" id="home-username">Player</div>
-            <div class="player-subline" id="home-subline"></div>
             <div class="equipped-banner" id="home-equipped-banner" hidden></div>
           </div>
+          <div class="pb-badges" id="home-featured-badges"></div>
         </div>
+        <div class="pb-stats" id="home-record"></div>
         <div class="rank-strip" id="home-rank-strip"></div>
       </div>
 
@@ -144,6 +145,10 @@
       <div class="scoreboard" id="live-scoreboard"></div>
 
       <div id="final-banner" class="final-banner hidden"></div>
+      <div id="game-recap" class="game-recap hidden">
+        <div id="recap-headline" class="recap-headline"></div>
+        <div id="recap-detail" class="recap-detail"></div>
+      </div>
       <div id="mvp-callout" class="mvp-callout hidden"></div>
 
       <div id="full-box-score" class="hidden"></div>

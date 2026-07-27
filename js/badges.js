@@ -289,3 +289,7 @@ export function badgeSummary(profile, sport = "nba") {
   }
   return { earned, maxed, total: list.length };
 }
+
+export function badgeById(id) {
+  return BADGES.find((b) => b.id === id) || null;
+}
