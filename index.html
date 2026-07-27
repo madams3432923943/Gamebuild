@@ -21,6 +21,8 @@
     <nav class="nav-tabs" id="nav-tabs" hidden>
       <button class="nav-tab active" id="nav-play" type="button">Play</button>
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
+      <button class="nav-tab" id="nav-badges" type="button">Badges</button>
+      <button class="nav-tab" id="nav-squads" type="button">Squads</button>
       <button class="nav-tab" id="nav-signout" type="button">Sign Out</button>
     </nav>
   </header>
@@ -52,6 +54,17 @@
     </section>
 
     <section id="screen-home" class="screen hidden">
+      <div class="player-header card">
+        <div class="player-header-main">
+          <span class="player-avatar" id="home-avatar">🏀</span>
+          <div>
+            <div class="player-name" id="home-username">Player</div>
+            <div class="player-subline" id="home-subline"></div>
+          </div>
+        </div>
+        <div class="rank-strip" id="home-rank-strip"></div>
+      </div>
+
       <h2 class="section-heading">Choose your sport</h2>
       <div class="sport-grid">
         <button class="sport-tile active" data-sport="nba" type="button">
@@ -185,6 +198,21 @@
         </thead>
         <tbody id="history-body"></tbody>
       </table>
+    </section>
+
+    <section id="screen-badges" class="screen hidden">
+      <h2 class="section-heading">Badges</h2>
+      <p class="hint-text" id="badge-summary"></p>
+      <div id="badge-grid" class="badge-grid"></div>
+    </section>
+
+    <section id="screen-squads" class="screen hidden">
+      <h2 class="section-heading">Squads</h2>
+      <div class="card coming-soon-card">
+        <span class="coming-soon-icon">🛡️</span>
+        <h3>Coming soon!</h3>
+        <p class="coming-soon-memo">Squad up with your friends to build the best team!</p>
+      </div>
     </section>
   </main>
 

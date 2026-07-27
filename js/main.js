@@ -31,6 +31,8 @@ import {
   renderFullBoxScore,
   renderScoreboard,
   renderProfileScreen,
+  renderHomeHeader,
+  renderBadgeCollection,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -49,7 +51,11 @@ const screens = {
   draft: document.getElementById("screen-draft"),
   game: document.getElementById("screen-game"),
   profile: document.getElementById("screen-profile"),
+  badges: document.getElementById("screen-badges"),
+  squads: document.getElementById("screen-squads"),
 };
+
+const NAV_TABS = ["play", "profile", "badges", "squads"];
 
 function showScreen(name) {
   for (const key of Object.keys(screens)) {
@@ -58,8 +64,9 @@ function showScreen(name) {
 }
 
 function setActiveNav(which) {
-  document.getElementById("nav-play").classList.toggle("active", which === "play");
-  document.getElementById("nav-profile").classList.toggle("active", which === "profile");
+  for (const tab of NAV_TABS) {
+    document.getElementById(`nav-${tab}`).classList.toggle("active", tab === which);
+  }
 }
 
 function cleanupOnlineWatcher() {
@@ -150,15 +157,28 @@ function showAuthScreen() {
   showScreen("auth");
 }
 
+const homeHeaderRefs = {
+  username: document.getElementById("home-username"),
+  subline: document.getElementById("home-subline"),
+  rankStrip: document.getElementById("home-rank-strip"),
+};
+
 /** Called once a session exists: loads the profile, shows the app shell, and
  * stamps the display name the game will use for this player. */
 async function enterApp() {
   navTabs.hidden = false;
   setActiveNav("play");
   showScreen("home");
+  await refreshHome();
+}
+
+/** Re-reads the profile and repaints the home header. Called on entry and
+ * after anything that can change the record (a finished game, a rename). */
+async function refreshHome() {
   try {
     const profile = await loadProfile();
     game.nameA = profile.username || "Player";
+    renderHomeHeader(homeHeaderRefs, profile);
   } catch (e) {
     console.error("Failed to load profile:", e);
     game.nameA = "Player";
@@ -300,23 +320,35 @@ btnStartDraft.addEventListener("click", async () => {
   startDraft();
 });
 
-document.getElementById("btn-brand").addEventListener("click", () => {
+/** Every tab leaves whatever was running behind (a live match poller, a pick
+ * clock) before switching, so no screen keeps ticking off-screen. */
+function goToTab(tab, onArrive) {
   cleanupOnlineWatcher();
   cleanupPickTimer();
-  setActiveNav("play");
-  showScreen("home");
+  setActiveNav(tab);
+  onArrive();
+}
+
+document.getElementById("btn-brand").addEventListener("click", () => {
+  goToTab("play", () => {
+    showScreen("home");
+    refreshHome();
+  });
 });
 document.getElementById("nav-play").addEventListener("click", () => {
-  cleanupOnlineWatcher();
-  cleanupPickTimer();
-  setActiveNav("play");
-  showScreen("home");
+  goToTab("play", () => {
+    showScreen("home");
+    refreshHome();
+  });
 });
 document.getElementById("nav-profile").addEventListener("click", () => {
-  cleanupOnlineWatcher();
-  cleanupPickTimer();
-  setActiveNav("profile");
-  openProfileScreen();
+  goToTab("profile", openProfileScreen);
+});
+document.getElementById("nav-badges").addEventListener("click", () => {
+  goToTab("badges", openBadgesScreen);
+});
+document.getElementById("nav-squads").addEventListener("click", () => {
+  goToTab("squads", () => showScreen("squads"));
 });
 
 // ---- Draft screen (shared DOM for all three modes) ----
@@ -931,6 +963,20 @@ async function openProfileScreen() {
     renderProfileScreen(profileRefs, profile);
   } catch (e) {
     console.error("Failed to load profile:", e);
+  }
+}
+
+const badgeGridEl = document.getElementById("badge-grid");
+const badgeSummaryEl = document.getElementById("badge-summary");
+
+async function openBadgesScreen() {
+  showScreen("badges");
+  try {
+    const profile = await loadProfile();
+    renderBadgeCollection(badgeGridEl, badgeSummaryEl, profile);
+  } catch (e) {
+    console.error("Failed to load badges:", e);
+    badgeSummaryEl.textContent = "Couldn't load your badges right now.";
   }
 }
 

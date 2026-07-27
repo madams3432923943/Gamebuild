@@ -48,6 +48,7 @@ function normalize(row) {
     offlineLosses: row.offline_losses,
     draftCounts: row.draft_counts || {},
     personalBests: row.personal_bests || {},
+    careerTotals: row.career_totals || {},
     history: row.history || [],
   };
 }
@@ -105,6 +106,15 @@ export async function recordPracticeResult({ mode, won, opponentLabel, scoreFor,
     }
   }
 
+  // Career totals are what the tiered badges rank up on - personal_bests only
+  // ever holds a single-game high, and history is capped at 50 entries, so
+  // neither can answer "how many assists have my players racked up ever".
+  const careerTotals = { ...profile.careerTotals };
+  for (const statKey of Object.keys(STAT_LABELS)) {
+    const gameTotal = ownLines.reduce((sum, { line }) => sum + (line[statKey] || 0), 0);
+    careerTotals[statKey] = (careerTotals[statKey] || 0) + gameTotal;
+  }
+
   const history = [{ date, mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
     0,
     50
@@ -118,6 +128,7 @@ export async function recordPracticeResult({ mode, won, opponentLabel, scoreFor,
       offline_wins: profile.offlineWins + (won ? 1 : 0),
       offline_losses: profile.offlineLosses + (won ? 0 : 1),
       personal_bests: personalBests,
+      career_totals: careerTotals,
       history,
     })
     .eq("id", session.user.id);

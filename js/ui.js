@@ -4,6 +4,7 @@
 import { SLOTS, MIN_SEARCH_CHARS } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS } from "./profile.js";
+import { badgesForSport, badgeProgress, badgeSummary } from "./badges.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -255,6 +256,115 @@ export function renderTierSummary(badgeContainer, captionContainer, onlineWins) 
   captionContainer.textContent = next
     ? `${onlineWins} online wins — ${next.minWins - onlineWins} more to reach ${next.name}`
     : `${onlineWins} online wins — you've reached the top tier, Legend.`;
+}
+
+/** Sports the home screen advertises. Only NBA is playable; the rest show
+ * their locked state so the roadmap is visible rather than hidden. */
+const SPORTS = [
+  { id: "nba", name: "NBA", icon: "🏀", live: true },
+  { id: "nfl", name: "NFL", icon: "🏈", live: false },
+  { id: "nhl", name: "NHL", icon: "🏒", live: false },
+  { id: "soccer", name: "Soccer", icon: "⚽", live: false },
+];
+
+/** Home-screen header: who you are, plus your rank in each sport. This is the
+ * first thing on the page now, so the profile leads the experience instead of
+ * being buried behind a tab. */
+export function renderHomeHeader(refs, profile) {
+  refs.username.textContent = profile.username || "Player";
+
+  const totalGames = profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses;
+  refs.subline.textContent =
+    totalGames === 0
+      ? "No games yet - your first draft is waiting."
+      : `${profile.onlineWins + profile.offlineWins}-${profile.onlineLosses + profile.offlineLosses} all time · ${totalGames} games`;
+
+  refs.rankStrip.innerHTML = "";
+  for (const sport of SPORTS) {
+    const chip = document.createElement("div");
+    chip.className = "rank-chip" + (sport.live ? "" : " locked");
+
+    const icon = document.createElement("span");
+    icon.className = "rank-chip-icon";
+    icon.textContent = sport.icon;
+    chip.appendChild(icon);
+
+    const label = document.createElement("span");
+    label.className = "rank-chip-sport";
+    label.textContent = sport.name;
+    chip.appendChild(label);
+
+    const rank = document.createElement("span");
+    rank.className = "rank-chip-rank";
+    // Rank tracks online wins only - see the TIERS comment in profile.js for
+    // why practice games don't move it.
+    rank.textContent = sport.live ? currentTier(profile.onlineWins).name : "Coming soon";
+    chip.appendChild(rank);
+
+    refs.rankStrip.appendChild(chip);
+  }
+}
+
+/**
+ * Badge collection. Each badge ranks up through tiers rather than flipping
+ * from locked to unlocked once, so an unearned badge still shows what it
+ * tracks and how far along you are.
+ */
+export function renderBadgeCollection(container, summaryEl, profile, sport = "nba") {
+  const { earned, maxed, total } = badgeSummary(profile, sport);
+  summaryEl.textContent = `${earned} of ${total} badges earned${maxed > 0 ? ` · ${maxed} at Hall of Fame` : ""}`;
+
+  container.innerHTML = "";
+  for (const badge of badgesForSport(sport)) {
+    const progress = badgeProgress(badge, profile);
+    const earnedIt = progress.tierIndex >= 0;
+
+    const tile = document.createElement("div");
+    tile.className = "badge-tile" + (earnedIt ? "" : " locked");
+
+    const head = document.createElement("div");
+    head.className = "badge-head";
+
+    const icon = document.createElement("span");
+    icon.className = "badge-icon";
+    icon.textContent = badge.icon;
+    head.appendChild(icon);
+
+    const titles = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "badge-name";
+    name.textContent = badge.name;
+    titles.appendChild(name);
+
+    const tier = document.createElement("div");
+    tier.className = "badge-tier";
+    tier.textContent = earnedIt ? `${progress.tier.icon} ${progress.tier.name}` : "Not earned yet";
+    titles.appendChild(tier);
+    head.appendChild(titles);
+    tile.appendChild(head);
+
+    const blurb = document.createElement("div");
+    blurb.className = "badge-blurb";
+    blurb.textContent = badge.blurb;
+    tile.appendChild(blurb);
+
+    const track = document.createElement("div");
+    track.className = "progress-bar-track";
+    const fill = document.createElement("div");
+    fill.className = "progress-bar-fill";
+    fill.style.width = `${progress.percent}%`;
+    track.appendChild(fill);
+    tile.appendChild(track);
+
+    const caption = document.createElement("div");
+    caption.className = "badge-progress";
+    caption.textContent = progress.next
+      ? `${r(progress.value)} / ${progress.next.threshold} ${badge.unit} to ${progress.next.tier.name}`
+      : `${r(progress.value)} ${badge.unit} — maxed out`;
+    tile.appendChild(caption);
+
+    container.appendChild(tile);
+  }
 }
 
 export function renderProfileScreen(refs, profile) {
