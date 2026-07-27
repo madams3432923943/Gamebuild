@@ -344,12 +344,37 @@ export function renderHomeHeader(refs, profile) {
  * from locked to unlocked once, so an unearned badge still shows what it
  * tracks and how far along you are.
  */
+/** Sport subtabs for the badges screen. Sports with no badges yet still get
+ * a tab so the roadmap is visible, but it's marked locked and says so when
+ * opened rather than showing a confusing empty grid. */
+export function renderBadgeSportTabs(container, activeSport, onSelect) {
+  container.innerHTML = "";
+  for (const sport of SPORTS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "subtab" + (sport.id === activeSport ? " active" : "") + (sport.live ? "" : " locked");
+    btn.textContent = `${sport.icon} ${sport.name}`;
+    btn.addEventListener("click", () => onSelect(sport.id));
+    container.appendChild(btn);
+  }
+}
+
 export function renderBadgeCollection(container, summaryEl, profile, sport = "nba") {
+  const list = badgesForSport(sport);
+  container.innerHTML = "";
+
+  if (list.length === 0) {
+    const name = (SPORTS.find((s) => s.id === sport) || {}).name || sport;
+    summaryEl.textContent = `${name} badges arrive with ${name} drafts.`;
+    renderNote(container, `No ${name} badges yet — this sport isn't playable at the moment.`);
+    return;
+  }
+
   const { earned, maxed, total } = badgeSummary(profile, sport);
   summaryEl.textContent = `${earned} of ${total} badges earned${maxed > 0 ? ` · ${maxed} at Hall of Fame` : ""}`;
 
-  container.innerHTML = "";
-  for (const badge of badgesForSport(sport)) {
+  for (const badge of list) {
     const progress = badgeProgress(badge, profile);
     const earnedIt = progress.tierIndex >= 0;
 

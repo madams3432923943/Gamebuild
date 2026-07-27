@@ -174,12 +174,41 @@ export function worstEligiblePick(squad, roster) {
   return combos.reduce((worst, c) => (c.score < worst.score ? c : worst));
 }
 
+/** Softens how much a decade's raw squad count drives how often it comes up.
+ * The dataset is lopsided - the 2020s have 30 squads while the 1970s have 3 -
+ * so picking a squad uniformly at random made almost half of all rounds a
+ * 2020s team and the eras blurred together. Weighting each decade by the
+ * square root of its size pulls the 2020s down from ~46% of rounds to ~30%
+ * and lifts the 1970s from ~5% to ~9%, without swinging so far that the three
+ * 1970s squads start repeating constantly (which flat per-decade weighting
+ * would do). The real cure is more historical squads; this makes the pool we
+ * have feel varied in the meantime. */
+function decadeWeight(squadCount) {
+  return Math.sqrt(squadCount);
+}
+
+function pickWeighted(entries, weightOf) {
+  const total = entries.reduce((sum, e) => sum + weightOf(e), 0);
+  let roll = Math.random() * total;
+  for (const entry of entries) {
+    roll -= weightOf(entry);
+    if (roll <= 0) return entry;
+  }
+  return entries[entries.length - 1];
+}
+
 export class DraftState {
-  constructor(allPlayers) {
+  /**
+   * @param recentSquadIds squads seen in the last game or two. They're kept
+   *   out of this draft when there's anything else to roll, so consecutive
+   *   games don't keep serving the same handful of teams.
+   */
+  constructor(allPlayers, recentSquadIds = []) {
     this.squads = buildSquads(allPlayers);
-    this.remainingSquads = shuffle([...this.squads]);
-    this.rosterA = {}; // human (or player 1)
-    this.rosterB = {}; // bot (or player 2)
+    this.recentSquadIds = new Set(recentSquadIds);
+    this.usedSquadIds = new Set();
+    this.rosterA = {}; // human
+    this.rosterB = {}; // bot
     this.history = [];
     this.currentSquad = null;
   }
@@ -188,15 +217,31 @@ export class DraftState {
     return openSlots(this.rosterA).length === 0 && openSlots(this.rosterB).length === 0;
   }
 
-  /** Roll the next shared category. Both sides draft from this same squad. */
+  /** Roll the next shared category. Both sides draft from this same squad.
+   * Never repeats a squad within a game, prefers squads the player hasn't
+   * just seen, and balances eras via decadeWeight above. */
   rollNextSquad() {
     if (this.isComplete()) return null;
-    if (this.remainingSquads.length === 0) {
-      this.remainingSquads = shuffle(
-        this.squads.filter((s) => s.id !== (this.currentSquad && this.currentSquad.id))
-      );
+
+    const unused = this.squads.filter((s) => !this.usedSquadIds.has(s.id));
+    if (unused.length === 0) return null;
+
+    // Skip recently-seen squads unless that would leave nothing to pick.
+    const fresh = unused.filter((s) => !this.recentSquadIds.has(s.id));
+    const candidates = fresh.length > 0 ? fresh : unused;
+
+    const byDecade = new Map();
+    for (const squad of candidates) {
+      if (!byDecade.has(squad.decade)) byDecade.set(squad.decade, []);
+      byDecade.get(squad.decade).push(squad);
     }
-    this.currentSquad = this.remainingSquads.pop();
+
+    const decades = [...byDecade.values()];
+    const chosenDecade = pickWeighted(decades, (group) => decadeWeight(group.length));
+    const chosen = chosenDecade[Math.floor(Math.random() * chosenDecade.length)];
+
+    this.usedSquadIds.add(chosen.id);
+    this.currentSquad = chosen;
     return this.currentSquad;
   }
 
@@ -238,12 +283,4 @@ export class DraftState {
     this.makePick(side, choice.player, choice.slot);
     return choice;
   }
-}
-
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
 }

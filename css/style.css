@@ -103,6 +103,53 @@ button, input {
   color: var(--text);
 }
 
+/* Sign Out sits in the same row as the navigation tabs but isn't one - it
+   throws away your session. Colouring it red separates "where do I want to
+   go" from "get me out of here" so it isn't tapped by reflex. */
+.nav-tab-danger {
+  color: var(--buzzer);
+}
+
+.nav-tab-danger:hover {
+  color: var(--text);
+  background: var(--buzzer);
+  border-color: var(--buzzer);
+}
+
+/* ---- Subtabs (sport switcher inside a screen) ---- */
+.subtabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.subtab {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.subtab:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.subtab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.subtab.locked:not(.active) {
+  opacity: 0.55;
+}
+
 #app-root {
   max-width: 1100px;
   margin: 0 auto;

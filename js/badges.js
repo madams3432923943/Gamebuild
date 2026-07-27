@@ -150,6 +150,98 @@ export const BADGES = [
     value: (p) => Math.max(0, ...Object.values(p.draftCounts)),
     thresholds: [5, 15, 40, 100],
   },
+
+  // ---- Two-way and defensive volume ----
+  {
+    id: "menace",
+    name: "Menace",
+    sport: "nba",
+    icon: "😈",
+    blurb: "Career steals and blocks combined",
+    unit: "stops",
+    value: (p) => career("stl")(p) + career("blk")(p),
+    thresholds: [100, 500, 1500, 4000],
+  },
+  {
+    id: "two-way",
+    name: "Two-Way Threat",
+    sport: "nba",
+    icon: "🔄",
+    blurb: "Career points, rebounds and assists combined",
+    unit: "counted stats",
+    value: (p) => career("pts")(p) + career("reb")(p) + career("ast")(p),
+    thresholds: [1000, 6000, 18000, 50000],
+  },
+  {
+    id: "swiss-army",
+    name: "Swiss Army",
+    sport: "nba",
+    icon: "🧰",
+    blurb: "Your lowest single-game high across all five stats - rewards being good everywhere, not just one column",
+    unit: "in every stat",
+    value: (p) => Math.min(...["pts", "reb", "ast", "stl", "blk"].map((k) => bestInGame(k)(p))),
+    thresholds: [3, 6, 9, 12],
+  },
+
+  // ---- Consistency and commitment ----
+  {
+    id: "regular",
+    name: "Regular",
+    sport: "nba",
+    icon: "📅",
+    blurb: "Games played in any mode",
+    unit: "games",
+    value: (p) => p.onlineWins + p.onlineLosses + p.offlineWins + p.offlineLosses,
+    thresholds: [5, 25, 100, 500],
+  },
+  {
+    id: "closer",
+    name: "Closer",
+    sport: "nba",
+    icon: "🧊",
+    blurb: "Win rate once you've played at least 10 games",
+    unit: "% wins",
+    value: (p) => {
+      const games = p.onlineWins + p.onlineLosses + p.offlineWins + p.offlineLosses;
+      if (games < 10) return 0;
+      return Math.round((100 * (p.onlineWins + p.offlineWins)) / games);
+    },
+    thresholds: [50, 60, 70, 80],
+  },
+
+  // ---- The hard ones. These are meant to sit unearned for a long time:
+  // a collection with no distant peaks stops being interesting the moment
+  // everything is gold. ----
+  {
+    id: "untouchable",
+    name: "Untouchable",
+    sport: "nba",
+    icon: "👑",
+    blurb: "Ranked wins without the practice room propping you up",
+    unit: "ranked wins",
+    value: (p) => p.onlineWins,
+    thresholds: [25, 100, 300, 1000],
+  },
+  {
+    id: "encyclopedia",
+    name: "Encyclopedia",
+    sport: "nba",
+    icon: "📚",
+    blurb: "Different players drafted - the deep cuts count",
+    unit: "players",
+    value: (p) => Object.keys(p.draftCounts).length,
+    thresholds: [150, 400, 800, 1500],
+  },
+  {
+    id: "immortal",
+    name: "Immortal",
+    sport: "nba",
+    icon: "🐐",
+    blurb: "The single greatest scoring night any player has given you",
+    unit: "points",
+    value: bestInGame("pts"),
+    thresholds: [45, 55, 65, 75],
+  },
 ];
 
 /**

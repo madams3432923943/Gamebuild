@@ -33,6 +33,7 @@ import {
   renderProfileScreen,
   renderHomeHeader,
   renderBadgeCollection,
+  renderBadgeSportTabs,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -395,7 +396,6 @@ const draftRoundLabel = document.getElementById("draft-round-label");
 const squadBannerTeam = document.getElementById("squad-banner-team");
 const squadBannerDecade = document.getElementById("squad-banner-decade");
 const draftTurnBanner = document.getElementById("draft-turn-banner");
-const btnSkipRound = document.getElementById("btn-skip-round");
 
 const game = {
   mode: "bot",
@@ -445,10 +445,21 @@ function applyRulesetToDraftUI() {
   pickTimerEl.hidden = easy;
 }
 
+// Squads from the last couple of games. A fresh DraftState avoids these when
+// it can, so back-to-back games don't keep rolling the same teams - the
+// single most common complaint about the draft feeling samey.
+const RECENT_SQUAD_MEMORY = 12;
+let recentSquadIds = [];
+
+function rememberSquad(squadId) {
+  if (!squadId) return;
+  recentSquadIds = [squadId, ...recentSquadIds.filter((id) => id !== squadId)].slice(0, RECENT_SQUAD_MEMORY);
+}
+
 function startDraft() {
   cleanupPickTimer();
   applyRulesetToDraftUI();
-  game.draft = new DraftState(PLAYERS);
+  game.draft = new DraftState(PLAYERS, recentSquadIds);
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
   poolSearch.value = "";
@@ -468,7 +479,8 @@ function advanceDraft() {
   }
 
   if (game.round.needNewSquad) {
-    draft.rollNextSquad();
+    const rolled = draft.rollNextSquad();
+    rememberSquad(rolled && rolled.id);
     game.roundNumber += 1;
     game.round.needNewSquad = false;
     game.round.resolved = {};
@@ -520,7 +532,6 @@ function renderDraftRound() {
   squadBannerTeam.textContent = draft.currentSquad.team;
   squadBannerDecade.textContent = draft.currentSquad.decade;
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
-  btnSkipRound.disabled = false;
   poolSearch.hidden = false;
 
   const pending = game.round.pendingPlayer;
@@ -564,9 +575,9 @@ function finalizePick(player, slot) {
   advanceDraft();
 }
 
-/** Manual-skip path (Skip Round button) and the timeout-with-no-eligible-
- * player path both resolve a turn the same way - no pick gets made, this
- * side is just marked resolved so the round can move on. */
+/** Resolves a turn without a pick. There's no longer a Skip button - this
+ * is only reached when the rolled squad has no player who can legally fill
+ * any of your open slots, so there is genuinely nothing to choose. */
 function skipLocalTurn() {
   cleanupPickTimer();
   game.round.resolved[game.round.activeSide] = true;
@@ -576,7 +587,7 @@ function skipLocalTurn() {
 
 /** Pick-timer timeout for a local human turn: auto-picks the worst eligible
  * (player, slot) combo through the exact same path a manual pick uses, or
- * skips if nothing is eligible (same precondition as the Skip button). */
+ * resolves the turn pickless if nothing at all is eligible. */
 function handleLocalTimeout() {
   const draft = game.draft;
   const side = game.round.activeSide;
@@ -593,7 +604,6 @@ function renderRoundReveal() {
   const draft = game.draft;
   draftTurnBanner.textContent = "Revealing picks…";
   poolSearch.hidden = true;
-  btnSkipRound.disabled = true;
   positionSelectorEl.innerHTML = "";
   poolList.innerHTML = "";
 
@@ -609,7 +619,6 @@ function renderDraftComplete() {
   squadBannerDecade.textContent = "";
   draftTurnBanner.textContent = "Both rosters are set.";
   poolSearch.hidden = true;
-  btnSkipRound.disabled = true;
   positionSelectorEl.innerHTML = "";
 
   renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false);
@@ -672,7 +681,6 @@ async function renderOnlineDraftRound(match) {
   squadBannerTeam.textContent = match.current_squad_team;
   squadBannerDecade.textContent = match.current_squad_decade;
   draftTurnBanner.textContent = "Your Pick";
-  btnSkipRound.disabled = false;
   poolSearch.hidden = false;
   poolSearch.value = "";
   o.pendingPlayer = null;
@@ -735,7 +743,6 @@ async function finalizeOnlinePick(player, slot) {
   const o = game.online;
   o.pendingPlayer = null;
   draftTurnBanner.textContent = "Locking in pick…";
-  btnSkipRound.disabled = true;
   poolSearch.hidden = true;
   positionSelectorEl.innerHTML = "";
   poolList.innerHTML = "";
@@ -754,7 +761,6 @@ async function onlineSkip() {
   cleanupPickTimer();
   const o = game.online;
   draftTurnBanner.textContent = "Skipping…";
-  btnSkipRound.disabled = true;
   try {
     await submitSkip(o.matchId);
     draftTurnBanner.textContent = "Waiting for opponent…";
@@ -763,14 +769,6 @@ async function onlineSkip() {
     await renderOnlineDraftRound(match);
   }
 }
-
-btnSkipRound.addEventListener("click", () => {
-  if (game.mode === "online") {
-    onlineSkip();
-  } else {
-    skipLocalTurn();
-  }
-});
 
 poolSearch.addEventListener("input", () => {
   if (game.mode === "online") {
@@ -1021,12 +1019,21 @@ async function openProfileScreen() {
 
 const badgeGridEl = document.getElementById("badge-grid");
 const badgeSummaryEl = document.getElementById("badge-summary");
+const badgeSportTabsEl = document.getElementById("badge-sport-tabs");
+
+// Which sport's badges are on screen. Kept across visits so switching tabs
+// and coming back doesn't dump you on NBA every time.
+let activeBadgeSport = "nba";
 
 async function openBadgesScreen() {
   showScreen("badges");
+  renderBadgeSportTabs(badgeSportTabsEl, activeBadgeSport, (sport) => {
+    activeBadgeSport = sport;
+    openBadgesScreen();
+  });
   try {
     const profile = await loadProfile();
-    renderBadgeCollection(badgeGridEl, badgeSummaryEl, profile);
+    renderBadgeCollection(badgeGridEl, badgeSummaryEl, profile, activeBadgeSport);
   } catch (e) {
     console.error("Failed to load badges:", e);
     badgeSummaryEl.textContent = "Couldn't load your badges right now.";

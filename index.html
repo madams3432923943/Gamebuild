@@ -23,7 +23,7 @@
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
       <button class="nav-tab" id="nav-badges" type="button">Badges</button>
       <button class="nav-tab" id="nav-squads" type="button">Squads</button>
-      <button class="nav-tab" id="nav-signout" type="button">Sign Out</button>
+      <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
     </nav>
   </header>
 
@@ -133,7 +133,6 @@
           <input id="pool-search" type="text" placeholder="Type a player's name from memory…" autocomplete="off" />
           <p class="knowledge-hint" id="knowledge-hint"></p>
           <div id="pool-list" class="pool-list"></div>
-          <button id="btn-skip-round" class="btn btn-secondary btn-block">Skip Round</button>
         </div>
 
         <div class="roster-panel" id="roster-panel-b"></div>
@@ -203,6 +202,7 @@
 
     <section id="screen-badges" class="screen hidden">
       <h2 class="section-heading">Badges</h2>
+      <div class="subtabs" id="badge-sport-tabs"></div>
       <p class="hint-text" id="badge-summary"></p>
       <div id="badge-grid" class="badge-grid"></div>
     </section>
