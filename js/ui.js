@@ -5,6 +5,7 @@ import { SLOTS, MIN_SEARCH_CHARS } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary } from "./badges.js";
+import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -421,6 +422,89 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
       ? `${r(progress.value)} / ${progress.next.threshold} ${badge.unit} to ${progress.next.tier.name}`
       : `${r(progress.value)} ${badge.unit} — maxed out`;
     tile.appendChild(caption);
+
+    container.appendChild(tile);
+  }
+}
+
+/** One franchise banner: a two-tone flag with the team's abbreviation. The
+ * look comes entirely from the franchise entry's colors, so every team gets
+ * artwork without a single commissioned asset - and with no player likeness
+ * anywhere near it. */
+function bannerArt(franchise, opts = {}) {
+  const el = document.createElement("div");
+  el.className = "banner-art" + (opts.small ? " small" : "");
+  el.style.background = `linear-gradient(135deg, ${franchise.colors[0]} 0%, ${franchise.colors[0]} 55%, ${franchise.colors[1]} 55%, ${franchise.colors[1]} 100%)`;
+  const abbr = document.createElement("span");
+  abbr.className = "banner-abbr";
+  abbr.textContent = franchise.abbr;
+  el.appendChild(abbr);
+  return el;
+}
+
+/** The equipped banner shown on the home header. Returns null when nothing
+ * is equipped so the caller can leave the slot empty. */
+export function renderEquippedBanner(container, profile) {
+  container.innerHTML = "";
+  const franchise = profile.equippedBanner ? franchiseById(profile.equippedBanner) : null;
+  container.hidden = !franchise;
+  if (!franchise) return;
+  container.appendChild(bannerArt(franchise, { small: true }));
+  const label = document.createElement("span");
+  label.className = "banner-flying";
+  label.textContent = franchise.name;
+  container.appendChild(label);
+}
+
+/**
+ * The banner collection. Locked banners still show the franchise and how far
+ * along you are - a reward you can't see the shape of isn't motivating.
+ */
+export function renderBanners(container, summaryEl, profile, onEquip) {
+  const { unlocked, total } = bannerSummary(profile);
+  summaryEl.textContent =
+    `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise in games you win` +
+    " (easy practice doesn't count)";
+
+  container.innerHTML = "";
+  for (const franchise of FRANCHISES) {
+    const progress = bannerProgress(franchise, profile);
+    const equipped = profile.equippedBanner === franchise.id;
+
+    const tile = document.createElement("div");
+    tile.className = "banner-tile" + (progress.unlocked ? "" : " locked") + (equipped ? " equipped" : "");
+    tile.appendChild(bannerArt(franchise));
+
+    const name = document.createElement("div");
+    name.className = "banner-name";
+    name.textContent = franchise.name;
+    tile.appendChild(name);
+
+    const track = document.createElement("div");
+    track.className = "progress-bar-track";
+    const fill = document.createElement("div");
+    fill.className = "progress-bar-fill";
+    fill.style.width = `${progress.percent}%`;
+    track.appendChild(fill);
+    tile.appendChild(track);
+
+    const caption = document.createElement("div");
+    caption.className = "banner-progress";
+    caption.textContent = progress.unlocked
+      ? equipped
+        ? "Flying now"
+        : "Unlocked"
+      : `${progress.drafted} / ${progress.required} drafted in wins`;
+    tile.appendChild(caption);
+
+    if (progress.unlocked) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-secondary banner-equip";
+      btn.textContent = equipped ? "Take down" : "Fly this";
+      btn.addEventListener("click", () => onEquip(equipped ? null : franchise.id));
+      tile.appendChild(btn);
+    }
 
     container.appendChild(tile);
   }

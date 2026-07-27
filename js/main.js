@@ -7,7 +7,7 @@ import { PLAYERS } from "./data.js";
 import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
-import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername } from "./profile.js";
+import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername, setEquippedBanner } from "./profile.js";
 import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
 import {
   joinQueue,
@@ -34,6 +34,8 @@ import {
   renderHomeHeader,
   renderBadgeCollection,
   renderBadgeSportTabs,
+  renderBanners,
+  renderEquippedBanner,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -162,6 +164,7 @@ const homeHeaderRefs = {
   username: document.getElementById("home-username"),
   subline: document.getElementById("home-subline"),
   rankStrip: document.getElementById("home-rank-strip"),
+  equippedBanner: document.getElementById("home-equipped-banner"),
 };
 
 /** Called once a session exists: loads the profile, shows the app shell, and
@@ -180,6 +183,7 @@ async function refreshHome() {
     const profile = await loadProfile();
     game.nameA = profile.username || "Player";
     renderHomeHeader(homeHeaderRefs, profile);
+    renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
   } catch (e) {
     console.error("Failed to load profile:", e);
     game.nameA = "Player";
@@ -893,6 +897,8 @@ function runLocalSimulation() {
         mode: "offline",
         opponentLabel: "Bot",
         won: result.winner === "A",
+        draftedTeams: SLOTS.map((slot) => draft.rosterA[slot].team),
+        ruleset: game.ruleset,
         scoreFor: result.teamScoreA,
         scoreAgainst: result.teamScoreB,
         mvpName: result.mvp.player.name,
@@ -1002,6 +1008,8 @@ const profileRefs = {
   onlineRecord: document.getElementById("online-record"),
   offlineRecord: document.getElementById("offline-record"),
   totalGames: document.getElementById("total-games"),
+  bannerGrid: document.getElementById("banner-grid"),
+  bannerSummary: document.getElementById("banner-summary"),
   mostDrafted: document.getElementById("most-drafted"),
   topPerformances: document.getElementById("top-performances"),
   historyBody: document.getElementById("history-body"),
@@ -1012,6 +1020,7 @@ async function openProfileScreen() {
   try {
     const profile = await loadProfile();
     renderProfileScreen(profileRefs, profile);
+    renderBanners(profileRefs.bannerGrid, profileRefs.bannerSummary, profile, onEquipBanner);
   } catch (e) {
     console.error("Failed to load profile:", e);
   }
@@ -1038,6 +1047,18 @@ async function openBadgesScreen() {
     console.error("Failed to load badges:", e);
     badgeSummaryEl.textContent = "Couldn't load your badges right now.";
   }
+}
+
+/** Equipping is cosmetic, so it writes straight from the client. Repaint the
+ * profile and the home header so the change shows everywhere it appears. */
+async function onEquipBanner(franchiseId) {
+  try {
+    await setEquippedBanner(franchiseId);
+  } catch (e) {
+    console.error("Failed to equip banner:", e);
+    return;
+  }
+  await openProfileScreen();
 }
 
 profileRefs.usernameInput.addEventListener("change", async () => {
