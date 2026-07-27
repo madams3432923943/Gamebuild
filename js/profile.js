@@ -18,8 +18,8 @@ export const TIERS = [
 // One personal-best record per counting stat, each: {value, playerName, date}.
 export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
 
-// Tier progression tracks ONLINE (vs. human) wins only - bot/local games are
-// practice, not rank, since neither is a fair, verified ranking bar.
+// Tier progression tracks ONLINE (vs. human) wins only - bot games are
+// practice, not rank, since they are not a fair, verified ranking bar.
 export function currentTier(onlineWins) {
   let tier = TIERS[0];
   for (const t of TIERS) if (onlineWins >= t.minWins) tier = t;
@@ -69,7 +69,7 @@ export async function setUsername(name) {
 }
 
 /** Records every player name drafted onto the user's own roster this game,
- * for the "most drafted player" profile stat. Only for bot/local games -
+ * for the "most drafted player" profile stat. Only for bot games -
  * online games get this recorded server-side by simulate-match, since a
  * client can't be trusted to self-report a competitive result. */
 export async function recordDraftPicks(playerNames) {
@@ -83,10 +83,10 @@ export async function recordDraftPicks(playerNames) {
 }
 
 /**
- * Records a finished bot or local-pass-and-play game. Online (matchmaking)
+ * Records a finished practice game against the bot. Online (matchmaking)
  * results are never recorded this way - see js/online.js, which reads the
  * server-computed outcome instead.
- * @param mode "offline" (vs. bot) or "local" (pass & play)
+ * @param mode "offline" (vs. bot)
  * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
  *   full box score of the user's OWN roster this game, used to update the
  *   per-stat personal-best records.

@@ -443,7 +443,10 @@ export function renderProfileScreen(refs, profile) {
     const tr = document.createElement("tr");
     tr.className = entry.won ? "win-row" : "loss-row";
     const date = new Date(entry.date).toLocaleDateString();
-    const modeTag = entry.mode === "online" ? "Online" : entry.mode === "local" ? "Local" : "Offline";
+    // "local" was pass-and-play, which no longer exists - but games played
+    // before it was removed are still in saved history and should keep their
+    // real label rather than being mislabelled as bot games.
+    const modeTag = entry.mode === "online" ? "Online" : entry.mode === "local" ? "Local" : "Practice";
     tr.innerHTML = `<td>${date}</td><td>${entry.won ? "Win" : "Loss"} vs ${entry.opponentLabel} (${modeTag})</td><td>${entry.scoreFor}-${entry.scoreAgainst}</td><td>${entry.mvpName}</td>`;
     refs.historyBody.appendChild(tr);
   }

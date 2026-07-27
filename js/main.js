@@ -1,6 +1,6 @@
 // App controller: wires draft state + engine + profile to the DOM.
 // Three modes share these same screens/DOM elements:
-//   - "bot"/"local": synchronous, client-only (DraftState from draft.js).
+//   - "bot": synchronous, client-only (DraftState from draft.js).
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
 import { PLAYERS } from "./data.js";
@@ -248,18 +248,16 @@ document.getElementById("nav-signout").addEventListener("click", async () => {
 
 // ---- Home screen ----
 
-const inputNameB = document.getElementById("input-name-b");
-const rowNameB = document.getElementById("row-name-b");
 const modeRadios = document.querySelectorAll('input[name="mode"]');
 const btnStartDraft = document.getElementById("btn-start-draft");
 const btnCancelSearch = document.getElementById("btn-cancel-search");
 const searchStatusEl = document.getElementById("search-status");
 
-// The selector offers four experiences, but underneath there are only two
-// axes: who you're playing (bot / friend / online) and which ruleset applies.
-// "easy" shows the whole squad with stats and no clock; "strict" is the
-// ranked ruleset - type the name from memory, no stats, pick timer running.
-// Only online play touches your rank; bot games are practice by definition.
+// Three experiences over two axes: who you're playing (bot / online) and
+// which ruleset applies. "easy" shows the whole squad with stats and no
+// clock; "strict" is the ranked ruleset - type the name from memory, no
+// stats, pick timer running. Only online play touches your rank; bot games
+// are practice by definition.
 const MODE_CONFIG = {
   "practice-easy": {
     mode: "bot",
@@ -275,11 +273,6 @@ const MODE_CONFIG = {
     mode: "online",
     ruleset: "strict",
     hint: "Ranked: a real opponent, no stats, pick clock on both sides. Wins and losses count toward your rank.",
-  },
-  local: {
-    mode: "local",
-    ruleset: "strict",
-    hint: "Pass one device back and forth. Picks stay hidden until both sides lock in. Doesn't affect your rank.",
   },
 };
 
@@ -298,8 +291,6 @@ function currentModeConfig() {
 }
 
 function renderModeChoice() {
-  const choice = getMode();
-  rowNameB.hidden = choice !== "local";
   modeHintEl.textContent = currentModeConfig().hint;
 }
 
@@ -358,7 +349,7 @@ btnStartDraft.addEventListener("click", async () => {
   }
 
   game.mode = config.mode;
-  game.nameB = config.mode === "local" ? inputNameB.value.trim() || "Player 2" : "Bot";
+  game.nameB = "Bot";
   startDraft();
 });
 
@@ -417,13 +408,18 @@ const game = {
   online: null,
 };
 
-// ---- Local (bot/friend) draft flow ----
+// ---- Bot draft flow ----
+// Side A is always the human here and side B is always the bot. These stay
+// as functions (rather than inlined constants) because the round loop in
+// advanceDraft is written against "which sides still need resolving",
+// which is what let the same loop drive pass-and-play before it was
+// removed - and is what an online-style second human would need again.
 
 function humanSides() {
-  return game.mode === "local" ? ["A", "B"] : ["A"];
+  return ["A"];
 }
 function botSides() {
-  return game.mode === "local" ? [] : ["B"];
+  return ["B"];
 }
 function rosterFor(side) {
   return side === "A" ? game.draft.rosterA : game.draft.rosterB;
@@ -893,14 +889,12 @@ function runLocalSimulation() {
     rosterA: draft.rosterA,
     rosterB: draft.rosterB,
     onComplete: () => {
-      const mode = game.mode === "bot" ? "offline" : "local";
-      const opponentLabel = game.mode === "bot" ? "Bot" : game.nameB;
       const ownLines = SLOTS.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
 
       recordPracticeResult({
-        mode,
+        mode: "offline",
+        opponentLabel: "Bot",
         won: result.winner === "A",
-        opponentLabel,
         scoreFor: result.teamScoreA,
         scoreAgainst: result.teamScoreB,
         mvpName: result.mvp.player.name,
