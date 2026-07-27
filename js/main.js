@@ -52,6 +52,7 @@ import {
   renderLiveBox,
   pushPlayHeadline,
   clearPlayFeed,
+  buildShotLines,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -960,8 +961,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     }`;
     finalBanner.classList.remove("hidden");
 
+    // Shot splits are computed once here and shared by the box score and the
+    // recap, so both describe the same night.
+    const shotsA = buildShotLines(rosterA, result.boxA);
+    const shotsB = buildShotLines(rosterB, result.boxB);
+
     // Why it went that way, not just what the score was.
-    const recap = buildRecap(result, rosterA, rosterB, labelA, labelB);
+    const recap = buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, shotsB);
     recapHeadlineEl.textContent = recap.headline;
     recapDetailEl.textContent = recap.detail;
     gameRecapEl.classList.remove("hidden");
@@ -973,7 +979,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     )} PTS / ${Math.round(mvp.line.reb)} REB / ${Math.round(mvp.line.ast)} AST`;
     mvpCallout.classList.remove("hidden");
 
-    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB);
+    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB);
     fullBoxScore.classList.remove("hidden");
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");

@@ -7,6 +7,7 @@ import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_S
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 import { TACTICS } from "./tactics.js";
+import { shotLine, formatShotLine } from "./shooting.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -208,21 +209,41 @@ function r(n) {
   return Math.max(0, Math.round(n));
 }
 
-function boxRow(slotLabel, player, line) {
-  return `<tr><td>${slotLabel}</td><td>${player.name}</td><td>${r(line.pts)}</td><td>${r(line.reb)}</td><td>${r(line.ast)}</td><td>${r(line.stl)}</td><td>${r(line.blk)}</td><td>${r(line.tov)}</td></tr>`;
+function boxRow(slotLabel, player, line, shots) {
+  const shooting = shots ? formatShotLine(shots) : "";
+  return (
+    `<tr><td>${slotLabel}</td><td>${player.name}` +
+    (shooting ? `<div class="box-shooting">${shooting}</div>` : "") +
+    `</td><td>${r(line.pts)}</td><td>${r(line.reb)}</td><td>${r(line.ast)}</td>` +
+    `<td>${r(line.stl)}</td><td>${r(line.blk)}</td><td>${r(line.tov)}</td></tr>`
+  );
 }
 
-function boxTable(roster, box, teamLabel) {
+function boxTable(roster, box, teamLabel, shotLines) {
   let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
   for (const slot of SLOTS) {
-    html += boxRow(SLOT_LABELS[slot], roster[slot], box[slot]);
+    html += boxRow(SLOT_LABELS[slot], roster[slot], box[slot], shotLines && shotLines[slot]);
   }
   html += "</tbody></table>";
   return html;
 }
 
-export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB) {
-  container.innerHTML = boxTable(rosterA, boxA, labelA) + boxTable(rosterB, boxB, labelB);
+export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB) {
+  container.innerHTML =
+    boxTable(rosterA, boxA, labelA, shotsA) + boxTable(rosterB, boxB, labelB, shotsB);
+}
+
+/** Shot splits for a finished roster, computed once so the same line is
+ * reused everywhere it's shown - calling shotLine twice would reroll the
+ * night's variance and contradict itself. */
+export function buildShotLines(roster, box) {
+  const out = {};
+  for (const slot of SLOTS) {
+    const player = roster[slot];
+    if (!player || !box[slot]) continue;
+    out[slot] = shotLine(player, box[slot].pts);
+  }
+  return out;
 }
 
 /**

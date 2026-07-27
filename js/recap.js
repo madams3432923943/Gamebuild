@@ -12,6 +12,7 @@
 // so it works identically for practice and ranked with no extra data.
 
 import { SLOTS } from "./constants.js";
+import { shootingNote } from "./shooting.js";
 
 /** Category totals for one side's box score. */
 function teamTotals(box) {
@@ -49,7 +50,7 @@ const CATEGORY_PHRASES = {
  * @param labelA/labelB display names for each side.
  * @returns {{headline: string, detail: string}}
  */
-export function buildRecap(result, rosterA, rosterB, labelA, labelB) {
+export function buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, shotsB) {
   const winnerIsA = result.winner === "A";
   const winName = winnerIsA ? labelA : labelB;
   const loseName = winnerIsA ? labelB : labelA;
@@ -57,6 +58,7 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB) {
   const winTotals = teamTotals(winnerIsA ? result.boxA : result.boxB);
   const loseTotals = teamTotals(winnerIsA ? result.boxB : result.boxA);
   const loseRoster = winnerIsA ? rosterB : rosterA;
+  const winRosterRef = winnerIsA ? rosterA : rosterB;
   const loseBox = winnerIsA ? result.boxB : result.boxA;
 
   // Rank categories by how far the winner was ahead, scaled so a 3-steal edge
@@ -118,6 +120,28 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB) {
     missing = `${loseName} never found an answer.`;
   }
 
-  const detail = (bits.length > 0 ? `${winName}: ${bits.join(", ")}. ` : "") + missing;
+  // A standout shooting night, when the data supports one. Checked across
+  // both rosters so a cold night from the loser is as tellable as a hot one
+  // from the winner.
+  let shooting = "";
+  const winShots = winnerIsA ? shotsA : shotsB;
+  const loseShots = winnerIsA ? shotsB : shotsA;
+  for (const [roster, shots] of [
+    [winRosterRef, winShots],
+    [loseRoster, loseShots],
+  ]) {
+    if (shooting || !shots) continue;
+    for (const slot of SLOTS) {
+      if (!roster[slot] || !shots[slot]) continue;
+      const note = shootingNote(roster[slot].name, shots[slot]);
+      if (note) {
+        shooting = note + ".";
+        break;
+      }
+    }
+  }
+
+  const detail =
+    (bits.length > 0 ? `${winName}: ${bits.join(", ")}. ` : "") + missing + (shooting ? ` ${shooting}` : "");
   return { headline, detail };
 }
