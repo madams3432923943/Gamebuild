@@ -28,3 +28,5 @@ jobs:
           path: .
       - id: deployment
         uses: actions/deploy-pages@v4
+- name: Claude Code Action Access Control
+  uses: kosukesaigusa/claude-code-action-access-control@v0.0.2
