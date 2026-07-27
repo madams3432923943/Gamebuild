@@ -8,7 +8,7 @@ import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import { SLOTS, QUARTER_REVEAL_DELAY_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS } from "./constants.js";
 import { loadProfile, recordPracticeResult, recordDraftPicks, setUsername } from "./profile.js";
-import { getSession, requireSession, signUp, signIn, signOut } from "./supabaseClient.js";
+import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
 import {
   joinQueue,
   leaveQueue,
@@ -110,9 +110,7 @@ function startPickTimer(onTimeout) {
 const navTabs = document.getElementById("nav-tabs");
 const authHeading = document.getElementById("auth-heading");
 const authSubheading = document.getElementById("auth-subheading");
-const rowAuthUsername = document.getElementById("row-auth-username");
 const inputAuthUsername = document.getElementById("input-auth-username");
-const inputAuthEmail = document.getElementById("input-auth-email");
 const inputAuthPassword = document.getElementById("input-auth-password");
 const btnAuthSubmit = document.getElementById("btn-auth-submit");
 const btnAuthToggle = document.getElementById("btn-auth-toggle");
@@ -137,7 +135,6 @@ function renderAuthMode() {
   btnAuthSubmit.textContent = isSignup ? "Create Account" : "Sign In";
   btnAuthToggle.textContent = isSignup ? "Sign in instead" : "Create an account";
   authSwitchLabel.textContent = isSignup ? "Already have an account?" : "New here?";
-  rowAuthUsername.hidden = !isSignup;
   inputAuthPassword.autocomplete = isSignup ? "new-password" : "current-password";
   setAuthStatus("");
 }
@@ -170,16 +167,15 @@ async function enterApp() {
 }
 
 btnAuthSubmit.addEventListener("click", async () => {
-  const email = inputAuthEmail.value.trim();
-  const password = inputAuthPassword.value;
   const username = inputAuthUsername.value.trim();
+  const password = inputAuthPassword.value;
 
-  if (!email || !password) {
-    setAuthStatus("Email and password are both required.", "error");
+  if (!username || !password) {
+    setAuthStatus("Username and password are both required.", "error");
     return;
   }
-  if (authMode === "signup" && !username) {
-    setAuthStatus("Pick a username so opponents know who they're facing.", "error");
+  if (authMode === "signup" && !USERNAME_PATTERN.test(username)) {
+    setAuthStatus("Usernames are 3-20 characters: letters, numbers or underscores.", "error");
     return;
   }
 
@@ -188,19 +184,20 @@ btnAuthSubmit.addEventListener("click", async () => {
 
   try {
     if (authMode === "signup") {
-      const session = await signUp(email, password);
-      // No session means the project requires email confirmation - the account
-      // exists but can't act until the link is clicked.
+      const session = await signUp(username, password);
+      // No session means the project still has email confirmation enabled,
+      // which can't work for username accounts - there's no real inbox to
+      // confirm from. Say so plainly instead of leaving them stuck.
       if (!session) {
-        setAuthStatus("Account created. Check your email for a confirmation link, then sign in.");
-        authMode = "signin";
-        renderAuthMode();
-        setAuthStatus("Account created. Check your email for a confirmation link, then sign in.");
+        setAuthStatus(
+          "Account made, but this project still has email confirmation turned on - turn it off in Supabase (Authentication > Sign In / Providers > Email) for username logins to work.",
+          "error"
+        );
         return;
       }
       await setUsername(username);
     } else {
-      await signIn(email, password);
+      await signIn(username, password);
     }
     inputAuthPassword.value = "";
     await enterApp();
@@ -211,7 +208,7 @@ btnAuthSubmit.addEventListener("click", async () => {
   }
 });
 
-for (const el of [inputAuthEmail, inputAuthPassword, inputAuthUsername]) {
+for (const el of [inputAuthPassword, inputAuthUsername]) {
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter") btnAuthSubmit.click();
   });
@@ -225,7 +222,6 @@ document.getElementById("nav-signout").addEventListener("click", async () => {
   } catch (e) {
     console.error("Sign out failed:", e);
   }
-  inputAuthEmail.value = "";
   inputAuthPassword.value = "";
   showAuthScreen();
 });
