@@ -97,11 +97,11 @@
         <div class="mode-toggle">
           <label class="radio-option">
             <input type="radio" name="mode" value="practice-easy" checked />
-            Practice <small>(vs Bot &middot; all players &amp; stats shown)</small>
+            Quick Play <small>(vs Bot &middot; all players &amp; stats shown)</small>
           </label>
           <label class="radio-option">
             <input type="radio" name="mode" value="practice-hard" />
-            Hard Practice <small>(vs Bot &middot; ranked rules)</small>
+            Ranked Practice <small>(vs Bot &middot; ranked rules + rotation &amp; gamestyle)</small>
           </label>
           <label class="radio-option">
             <input type="radio" name="mode" value="online" />
@@ -130,6 +130,14 @@
 
       <div class="draft-body">
         <div class="roster-panel" id="roster-panel-a"></div>
+
+        <div class="tactic-phase hidden" id="rotation-phase">
+          <h3 class="tactic-heading">Set your rotation</h3>
+          <p class="hint-text" id="rotation-phase-hint">Both rosters are set. Assign minutes across your roster.</p>
+          <div class="rotation-grid" id="rotation-grid"></div>
+          <p class="rotation-total" id="rotation-total"></p>
+          <button id="btn-confirm-rotation" class="btn btn-primary btn-block">Confirm Rotation</button>
+        </div>
 
         <div class="tactic-phase hidden" id="tactic-phase">
           <h3 class="tactic-heading">Pick your game plan</h3>

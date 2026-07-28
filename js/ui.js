@@ -6,7 +6,6 @@ import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
-import { TACTICS } from "./tactics.js";
 import { shotLine, formatShotLine } from "./shooting.js";
 
 const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
@@ -18,9 +17,9 @@ const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
  *   pending player's eligible open slots (those glow and are clickable;
  *   other open slots dim since they don't apply to this player).
  */
-export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect) {
+export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect, slots = SLOTS) {
   container.innerHTML = "";
-  for (const slot of SLOTS) {
+  for (const slot of slots) {
     const btn = document.createElement("button");
     btn.type = "button";
     const filled = !!roster[slot];
@@ -54,13 +53,13 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
  *   on this render pass (the round that just resolved).
  */
 export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
-  const { pendingSlots = [], revealSlots = [] } = opts;
+  const { pendingSlots = [], revealSlots = [], slots = SLOTS } = opts;
   container.innerHTML = "";
   const h3 = document.createElement("h3");
   h3.textContent = label + (isTurn ? " •" : "");
   container.appendChild(h3);
 
-  for (const slot of SLOTS) {
+  for (const slot of slots) {
     const row = document.createElement("div");
     row.className = "roster-slot";
     const tag = document.createElement("span");
@@ -88,9 +87,9 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
 /** Renders one clickable (or disabled) player card - unchanged visuals from
  * the old always-visible pool, just factored out so both the "in-squad"
  * match tier and any future reuse can share it. */
-function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false) {
-  const slots = eligibleOpenSlots(p, roster);
-  const eligible = slots.length > 0;
+function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = SLOTS) {
+  const eligibleSlots = eligibleOpenSlots(p, roster, slots);
+  const eligible = eligibleSlots.length > 0;
   const card = document.createElement("div");
   card.className =
     "player-card" +
@@ -148,7 +147,7 @@ function renderNote(container, text, tierClass) {
  * contract as before. `allPlayers` is the full dataset, used only for the
  * "elsewhere" lookup.
  */
-export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick, allPlayers, ruleset = "strict") {
+export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick, allPlayers, ruleset = "strict", slots = SLOTS) {
   container.innerHTML = "";
 
   // Easy practice puts the whole squad on screen with stats - it's for
@@ -162,7 +161,7 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
       return;
     }
     for (const p of players) {
-      renderPlayerCard(container, p, roster, pendingPlayerName, onPick, true);
+      renderPlayerCard(container, p, roster, pendingPlayerName, onPick, true, slots);
     }
     return;
   }
@@ -180,7 +179,7 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
 
   if (result.tier === "in-squad") {
     for (const p of result.candidates) {
-      renderPlayerCard(container, p, roster, pendingPlayerName, onPick);
+      renderPlayerCard(container, p, roster, pendingPlayerName, onPick, false, slots);
     }
     return;
   }
@@ -222,6 +221,7 @@ function boxRow(slotLabel, player, line, shots) {
 function boxTable(roster, box, teamLabel, shotLines) {
   let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
   for (const slot of SLOTS) {
+    if (!roster[slot]) continue;
     html += boxRow(SLOT_LABELS[slot], roster[slot], box[slot], shotLines && shotLines[slot]);
   }
   html += "</tbody></table>";
@@ -650,10 +650,55 @@ export function renderProfileScreen(refs, profile) {
   }
 }
 
-/** Pre-game tactic picker. Five permanent options, one selected at a time. */
-export function renderTacticPicker(container, selectedId, onSelect) {
+/** Rotation phase: a number input per rostered slot, plus a running total
+ * against the 240-minute budget. Purely a soft guide, not validation - the
+ * engine's existing scoring-ceiling/absolute-clamp safety nets already bound
+ * any allocation to a plausible score, so this never blocks confirming. */
+export function renderRotationPicker(container, roster, minutesMap, totalEl) {
   container.innerHTML = "";
-  for (const tactic of TACTICS) {
+  for (const slot of SLOTS) {
+    const player = roster[slot];
+    if (!player) continue;
+
+    const row = document.createElement("div");
+    row.className = "rotation-row";
+
+    const label = document.createElement("span");
+    label.className = "rotation-label";
+    label.textContent = `${SLOT_LABELS[slot]} · ${player.name}`;
+    row.appendChild(label);
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "rotation-input";
+    input.min = "0";
+    input.max = "48";
+    input.step = "1";
+    input.value = String(minutesMap[slot] ?? 0);
+    input.addEventListener("input", () => {
+      const raw = parseInt(input.value, 10);
+      minutesMap[slot] = Number.isFinite(raw) ? Math.max(0, Math.min(48, raw)) : 0;
+      renderRotationTotal(totalEl, minutesMap);
+    });
+    row.appendChild(input);
+
+    container.appendChild(row);
+  }
+  renderRotationTotal(totalEl, minutesMap);
+}
+
+function renderRotationTotal(totalEl, minutesMap) {
+  const total = Object.values(minutesMap).reduce((sum, m) => sum + (Number(m) || 0), 0);
+  const zeroCount = Object.values(minutesMap).filter((m) => Number(m) === 0).length;
+  totalEl.textContent = `${total} / 240 minutes assigned`;
+  totalEl.className = "rotation-total" + (total > 240 || zeroCount > 0 ? " rotation-warning" : "");
+}
+
+/** Pre-game tactic picker. Options passed in are whichever ones this game
+ * offers - the catalog is larger than what any single game shows. */
+export function renderTacticPicker(container, tacticsToShow, selectedId, onSelect) {
+  container.innerHTML = "";
+  for (const tactic of tacticsToShow) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "tactic-card" + (tactic.id === selectedId ? " active" : "");
@@ -696,13 +741,15 @@ export function renderLiveBox(container, rosterA, rosterB, labelA, labelB, total
 }
 
 /** A big-play headline. Cards stack newest-first and fade in, so the game
- * reads as a broadcast rather than a table appearing all at once. */
+ * reads as a broadcast rather than a table appearing all at once. Keeps four:
+ * each period emits one memo per team, so four holds the quarter just played
+ * plus the one before it. */
 export function pushPlayHeadline(container, text, tone = "") {
   const card = document.createElement("div");
   card.className = "play-card" + (tone ? ` ${tone}` : "");
   card.textContent = text;
   container.prepend(card);
-  while (container.children.length > 3) container.removeChild(container.lastChild);
+  while (container.children.length > 4) container.removeChild(container.lastChild);
 }
 
 export function clearPlayFeed(container) {

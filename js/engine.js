@@ -37,7 +37,7 @@ import {
   MAX_OT_PERIODS,
   OT_LENGTH_SCALE,
 } from "./constants.js";
-import { tacticMods } from "./tactics.js";
+import { tacticMods, tacticClutchMods } from "./tactics.js";
 
 const STAT_KEYS = ["ppg", "rpg", "apg", "spg", "bpg", "tov"];
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -95,11 +95,30 @@ export function impact(player) {
 }
 
 function rosterPlayers(roster) {
-  return [...STARTER_SLOTS.map((s) => roster[s]), roster["6TH"]];
+  // Quick Play drafts a 5-slot roster with no 6th man - roster["6TH"] is
+  // simply absent there, not a zero-stat player, so it's filtered rather
+  // than counted.
+  return [...STARTER_SLOTS.map((s) => roster[s]), roster["6TH"]].filter(Boolean);
 }
 
-function minutesScaleFor(slot) {
-  return slot === "6TH" ? SIXTH_MAN_SCALE : 1;
+/** Slots this roster actually has a player in, among the slots the engine
+ * tracks (starters + optionally a 6th man). Quick Play's 5-slot roster has
+ * no "6TH" key at all, so every loop over "the slots in play" uses this
+ * instead of a hardcoded [...STARTER_SLOTS, "6TH"]. */
+function activeSlots(roster) {
+  return roster["6TH"] ? [...STARTER_SLOTS, "6TH"] : STARTER_SLOTS;
+}
+
+/** Fraction of a full role a slot plays this quarter. With no minutesMap this
+ * is today's fixed split (starters at full scale, 6th man reduced) - so every
+ * mode that doesn't expose a rotation picker is unaffected. With a
+ * minutesMap (a slot -> minutes share, see simulateGame's opts), the share is
+ * read relative to STARTER_MINUTES, since the dataset's per-game stats are
+ * already calibrated against that baseline. */
+function minutesScaleFor(slot, minutesMap) {
+  if (!minutesMap) return slot === "6TH" ? SIXTH_MAN_SCALE : 1;
+  const minutes = minutesMap[slot];
+  return Number.isFinite(minutes) ? minutes / STARTER_MINUTES : slot === "6TH" ? SIXTH_MAN_SCALE : 1;
 }
 
 function posAvg(datasetStats, pos, key) {
@@ -122,7 +141,7 @@ function primaryPos(player) {
 
 /** Simulate one quarter for both rosters. Returns per-slot per-line stat
  * objects for each team, e.g. { PG: {pts,reb,ast,stl,blk,tov}, ... }. */
-function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB) {
+function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB) {
   const linesA = {};
   const linesB = {};
 
@@ -132,15 +151,17 @@ function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB) {
     const offB = rosterB[slot];
     const defA = rosterA[slot];
 
-    linesA[slot] = simulatePlayerQuarter(offA, defB, slot, datasetStats, modsA, modsB);
-    linesB[slot] = simulatePlayerQuarter(offB, defA, slot, datasetStats, modsB, modsA);
+    linesA[slot] = simulatePlayerQuarter(offA, defB, slot, datasetStats, modsA, modsB, minutesA);
+    linesB[slot] = simulatePlayerQuarter(offB, defA, slot, datasetStats, modsB, modsA, minutesB);
   }
 
   // 6th man: additive bonus production, not run through a 1-on-1 positional
   // matchup (true 5v5 covers the starters; the bench spot is a simple
-  // fixed-minutes bonus this round - see build spec #7).
-  linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"], modsA);
-  linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"], modsB);
+  // fixed-minutes bonus this round - see build spec #7). Quick Play's 5-slot
+  // roster has no 6th man at all, so this is skipped rather than simulated
+  // against an undefined player.
+  if (rosterA["6TH"]) linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"], modsA, minutesA);
+  if (rosterB["6TH"]) linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"], modsB, minutesB);
 
   return { linesA, linesB };
 }
@@ -164,8 +185,8 @@ function effectiveStats(player, mods) {
   };
 }
 
-function simulatePlayerQuarter(offPlayer, defPlayer, slot, datasetStats, offMods, defMods) {
-  const scale = minutesScaleFor(slot) * (1 / QUARTERS_PER_GAME);
+function simulatePlayerQuarter(offPlayer, defPlayer, slot, datasetStats, offMods, defMods, minutesMap) {
+  const scale = minutesScaleFor(slot, minutesMap) * (1 / QUARTERS_PER_GAME);
   const pos = primaryPos(offPlayer);
   const defPos = primaryPos(defPlayer);
   const off = effectiveStats(offPlayer, offMods);
@@ -199,8 +220,8 @@ function simulatePlayerQuarter(offPlayer, defPlayer, slot, datasetStats, offMods
   };
 }
 
-function simulateSixthManQuarter(rawPlayer, mods) {
-  const scale = SIXTH_MAN_SCALE * (1 / QUARTERS_PER_GAME);
+function simulateSixthManQuarter(rawPlayer, mods, minutesMap) {
+  const scale = minutesScaleFor("6TH", minutesMap) * (1 / QUARTERS_PER_GAME);
   const player = effectiveStats(rawPlayer, mods);
   return {
     pts: player.ppg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
@@ -235,29 +256,36 @@ function rosterCombinedImpact(roster) {
   return rosterPlayers(roster).reduce((sum, p) => sum + impact(p), 0);
 }
 
-function rosterBaselinePoints(roster) {
+function rosterBaselinePoints(roster, minutesMap) {
   // What the team would score if every player simply produced their raw
   // per-game PPG with no matchup/team modifiers - the denominator the
-  // scoring ceiling multiplier is measured against.
-  return STARTER_SLOTS.reduce((sum, slot) => sum + roster[slot].ppg, 0) + roster["6TH"].ppg * SIXTH_MAN_SCALE;
+  // scoring ceiling multiplier is measured against. Weighted by the same
+  // minutes shares the game actually used, so reallocating minutes to a
+  // star isn't mistaken for a stacked-roster scoring exploit.
+  return STARTER_SLOTS.reduce((sum, slot) => sum + roster[slot].ppg * minutesScaleFor(slot, minutesMap), 0) +
+    (roster["6TH"] ? roster["6TH"].ppg * minutesScaleFor("6TH", minutesMap) : 0);
 }
 
 /** Runs quarters (or OT periods) and accumulates per-slot totals. lengthScale
- * of 1 = a full quarter; used at < 1 for shorter OT periods. */
-function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB) {
+ * of 1 = a full quarter; used at < 1 for shorter OT periods. Slots are
+ * derived from rosterA (both sides always share the same roster shape in
+ * every mode today), so a 5-slot Quick Play roster never gets a "6TH" key
+ * anywhere downstream. */
+function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB, minutesA, minutesB) {
+  const slots = activeSlots(rosterA);
   const totalsA = {};
   const totalsB = {};
-  for (const slot of [...STARTER_SLOTS, "6TH"]) {
+  for (const slot of slots) {
     totalsA[slot] = emptyLine();
     totalsB[slot] = emptyLine();
   }
   const quarterBoxScores = [];
 
   for (let i = 0; i < periods; i++) {
-    const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB);
+    const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB);
     const scaledA = {};
     const scaledB = {};
-    for (const slot of [...STARTER_SLOTS, "6TH"]) {
+    for (const slot of slots) {
       scaledA[slot] = scaleLine(linesA[slot], lengthScale);
       scaledB[slot] = scaleLine(linesB[slot], lengthScale);
       addLine(totalsA[slot], scaledA[slot]);
@@ -270,13 +298,13 @@ function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, mo
 }
 
 function sumTeamLine(totals, key) {
-  return [...STARTER_SLOTS, "6TH"].reduce((sum, slot) => sum + totals[slot][key], 0);
+  return Object.keys(totals).reduce((sum, slot) => sum + totals[slot][key], 0);
 }
 
 /** Apply a multiplicative adjustment to every player's points, keeping the
  * box score internally consistent (player totals still sum to team total). */
 function applyPointsMultiplier(totals, factor) {
-  for (const slot of [...STARTER_SLOTS, "6TH"]) {
+  for (const slot of Object.keys(totals)) {
     totals[slot].pts *= factor;
   }
 }
@@ -294,41 +322,75 @@ export function gameScore(line) {
   return line.pts + 0.7 * line.reb + 0.7 * line.ast + line.stl + 0.7 * line.blk - line.tov;
 }
 
+/** A tactic's mods with its clutchMods (if any) folded in on top - used only
+ * for the 4th quarter and overtime, where a style like Isolation Heavy's
+ * "+2 Clutch Scoring" is meant to actually kick in. Returns the base mods
+ * unchanged when the style has no clutchMods, so this is a no-op for every
+ * style but the ones that define one. */
+function clutchModsFor(mods, clutchMods) {
+  if (!clutchMods) return mods;
+  const out = { ...mods };
+  for (const key of Object.keys(clutchMods)) {
+    out[key] = (out[key] ?? 1) * clutchMods[key];
+  }
+  return out;
+}
+
 /**
  * Simulates a full game between two rosters.
  *
  * @param {object} rosterA - { PG, SG, SF, PF, C, "6TH" }
  * @param {object} rosterB - same shape
  * @param {object} datasetStats - from computeDatasetStats()
- * @param {object} opts - { tacticA, tacticB }: tactic ids chosen before tip-off
+ * @param {object} opts - { tacticA, tacticB, minutesA, minutesB }: tactic ids
+ *   chosen before tip-off, and optional slot -> minutes maps from the
+ *   rotation phase (a mode that doesn't expose rotation choice omits these
+ *   and gets today's fixed starter/6th-man split).
  * @returns box score, quarter breakdown, final score, and MVP
  */
 export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
   const modsA = tacticMods(opts.tacticA);
   const modsB = tacticMods(opts.tacticB);
+  const clutchA = clutchModsFor(modsA, tacticClutchMods(opts.tacticA));
+  const clutchB = clutchModsFor(modsB, tacticClutchMods(opts.tacticB));
+  const minutesA = opts.minutesA || null;
+  const minutesB = opts.minutesB || null;
+
+  // Regulation quarters 1-3 at base mods; quarter 4 gets the clutch mods, so
+  // a clutch-scoring style only pays off in exactly the moment it promises.
   let { totalsA, totalsB, quarterBoxScores } = runPeriods(
     rosterA,
     rosterB,
     datasetStats,
-    QUARTERS_PER_GAME,
+    QUARTERS_PER_GAME - 1,
     1,
     modsA,
-    modsB
+    modsB,
+    minutesA,
+    minutesB
   );
+  const q4 = runPeriods(rosterA, rosterB, datasetStats, 1, 1, clutchA, clutchB, minutesA, minutesB);
+  for (const slot of Object.keys(totalsA)) {
+    addLine(totalsA[slot], q4.totalsA[slot]);
+    addLine(totalsB[slot], q4.totalsB[slot]);
+  }
+  quarterBoxScores.push(...q4.quarterBoxScores);
 
   applyTurnoverSwing(totalsA, totalsB);
   applyUsageCompression(totalsA, rosterA, datasetStats);
   applyUsageCompression(totalsB, rosterB, datasetStats);
-  applyScoringCeiling(totalsA, rosterA);
-  applyScoringCeiling(totalsB, rosterB);
+  applyScoringCeiling(totalsA, rosterA, minutesA);
+  applyScoringCeiling(totalsB, rosterB, minutesB);
 
   let otPeriods = 0;
   while (
     Math.round(sumTeamLine(totalsA, "pts")) === Math.round(sumTeamLine(totalsB, "pts")) &&
     otPeriods < MAX_OT_PERIODS
   ) {
-    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, modsA, modsB);
-    for (const slot of [...STARTER_SLOTS, "6TH"]) {
+    // OT is already crunch time - it plays out under the same clutch mods as
+    // the 4th quarter, not the base ones.
+    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB);
+    for (const slot of Object.keys(totalsA)) {
       addLine(totalsA[slot], ot.totalsA[slot]);
       addLine(totalsB[slot], ot.totalsB[slot]);
     }
@@ -341,13 +403,13 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
 
   const boxA = {};
   const boxB = {};
-  for (const slot of [...STARTER_SLOTS, "6TH"]) {
+  for (const slot of Object.keys(totalsA)) {
     boxA[slot] = roundLine(totalsA[slot]);
     boxB[slot] = roundLine(totalsB[slot]);
   }
 
-  const teamScoreA = [...STARTER_SLOTS, "6TH"].reduce((s, slot) => s + boxA[slot].pts, 0);
-  const teamScoreB = [...STARTER_SLOTS, "6TH"].reduce((s, slot) => s + boxB[slot].pts, 0);
+  const teamScoreA = Object.keys(boxA).reduce((s, slot) => s + boxA[slot].pts, 0);
+  const teamScoreB = Object.keys(boxB).reduce((s, slot) => s + boxB[slot].pts, 0);
 
   const mvp = pickMvp(rosterA, boxA, rosterB, boxB, teamScoreA > teamScoreB ? "A" : "B");
 
@@ -391,8 +453,8 @@ function applyUsageCompression(totals, roster, datasetStats) {
   applyPointsMultiplier(totals, factor);
 }
 
-function applyScoringCeiling(totals, roster) {
-  const baseline = rosterBaselinePoints(roster);
+function applyScoringCeiling(totals, roster, minutesMap) {
+  const baseline = rosterBaselinePoints(roster, minutesMap);
   const actual = sumTeamLine(totals, "pts");
   if (baseline <= 0 || actual <= 0) return;
   const multiplier = actual / baseline;
@@ -414,7 +476,7 @@ function pickMvp(rosterA, boxA, rosterB, boxB, winnerSide) {
     [rosterA, boxA, "A"],
     [rosterB, boxB, "B"],
   ]) {
-    for (const slot of [...STARTER_SLOTS, "6TH"]) {
+    for (const slot of Object.keys(box)) {
       const player = roster[slot];
       const line = box[slot];
       const score = gameScore(line);

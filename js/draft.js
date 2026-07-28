@@ -24,9 +24,12 @@ export function isEligible(player, slot) {
   return player.pos.includes(slot);
 }
 
-/** Open slots (not yet filled) for a roster-in-progress, in draft order. */
-export function openSlots(roster) {
-  return SLOTS.filter((s) => !roster[s]);
+/** Open slots (not yet filled) for a roster-in-progress, in draft order.
+ * `slots` defaults to the full 6-slot list so any caller that doesn't know
+ * about smaller rosters (Quick Play's 5-slot draft, no 6th man) keeps
+ * today's behavior unchanged. */
+export function openSlots(roster, slots = SLOTS) {
+  return slots.filter((s) => !roster[s]);
 }
 
 /** True if this same real player (by name) already occupies a slot on the
@@ -38,18 +41,18 @@ function rosterHasPlayerName(roster, name) {
 }
 
 /** Slots a given player could legally fill among a roster's open slots. */
-export function eligibleOpenSlots(player, roster) {
+export function eligibleOpenSlots(player, roster, slots = SLOTS) {
   if (rosterHasPlayerName(roster, player.name)) return [];
-  return openSlots(roster).filter((s) => isEligible(player, s));
+  return openSlots(roster, slots).filter((s) => isEligible(player, s));
 }
 
 /** Every legal (player, slot) combo for `roster` in `squad`, each scored by
  * impact() - the shared building block behind both the bot's best-pick
  * logic and the pick-timer's worst-pick timeout penalty. */
-function eligibleCombos(squad, roster) {
+function eligibleCombos(squad, roster, slots = SLOTS) {
   const combos = [];
   for (const player of squad.players) {
-    for (const slot of eligibleOpenSlots(player, roster)) {
+    for (const slot of eligibleOpenSlots(player, roster, slots)) {
       combos.push({ player, slot, score: impact(player) });
     }
   }
@@ -168,8 +171,8 @@ export function resolveTypedInput(query, currentSquad, allPlayers) {
  * the pick-timer timeout penalty. Returns null if there's no eligible
  * combo at all (the caller should auto-skip instead, same precondition
  * as the Skip button). */
-export function worstEligiblePick(squad, roster) {
-  const combos = eligibleCombos(squad, roster);
+export function worstEligiblePick(squad, roster, slots = SLOTS) {
+  const combos = eligibleCombos(squad, roster, slots);
   if (combos.length === 0) return null;
   return combos.reduce((worst, c) => (c.score < worst.score ? c : worst));
 }
@@ -202,11 +205,17 @@ export class DraftState {
    * @param recentSquadIds squads seen in the last game or two. They're kept
    *   out of this draft when there's anything else to roll, so consecutive
    *   games don't keep serving the same handful of teams.
+   * @param slots the roster shape this draft fills - defaults to the full
+   *   6-slot list (5 starters + 6th man). Quick Play passes STARTER_SLOTS
+   *   (no bench spot); a future 10-man Ranked roster passes its own list.
+   *   Kept as one class rather than a per-size variant since every mode
+   *   shares the exact same draft mechanics regardless of roster size.
    */
-  constructor(allPlayers, recentSquadIds = []) {
+  constructor(allPlayers, recentSquadIds = [], slots = SLOTS) {
     this.squads = buildSquads(allPlayers);
     this.recentSquadIds = new Set(recentSquadIds);
     this.usedSquadIds = new Set();
+    this.slots = slots;
     this.rosterA = {}; // human
     this.rosterB = {}; // bot
     this.history = [];
@@ -214,7 +223,7 @@ export class DraftState {
   }
 
   isComplete() {
-    return openSlots(this.rosterA).length === 0 && openSlots(this.rosterB).length === 0;
+    return openSlots(this.rosterA, this.slots).length === 0 && openSlots(this.rosterB, this.slots).length === 0;
   }
 
   /** Roll the next shared category. Both sides draft from this same squad.
@@ -249,7 +258,7 @@ export class DraftState {
    * available in the current rolled squad. */
   hasValidPick(roster) {
     if (!this.currentSquad) return false;
-    return this.currentSquad.players.some((p) => eligibleOpenSlots(p, roster).length > 0);
+    return this.currentSquad.players.some((p) => eligibleOpenSlots(p, roster, this.slots).length > 0);
   }
 
   /** Human/manual pick: assign `player` (from the current squad) to `slot`
@@ -273,7 +282,7 @@ export class DraftState {
   botAutoPick(side = "B") {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
-    const combos = eligibleCombos(this.currentSquad, roster);
+    const combos = eligibleCombos(this.currentSquad, roster, this.slots);
     let choice;
     if (Math.random() < BOT_SKILL) {
       choice = combos.reduce((best, c) => (c.score > best.score ? c : best));

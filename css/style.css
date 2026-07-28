@@ -1548,6 +1548,12 @@ table.box-table th, table.history-table th {
   color: var(--text);
 }
 
+.play-card.final {
+  border-left-color: var(--accent-bright);
+  color: var(--accent-bright);
+  font-weight: 600;
+}
+
 @keyframes play-in {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1623,3 +1629,49 @@ table.box-table th, table.history-table th {
 }
 
 .tactic-phase .tactic-head { flex: 0 0 9.5rem; }
+
+/* ---- Rotation phase ---- */
+.rotation-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.rotation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0.45rem 0.6rem;
+}
+
+.rotation-label {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.rotation-input {
+  width: 3.6rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.25rem 0.2rem;
+}
+
+.rotation-total {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 0 0 0.9rem;
+}
+
+.rotation-total.rotation-warning {
+  color: var(--warn, #e0a030);
+}

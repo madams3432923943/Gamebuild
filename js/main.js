@@ -4,19 +4,23 @@
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
 import { PLAYERS } from "./data.js";
-import { buildRecap } from "./recap.js";
-import { DEFAULT_TACTIC, TACTICS } from "./tactics.js";
+import { buildRecap, buildGameScript } from "./recap.js";
+import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
 
 const TACTIC_IDS = TACTICS.map((t) => t.id);
 import { simulateGame } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
+  STARTER_SLOTS,
   QUARTER_REVEAL_DELAY_MS,
   QUARTER_TICK_MS,
   DRAFT_REVEAL_DELAY_MS,
   PICK_TIMER_SECONDS,
   TACTIC_TIMER_SECONDS,
+  ROTATION_TIMER_SECONDS,
+  STARTER_MINUTES,
+  SIXTH_MAN_MINUTES,
 } from "./constants.js";
 import {
   loadProfile,
@@ -56,6 +60,7 @@ import {
   renderBanners,
   renderEquippedBanner,
   renderTacticPicker,
+  renderRotationPicker,
   renderLiveBox,
   pushPlayHeadline,
   clearPlayFeed,
@@ -293,12 +298,12 @@ const MODE_CONFIG = {
   "practice-easy": {
     mode: "bot",
     ruleset: "easy",
-    hint: "Practice against the bot with every player and their stats on screen. Doesn't affect your rank.",
+    hint: "Quick Play against the bot with every player and their stats on screen. Doesn't affect your rank.",
   },
   "practice-hard": {
     mode: "bot",
     ruleset: "strict",
-    hint: "Ranked rules against the bot: type names from memory, no stats, pick clock running. Doesn't affect your rank.",
+    hint: "Ranked Practice: type names from memory, no stats, pick clock running, then set your rotation and pick a gamestyle - the same steps Online Ranked will ask for. Doesn't affect your rank.",
   },
   online: {
     mode: "online",
@@ -390,6 +395,7 @@ function goToTab(tab, onArrive) {
   cleanupOnlineWatcher();
   cleanupPickTimer();
   cleanupTacticTimer();
+  cleanupRotationTimer();
   setActiveNav(tab);
   onArrive();
 }
@@ -469,10 +475,18 @@ const tacticGridEl = document.getElementById("tactic-grid");
 const tacticPhaseHintEl = document.getElementById("tactic-phase-hint");
 const draftPoolPanel = document.getElementById("draft-pool-panel");
 const btnPlayGame = document.getElementById("btn-play-game");
+const rotationPhaseEl = document.getElementById("rotation-phase");
+const rotationGridEl = document.getElementById("rotation-grid");
+const rotationTotalEl = document.getElementById("rotation-total");
+const rotationPhaseHintEl = document.getElementById("rotation-phase-hint");
+const btnConfirmRotation = document.getElementById("btn-confirm-rotation");
 
 // The game plan is chosen AFTER the draft, as a final timed round: you should
 // be picking how to play the team you actually ended up with, not guessing at
-// a style before you know who you'll get.
+// a style before you know who you'll get. Every game offers 3 of the 10
+// styles at random, so selectedTactic defaults to whichever is first in that
+// game's offer rather than a fixed id that might not even be on offer.
+let offeredTactics = [TACTICS.find((t) => t.id === DEFAULT_TACTIC)];
 let selectedTactic = DEFAULT_TACTIC;
 let tacticTimerInterval = null;
 
@@ -484,7 +498,7 @@ function cleanupTacticTimer() {
 }
 
 function renderTactics() {
-  renderTacticPicker(tacticGridEl, selectedTactic, (id) => {
+  renderTacticPicker(tacticGridEl, offeredTactics, selectedTactic, (id) => {
     selectedTactic = id;
     renderTactics();
   });
@@ -496,7 +510,8 @@ function renderTactics() {
 function startTacticPhase(onConfirm) {
   cleanupPickTimer();
   cleanupTacticTimer();
-  selectedTactic = DEFAULT_TACTIC;
+  offeredTactics = randomTacticChoices(3);
+  selectedTactic = offeredTactics[0].id;
   renderTactics();
 
   draftPoolPanel.classList.add("hidden");
@@ -528,6 +543,68 @@ function startTacticPhase(onConfirm) {
   btnPlayGame.onclick = confirm;
 }
 
+// Rotation phase: minutes-per-player, shared by Offline Ranked Practice (6
+// slots) and (later) Online Ranked. Only shown under the "strict" ruleset -
+// Quick Play stays a no-strategy, no-clock, just-play-it experience. A
+// rotationMinutes of null means "use the engine's default fixed split," so
+// every mode that never enters this phase behaves exactly as before.
+let rotationMinutes = null;
+let rotationTimerInterval = null;
+
+function cleanupRotationTimer() {
+  if (rotationTimerInterval) {
+    clearInterval(rotationTimerInterval);
+    rotationTimerInterval = null;
+  }
+}
+
+function defaultRotationMinutes(roster) {
+  const minutes = {};
+  for (const slot of SLOTS) {
+    if (!roster[slot]) continue;
+    minutes[slot] = slot === "6TH" ? SIXTH_MAN_MINUTES : STARTER_MINUTES;
+  }
+  return minutes;
+}
+
+/** Between draft-complete and the gamestyle pick in Ranked Practice: assign
+ * minutes across your roster before choosing how to play them. Timing out
+ * locks in whatever's currently assigned, same philosophy as the tactic
+ * timer - it keeps the match moving, it doesn't punish indecision. */
+function startRotationPhase(roster, onConfirm) {
+  cleanupPickTimer();
+  cleanupRotationTimer();
+  rotationMinutes = defaultRotationMinutes(roster);
+  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl);
+
+  draftPoolPanel.classList.add("hidden");
+  rotationPhaseEl.classList.remove("hidden");
+  pickTimerEl.hidden = false;
+
+  let remaining = ROTATION_TIMER_SECONDS;
+  renderPickTimer(pickTimerEl, remaining);
+  rotationTimerInterval = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      cleanupRotationTimer();
+      confirm();
+      return;
+    }
+    renderPickTimer(pickTimerEl, remaining);
+  }, 1000);
+
+  function confirm() {
+    cleanupRotationTimer();
+    rotationPhaseEl.classList.add("hidden");
+    pickTimerEl.hidden = true;
+    pickTimerEl.textContent = "";
+    btnConfirmRotation.onclick = null;
+    onConfirm();
+  }
+
+  btnConfirmRotation.onclick = confirm;
+}
+
 /** The draft board reads differently under each ruleset, so the search box
  * and its hint have to say which game is actually being played. */
 function applyRulesetToDraftUI() {
@@ -550,13 +627,23 @@ function rememberSquad(squadId) {
   recentSquadIds = [squadId, ...recentSquadIds.filter((id) => id !== squadId)].slice(0, RECENT_SQUAD_MEMORY);
 }
 
+// Quick Play (easy ruleset) is a strict 5-slot draft - no 6th man. Every
+// other mode (Ranked Practice today, Ranked online later) keeps the bench
+// spot, since the rotation phase gives those extra minutes real weight.
+function slotsForRuleset(ruleset) {
+  return ruleset === "easy" ? STARTER_SLOTS : SLOTS;
+}
+
 function startDraft() {
   cleanupPickTimer();
   cleanupTacticTimer();
+  cleanupRotationTimer();
   tacticPhaseEl.classList.add("hidden");
+  rotationPhaseEl.classList.add("hidden");
+  rotationMinutes = null;
   draftPoolPanel.classList.remove("hidden");
   applyRulesetToDraftUI();
-  game.draft = new DraftState(PLAYERS, recentSquadIds);
+  game.draft = new DraftState(PLAYERS, recentSquadIds, slotsForRuleset(game.ruleset));
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
   poolSearch.value = "";
@@ -632,28 +719,28 @@ function renderDraftRound() {
   poolSearch.hidden = false;
 
   const pending = game.round.pendingPlayer;
-  const eligibleForPending = pending ? eligibleOpenSlots(pending, roster) : null;
+  const eligibleForPending = pending ? eligibleOpenSlots(pending, roster, draft.slots) : null;
 
   renderPositionSelector(positionSelectorEl, roster, eligibleForPending, (slot) => {
     finalizePick(game.round.pendingPlayer, slot);
-  });
+  }, draft.slots);
 
   renderPoolForCurrentState();
 
-  renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, side === "A", { pendingSlots: pendingSlotsFor("A") });
-  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, side === "B", { pendingSlots: pendingSlotsFor("B") });
+  renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, side === "A", { pendingSlots: pendingSlotsFor("A"), slots: draft.slots });
+  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, side === "B", { pendingSlots: pendingSlotsFor("B"), slots: draft.slots });
 }
 
 function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
-  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, PLAYERS, game.ruleset);
+  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, PLAYERS, game.ruleset, draft.slots);
 }
 
 function onPoolPick(player) {
   const roster = rosterFor(game.round.activeSide);
-  const slots = eligibleOpenSlots(player, roster);
+  const slots = eligibleOpenSlots(player, roster, game.draft.slots);
   if (slots.length === 1) {
     finalizePick(player, slots[0]);
   } else {
@@ -688,7 +775,7 @@ function skipLocalTurn() {
 function handleLocalTimeout() {
   const draft = game.draft;
   const side = game.round.activeSide;
-  const combo = worstEligiblePick(draft.currentSquad, rosterFor(side));
+  const combo = worstEligiblePick(draft.currentSquad, rosterFor(side), draft.slots);
   if (combo) {
     finalizePick(combo.player, combo.slot);
   } else {
@@ -704,8 +791,8 @@ function renderRoundReveal() {
   positionSelectorEl.innerHTML = "";
   poolList.innerHTML = "";
 
-  renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { revealSlots: pendingSlotsFor("A") });
-  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { revealSlots: pendingSlotsFor("B") });
+  renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { revealSlots: pendingSlotsFor("A"), slots: draft.slots });
+  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { revealSlots: pendingSlotsFor("B"), slots: draft.slots });
 }
 
 function renderDraftComplete() {
@@ -718,13 +805,28 @@ function renderDraftComplete() {
   poolSearch.hidden = true;
   positionSelectorEl.innerHTML = "";
 
-  renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false);
-  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false);
+  renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { slots: draft.slots });
+  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { slots: draft.slots });
 
   poolList.innerHTML = "";
-  draftTurnBanner.textContent = "Final round — set your game plan";
-  tacticPhaseHintEl.textContent = `Both rosters are set. ${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
-  startTacticPhase(runLocalSimulation);
+
+  // Quick Play stays the fast, no-strategy experience: straight to the sim.
+  // Ranked Practice adds the two strict-ruleset phases - rotation, then
+  // gamestyle - since it's meant to rehearse exactly what Online Ranked asks
+  // for, using a bot opponent instead of a real one.
+  if (game.ruleset !== "strict") {
+    rotationMinutes = null;
+    runLocalSimulation();
+    return;
+  }
+
+  draftTurnBanner.textContent = "Set your rotation";
+  rotationPhaseHintEl.textContent = `Both rosters are set. ${ROTATION_TIMER_SECONDS} seconds to assign minutes.`;
+  startRotationPhase(draft.rosterA, () => {
+    draftTurnBanner.textContent = "Final round — set your game plan";
+    tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
+    startTacticPhase(runLocalSimulation);
+  });
 }
 
 // ---- Online draft flow ----
@@ -936,34 +1038,70 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
   renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
   pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
 
-  /** Standout lines from the period just played, worth calling out. The
-   * thresholds are per-quarter, so they fire for a genuinely hot stretch
-   * rather than for anyone who merely showed up. */
-  function announcePeriod(periodIndex, label) {
+  // The player each side's memo named last period. A team's best quarter is
+  // usually its best player's quarter, so without this the feed reads as the
+  // same two names four times running.
+  const lastNamed = { a: null, b: null };
+
+  /** The single best storyline for one team in one period - always returns
+   * something (falling back to a modest phrasing below the "hot" threshold)
+   * so every team gets exactly one memo per period, never zero and never a
+   * pile-up on whichever side happened to run hottest. */
+  function bestTeamLineForPeriod(periodIndex, key, roster) {
     const q = result.quarterBoxScores[periodIndex];
-    const calls = [];
+    if (!q || !q[key]) return null;
+    const options = [];
+    for (const slot of SLOTS) {
+      const line = q[key][slot];
+      const player = roster[slot];
+      if (!line || !player) continue;
+      // Tuned against real per-quarter output: a starter averages roughly
+      // 4-6 points a quarter, so 8+ is a genuinely hot stretch. Below that
+      // threshold the same category still describes the quarter, just in a
+      // more matter-of-fact voice ("led with" instead of "pours in").
+      const candidates = [
+        { value: line.pts, min: 8, hot: (n, v) => `${n} pours in ${Math.round(v)}`, mild: (n, v) => `${n} led with ${Math.round(v)} points` },
+        { value: line.reb, min: 4.5, hot: (n, v) => `${n} owns the glass — ${Math.round(v)} boards`, mild: (n, v) => `${n} crashed the boards for ${Math.round(v)} rebounds` },
+        { value: line.ast, min: 3.5, hot: (n, v) => `${n} carving it up, ${Math.round(v)} dimes`, mild: (n, v) => `${n} ran the offense with ${Math.round(v)} assists` },
+        { value: line.blk, min: 1.8, hot: (n, v) => `${n} shutting the rim down`, mild: (n, v) => `${n} chipped in on D` },
+      ];
+      let bestForPlayer = null;
+      for (const c of candidates) {
+        if (c.value <= 0) continue;
+        const weight = c.value / c.min;
+        if (!bestForPlayer || weight > bestForPlayer.weight) {
+          bestForPlayer = {
+            weight,
+            name: player.name,
+            text: weight >= 1 ? c.hot(player.name, c.value) : c.mild(player.name, c.value),
+          };
+        }
+      }
+      if (bestForPlayer) options.push(bestForPlayer);
+    }
+    if (options.length === 0) return null;
+    options.sort((a, b) => b.weight - a.weight);
+    // Prefer a name we didn't just use, unless repeating is the only option
+    // or the repeat is a genuinely dominant quarter worth calling twice.
+    const fresh = options.find((o) => o.name !== lastNamed[key]);
+    return fresh && options[0].weight < 1.6 ? fresh : options[0];
+  }
+
+  /** Exactly one memo per team per period - the feed talks about both
+   * sides every quarter, not whichever team happened to run hot. */
+  function announcePeriod(periodIndex, label) {
     for (const [key, roster, teamLabel] of [
       ["a", rosterA, labelA],
       ["b", rosterB, labelB],
     ]) {
-      for (const slot of SLOTS) {
-        const line = q[key][slot];
-        const player = roster[slot];
-        if (!line || !player) continue;
-        // Tuned against real per-quarter output: a starter averages roughly
-        // 4-6 points a quarter, so 8+ is a genuinely hot stretch rather than
-        // just showing up.
-        if (line.pts >= 8) calls.push({ text: `${player.name} pours in ${Math.round(line.pts)} in ${label}`, tone: "hot" });
-        else if (line.reb >= 4.5) calls.push({ text: `${player.name} owns the glass — ${Math.round(line.reb)} boards in ${label}`, tone: "" });
-        else if (line.ast >= 3.5) calls.push({ text: `${player.name} carving it up, ${Math.round(line.ast)} dimes in ${label}`, tone: "" });
-        else if (line.blk >= 1.8) calls.push({ text: `${player.name} shutting the rim down in ${label}`, tone: "" });
+      const best = bestTeamLineForPeriod(periodIndex, key, roster);
+      if (best) {
+        lastNamed[key] = best.name;
+        pushPlayHeadline(playFeedEl, `${best.text} in ${label}`, best.weight >= 1 ? "hot" : "");
+      } else {
+        pushPlayHeadline(playFeedEl, `${teamLabel} scraped by in ${label}`, "");
       }
-      void teamLabel;
     }
-    // At most two calls per period: a feed that never stops talking stops
-    // meaning anything.
-    calls.sort(() => Math.random() - 0.5);
-    for (const call of calls.slice(0, 2)) pushPlayHeadline(playFeedEl, call.text, call.tone);
   }
 
   /** Animates the scoreboard from one period's totals to the next. */
@@ -1030,11 +1168,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     renderLiveBox(liveBoxEl, rosterA, rosterB, labelA, labelB, liveTotals);
     announcePeriod(i, label);
 
-    const lead = Math.abs(runningA - runningB);
-    if (i === deltaA.length - 1 && lead <= 4) {
-      pushPlayHeadline(playFeedEl, "Down to the wire!", "hot");
-    }
-
     i += 1;
     setTimeout(step, QUARTER_REVEAL_DELAY_MS);
   }
@@ -1042,6 +1175,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
   function finish() {
     for (const t of scoreTickIntervals) clearInterval(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
+
+    // The broadcast's closing line: not why the winner won (the recap below
+    // covers that), just the shape the game itself took.
+    pushPlayHeadline(playFeedEl, buildGameScript(periodsSoFar, labelA, labelB), "final");
 
     const winnerName = result.winner === "A" ? labelA : labelB;
     finalBanner.textContent = `${winnerName} wins, ${result.teamScoreA}-${result.teamScoreB}${
@@ -1086,6 +1223,7 @@ function runLocalSimulation() {
   const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats, {
     tacticA: selectedTactic,
     tacticB: botTactic,
+    minutesA: rotationMinutes || undefined,
   });
 
   playOutResult({
@@ -1095,13 +1233,13 @@ function runLocalSimulation() {
     rosterA: draft.rosterA,
     rosterB: draft.rosterB,
     onComplete: () => {
-      const ownLines = SLOTS.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
+      const ownLines = draft.slots.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
 
       recordPracticeResult({
         mode: "offline",
         opponentLabel: "Bot",
         won: result.winner === "A",
-        draftedTeams: SLOTS.map((slot) => draft.rosterA[slot].team),
+        draftedTeams: draft.slots.map((slot) => draft.rosterA[slot].team),
         ruleset: game.ruleset,
         scoreFor: result.teamScoreA,
         scoreAgainst: result.teamScoreB,
@@ -1109,7 +1247,7 @@ function runLocalSimulation() {
         ownLines,
       }).catch((e) => console.error("Failed to record result:", e));
 
-      recordDraftPicks(SLOTS.map((slot) => draft.rosterA[slot].name)).catch((e) =>
+      recordDraftPicks(draft.slots.map((slot) => draft.rosterA[slot].name)).catch((e) =>
         console.error("Failed to record draft picks:", e)
       );
     },

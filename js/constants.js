@@ -92,6 +92,15 @@ export const PICK_TIMER_SECONDS = 30;
 // information about the team you just built, so it deserves a real beat.
 export const TACTIC_TIMER_SECONDS = 45;
 
+// How long a player has to set their rotation (minutes per player) in Ranked
+// Practice, before the gamestyle pick. Offline value; Online Ranked uses its
+// own longer duration (2 minutes) since it also has to wait on an opponent.
+export const ROTATION_TIMER_SECONDS = 60;
+
+// The real-basketball baseline a rotation's minutes are measured against: 5
+// players on court at all times over a 48-minute game.
+export const ROTATION_MINUTES_BUDGET = 240;
+
 // Minimum characters typed before the draft search reveals any matches -
 // with only 10 players per squad, revealing results after 1 character
 // would let someone brute-force the roster letter by letter.

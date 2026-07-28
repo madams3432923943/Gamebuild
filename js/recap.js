@@ -132,6 +132,66 @@ const CATEGORY_PHRASES = {
   blk: { edge: "protected the rim", gap: "rim protection" },
 };
 
+/** One or two sentences on how the whole game flowed - not why the winner
+ * won (that's buildRecap's job), but the shape of the game itself: wire-to-
+ * wire, a comeback, back-and-forth, or a tight finish. Derived purely from
+ * each period's point deltas, which every mode already produces to drive the
+ * live scoreboard, so this needs no extra simulation data.
+ * @param periods [{a, b}, ...] point deltas per period, in the order played
+ *   (regulation then any OT) - the same shape main.js's live-sim loop
+ *   already tracks as it reveals each period.
+ */
+export function buildGameScript(periods, labelA, labelB) {
+  let runningA = 0;
+  let runningB = 0;
+  let leadSide = null;
+  let leadChanges = 0;
+  let maxDeficitA = 0;
+  let maxDeficitB = 0;
+  let ledWireToWireA = true;
+  let ledWireToWireB = true;
+
+  for (const p of periods) {
+    runningA += p.a;
+    runningB += p.b;
+    const diff = runningA - runningB;
+    if (diff > 0) {
+      if (leadSide === "B") leadChanges += 1;
+      leadSide = "A";
+      ledWireToWireB = false;
+      maxDeficitB = Math.max(maxDeficitB, diff);
+    } else if (diff < 0) {
+      if (leadSide === "A") leadChanges += 1;
+      leadSide = "B";
+      ledWireToWireA = false;
+      maxDeficitA = Math.max(maxDeficitA, -diff);
+    }
+  }
+
+  const winnerIsA = runningA > runningB;
+  const winName = winnerIsA ? labelA : labelB;
+  const loseName = winnerIsA ? labelB : labelA;
+  const winnerMaxDeficit = winnerIsA ? maxDeficitA : maxDeficitB;
+  const winnerLedWireToWire = winnerIsA ? ledWireToWireA : ledWireToWireB;
+  const margin = Math.abs(runningA - runningB);
+
+  if (winnerLedWireToWire && leadChanges === 0) {
+    return margin >= 20
+      ? `${winName} led from start to finish and never let ${loseName} back in it.`
+      : `${winName} led wire-to-wire in a game ${loseName} couldn't quite crack.`;
+  }
+  if (winnerMaxDeficit >= 10) {
+    return `${winName} trailed by as many as ${Math.round(winnerMaxDeficit)} before storming back to win it.`;
+  }
+  if (leadChanges >= 3) {
+    return `The lead changed hands ${leadChanges} times before ${winName} finally pulled away.`;
+  }
+  if (margin <= 4) {
+    return `A nail-biter down to the final possessions, with ${winName} coming out on top.`;
+  }
+  return `${winName} took control and never looked back.`;
+}
+
 /**
  * Builds the recap for a finished game.
  * @param result the object simulateGame (or the normalized server result)
