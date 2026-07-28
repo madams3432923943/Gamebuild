@@ -1,0 +1,14 @@
+{
+  "name": "ball-knowledge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "esbuild js/main.js --bundle --format=iife --outfile=dist/bundle.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
