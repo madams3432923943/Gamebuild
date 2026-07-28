@@ -14,10 +14,31 @@ score, because a result you can't explain teaches you nothing about your draft.
 | Mode | Opponent | Roster | Rules |
 | --- | --- | --- | --- |
 | Quick Play | Bot | 5 (PG/SG/SF/PF/C) | Whole squad and stats shown, no clock |
-| Ranked Practice | Bot | 6 (+ 6th man) | Type from memory, no stats, pick clock, then rotation + gamestyle |
-| Ranked | Real opponent | 6 (+ 6th man) | Ranked rules, counts toward your record |
+| Ranked Practice | Bot | 10 (5 starters + 5 bench) | Type from memory, no stats, pick clock, then rotation + gamestyle |
+| Ranked | Real opponent | 10 (5 starters + 5 bench) | Ranked rules, counts toward your record |
 
 Bot games never affect your rank; your profile still counts every game played.
+
+> Online Ranked still runs the older 6-man roster until the ranked backend
+> lands (queue mode, rotation state, server-side simulation). Ranked Practice
+> is already the real thing.
+
+### Rosters and depth
+
+The five starters are position-locked. The five bench spots are not — draft
+whoever you want, and each bench player is assigned to whichever position he
+can play that most needs the help, least flexible players placed first. That
+makes a player listed at two positions genuinely more valuable than a
+specialist, because he plugs whichever gap you actually have.
+
+Depth is not cosmetic. Each position carries 48 minutes, split between
+whoever covers it. Leave a position with only its starter and he has to play
+the whole game — past 40 minutes he tires and gives production back. With
+identical starters, a bench covering all five positions beats a bench of five
+centers about 79% of the time.
+
+After the draft you set the rotation (sliders, coupled so each position
+always totals its 48) and pick one of three randomly offered gamestyles.
 
 ## Running it
 
@@ -67,7 +88,15 @@ of basketball knowledge. Re-run after changing any style:
 node tools/calibrate-gamestyles.mjs
 ```
 
-Current spread across the full 10x9 field: **48.8%-52.6%**.
+Two further levers are solved the same way, by
+`tools/calibrate-variance.mjs`: how much of a roster's talent advantage
+reaches the scoreboard, and how much a team's output swings quarter to
+quarter. Together they set how often the better roster actually wins — about
+80% of games against a clearly weaker one. Re-run it after any engine change,
+then re-run the gamestyle calibration, since gamestyles are balanced against
+whatever those two produce.
+
+Current spread across the full 10x9 field: **47.3%-52.6%**.
 
 ## Data
 

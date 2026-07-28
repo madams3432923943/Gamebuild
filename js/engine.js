@@ -1,7 +1,16 @@
-// Simulation engine: quarter-by-quarter 5v5 positional matchup model.
+// Simulation engine: quarter-by-quarter positional matchup model.
 //
-// A "roster" here is: { PG, SG, SF, PF, C, "6TH" } where each value is a
-// player record from data.js (see js/data.js for the shape).
+// A "roster" maps slot -> player record (see js/data.js for the shape). Slot
+// sets vary by mode and nothing here may assume one:
+//   Quick Play      { PG, SG, SF, PF, C }
+//   Ranked          { PG..C, BENCH1..BENCH5 }  - bench spots are open, and
+//                   each is assigned to a position by slotsByPosition()
+//   legacy / online { PG..C, "6TH" }           - 6th man, no matchup
+//
+// Everyone assigned to a position shares that position's 48 minutes and its
+// matchup against the opponent's players there. A position covered by one
+// player has to run him all 48, and fatigueFactor() charges him for it -
+// that is what makes bench depth worth drafting.
 //
 // Order of operations per game (see simulateGame at the bottom):
 //   1. Simulate 4 quarters independently (each an isolated matchup roll,
