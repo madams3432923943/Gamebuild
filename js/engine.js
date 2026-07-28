@@ -17,6 +17,12 @@
 import {
   STARTER_SLOTS,
   basePosition,
+  isBenchSlot,
+  orderedRosterSlots,
+  FATIGUE_MINUTES,
+  FATIGUE_PER_MINUTE,
+  FATIGUE_MAX_PENALTY,
+  POSITION_MINUTES,
   QUARTERS_PER_GAME,
   STARTER_MINUTES,
   SIXTH_MAN_SCALE,
@@ -114,29 +120,95 @@ function rosterPlayers(roster) {
  * position then depth, every mode reads top-to-bottom like a lineup card,
  * with the 6th man last. */
 export function activeSlots(roster) {
-  return Object.keys(roster)
-    .filter((slot) => roster[slot])
-    .sort((a, b) => {
-      if (a === "6TH") return 1;
-      if (b === "6TH") return -1;
-      const posDiff = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
-      return posDiff !== 0 ? posDiff : a.localeCompare(b);
-    });
+  return orderedRosterSlots(roster);
 }
 
-/** Groups a roster's slots by the position they play, so both players at a
- * position share one matchup against the opponent's players there.
- * Returns e.g. { PG: ["PG1","PG2"], ... } for a ranked roster, or
- * { PG: ["PG"], ... } for a 5/6-man one. "6TH" is excluded - it has no
- * position and is handled as an unmatched bench bonus. */
-function slotsByPosition(roster) {
+/** Groups a roster's slots by the position they play, so everyone at a
+ * position shares one matchup against the opponent's players there.
+ *
+ * Position-locked slots go where their name says. Bench slots have no fixed
+ * position, so each is assigned to whichever position it can play that has
+ * the fewest bodies so far - which is what makes depth and versatility pay:
+ * a player listed at two positions can plug whichever gap exists, while five
+ * centers on the bench all pile onto C and leave the other four starters
+ * playing the whole game (see the fatigue penalty in applyFatigue).
+ *
+ * "6TH" is excluded - it has no position and is handled as an unmatched
+ * bench bonus in the legacy 6-man roster. */
+export function slotsByPosition(roster) {
   const groups = {};
+  const bench = [];
+
   for (const slot of activeSlots(roster)) {
     if (slot === "6TH") continue;
-    const pos = basePosition(slot);
-    (groups[pos] ||= []).push(slot);
+    if (isBenchSlot(slot)) {
+      bench.push(slot);
+      continue;
+    }
+    (groups[basePosition(slot)] ||= []).push(slot);
   }
+
+  // Assign the least flexible bench players first: someone who can only play
+  // center has no choice, while a guard listed at two spots should be left
+  // free to cover whatever is still thin once the specialists are placed.
+  const ordered = [...bench].sort((a, b) => roster[a].pos.length - roster[b].pos.length);
+  for (const slot of ordered) {
+    const canPlay = roster[slot].pos.filter((p) => STARTER_SLOTS.includes(p));
+    const options = canPlay.length > 0 ? canPlay : STARTER_SLOTS;
+    const target = options.reduce((thinnest, pos) =>
+      (groups[pos] || []).length < (groups[thinnest] || []).length ? pos : thinnest
+    );
+    (groups[target] ||= []).push(slot);
+  }
+
   return groups;
+}
+
+/** The rotation a roster gets when nobody set one: each position's 48
+ * minutes split across whoever actually covers it. This has to know the
+ * position grouping, so it cannot be derived per-slot - with an open bench a
+ * position may have one player or three, and guessing per-slot totalled 280
+ * minutes against a real team's 240, inflating every stat by a fifth.
+ *
+ * Shared with the rotation screen (main.js) so an untouched rotation
+ * simulates identically to no rotation at all. */
+export function defaultMinutes(roster) {
+  const minutes = {};
+  const groups = slotsByPosition(roster);
+  const grouped = new Set();
+
+  for (const group of Object.values(groups)) {
+    let left = POSITION_MINUTES;
+    group.forEach((slot, i) => {
+      const share =
+        i === group.length - 1
+          ? left
+          : group.length === 2
+          ? RANKED_STARTER_MINUTES
+          : Math.round(POSITION_MINUTES / group.length);
+      minutes[slot] = Math.max(0, share);
+      left -= minutes[slot];
+      grouped.add(slot);
+    });
+  }
+
+  // Whatever the grouping doesn't cover (the legacy 6th man) keeps its own
+  // fixed allocation.
+  for (const slot of activeSlots(roster)) {
+    if (grouped.has(slot)) continue;
+    minutes[slot] = slot === "6TH" ? SIXTH_MAN_SCALE * STARTER_MINUTES : STARTER_MINUTES;
+  }
+  return minutes;
+}
+
+/** Minutes lost to tiring. A position with nobody behind its starter has to
+ * run him the full 48, and he gives production back for it - which is the
+ * mechanism that makes bench depth worth drafting rather than a formality.
+ * Returns a multiplier at or below 1. */
+function fatigueFactor(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= FATIGUE_MINUTES) return 1;
+  const over = minutes - FATIGUE_MINUTES;
+  return 1 - Math.min(FATIGUE_MAX_PENALTY, over * FATIGUE_PER_MINUTE);
 }
 
 /** The defense a position actually faces, as a minutes-weighted blend of the
@@ -176,8 +248,19 @@ function minutesScaleFor(slot, minutesMap) {
  * load, fielding ten full-time players and roughly doubling a real team's
  * output. Plain slots keep the historical 36-minute baseline their recorded
  * per-game stats already reflect. */
+/** A slot's assigned minutes in real minutes, for the fatigue check. Falls
+ * back to whatever the default split gives that slot when no rotation was
+ * set, so an unset rotation is judged on the same basis as a set one. */
+function playerMinutes(slot, minutesMap) {
+  const minutes = minutesMap && minutesMap[slot];
+  if (Number.isFinite(minutes)) return minutes;
+  return defaultMinutesScaleFor(slot) * STARTER_MINUTES;
+}
+
 function defaultMinutesScaleFor(slot) {
   if (slot === "6TH") return SIXTH_MAN_SCALE;
+  // A bench spot defaults to a backup's load; a named starter to a starter's.
+  if (isBenchSlot(slot)) return RANKED_BACKUP_MINUTES / STARTER_MINUTES;
   if (/\d$/.test(slot)) {
     const minutes = slot.endsWith("1") ? RANKED_STARTER_MINUTES : RANKED_BACKUP_MINUTES;
     return minutes / STARTER_MINUTES;
@@ -263,7 +346,10 @@ function effectiveStats(player, mods) {
  *   blendedDefender - not a raw player record.
  */
 function simulatePlayerQuarter(offPlayer, def, slot, datasetStats, offMods, minutesMap) {
-  const scale = minutesScaleFor(slot, minutesMap) * (1 / QUARTERS_PER_GAME);
+  const scale =
+    minutesScaleFor(slot, minutesMap) *
+    fatigueFactor(playerMinutes(slot, minutesMap)) *
+    (1 / QUARTERS_PER_GAME);
   const pos = primaryPos(offPlayer);
   const defPos = def.pos[0];
   const off = effectiveStats(offPlayer, offMods);
@@ -484,8 +570,11 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
   const modsB = tacticMods(opts.tacticB);
   const clutchA = clutchModsFor(modsA, tacticClutchMods(opts.tacticA));
   const clutchB = clutchModsFor(modsB, tacticClutchMods(opts.tacticB));
-  const minutesA = opts.minutesA || null;
-  const minutesB = opts.minutesB || null;
+  // No rotation supplied means "play the default", which must still respect
+  // the 240-minute budget - so the default is computed from the roster's
+  // position grouping rather than guessed slot by slot.
+  const minutesA = opts.minutesA || defaultMinutes(rosterA);
+  const minutesB = opts.minutesB || defaultMinutes(rosterB);
   // Optional override, used by tools/calibrate-variance.mjs to solve the
   // range without rewriting constants.js between runs.
   const teamVariance = opts.teamVariance || null;

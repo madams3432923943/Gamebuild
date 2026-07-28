@@ -11,7 +11,7 @@
 // Everything here is derived from the box scores both modes already produce,
 // so it works identically for practice and ranked with no extra data.
 
-import { STARTER_SLOTS, basePosition } from "./constants.js";
+import { orderedRosterSlots, isBenchSlot } from "./constants.js";
 import { gameScore } from "./engine.js";
 import { shootingNote } from "./shooting.js";
 
@@ -27,19 +27,13 @@ function periodPoints(quarterBoxScores, key) {
 /** The slots a roster actually filled, in canonical lineup order - roster
  * shape varies by mode (5, 6, or 10 slots), so nothing here may assume one. */
 function rosterSlots(roster) {
-  return Object.keys(roster)
-    .filter((slot) => roster[slot])
-    .sort((a, b) => {
-      if (a === "6TH") return 1;
-      if (b === "6TH") return -1;
-      const d = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
-      return d !== 0 ? d : a.localeCompare(b);
-    });
+  return orderedRosterSlots(roster);
 }
 
 /** Readable name for a roster slot in prose ("6th man", "PG1"). */
 function slotName(slot) {
-  return slot === "6TH" ? "6th man" : slot;
+  if (slot === "6TH") return "6th man";
+  return isBenchSlot(slot) ? "the bench" : slot;
 }
 
 const PERIOD_LABELS = ["the 1st", "the 2nd", "the 3rd", "the 4th"];

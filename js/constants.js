@@ -6,19 +6,47 @@
 export const SLOTS = ["PG", "SG", "SF", "PF", "C", "6TH"];
 export const STARTER_SLOTS = ["PG", "SG", "SF", "PF", "C"];
 
-// Ranked rosters carry two players at every position, who split that
-// position's 48 minutes between them on the rotation screen. Neither is a
-// "starter" mechanically - that's what makes allocating minutes a real
-// decision rather than a formality. The trailing digit is stripped by
-// basePosition() in draft.js before any eligibility check, since a player's
-// recorded pos[] only ever holds bare codes ("PG", "SG", ...).
-export const RANKED_SLOTS = [
-  "PG1", "PG2",
-  "SG1", "SG2",
-  "SF1", "SF2",
-  "PF1", "PF2",
-  "C1", "C2",
-];
+// Ranked rosters: five position-locked starters plus five open bench spots.
+//
+// The bench is deliberately NOT position-locked. Real benches aren't - you
+// draft the best available and work out the rotation afterward - and leaving
+// them open is what turns depth into a genuine draft decision instead of a
+// checklist. A bench player is assigned to whichever position he can play
+// that most needs the help (see assignBenchToPositions in engine.js), so
+// somebody listed at two positions is worth more than somebody locked to one.
+export const STARTER_ROSTER_SLOTS = ["PG", "SG", "SF", "PF", "C"];
+export const BENCH_SLOTS = ["BENCH1", "BENCH2", "BENCH3", "BENCH4", "BENCH5"];
+export const RANKED_SLOTS = [...STARTER_ROSTER_SLOTS, ...BENCH_SLOTS];
+
+export function isBenchSlot(slot) {
+  return slot.startsWith("BENCH");
+}
+
+/** Canonical lineup order for a roster's slots: starters by position, then
+ * the bench, then the legacy 6th man. Every mode's roster is a different
+ * shape, and a roster object's own key order is DRAFT order - so without
+ * this, box scores and roster panels would print as SF, BENCH3, PG...
+ *
+ * Shared from here because the engine, the box score, and the recap all have
+ * to agree on it; three private copies would drift the moment a slot type is
+ * added. */
+export function orderSlots(slots) {
+  return [...slots].sort((a, b) => {
+    const rank = (s) => (s === "6TH" ? 2 : isBenchSlot(s) ? 1 : 0);
+    const diff = rank(a) - rank(b);
+    if (diff !== 0) return diff;
+    if (rank(a) === 0) {
+      const posDiff = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
+      if (posDiff !== 0) return posDiff;
+    }
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
+/** Canonical-ordered slots a roster actually filled. */
+export function orderedRosterSlots(roster) {
+  return orderSlots(Object.keys(roster).filter((slot) => roster[slot]));
+}
 
 // Minutes available at each position across a full game (5 on the floor for
 // 48 minutes = 240 total, split per position).
@@ -33,12 +61,26 @@ export const POSITION_MINUTES = 48;
 export const RANKED_STARTER_MINUTES = 28;
 export const RANKED_BACKUP_MINUTES = POSITION_MINUTES - RANKED_STARTER_MINUTES;
 
-/** The position a slot belongs to, with any depth-chart digit stripped:
- * "PG1" and "PG2" are both point guard spots, and plain "PG" is itself.
+// Above this many minutes a player tires and gives back production. This is
+// what makes roster depth matter: a position with nobody behind the starter
+// has to run him the full 48, and he pays for it. Cover every position - or
+// draft players who can cover more than one - and the load spreads.
+// Deliberately near a real heavy starter's night, so a normal rotation never
+// trips it and only genuinely overworking someone does.
+export const FATIGUE_MINUTES = 40;
+// Production lost per minute beyond the threshold, capped so fatigue is a
+// real cost without erasing a star.
+export const FATIGUE_PER_MINUTE = 0.012;
+export const FATIGUE_MAX_PENALTY = 0.18;
+
+/** The position a slot belongs to, with any depth-chart digit stripped.
+ * Bench slots have no fixed position - the engine assigns them one from the
+ * player's own pos[] - so they return null and callers must handle that.
  * Lives here rather than in draft.js because the engine needs it too, and
  * draft.js already imports from engine.js - putting it in either would make
  * that a cycle. constants.js imports nothing, so it can't. */
 export function basePosition(slot) {
+  if (isBenchSlot(slot)) return null;
   return slot.replace(/\d+$/, "");
 }
 
@@ -100,11 +142,16 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 // than from a scoring collapse. 1 = today's raw talent gap, 0 = pure coin
 // flip. Solved by simulation alongside the variance range.
 //
-// Measured over 4,000 games with a clear talent gap, before -> after:
-//   stronger roster wins the game    90.9% -> 80.0%   (target 80%)
-//   stronger roster sweeps every qtr 88.8% -> 51.8%
-//   mean quarter margin               10.5 ->  8.6    (real NBA ≈ 6-7)
-export const TALENT_PARITY = 0.72;
+// Measured over 2,500 games with a clear talent gap, before -> after:
+//   stronger roster wins the game    90.9% -> 79.5%   (target 80%)
+//   stronger roster sweeps every qtr 88.8% -> 54.6%
+//   mean quarter margin               10.5 -> 10.5
+//
+// The margin is the honest cost of the 80% target: winning four games in
+// five requires a real talent edge, and a real edge shows up on the
+// scoreboard. Tuned lower (0.72 -> ~73% wins) margins fall to 8.7. The knob
+// is here if that trade is ever worth revisiting.
+export const TALENT_PARITY = 0.88;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's

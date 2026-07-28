@@ -1,7 +1,7 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { SLOTS, STARTER_SLOTS, BOT_SKILL, MIN_SEARCH_CHARS, basePosition } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, BOT_SKILL, MIN_SEARCH_CHARS, basePosition, isBenchSlot } from "./constants.js";
 import { impact } from "./engine.js";
 
 export { basePosition };
@@ -20,12 +20,12 @@ export function buildSquads(players) {
 }
 
 /** True if `player` can legally fill `slot` given their pos[] array.
- * Ranked rosters carry two players per position ("PG1"/"PG2"), but a
- * player's recorded pos[] only ever holds bare codes, so the comparison
- * runs against basePosition rather than the raw slot name.
- * The 6th-man slot ("6TH") accepts any player. */
+ * Slots with no fixed position - the 6th man, and every ranked bench spot -
+ * accept anyone; the engine works out which position a bench player actually
+ * covers once the roster is set. Position-locked slots compare against
+ * basePosition, since a player's recorded pos[] holds only bare codes. */
 export function isEligible(player, slot) {
-  if (slot === "6TH") return true;
+  if (slot === "6TH" || isBenchSlot(slot)) return true;
   return player.pos.includes(basePosition(slot));
 }
 

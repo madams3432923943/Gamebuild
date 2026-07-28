@@ -8,6 +8,8 @@ import {
   basePosition,
   POSITION_MINUTES,
   ROTATION_MINUTES_BUDGET,
+  orderedRosterSlots,
+  isBenchSlot,
 } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS } from "./profile.js";
@@ -21,6 +23,10 @@ import { shotLine, formatShotLine } from "./shooting.js";
  * ("PG1", "PG2") that no fixed 6-key map could cover. */
 function slotLabel(slot) {
   if (slot === "6TH") return "6th Man";
+  // Bench spots aren't position-locked, so numbering them by position would
+  // be a lie. They read as "Bench"; the player's own position is shown next
+  // to their name instead.
+  if (isBenchSlot(slot)) return "Bench";
   return slot;
 }
 
@@ -28,14 +34,7 @@ function slotLabel(slot) {
  * engine.js's activeSlots so the box score, live table, and recap all agree
  * on both which slots exist and what order they read in. */
 function rosterSlots(roster) {
-  return Object.keys(roster)
-    .filter((slot) => roster[slot])
-    .sort((a, b) => {
-      if (a === "6TH") return 1;
-      if (b === "6TH") return -1;
-      const d = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
-      return d !== 0 ? d : a.localeCompare(b);
-    });
+  return orderedRosterSlots(roster);
 }
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
 
@@ -102,7 +101,10 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       value.textContent = "🔒 Locked in";
     } else if (player) {
       value.className = "slot-filled" + (revealSlots.includes(slot) ? " slot-reveal" : "");
-      value.textContent = `${player.name} (${player.team} ${player.decade})`;
+      // A bench slot doesn't say what the player is, so his position rides
+      // next to his name - that's the information you need to judge depth.
+      const pos = isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
+      value.textContent = `${player.name}${pos} (${player.team} ${player.decade})`;
     } else {
       value.className = "slot-empty";
       value.textContent = "open";
@@ -691,99 +693,93 @@ export function renderProfileScreen(refs, profile) {
  * The legacy/online 6-slot roster has no position pairs, so its slots fall
  * back to independent sliders against a running total.
  */
-export function renderRotationPicker(container, roster, minutesMap, totalEl, slots) {
+export function renderRotationPicker(container, roster, minutesMap, totalEl, slots, groupsByPosition) {
   container.innerHTML = "";
-  const list = slots ? slots.filter((s) => roster[s]) : rosterSlots(roster);
+  const groups = groupsByPosition || fallbackGroups(roster, slots);
 
-  // Group by position so paired slots can be rendered as one trade-off.
-  const groups = [];
-  const seen = new Set();
-  for (const slot of list) {
-    if (seen.has(slot)) continue;
-    const partner = slot === "6TH" ? null : list.find((o) => o !== slot && basePosition(o) === basePosition(slot));
-    if (partner) {
-      groups.push([slot, partner]);
-      seen.add(slot);
-      seen.add(partner);
-    } else {
-      groups.push([slot]);
-      seen.add(slot);
-    }
-  }
-
-  for (const group of groups) {
+  for (const [pos, group] of Object.entries(groups)) {
     const block = document.createElement("div");
     block.className = "rotation-group";
 
-    if (group.length === 2) {
-      const [a, b] = group;
-      const heading = document.createElement("div");
-      heading.className = "rotation-group-head";
-      heading.textContent = `${basePosition(a)} — ${POSITION_MINUTES} minutes`;
-      block.appendChild(heading);
+    const heading = document.createElement("div");
+    heading.className = "rotation-group-head";
+    heading.textContent = `${pos} — ${POSITION_MINUTES} minutes`;
+    if (group.length === 1) {
+      // Nobody behind him: he has to play the whole game and will tire for
+      // it. Saying so here is the whole point of drafting depth.
+      heading.textContent += " · no relief";
+      heading.classList.add("rotation-thin");
+    }
+    block.appendChild(heading);
 
-      // A single slider expresses the split; both readouts derive from it, so
-      // the pair can never sum to anything but POSITION_MINUTES.
-      const rowA = rotationRow(roster[a], slotLabel(a));
-      const rowB = rotationRow(roster[b], slotLabel(b));
+    const rows = group.map((slot) => rotationRow(roster[slot], slotLabel(slot), roster[slot].pos.join("/")));
 
+    // Every player but the last gets a slider; the last absorbs whatever is
+    // left. That makes the position's 48 minutes structurally impossible to
+    // break regardless of how many players share it - there is no invalid
+    // allocation to validate against.
+    const sliders = [];
+    for (let i = 0; i < group.length - 1; i++) {
       const slider = document.createElement("input");
       slider.type = "range";
       slider.className = "rotation-slider";
       slider.min = "0";
       slider.max = String(POSITION_MINUTES);
       slider.step = "1";
-      slider.value = String(minutesMap[a] ?? POSITION_MINUTES / 2);
-
-      const sync = () => {
-        const top = Math.max(0, Math.min(POSITION_MINUTES, parseInt(slider.value, 10) || 0));
-        minutesMap[a] = top;
-        minutesMap[b] = POSITION_MINUTES - top;
-        rowA.value.textContent = `${minutesMap[a]} min`;
-        rowB.value.textContent = `${minutesMap[b]} min`;
-        renderRotationTotal(totalEl, minutesMap);
-      };
-      slider.addEventListener("input", sync);
-
-      block.appendChild(rowA.row);
-      block.appendChild(slider);
-      block.appendChild(rowB.row);
-      sync();
-    } else {
-      const slot = group[0];
-      const row = rotationRow(roster[slot], slotLabel(slot));
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.className = "rotation-slider";
-      slider.min = "0";
-      slider.max = String(POSITION_MINUTES);
-      slider.step = "1";
-      slider.value = String(minutesMap[slot] ?? 0);
-      const sync = () => {
-        minutesMap[slot] = Math.max(0, Math.min(POSITION_MINUTES, parseInt(slider.value, 10) || 0));
-        row.value.textContent = `${minutesMap[slot]} min`;
-        renderRotationTotal(totalEl, minutesMap);
-      };
-      slider.addEventListener("input", sync);
-      block.appendChild(row.row);
-      block.appendChild(slider);
-      sync();
+      slider.value = String(minutesMap[group[i]] ?? Math.round(POSITION_MINUTES / group.length));
+      sliders.push(slider);
     }
 
+    const sync = (changedIndex) => {
+      let remaining = POSITION_MINUTES;
+      sliders.forEach((slider, i) => {
+        // Earlier sliders keep their value; a later one can only claim what
+        // is still unspent, so the group can never exceed its budget.
+        const cap = Math.max(0, remaining);
+        let v = Math.min(cap, Math.max(0, parseInt(slider.value, 10) || 0));
+        if (i !== changedIndex) v = Math.min(v, cap);
+        slider.value = String(v);
+        slider.max = String(cap);
+        minutesMap[group[i]] = v;
+        remaining -= v;
+      });
+      minutesMap[group[group.length - 1]] = Math.max(0, remaining);
+      group.forEach((slot, i) => {
+        rows[i].value.textContent = `${minutesMap[slot]} min`;
+      });
+      renderRotationTotal(totalEl, minutesMap);
+    };
+
+    group.forEach((slot, i) => {
+      block.appendChild(rows[i].row);
+      if (sliders[i]) {
+        sliders[i].addEventListener("input", () => sync(i));
+        block.appendChild(sliders[i]);
+      }
+    });
+
+    sync(-1);
     container.appendChild(block);
   }
   renderRotationTotal(totalEl, minutesMap);
 }
 
+/** Used when no position grouping was supplied (the legacy 5/6-slot rosters):
+ * every slot is its own group, so each keeps an independent allocation. */
+function fallbackGroups(roster, slots) {
+  const list = slots ? slots.filter((s) => roster[s]) : rosterSlots(roster);
+  return Object.fromEntries(list.map((slot) => [slotLabel(slot), [slot]]));
+}
+
 /** One player's name + minutes readout. Returns the row and the readout node
  * so the slider handler can update the number without a re-render. */
-function rotationRow(player, label) {
+function rotationRow(player, label, positions) {
   const row = document.createElement("div");
   row.className = "rotation-row";
 
   const name = document.createElement("span");
   name.className = "rotation-label";
-  name.textContent = `${label} \u00b7 ${player.name}`;
+  name.textContent = positions ? `${label} \u00b7 ${player.name} [${positions}]` : `${label} \u00b7 ${player.name}`;
   row.appendChild(name);
 
   const value = document.createElement("span");

@@ -8,7 +8,7 @@ import { buildRecap, buildGameScript } from "./recap.js";
 import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
 
 const TACTIC_IDS = TACTICS.map((t) => t.id);
-import { simulateGame } from "./engine.js";
+import { simulateGame, slotsByPosition, defaultMinutes } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
@@ -566,19 +566,10 @@ function cleanupRotationTimer() {
 // rotation screen starts valid rather than asking you to make it valid.
 // Shares the same constants the engine falls back to, so an untouched
 // rotation simulates identically to no rotation at all.
-function defaultRotationMinutes(roster, slots) {
-  const minutes = {};
-  for (const slot of slots) {
-    if (!roster[slot]) continue;
-    if (slot === "6TH") {
-      minutes[slot] = SIXTH_MAN_MINUTES;
-    } else if (/\d$/.test(slot)) {
-      minutes[slot] = slot.endsWith("1") ? RANKED_STARTER_MINUTES : RANKED_BACKUP_MINUTES;
-    } else {
-      minutes[slot] = STARTER_MINUTES;
-    }
-  }
-  return minutes;
+// Shared with the engine so an untouched rotation simulates exactly like no
+// rotation at all - and so the 240-minute budget is defined in one place.
+function defaultRotationMinutes(roster) {
+  return defaultMinutes(roster);
 }
 
 /** Between draft-complete and the gamestyle pick in Ranked Practice: assign
@@ -588,8 +579,11 @@ function defaultRotationMinutes(roster, slots) {
 function startRotationPhase(roster, slots, onConfirm) {
   cleanupPickTimer();
   cleanupRotationTimer();
-  rotationMinutes = defaultRotationMinutes(roster, slots);
-  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl, slots);
+  rotationMinutes = defaultRotationMinutes(roster);
+  // Ranked rosters group by position so the picker can show who actually
+  // covers each spot; the legacy shapes fall back to per-slot rows.
+  const groups = slots.some((s) => s.startsWith("BENCH")) ? slotsByPosition(roster) : null;
+  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl, slots, groups);
 
   draftPoolPanel.classList.add("hidden");
   rotationPhaseEl.classList.remove("hidden");
