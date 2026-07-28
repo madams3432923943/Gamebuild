@@ -16,9 +16,12 @@
 
 import {
   STARTER_SLOTS,
+  basePosition,
   QUARTERS_PER_GAME,
   STARTER_MINUTES,
   SIXTH_MAN_SCALE,
+  RANKED_STARTER_MINUTES,
+  RANKED_BACKUP_MINUTES,
   SCORING_K,
   REBOUND_K,
   ASSIST_K,
@@ -27,6 +30,9 @@ import {
   FACTOR_MAX,
   VARIANCE_MIN,
   VARIANCE_MAX,
+  TEAM_QUARTER_VARIANCE_MIN,
+  TEAM_QUARTER_VARIANCE_MAX,
+  TALENT_PARITY,
   POSSESSION_VALUE,
   TOV_SWING_K,
   COMPRESSION_KEY,
@@ -95,18 +101,61 @@ export function impact(player) {
 }
 
 function rosterPlayers(roster) {
-  // Quick Play drafts a 5-slot roster with no 6th man - roster["6TH"] is
-  // simply absent there, not a zero-stat player, so it's filtered rather
-  // than counted.
-  return [...STARTER_SLOTS.map((s) => roster[s]), roster["6TH"]].filter(Boolean);
+  return activeSlots(roster).map((s) => roster[s]);
 }
 
-/** Slots this roster actually has a player in, among the slots the engine
- * tracks (starters + optionally a 6th man). Quick Play's 5-slot roster has
- * no "6TH" key at all, so every loop over "the slots in play" uses this
- * instead of a hardcoded [...STARTER_SLOTS, "6TH"]. */
-function activeSlots(roster) {
-  return roster["6TH"] ? [...STARTER_SLOTS, "6TH"] : STARTER_SLOTS;
+/** The slots this roster actually has a player in, in canonical lineup order.
+ * Roster shape varies by mode - Quick Play drafts 5, the legacy/online path 6
+ * (with a "6TH"), and Ranked 10 (two per position) - so every loop over "the
+ * slots in play" derives them from the roster rather than assuming a shape.
+ *
+ * Sorting matters: a roster's own key order is DRAFT order, so reading it
+ * straight off the object would print box scores as SF1, PG2, C1... Sorted by
+ * position then depth, every mode reads top-to-bottom like a lineup card,
+ * with the 6th man last. */
+export function activeSlots(roster) {
+  return Object.keys(roster)
+    .filter((slot) => roster[slot])
+    .sort((a, b) => {
+      if (a === "6TH") return 1;
+      if (b === "6TH") return -1;
+      const posDiff = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
+      return posDiff !== 0 ? posDiff : a.localeCompare(b);
+    });
+}
+
+/** Groups a roster's slots by the position they play, so both players at a
+ * position share one matchup against the opponent's players there.
+ * Returns e.g. { PG: ["PG1","PG2"], ... } for a ranked roster, or
+ * { PG: ["PG"], ... } for a 5/6-man one. "6TH" is excluded - it has no
+ * position and is handled as an unmatched bench bonus. */
+function slotsByPosition(roster) {
+  const groups = {};
+  for (const slot of activeSlots(roster)) {
+    if (slot === "6TH") continue;
+    const pos = basePosition(slot);
+    (groups[pos] ||= []).push(slot);
+  }
+  return groups;
+}
+
+/** The defense a position actually faces, as a minutes-weighted blend of the
+ * opponent's players there. Facing a great defender for 12 minutes should not
+ * play the same as facing him for 40, and with two players per position there
+ * is no longer a single obvious defender to point at. Weights fall back to
+ * equal shares when no minutes map is supplied. */
+function blendedDefender(roster, slots, minutesMap, mods) {
+  const weights = slots.map((slot) => minutesScaleFor(slot, minutesMap));
+  const total = weights.reduce((sum, w) => sum + w, 0) || 1;
+  const blend = { ppg: 0, rpg: 0, apg: 0, spg: 0, bpg: 0, tov: 0 };
+  slots.forEach((slot, i) => {
+    const stats = effectiveStats(roster[slot], mods);
+    const share = weights[i] / total;
+    for (const key of Object.keys(blend)) blend[key] += stats[key] * share;
+  });
+  // primaryPos is read off the defender for positional normalization; every
+  // player in the group shares a position by construction.
+  return { ...blend, pos: roster[slots[0]].pos };
 }
 
 /** Fraction of a full role a slot plays this quarter. With no minutesMap this
@@ -116,9 +165,24 @@ function activeSlots(roster) {
  * read relative to STARTER_MINUTES, since the dataset's per-game stats are
  * already calibrated against that baseline. */
 function minutesScaleFor(slot, minutesMap) {
-  if (!minutesMap) return slot === "6TH" ? SIXTH_MAN_SCALE : 1;
-  const minutes = minutesMap[slot];
-  return Number.isFinite(minutes) ? minutes / STARTER_MINUTES : slot === "6TH" ? SIXTH_MAN_SCALE : 1;
+  const minutes = minutesMap && minutesMap[slot];
+  if (Number.isFinite(minutes)) return minutes / STARTER_MINUTES;
+  return defaultMinutesScaleFor(slot);
+}
+
+/** What a slot plays when no rotation was set. A depth-chart slot ("PG1",
+ * "PG2") falls back to the default split of its position's 48 minutes -
+ * without this a 10-man roster would default every slot to a full starter's
+ * load, fielding ten full-time players and roughly doubling a real team's
+ * output. Plain slots keep the historical 36-minute baseline their recorded
+ * per-game stats already reflect. */
+function defaultMinutesScaleFor(slot) {
+  if (slot === "6TH") return SIXTH_MAN_SCALE;
+  if (/\d$/.test(slot)) {
+    const minutes = slot.endsWith("1") ? RANKED_STARTER_MINUTES : RANKED_BACKUP_MINUTES;
+    return minutes / STARTER_MINUTES;
+  }
+  return 1;
 }
 
 function posAvg(datasetStats, pos, key) {
@@ -145,20 +209,30 @@ function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA,
   const linesA = {};
   const linesB = {};
 
-  for (const slot of STARTER_SLOTS) {
-    const offA = rosterA[slot];
-    const defB = rosterB[slot];
-    const offB = rosterB[slot];
-    const defA = rosterA[slot];
+  const groupsA = slotsByPosition(rosterA);
+  const groupsB = slotsByPosition(rosterB);
 
-    linesA[slot] = simulatePlayerQuarter(offA, defB, slot, datasetStats, modsA, modsB, minutesA);
-    linesB[slot] = simulatePlayerQuarter(offB, defA, slot, datasetStats, modsB, modsA, minutesB);
+  for (const pos of Object.keys(groupsA)) {
+    const slotsA = groupsA[pos];
+    const slotsB = groupsB[pos] || slotsA;
+
+    // Each side faces a minutes-weighted blend of whoever the opponent plays
+    // at this position, rather than one nominated defender.
+    const defenderForA = blendedDefender(rosterB, slotsB, minutesB, modsB);
+    const defenderForB = blendedDefender(rosterA, slotsA, minutesA, modsA);
+
+    for (const slot of slotsA) {
+      linesA[slot] = simulatePlayerQuarter(rosterA[slot], defenderForA, slot, datasetStats, modsA, minutesA);
+    }
+    for (const slot of slotsB) {
+      linesB[slot] = simulatePlayerQuarter(rosterB[slot], defenderForB, slot, datasetStats, modsB, minutesB);
+    }
   }
 
-  // 6th man: additive bonus production, not run through a 1-on-1 positional
-  // matchup (true 5v5 covers the starters; the bench spot is a simple
-  // fixed-minutes bonus this round - see build spec #7). Quick Play's 5-slot
-  // roster has no 6th man at all, so this is skipped rather than simulated
+  // 6th man: additive bonus production, not run through a positional matchup
+  // (the starters cover true 5-on-5; the bench spot is a simple fixed-minutes
+  // bonus). Only the legacy/online 6-slot roster has one - Quick Play's 5 and
+  // Ranked's 10 both omit it, so this is skipped rather than simulated
   // against an undefined player.
   if (rosterA["6TH"]) linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"], modsA, minutesA);
   if (rosterB["6TH"]) linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"], modsB, minutesB);
@@ -185,12 +259,14 @@ function effectiveStats(player, mods) {
   };
 }
 
-function simulatePlayerQuarter(offPlayer, defPlayer, slot, datasetStats, offMods, defMods, minutesMap) {
+/** @param def already-blended, already-tactic-adjusted defender stats from
+ *   blendedDefender - not a raw player record.
+ */
+function simulatePlayerQuarter(offPlayer, def, slot, datasetStats, offMods, minutesMap) {
   const scale = minutesScaleFor(slot, minutesMap) * (1 / QUARTERS_PER_GAME);
   const pos = primaryPos(offPlayer);
-  const defPos = primaryPos(defPlayer);
+  const defPos = def.pos[0];
   const off = effectiveStats(offPlayer, offMods);
-  const def = effectiveStats(defPlayer, defMods);
 
   const offScoreRating = ratingVsAvg(off.ppg, posAvg(datasetStats, pos, "ppg"));
   const defScoreRating =
@@ -262,8 +338,10 @@ function rosterBaselinePoints(roster, minutesMap) {
   // scoring ceiling multiplier is measured against. Weighted by the same
   // minutes shares the game actually used, so reallocating minutes to a
   // star isn't mistaken for a stacked-roster scoring exploit.
-  return STARTER_SLOTS.reduce((sum, slot) => sum + roster[slot].ppg * minutesScaleFor(slot, minutesMap), 0) +
-    (roster["6TH"] ? roster["6TH"].ppg * minutesScaleFor("6TH", minutesMap) : 0);
+  return activeSlots(roster).reduce(
+    (sum, slot) => sum + roster[slot].ppg * minutesScaleFor(slot, minutesMap),
+    0
+  );
 }
 
 /** Runs quarters (or OT periods) and accumulates per-slot totals. lengthScale
@@ -271,8 +349,10 @@ function rosterBaselinePoints(roster, minutesMap) {
  * derived from rosterA (both sides always share the same roster shape in
  * every mode today), so a 5-slot Quick Play roster never gets a "6TH" key
  * anywhere downstream. */
-function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB, minutesA, minutesB) {
+function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB, minutesA, minutesB, teamVariance, parity) {
   const slots = activeSlots(rosterA);
+  const vMin = (teamVariance && teamVariance.min) ?? TEAM_QUARTER_VARIANCE_MIN;
+  const vMax = (teamVariance && teamVariance.max) ?? TEAM_QUARTER_VARIANCE_MAX;
   const totalsA = {};
   const totalsB = {};
   for (const slot of slots) {
@@ -283,6 +363,29 @@ function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, mo
 
   for (let i = 0; i < periods; i++) {
     const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB);
+
+    // Pull each side's quarter toward what a league-average roster would
+    // score in the same minutes. Anchoring to a FIXED league baseline rather
+    // than to the opponent is what makes this work: compressing the two teams
+    // toward each other would shrink margins without ever changing who wins,
+    // whereas shrinking each side's distance from average reduces the
+    // systematic talent edge while leaving the random component untouched -
+    // so noise gets proportionally more say and quarters become genuinely
+    // contested instead of merely wilder.
+    applyTalentParity(linesA, rosterA, minutesA, datasetStats, parity);
+    applyTalentParity(linesB, rosterB, minutesB, datasetStats, parity);
+
+    // The correlated hot/cold roll lands AFTER parity, and the order is the
+    // whole point. Rolling first meant compression scaled the talent gap and
+    // the noise by the same factor, leaving their ratio - and therefore who
+    // won the quarter - untouched: margins fell to 4 points while the better
+    // roster still took 90% of quarters. Applied after, the noise keeps its
+    // full size against an already-shrunken gap, so quarters actually change
+    // hands. Points and assists only; a center keeps rebounding and blocking
+    // through a cold shooting night.
+    applyTeamRoll(linesA, randRange(vMin, vMax));
+    applyTeamRoll(linesB, randRange(vMin, vMax));
+
     const scaledA = {};
     const scaledB = {};
     for (const slot of slots) {
@@ -295,6 +398,34 @@ function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, mo
   }
 
   return { totalsA, totalsB, quarterBoxScores };
+}
+
+/** One shared multiplier for every player on a team this quarter - the
+ * "this team ran hot/cold" factor. Independent per-player noise averages out
+ * across a roster (team-level swing shrinks by roughly the square root of the
+ * roster size), which is why widening the per-player range can never make
+ * quarters competitive. A correlated factor survives that averaging. */
+function applyTeamRoll(lines, roll) {
+  for (const slot of Object.keys(lines)) {
+    lines[slot].pts *= roll;
+    lines[slot].ast *= roll;
+  }
+}
+
+/** Scales one team's quarter lines toward a league-average roster's output in
+ * the same minutes. Applied to points only - rebounds and blocks are already
+ * matchup-driven and don't carry the runaway talent gap that scoring does. */
+function applyTalentParity(lines, roster, minutesMap, datasetStats, parity) {
+  if (parity >= 1) return;
+  const actual = Object.keys(lines).reduce((sum, slot) => sum + lines[slot].pts, 0);
+  if (actual <= 0) return;
+
+  const minutesTotal = activeSlots(roster).reduce((sum, slot) => sum + minutesScaleFor(slot, minutesMap), 0);
+  const anchor = (datasetStats.overall.ppg * minutesTotal) / QUARTERS_PER_GAME;
+  const target = anchor + (actual - anchor) * parity;
+
+  const factor = target / actual;
+  for (const slot of Object.keys(lines)) lines[slot].pts *= factor;
 }
 
 function sumTeamLine(totals, key) {
@@ -355,6 +486,10 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
   const clutchB = clutchModsFor(modsB, tacticClutchMods(opts.tacticB));
   const minutesA = opts.minutesA || null;
   const minutesB = opts.minutesB || null;
+  // Optional override, used by tools/calibrate-variance.mjs to solve the
+  // range without rewriting constants.js between runs.
+  const teamVariance = opts.teamVariance || null;
+  const parity = Number.isFinite(opts.parity) ? opts.parity : TALENT_PARITY;
 
   // Regulation quarters 1-3 at base mods; quarter 4 gets the clutch mods, so
   // a clutch-scoring style only pays off in exactly the moment it promises.
@@ -367,9 +502,11 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
     modsA,
     modsB,
     minutesA,
-    minutesB
+    minutesB,
+    teamVariance,
+    parity
   );
-  const q4 = runPeriods(rosterA, rosterB, datasetStats, 1, 1, clutchA, clutchB, minutesA, minutesB);
+  const q4 = runPeriods(rosterA, rosterB, datasetStats, 1, 1, clutchA, clutchB, minutesA, minutesB, teamVariance, parity);
   for (const slot of Object.keys(totalsA)) {
     addLine(totalsA[slot], q4.totalsA[slot]);
     addLine(totalsB[slot], q4.totalsB[slot]);
@@ -389,7 +526,7 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
   ) {
     // OT is already crunch time - it plays out under the same clutch mods as
     // the 4th quarter, not the base ones.
-    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB);
+    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB, teamVariance, parity);
     for (const slot of Object.keys(totalsA)) {
       addLine(totalsA[slot], ot.totalsA[slot]);
       addLine(totalsB[slot], ot.totalsB[slot]);
@@ -440,7 +577,11 @@ function applyTurnoverSwing(totalsA, totalsB) {
 function applyUsageCompression(totals, roster, datasetStats) {
   const combinedRawPpg = rosterCombinedRawPpg(roster);
   const combinedImpact = rosterCombinedImpact(roster);
-  const playerCount = STARTER_SLOTS.length + 1;
+  // Read the real roster size rather than assuming 5 starters + a 6th man:
+  // compression measures a roster against an average one of the SAME size,
+  // so hardcoding 6 would read a legitimate 10-man roster as a stacked
+  // 6-man one and crush its scoring.
+  const playerCount = activeSlots(roster).length;
 
   const keyValue = COMPRESSION_KEY === "impact" ? combinedImpact : combinedRawPpg;
   const avgBaseline =

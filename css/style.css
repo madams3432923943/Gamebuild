@@ -1559,45 +1559,6 @@ table.box-table th, table.history-table th {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- Live box score ---- */
-.live-box {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 700px) {
-  .live-box { grid-template-columns: 1fr; }
-}
-
-.live-box-head {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 1.4rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-.live-box-team {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.7rem 0.85rem;
-}
-
-.live-box .box-table { margin-bottom: 0; font-size: 0.78rem; }
-.live-box .live-slot { color: var(--muted); width: 3rem; }
-.live-box .live-stat {
-  text-align: right;
-  width: 2.4rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--scoreboard);
-}
-
 /* Shot splits under a player's name in the final box score. */
 .box-shooting {
   font-size: 0.66rem;
@@ -1654,16 +1615,42 @@ table.box-table th, table.history-table th {
   color: var(--text);
 }
 
-.rotation-input {
-  width: 3.6rem;
-  background: var(--panel);
+.rotation-group {
+  background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--text);
+  border-radius: 9px;
+  padding: 0.5rem 0.65rem 0.6rem;
+}
+
+.rotation-group-head {
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+/* Rows inside a group are plain lines, not cards - the group is the card. */
+.rotation-group .rotation-row {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0.15rem 0;
+}
+
+.rotation-value {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-  text-align: center;
-  padding: 0.25rem 0.2rem;
+  font-size: 0.8rem;
+  color: var(--scoreboard);
+  font-variant-numeric: tabular-nums;
+}
+
+.rotation-slider {
+  width: 100%;
+  margin: 0.15rem 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .rotation-total {

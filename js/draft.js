@@ -1,8 +1,10 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { SLOTS, STARTER_SLOTS, BOT_SKILL, MIN_SEARCH_CHARS } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, BOT_SKILL, MIN_SEARCH_CHARS, basePosition } from "./constants.js";
 import { impact } from "./engine.js";
+
+export { basePosition };
 
 /** Groups the flat PLAYERS array into squads keyed by "Team|Decade". */
 export function buildSquads(players) {
@@ -18,10 +20,13 @@ export function buildSquads(players) {
 }
 
 /** True if `player` can legally fill `slot` given their pos[] array.
+ * Ranked rosters carry two players per position ("PG1"/"PG2"), but a
+ * player's recorded pos[] only ever holds bare codes, so the comparison
+ * runs against basePosition rather than the raw slot name.
  * The 6th-man slot ("6TH") accepts any player. */
 export function isEligible(player, slot) {
   if (slot === "6TH") return true;
-  return player.pos.includes(slot);
+  return player.pos.includes(basePosition(slot));
 }
 
 /** Open slots (not yet filled) for a roster-in-progress, in draft order.

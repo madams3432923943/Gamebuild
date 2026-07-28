@@ -13,6 +13,10 @@ import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
   STARTER_SLOTS,
+  RANKED_SLOTS,
+  POSITION_MINUTES,
+  RANKED_STARTER_MINUTES,
+  RANKED_BACKUP_MINUTES,
   QUARTER_REVEAL_DELAY_MS,
   QUARTER_TICK_MS,
   DRAFT_REVEAL_DELAY_MS,
@@ -61,7 +65,6 @@ import {
   renderEquippedBanner,
   renderTacticPicker,
   renderRotationPicker,
-  renderLiveBox,
   pushPlayHeadline,
   clearPlayFeed,
   buildShotLines,
@@ -558,11 +561,22 @@ function cleanupRotationTimer() {
   }
 }
 
-function defaultRotationMinutes(roster) {
+// Opening split before you touch anything - a conventional starter/backup
+// share that already sums to each position's full 48 minutes, so the
+// rotation screen starts valid rather than asking you to make it valid.
+// Shares the same constants the engine falls back to, so an untouched
+// rotation simulates identically to no rotation at all.
+function defaultRotationMinutes(roster, slots) {
   const minutes = {};
-  for (const slot of SLOTS) {
+  for (const slot of slots) {
     if (!roster[slot]) continue;
-    minutes[slot] = slot === "6TH" ? SIXTH_MAN_MINUTES : STARTER_MINUTES;
+    if (slot === "6TH") {
+      minutes[slot] = SIXTH_MAN_MINUTES;
+    } else if (/\d$/.test(slot)) {
+      minutes[slot] = slot.endsWith("1") ? RANKED_STARTER_MINUTES : RANKED_BACKUP_MINUTES;
+    } else {
+      minutes[slot] = STARTER_MINUTES;
+    }
   }
   return minutes;
 }
@@ -571,11 +585,11 @@ function defaultRotationMinutes(roster) {
  * minutes across your roster before choosing how to play them. Timing out
  * locks in whatever's currently assigned, same philosophy as the tactic
  * timer - it keeps the match moving, it doesn't punish indecision. */
-function startRotationPhase(roster, onConfirm) {
+function startRotationPhase(roster, slots, onConfirm) {
   cleanupPickTimer();
   cleanupRotationTimer();
-  rotationMinutes = defaultRotationMinutes(roster);
-  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl);
+  rotationMinutes = defaultRotationMinutes(roster, slots);
+  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl, slots);
 
   draftPoolPanel.classList.add("hidden");
   rotationPhaseEl.classList.remove("hidden");
@@ -627,11 +641,16 @@ function rememberSquad(squadId) {
   recentSquadIds = [squadId, ...recentSquadIds.filter((id) => id !== squadId)].slice(0, RECENT_SQUAD_MEMORY);
 }
 
-// Quick Play (easy ruleset) is a strict 5-slot draft - no 6th man. Every
-// other mode (Ranked Practice today, Ranked online later) keeps the bench
-// spot, since the rotation phase gives those extra minutes real weight.
+// Quick Play (easy ruleset) is a straight 5-slot draft - no bench at all.
+// Ranked Practice drafts the full 10-man ranked roster, two per position,
+// because its whole job is to rehearse Online Ranked; drafting a different
+// roster shape than the mode it prepares you for defeats the point.
+//
+// This only governs local drafts: the Start Draft handler returns into
+// startOnlineSearch() before reaching startDraft(), so online play keeps its
+// own (still 6-slot) path until the ranked backend lands.
 function slotsForRuleset(ruleset) {
-  return ruleset === "easy" ? STARTER_SLOTS : SLOTS;
+  return ruleset === "easy" ? STARTER_SLOTS : RANKED_SLOTS;
 }
 
 function startDraft() {
@@ -822,7 +841,7 @@ function renderDraftComplete() {
 
   draftTurnBanner.textContent = "Set your rotation";
   rotationPhaseHintEl.textContent = `Both rosters are set. ${ROTATION_TIMER_SECONDS} seconds to assign minutes.`;
-  startRotationPhase(draft.rosterA, () => {
+  startRotationPhase(draft.rosterA, draft.slots, () => {
     draftTurnBanner.textContent = "Final round — set your game plan";
     tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
     startTacticPhase(runLocalSimulation);
@@ -982,7 +1001,6 @@ const finalBanner = document.getElementById("final-banner");
 const mvpCallout = document.getElementById("mvp-callout");
 const gameRecapEl = document.getElementById("game-recap");
 const playFeedEl = document.getElementById("play-feed");
-const liveBoxEl = document.getElementById("live-box");
 const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
@@ -1027,14 +1045,16 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
   // box score builds through the game instead of appearing finished.
   const scoreTickIntervals = [];
   const liveTotals = { a: {}, b: {} };
-  for (const slot of SLOTS) {
-    liveTotals.a[slot] = { pts: 0, reb: 0, ast: 0 };
-    liveTotals.b[slot] = { pts: 0, reb: 0, ast: 0 };
-  }
+  for (const slot of Object.keys(rosterA)) liveTotals.a[slot] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
+  for (const slot of Object.keys(rosterB)) liveTotals.b[slot] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
 
   clearPlayFeed(playFeedEl);
-  liveBoxEl.classList.remove("hidden");
-  renderLiveBox(liveBoxEl, rosterA, rosterB, labelA, labelB, liveTotals);
+  // One box score for the whole game: the same table fills in live as periods
+  // are revealed, then gains shooting splits at the final buzzer. Showing a
+  // reduced live table alongside a separate full one meant two box scores on
+  // screen saying different things.
+  fullBoxScore.classList.remove("hidden");
+  renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null);
   renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
   pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
 
@@ -1140,13 +1160,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     runningA += deltaA[i];
     runningB += deltaB[i];
 
-    for (const slot of SLOTS) {
-      for (const key of ["a", "b"]) {
-        const src = result.quarterBoxScores[i][key][slot];
+    for (const key of ["a", "b"]) {
+      const period = result.quarterBoxScores[i][key];
+      for (const slot of Object.keys(liveTotals[key])) {
+        const src = period[slot];
         if (!src) continue;
-        liveTotals[key][slot].pts += src.pts;
-        liveTotals[key][slot].reb += src.reb;
-        liveTotals[key][slot].ast += src.ast;
+        for (const stat of ["pts", "reb", "ast", "stl", "blk", "tov"]) liveTotals[key][slot][stat] += src[stat];
       }
     }
 
@@ -1165,7 +1184,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
       `${label} in progress`,
       `End of ${label}`
     );
-    renderLiveBox(liveBoxEl, rosterA, rosterB, labelA, labelB, liveTotals);
+    renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null);
     announcePeriod(i, label);
 
     i += 1;

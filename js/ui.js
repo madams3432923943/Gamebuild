@@ -1,14 +1,42 @@
 // Rendering helpers. Pure-ish functions: given data + a container element
 // (and callbacks), they redraw that container's contents.
 
-import { SLOTS, MIN_SEARCH_CHARS } from "./constants.js";
+import {
+  SLOTS,
+  STARTER_SLOTS,
+  MIN_SEARCH_CHARS,
+  basePosition,
+  POSITION_MINUTES,
+  ROTATION_MINUTES_BUDGET,
+} from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
 
-const SLOT_LABELS = { PG: "PG", SG: "SG", SF: "SF", PF: "PF", C: "C", "6TH": "6th Man" };
+/** Display name for a roster slot. Derived rather than looked up in a fixed
+ * map, because roster shape varies by mode: Quick Play uses bare positions,
+ * the legacy/online path adds a "6TH", and Ranked uses depth-chart slots
+ * ("PG1", "PG2") that no fixed 6-key map could cover. */
+function slotLabel(slot) {
+  if (slot === "6TH") return "6th Man";
+  return slot;
+}
+
+/** The slots a roster actually filled, in canonical lineup order. Mirrors
+ * engine.js's activeSlots so the box score, live table, and recap all agree
+ * on both which slots exist and what order they read in. */
+function rosterSlots(roster) {
+  return Object.keys(roster)
+    .filter((slot) => roster[slot])
+    .sort((a, b) => {
+      if (a === "6TH") return 1;
+      if (b === "6TH") return -1;
+      const d = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
+      return d !== 0 ? d : a.localeCompare(b);
+    });
+}
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
 
 /**
@@ -27,9 +55,9 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
     let clickable = false;
 
     if (filled) {
-      btn.textContent = `${SLOT_LABELS[slot]} ✓`;
+      btn.textContent = `${slotLabel(slot)} ✓`;
     } else {
-      btn.textContent = SLOT_LABELS[slot];
+      btn.textContent = slotLabel(slot);
       if (eligibleSlotsForPendingPlayer) {
         if (eligibleSlotsForPendingPlayer.includes(slot)) {
           className += " eligible";
@@ -64,7 +92,7 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
     row.className = "roster-slot";
     const tag = document.createElement("span");
     tag.className = "slot-tag";
-    tag.textContent = SLOT_LABELS[slot];
+    tag.textContent = slotLabel(slot);
     row.appendChild(tag);
 
     const value = document.createElement("span");
@@ -220,9 +248,9 @@ function boxRow(slotLabel, player, line, shots) {
 
 function boxTable(roster, box, teamLabel, shotLines) {
   let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
-  for (const slot of SLOTS) {
-    if (!roster[slot]) continue;
-    html += boxRow(SLOT_LABELS[slot], roster[slot], box[slot], shotLines && shotLines[slot]);
+  for (const slot of rosterSlots(roster)) {
+    if (!box[slot]) continue;
+    html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot]);
   }
   html += "</tbody></table>";
   return html;
@@ -238,9 +266,9 @@ export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, bo
  * night's variance and contradict itself. */
 export function buildShotLines(roster, box) {
   const out = {};
-  for (const slot of SLOTS) {
+  for (const slot of rosterSlots(roster)) {
     const player = roster[slot];
-    if (!player || !box[slot]) continue;
+    if (!box[slot]) continue;
     out[slot] = shotLine(player, box[slot].pts);
   }
   return out;
@@ -650,48 +678,130 @@ export function renderProfileScreen(refs, profile) {
   }
 }
 
-/** Rotation phase: a number input per rostered slot, plus a running total
- * against the 240-minute budget. Purely a soft guide, not validation - the
- * engine's existing scoring-ceiling/absolute-clamp safety nets already bound
- * any allocation to a plausible score, so this never blocks confirming. */
-export function renderRotationPicker(container, roster, minutesMap, totalEl) {
+/** Rotation phase, NBA 2K franchise style: one slider per player, with each
+ * position's two players coupled to that position's 48 minutes. Dragging a
+ * starter to 32 drives his backup to 16 automatically.
+ *
+ * Coupling is what makes this better than free-form number entry: the
+ * 240-minute budget becomes structurally impossible to break, so there is no
+ * over-budget state to warn about and no way to confirm an invalid rotation.
+ * You are always trading minutes between two players, which is the actual
+ * decision - not filling in a form that might not add up.
+ *
+ * The legacy/online 6-slot roster has no position pairs, so its slots fall
+ * back to independent sliders against a running total.
+ */
+export function renderRotationPicker(container, roster, minutesMap, totalEl, slots) {
   container.innerHTML = "";
-  for (const slot of SLOTS) {
-    const player = roster[slot];
-    if (!player) continue;
+  const list = slots ? slots.filter((s) => roster[s]) : rosterSlots(roster);
 
-    const row = document.createElement("div");
-    row.className = "rotation-row";
+  // Group by position so paired slots can be rendered as one trade-off.
+  const groups = [];
+  const seen = new Set();
+  for (const slot of list) {
+    if (seen.has(slot)) continue;
+    const partner = slot === "6TH" ? null : list.find((o) => o !== slot && basePosition(o) === basePosition(slot));
+    if (partner) {
+      groups.push([slot, partner]);
+      seen.add(slot);
+      seen.add(partner);
+    } else {
+      groups.push([slot]);
+      seen.add(slot);
+    }
+  }
 
-    const label = document.createElement("span");
-    label.className = "rotation-label";
-    label.textContent = `${SLOT_LABELS[slot]} · ${player.name}`;
-    row.appendChild(label);
+  for (const group of groups) {
+    const block = document.createElement("div");
+    block.className = "rotation-group";
 
-    const input = document.createElement("input");
-    input.type = "number";
-    input.className = "rotation-input";
-    input.min = "0";
-    input.max = "48";
-    input.step = "1";
-    input.value = String(minutesMap[slot] ?? 0);
-    input.addEventListener("input", () => {
-      const raw = parseInt(input.value, 10);
-      minutesMap[slot] = Number.isFinite(raw) ? Math.max(0, Math.min(48, raw)) : 0;
-      renderRotationTotal(totalEl, minutesMap);
-    });
-    row.appendChild(input);
+    if (group.length === 2) {
+      const [a, b] = group;
+      const heading = document.createElement("div");
+      heading.className = "rotation-group-head";
+      heading.textContent = `${basePosition(a)} — ${POSITION_MINUTES} minutes`;
+      block.appendChild(heading);
 
-    container.appendChild(row);
+      // A single slider expresses the split; both readouts derive from it, so
+      // the pair can never sum to anything but POSITION_MINUTES.
+      const rowA = rotationRow(roster[a], slotLabel(a));
+      const rowB = rotationRow(roster[b], slotLabel(b));
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.className = "rotation-slider";
+      slider.min = "0";
+      slider.max = String(POSITION_MINUTES);
+      slider.step = "1";
+      slider.value = String(minutesMap[a] ?? POSITION_MINUTES / 2);
+
+      const sync = () => {
+        const top = Math.max(0, Math.min(POSITION_MINUTES, parseInt(slider.value, 10) || 0));
+        minutesMap[a] = top;
+        minutesMap[b] = POSITION_MINUTES - top;
+        rowA.value.textContent = `${minutesMap[a]} min`;
+        rowB.value.textContent = `${minutesMap[b]} min`;
+        renderRotationTotal(totalEl, minutesMap);
+      };
+      slider.addEventListener("input", sync);
+
+      block.appendChild(rowA.row);
+      block.appendChild(slider);
+      block.appendChild(rowB.row);
+      sync();
+    } else {
+      const slot = group[0];
+      const row = rotationRow(roster[slot], slotLabel(slot));
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.className = "rotation-slider";
+      slider.min = "0";
+      slider.max = String(POSITION_MINUTES);
+      slider.step = "1";
+      slider.value = String(minutesMap[slot] ?? 0);
+      const sync = () => {
+        minutesMap[slot] = Math.max(0, Math.min(POSITION_MINUTES, parseInt(slider.value, 10) || 0));
+        row.value.textContent = `${minutesMap[slot]} min`;
+        renderRotationTotal(totalEl, minutesMap);
+      };
+      slider.addEventListener("input", sync);
+      block.appendChild(row.row);
+      block.appendChild(slider);
+      sync();
+    }
+
+    container.appendChild(block);
   }
   renderRotationTotal(totalEl, minutesMap);
 }
 
+/** One player's name + minutes readout. Returns the row and the readout node
+ * so the slider handler can update the number without a re-render. */
+function rotationRow(player, label) {
+  const row = document.createElement("div");
+  row.className = "rotation-row";
+
+  const name = document.createElement("span");
+  name.className = "rotation-label";
+  name.textContent = `${label} \u00b7 ${player.name}`;
+  row.appendChild(name);
+
+  const value = document.createElement("span");
+  value.className = "rotation-value";
+  row.appendChild(value);
+
+  return { row, value };
+}
+
 function renderRotationTotal(totalEl, minutesMap) {
   const total = Object.values(minutesMap).reduce((sum, m) => sum + (Number(m) || 0), 0);
-  const zeroCount = Object.values(minutesMap).filter((m) => Number(m) === 0).length;
-  totalEl.textContent = `${total} / 240 minutes assigned`;
-  totalEl.className = "rotation-total" + (total > 240 || zeroCount > 0 ? " rotation-warning" : "");
+  // With coupled sliders the total is guaranteed, so this is a readout rather
+  // than a validation warning - it only flags a genuinely benched player.
+  const benched = Object.values(minutesMap).filter((m) => Number(m) === 0).length;
+  totalEl.textContent =
+    `${total} of ${ROTATION_MINUTES_BUDGET} minutes assigned` +
+    (benched > 0 ? ` \u2014 ${benched} player${benched === 1 ? "" : "s"} benched` : "");
+  totalEl.className = "rotation-total" + (benched > 0 ? " rotation-warning" : "");
 }
 
 /** Pre-game tactic picker. Options passed in are whichever ones this game
@@ -716,28 +826,6 @@ export function renderTacticPicker(container, tacticsToShow, selectedId, onSelec
     btn.addEventListener("click", () => onSelect(tactic.id));
     container.appendChild(btn);
   }
-}
-
-/** Live box score that fills in as the game plays out. Shows cumulative
- * totals through the periods revealed so far, so you can watch a player's
- * night build rather than only seeing the finished table. */
-export function renderLiveBox(container, rosterA, rosterB, labelA, labelB, totals) {
-  const side = (roster, label, key) => {
-    let html = `<div class="live-box-team"><div class="team-heading">${label}</div><table class="box-table"><tbody>`;
-    for (const slot of SLOTS) {
-      const player = roster[slot];
-      if (!player) continue;
-      const line = totals[key][slot] || { pts: 0, reb: 0, ast: 0 };
-      html += `<tr><td class="live-slot">${SLOT_LABELS[slot]}</td><td>${player.name}</td>` +
-        `<td class="live-stat">${r(line.pts)}</td><td class="live-stat">${r(line.reb)}</td>` +
-        `<td class="live-stat">${r(line.ast)}</td></tr>`;
-    }
-    return html + "</tbody></table></div>";
-  };
-  container.innerHTML =
-    `<div class="live-box-head"><span>PTS</span><span>REB</span><span>AST</span></div>` +
-    side(rosterA, labelA, "a") +
-    side(rosterB, labelB, "b");
 }
 
 /** A big-play headline. Cards stack newest-first and fade in, so the game

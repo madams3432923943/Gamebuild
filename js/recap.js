@@ -11,7 +11,8 @@
 // Everything here is derived from the box scores both modes already produce,
 // so it works identically for practice and ranked with no extra data.
 
-import { SLOTS } from "./constants.js";
+import { STARTER_SLOTS, basePosition } from "./constants.js";
+import { gameScore } from "./engine.js";
 import { shootingNote } from "./shooting.js";
 
 /** Per-quarter team point totals for one side, from the period-by-period
@@ -19,8 +20,26 @@ import { shootingNote } from "./shooting.js";
  * about WHEN a game turned rather than only the final margin. */
 function periodPoints(quarterBoxScores, key) {
   return quarterBoxScores.map((q) =>
-    SLOTS.reduce((sum, slot) => sum + ((q[key] && q[key][slot] && q[key][slot].pts) || 0), 0)
+    Object.values((q && q[key]) || {}).reduce((sum, line) => sum + ((line && line.pts) || 0), 0)
   );
+}
+
+/** The slots a roster actually filled, in canonical lineup order - roster
+ * shape varies by mode (5, 6, or 10 slots), so nothing here may assume one. */
+function rosterSlots(roster) {
+  return Object.keys(roster)
+    .filter((slot) => roster[slot])
+    .sort((a, b) => {
+      if (a === "6TH") return 1;
+      if (b === "6TH") return -1;
+      const d = STARTER_SLOTS.indexOf(basePosition(a)) - STARTER_SLOTS.indexOf(basePosition(b));
+      return d !== 0 ? d : a.localeCompare(b);
+    });
+}
+
+/** Readable name for a roster slot in prose ("6th man", "PG1"). */
+function slotName(slot) {
+  return slot === "6TH" ? "6th man" : slot;
 }
 
 const PERIOD_LABELS = ["the 1st", "the 2nd", "the 3rd", "the 4th"];
@@ -55,10 +74,10 @@ function periodStandout(quarterBoxScores, key, roster, index) {
   const q = quarterBoxScores[index];
   if (!q || !q[key]) return null;
   let best = null;
-  for (const slot of SLOTS) {
+  for (const slot of rosterSlots(roster)) {
     const line = q[key][slot];
+    if (!line) continue;
     const player = roster[slot];
-    if (!line || !player) continue;
     const candidates = [
       // Per-QUARTER thresholds, set against what the engine actually produces:
       // measured across 40 games, a quarter's points reach ~10.5 at the 95th
@@ -88,10 +107,10 @@ function periodStandout(quarterBoxScores, key, roster, index) {
  * third". */
 function defensiveStar(box, roster) {
   let best = null;
-  for (const slot of SLOTS) {
+  for (const slot of rosterSlots(roster)) {
     const line = box[slot];
+    if (!line) continue;
     const player = roster[slot];
-    if (!line || !player) continue;
     for (const [stat, min, phrase] of [
       ["blk", 2.5, (n, v) => `${n} protected the rim all night with ${Math.round(v)} blocks`],
       ["stl", 2.5, (n, v) => `${n} was everywhere defensively, ${Math.round(v)} steals`],
@@ -107,7 +126,7 @@ function defensiveStar(box, roster) {
 /** Category totals for one side's box score. */
 function teamTotals(box) {
   const totals = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
-  for (const slot of SLOTS) {
+  for (const slot of Object.keys(box)) {
     const line = box[slot];
     if (!line) continue;
     for (const key of Object.keys(totals)) totals[key] += line[key] || 0;
@@ -254,17 +273,40 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, sho
   const mvpOnWinner = result.mvp && (result.mvp.side === "A") === winnerIsA;
   const mvpSentence = mvpName && mvpOnWinner ? `${mvpName} was the difference.` : "";
 
-  // What the loser was missing: the weakest category they lost, named through
-  // the slot that produced least there, since that's the pick to revisit.
-  const losing = ranked.filter((r) => r.diff > 0);
+  // What the loser was missing, named through the player who underperformed
+  // by the most - the pick to revisit.
+  //
+  // This is judged against each player's OWN season averages, not against
+  // their teammates and not on a single stat. Ranking by one cherry-picked
+  // category is what once called Oscar Robertson "quiet" through a triple-
+  // double: the deciding category was blocks, and the fewest blocks on any
+  // roster belongs to a guard no matter how well he played. Comparing a line
+  // to what that player normally produces is both the real meaning of a quiet
+  // night and self-normalizing for minutes, which matters now that a ranked
+  // roster's backups play far fewer of them than its starters.
+  const underperformers = rosterSlots(loseRoster)
+    .filter((slot) => loseBox[slot])
+    .map((slot) => {
+      const player = loseRoster[slot];
+      const expected = gameScore({
+        pts: player.ppg, reb: player.rpg, ast: player.apg,
+        stl: player.spg, blk: player.bpg, tov: player.tov,
+      });
+      return { slot, ratio: expected > 0 ? gameScore(loseBox[slot]) / expected : 1 };
+    })
+    .sort((a, b) => a.ratio - b.ratio);
+
   let missing = "";
-  if (losing.length > 0) {
-    const gapKey = losing[losing.length - 1].key === best.key ? best.key : losing[losing.length - 1].key;
-    const weakSlot = SLOTS.filter((s) => loseRoster[s] && loseBox[s]).sort(
-      (a, b) => (loseBox[a][gapKey] || 0) - (loseBox[b][gapKey] || 0)
-    )[0];
-    if (weakSlot) {
-      missing = `${loseName} got nothing at ${weakSlot === "6TH" ? "6th man" : weakSlot} — ${loseRoster[weakSlot].name} was quiet.`;
+  if (underperformers.length > 0) {
+    const worst = underperformers[0];
+    const median = underperformers[Math.floor(underperformers.length / 2)].ratio;
+    // Only call someone quiet if they were quiet *for them*, and clearly
+    // quieter than the rest of the roster - otherwise the whole team simply
+    // got beaten, which is a different sentence.
+    if (worst.ratio < 0.6 * median) {
+      missing =
+        `${loseName} got nothing at ${slotName(worst.slot)} — ` +
+        `${loseRoster[worst.slot].name} was quiet.`;
     }
   }
   if (!missing) {
@@ -282,8 +324,8 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, sho
     [loseRoster, loseShots],
   ]) {
     if (shooting || !shots) continue;
-    for (const slot of SLOTS) {
-      if (!roster[slot] || !shots[slot]) continue;
+    for (const slot of rosterSlots(roster)) {
+      if (!shots[slot]) continue;
       const note = shootingNote(roster[slot].name, shots[slot]);
       if (note) {
         shooting = note + ".";

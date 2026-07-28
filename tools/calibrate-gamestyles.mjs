@@ -10,6 +10,7 @@
 import { PLAYERS } from "../js/data.js";
 import { computeDatasetStats, simulateGame } from "../js/engine.js";
 import { DraftState } from "../js/draft.js";
+import { RANKED_SLOTS } from "../js/constants.js";
 
 const stats = computeDatasetStats(PLAYERS);
 
@@ -36,9 +37,9 @@ const base = {
 const ids = Object.keys(base);
 
 function rosterPair() {
-  const g = new DraftState(PLAYERS);
+  const g = new DraftState(PLAYERS, [], RANKED_SLOTS);
   while (!g.isComplete()) {
-    g.rollNextSquad();
+    if (!g.rollNextSquad()) break;
     g.botAutoPick("A");
     g.botAutoPick("B");
   }
