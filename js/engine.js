@@ -643,6 +643,13 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
     boxB[slot] = roundLine(totalsB[slot]);
   }
 
+  // The per-period lines were captured before the game-level adjustments
+  // above, which only ever touched the totals - so until now the periods and
+  // the final box disagreed. Re-apportion them onto the finished box score so
+  // there is exactly one set of numbers in the result.
+  reconcilePeriods(quarterBoxScores, "a", boxA);
+  reconcilePeriods(quarterBoxScores, "b", boxB);
+
   const teamScoreA = Object.keys(boxA).reduce((s, slot) => s + boxA[slot].pts, 0);
   const teamScoreB = Object.keys(boxB).reduce((s, slot) => s + boxB[slot].pts, 0);
 
@@ -707,6 +714,64 @@ function applyAbsoluteClamp(totals) {
   if (actual > MAX_TEAM_SCORE) {
     applyPointsMultiplier(totals, MAX_TEAM_SCORE / actual);
   }
+}
+
+/**
+ * Rewrites one side's per-period lines so every stat sums exactly to that
+ * player's finished box-score line.
+ *
+ * This is needed because the four game-level corrections - turnover swing,
+ * usage compression, the scoring ceiling and the absolute clamp - are
+ * measured against a roster's FULL-GAME production. They can't be applied
+ * per period without changing what they mean, so they run on the totals and
+ * the periods are left behind. Before this, a game's quarters summed to 161.8
+ * while the final score read 126, and whichever number you saw depended on
+ * which one you happened to be looking at: the live box climbed to a player's
+ * pre-correction total and then snapped down at the buzzer, and the recap
+ * quoted a period score the scoreboard disagreed with.
+ *
+ * Apportionment is largest-remainder: floor each period's proportional share,
+ * then hand the leftover units to the largest fractional parts. That keeps
+ * whole numbers - the recap should narrate the figures the box score shows -
+ * while guaranteeing the column adds up.
+ */
+function reconcilePeriods(quarterBoxScores, key, box) {
+  for (const slot of Object.keys(box)) {
+    for (const stat of LINE_KEYS) {
+      const target = box[slot][stat];
+      const raw = quarterBoxScores.map((q) => (q[key] && q[key][slot] ? q[key][slot][stat] : 0));
+      const shares = apportion(raw, target);
+      quarterBoxScores.forEach((q, i) => {
+        if (q[key] && q[key][slot]) q[key][slot][stat] = shares[i];
+      });
+    }
+  }
+}
+
+/** Splits `target` (a whole number) across buckets in proportion to `raw`,
+ * returning whole numbers that sum to exactly `target`. */
+function apportion(raw, target) {
+  const out = new Array(raw.length).fill(0);
+  if (raw.length === 0 || target <= 0) return out;
+
+  const total = raw.reduce((sum, v) => sum + v, 0);
+  if (total <= 0) {
+    // Nothing to weight by - a player who produced nothing all game can still
+    // carry a rounded-up total, so it goes somewhere rather than vanishing.
+    out[out.length - 1] = target;
+    return out;
+  }
+
+  const exact = raw.map((v) => (target * v) / total);
+  exact.forEach((v, i) => (out[i] = Math.floor(v)));
+
+  let remaining = target - out.reduce((sum, v) => sum + v, 0);
+  const byFraction = exact
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let n = 0; n < remaining; n++) out[byFraction[n % byFraction.length].i] += 1;
+
+  return out;
 }
 
 function pickMvp(rosterA, boxA, rosterB, boxB, winnerSide) {

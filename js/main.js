@@ -1006,13 +1006,13 @@ const REGULATION_PERIODS = 4;
 /** Distributes a team's true final score across periods proportionally to
  * that period's raw simulated share, so the live reveal ends up exactly at
  * the real final score while still showing quarter-to-quarter variance. */
+/** Points scored in each period. The engine reconciles its period lines onto
+ * the finished box score, so these already add up to the final total - this
+ * used to rescale them to force that, which quietly made the scoreboard the
+ * only consumer showing correct figures while the live box score and the
+ * recap read the unreconciled numbers underneath. */
 function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
-  const raw = quarterBoxScores.map((q) => Object.values(q[teamKey]).reduce((sum, line) => sum + line.pts, 0));
-  const rawTotal = raw.reduce((a, b) => a + b, 0) || 1;
-  const deltas = raw.map((v) => Math.round((finalScore * v) / rawTotal));
-  const sum = deltas.reduce((a, b) => a + b, 0);
-  deltas[deltas.length - 1] += finalScore - sum;
-  return deltas;
+  return quarterBoxScores.map((q) => Object.values(q[teamKey]).reduce((sum, line) => sum + line.pts, 0));
 }
 
 /** Plays the live quarter-by-quarter reveal and final box score for any
