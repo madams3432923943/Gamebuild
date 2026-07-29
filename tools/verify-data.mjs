@@ -19,17 +19,32 @@ const report = (ok, label, detail = "") => {
 report(PLAYERS.length > 0, "dataset is non-empty", `${PLAYERS.length} players`);
 report(squads.size > 0, "squads present", `${squads.size} squads`);
 
-const sizes = new Set([...squads.values()].map((a) => a.length));
-report(sizes.size === 1, "every squad is the same size", `sizes: ${[...sizes].join(", ")}`);
+// Squads are sized for their era: the player pool that far back is thin, so a
+// pre-1990 squad only has to be 10 deep rather than 16. Ten still fills a full
+// ranked roster, and a squad only ever supplies two picks in a round anyway.
+// This is a floor, not a cap - an older squad with 16 well-documented players
+// is better data, not a problem.
+const minFor = (decade) => (parseInt(decade, 10) < 1990 ? 10 : 16);
+const undersized = [...squads.entries()].filter(([k, a]) => a.length < minFor(k.split("|")[1]));
+report(
+  undersized.length === 0,
+  "every squad meets its era's size floor",
+  undersized.slice(0, 5).map(([k, a]) => `${k} (${a.length})`).join(", ")
+);
 
 const dupes = [...squads.entries()].filter(([, a]) => new Set(a.map((p) => p.name)).size !== a.length);
 report(dupes.length === 0, "no duplicate name within a squad", dupes.map(([k]) => k).join(", "));
 
+// Enough bodies at each position that a draft can always fill the slot. A
+// 16-man squad carries three; a 10-man squad only has ten players to spread
+// across five positions, and two is already more than the two picks a squad
+// ever supplies in one round.
 const thin = [];
 for (const [k, a] of squads) {
-  for (const s of SLOTS) if (a.filter((p) => p.pos.includes(s)).length < 3) thin.push(`${k}:${s}`);
+  const need = a.length >= 16 ? 3 : 2;
+  for (const s of SLOTS) if (a.filter((p) => p.pos.includes(s)).length < need) thin.push(`${k}:${s}`);
 }
-report(thin.length === 0, "every squad has 3+ eligible at each position", thin.slice(0, 8).join(", "));
+report(thin.length === 0, "enough eligible players at every position", thin.slice(0, 8).join(", "));
 
 const badNum = PLAYERS.filter((p) =>
   ["ppg", "rpg", "apg", "spg", "bpg", "tov"].some((k) => !Number.isFinite(p[k]) || p[k] < 0)
