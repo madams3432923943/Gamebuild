@@ -8,6 +8,8 @@ import {
   basePosition,
   POSITION_MINUTES,
   ROTATION_MINUTES_BUDGET,
+  MIN_PLAYER_MINUTES,
+  minutesFloorFor,
   orderedRosterSlots,
   isBenchSlot,
 } from "./constants.js";
@@ -723,27 +725,29 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
       const slider = document.createElement("input");
       slider.type = "range";
       slider.className = "rotation-slider";
-      slider.min = "0";
-      slider.max = String(POSITION_MINUTES);
       slider.step = "1";
       slider.value = String(minutesMap[group[i]] ?? Math.round(POSITION_MINUTES / group.length));
       sliders.push(slider);
     }
 
-    const sync = (changedIndex) => {
+    const floor = minutesFloorFor(group.length);
+    const sync = () => {
       let remaining = POSITION_MINUTES;
       sliders.forEach((slider, i) => {
-        // Earlier sliders keep their value; a later one can only claim what
-        // is still unspent, so the group can never exceed its budget.
-        const cap = Math.max(0, remaining);
-        let v = Math.min(cap, Math.max(0, parseInt(slider.value, 10) || 0));
-        if (i !== changedIndex) v = Math.min(v, cap);
-        slider.value = String(v);
+        // Each slider may only claim what is left after reserving the floor
+        // for everyone behind it - including the last player, who takes the
+        // remainder and so has no slider of his own to defend him. That
+        // bound is what guarantees nobody can be driven under the minimum.
+        const playersAfter = group.length - 1 - i;
+        const cap = Math.max(floor, remaining - floor * playersAfter);
+        const v = Math.min(cap, Math.max(floor, parseInt(slider.value, 10) || 0));
+        slider.min = String(floor);
         slider.max = String(cap);
+        slider.value = String(v);
         minutesMap[group[i]] = v;
         remaining -= v;
       });
-      minutesMap[group[group.length - 1]] = Math.max(0, remaining);
+      minutesMap[group[group.length - 1]] = Math.max(floor, remaining);
       group.forEach((slot, i) => {
         rows[i].value.textContent = `${minutesMap[slot]} min`;
       });
@@ -753,12 +757,12 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     group.forEach((slot, i) => {
       block.appendChild(rows[i].row);
       if (sliders[i]) {
-        sliders[i].addEventListener("input", () => sync(i));
+        sliders[i].addEventListener("input", sync);
         block.appendChild(sliders[i]);
       }
     });
 
-    sync(-1);
+    sync();
     container.appendChild(block);
   }
   renderRotationTotal(totalEl, minutesMap);
@@ -790,14 +794,24 @@ function rotationRow(player, label, positions) {
 }
 
 function renderRotationTotal(totalEl, minutesMap) {
-  const total = Object.values(minutesMap).reduce((sum, m) => sum + (Number(m) || 0), 0);
-  // With coupled sliders the total is guaranteed, so this is a readout rather
-  // than a validation warning - it only flags a genuinely benched player.
-  const benched = Object.values(minutesMap).filter((m) => Number(m) === 0).length;
-  totalEl.textContent =
-    `${total} of ${ROTATION_MINUTES_BUDGET} minutes assigned` +
-    (benched > 0 ? ` \u2014 ${benched} player${benched === 1 ? "" : "s"} benched` : "");
-  totalEl.className = "rotation-total" + (benched > 0 ? " rotation-warning" : "");
+  const values = Object.values(minutesMap).map((m) => Number(m) || 0);
+  const total = values.reduce((sum, m) => sum + m, 0);
+  const lowest = values.length > 0 ? Math.min(...values) : 0;
+
+  // Coupled sliders guarantee both the budget and the floor, so there is no
+  // invalid state to warn about - but the floor itself gives way when a
+  // position is stacked deeper than 48 minutes can cover at the full
+  // minimum. Report what everyone is ACTUALLY getting rather than repeating
+  // a promise the rotation can't always keep.
+  if (lowest >= MIN_PLAYER_MINUTES) {
+    totalEl.textContent = `${total} of ${ROTATION_MINUTES_BUDGET} minutes assigned \u00b7 everyone plays at least ${MIN_PLAYER_MINUTES}`;
+    totalEl.className = "rotation-total";
+  } else {
+    totalEl.textContent =
+      `${total} of ${ROTATION_MINUTES_BUDGET} minutes assigned \u00b7 lowest ${lowest} min \u2014 ` +
+      `too many players stacked at one position to give everyone ${MIN_PLAYER_MINUTES}`;
+    totalEl.className = "rotation-total rotation-warning";
+  }
 }
 
 /** Pre-game tactic picker. Options passed in are whichever ones this game

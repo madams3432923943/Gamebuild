@@ -28,6 +28,7 @@ import {
   basePosition,
   isBenchSlot,
   orderedRosterSlots,
+  minutesFloorFor,
   FATIGUE_MINUTES,
   FATIGUE_PER_MINUTE,
   FATIGUE_MAX_PENALTY,
@@ -187,15 +188,19 @@ export function defaultMinutes(roster) {
   const grouped = new Set();
 
   for (const group of Object.values(groups)) {
+    const floor = minutesFloorFor(group.length);
     let left = POSITION_MINUTES;
     group.forEach((slot, i) => {
-      const share =
+      const playersAfter = group.length - 1 - i;
+      const wanted =
         i === group.length - 1
           ? left
           : group.length === 2
           ? RANKED_STARTER_MINUTES
           : Math.round(POSITION_MINUTES / group.length);
-      minutes[slot] = Math.max(0, share);
+      // Never take so much that someone behind drops below the floor.
+      const cap = Math.max(floor, left - floor * playersAfter);
+      minutes[slot] = Math.min(cap, Math.max(floor, wanted));
       left -= minutes[slot];
       grouped.add(slot);
     });

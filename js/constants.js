@@ -61,6 +61,23 @@ export const POSITION_MINUTES = 48;
 export const RANKED_STARTER_MINUTES = 28;
 export const RANKED_BACKUP_MINUTES = POSITION_MINUTES - RANKED_STARTER_MINUTES;
 
+// Nobody you drafted rides the bench all night: every rostered player gets at
+// least this many minutes. It keeps all ten picks meaningful rather than
+// letting a rotation collapse onto the five best, and it means a bad pick
+// actually costs you.
+//
+// A position can hold more players than this floor divides into - if every
+// bench player can only play centre, they all pile onto C - so callers fall
+// back to an even split when POSITION_MINUTES won't stretch that far.
+export const MIN_PLAYER_MINUTES = 10;
+
+/** The per-player minutes floor for a position covered by `groupSize`
+ * players, reduced only when the floor genuinely cannot fit. */
+export function minutesFloorFor(groupSize) {
+  if (groupSize <= 1) return POSITION_MINUTES;
+  return Math.min(MIN_PLAYER_MINUTES, Math.floor(POSITION_MINUTES / groupSize));
+}
+
 // Above this many minutes a player tires and gives back production. This is
 // what makes roster depth matter: a position with nobody behind the starter
 // has to run him the full 48, and he pays for it. Cover every position - or
