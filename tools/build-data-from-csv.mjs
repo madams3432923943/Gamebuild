@@ -54,10 +54,12 @@ function teamName(code, startYear) {
     NOK: "New Orleans Hornets",
     NOP: "New Orleans Pelicans",
     NYK: "New York Knicks",
-    // The franchise relocated in 2008. The 2000s squad deliberately spans the
-    // move and carries a combined name; later decades are pure OKC.
-    SEA: startYear >= 2000 ? "Seattle SuperSonics / OKC Thunder" : "Seattle SuperSonics",
-    OKC: startYear < 2010 ? "Seattle SuperSonics / OKC Thunder" : "Oklahoma City Thunder",
+    // The franchise relocated in 2008. Squads are named for where the team
+    // actually played that season rather than carrying a combined name, so a
+    // 2000s Sonics squad reads as the Sonics it was. banners.js aliases both
+    // names onto one franchise, so team trophies still combine.
+    SEA: "Seattle SuperSonics",
+    OKC: "Oklahoma City Thunder",
     ORL: "Orlando Magic",
     PHI: "Philadelphia 76ers",
     PHO: "Phoenix Suns",
