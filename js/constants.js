@@ -168,8 +168,8 @@ export const VARIANCE_MAX = 1.18;
 // AFTER talent parity below, which is what makes it bite: rolled before
 // compression, the gap and the noise shrink together and quarters never
 // change hands.
-export const TEAM_QUARTER_VARIANCE_MIN = 0.66;
-export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
+export const TEAM_QUARTER_VARIANCE_MIN = 0.74;
+export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 
 // How much of a roster's talent advantage actually reaches the scoreboard.
 //
@@ -189,18 +189,19 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
 //
 // Re-solved after the squad pool grew to 154 team-decades: every matchup is
 // normalised against positional averages drawn from the pool, so more than
-// doubling it moves the baseline every game is measured against. Verified
-// over 2,000 games with a clear talent gap:
-//   stronger roster wins the game    76.3%  (target 75%)
-//   stronger roster wins a quarter   66.1%
-//   stronger roster sweeps every qtr 26.4%
-//   mean quarter margin               8.0   (target ~7)
+// doubling it moves the baseline every game is measured against - and the
+// flat 240-minute rotation changed how those minutes are spread on top of
+// that. Verified over 2,000 games with a clear talent gap:
+//   stronger roster wins the game    77.1%  (target 75%)
+//   stronger roster wins a quarter   66.8%
+//   stronger roster sweeps every qtr 27.1%
+//   mean quarter margin               6.7   (target ~7)
 //
 // The margin is the honest cost of the win-rate target: winning three games
 // in four requires a real talent edge, and a real edge shows up on the
 // scoreboard. Tuning parity down trades win rate for a closer scoreline; the
 // knob is here if that trade is ever worth revisiting.
-export const TALENT_PARITY = 0.91;
+export const TALENT_PARITY = 0.871;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's

@@ -92,11 +92,11 @@ Two further levers are solved the same way, by
 `tools/calibrate-variance.mjs`: how much of a roster's talent advantage
 reaches the scoreboard, and how much a team's output swings quarter to
 quarter. Together they set how often the better roster actually wins — about
-76% of games against a clearly weaker one. Re-run it after any engine change,
+77% of games against a clearly weaker one. Re-run it after any engine change,
 then re-run the gamestyle calibration, since gamestyles are balanced against
 whatever those two produce.
 
-Current spread across the full 10x9 field: **48.3%-51.7%**.
+Current spread across the full 10x9 field: **47.3%-52.4%**.
 
 ## Data
 
