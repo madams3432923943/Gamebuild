@@ -238,29 +238,30 @@ function r(n) {
   return Math.max(0, Math.round(n));
 }
 
-function boxRow(slotLabel, player, line, shots) {
+function boxRow(slotLabel, player, line, shots, minutes) {
   const shooting = shots ? formatShotLine(shots) : "";
   return (
-    `<tr><td>${slotLabel}</td><td>${player.name}` +
+    `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}` +
     (shooting ? `<div class="box-shooting">${shooting}</div>` : "") +
-    `</td><td>${r(line.pts)}</td><td>${r(line.reb)}</td><td>${r(line.ast)}</td>` +
+    `</td><td>${minutes == null ? "-" : r(minutes)}</td>` +
+    `<td>${r(line.pts)}</td><td>${r(line.reb)}</td><td>${r(line.ast)}</td>` +
     `<td>${r(line.stl)}</td><td>${r(line.blk)}</td><td>${r(line.tov)}</td></tr>`
   );
 }
 
-function boxTable(roster, box, teamLabel, shotLines) {
-  let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
+function boxTable(roster, box, teamLabel, shotLines, minutesMap) {
+  let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
   for (const slot of rosterSlots(roster)) {
     if (!box[slot]) continue;
-    html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot]);
+    html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot], minutesMap && minutesMap[slot]);
   }
   html += "</tbody></table>";
   return html;
 }
 
-export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB) {
+export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB, minutesA, minutesB) {
   container.innerHTML =
-    boxTable(rosterA, boxA, labelA, shotsA) + boxTable(rosterB, boxB, labelB, shotsB);
+    boxTable(rosterA, boxA, labelA, shotsA, minutesA) + boxTable(rosterB, boxB, labelB, shotsB, minutesB);
 }
 
 /** Shot splits for a finished roster, computed once so the same line is

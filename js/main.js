@@ -140,6 +140,116 @@ function startPickTimer(onTimeout) {
   }, 1000);
 }
 
+// ---- Modal ----
+// One shell for the draft's position picker and How to Play. Kept generic
+// (title + body node + optional cancel handler) so both callers share the
+// same open/close, backdrop-click and Escape behaviour instead of each
+// growing its own slightly different version.
+
+const modalBackdrop = document.getElementById("modal-backdrop");
+const modalTitleEl = document.getElementById("modal-title");
+const modalBodyEl = document.getElementById("modal-body");
+const modalCloseBtn = document.getElementById("modal-close");
+let onModalDismiss = null;
+
+function openModal(title, bodyNode, onDismiss) {
+  modalTitleEl.textContent = title;
+  modalBodyEl.innerHTML = "";
+  modalBodyEl.appendChild(bodyNode);
+  onModalDismiss = onDismiss || null;
+  modalBackdrop.classList.remove("hidden");
+}
+
+function closeModal({ dismissed = false } = {}) {
+  modalBackdrop.classList.add("hidden");
+  modalBodyEl.innerHTML = "";
+  const cb = onModalDismiss;
+  onModalDismiss = null;
+  // A dismissal has to be distinguishable from a choice: abandoning the
+  // position picker must put the pending player back, not silently drop him.
+  if (dismissed && cb) cb();
+}
+
+modalCloseBtn.addEventListener("click", () => closeModal({ dismissed: true }));
+modalBackdrop.addEventListener("click", (e) => {
+  if (e.target === modalBackdrop) closeModal({ dismissed: true });
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !modalBackdrop.classList.contains("hidden")) closeModal({ dismissed: true });
+});
+
+/** Position picker: which open slot should this player fill? */
+function openSlotPicker(player, slots, onChoose, onCancel) {
+  const wrap = document.createElement("div");
+
+  const who = document.createElement("div");
+  who.className = "modal-player";
+  who.textContent = player.name;
+  wrap.appendChild(who);
+
+  const meta = document.createElement("div");
+  meta.className = "modal-player-meta";
+  meta.textContent = `${player.pos.join(" / ")} · ${player.team} ${player.decade}`;
+  wrap.appendChild(meta);
+
+  // Bench spots are interchangeable, so offering five identical "Bench"
+  // buttons is noise dressed up as a decision - collapse them to one.
+  const benchSlots = slots.filter((s) => s.startsWith("BENCH"));
+  const choices = slots
+    .filter((s) => !s.startsWith("BENCH"))
+    .map((s) => ({ label: s === "6TH" ? "6th Man" : s, slot: s }));
+  if (benchSlots.length > 0) {
+    choices.push({
+      label: benchSlots.length > 1 ? `Bench (${benchSlots.length} open)` : "Bench",
+      slot: benchSlots[0],
+    });
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "modal-slot-grid";
+  for (const { label, slot } of choices) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "modal-slot";
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      closeModal();
+      onChoose(slot);
+    });
+    grid.appendChild(btn);
+  }
+  wrap.appendChild(grid);
+
+  openModal("Where does he play?", wrap, onCancel);
+}
+
+const HOW_TO_PLAY = [
+  ["The draft", "Every round rolls one team-and-decade squad - say Chicago Bulls 1990s - and both sides draft from that same squad. You are picking against the same options your opponent has, so it comes down to who knows the roster better."],
+  ["Naming players", "Under ranked rules there is no visible list: you type a name from memory. Spelling is forgiving, so remembering the player matters more than spelling him. Quick Play shows the whole squad with stats instead."],
+  ["Your roster", "Five starters, position-locked, plus five bench spots that take anyone. Bench players cover whichever position needs them, so someone who plays two positions is worth more than a specialist."],
+  ["Rotation", "240 minutes to spread across ten players, 10 to 40 each, and starters must play more than the bench. Push someone past 34 and he tires and gives production back, so loading your best five is a trade rather than a free win."],
+  ["Gamestyle", "Once both rosters are set you pick one of three gamestyles offered at random. Each one boosts something and pays for it elsewhere; none is simply strongest."],
+  ["Modes", "Quick Play is a relaxed five-a-side against the bot. Ranked Practice is the full ranked experience against the bot. Ranked is against a real opponent and is the only mode that moves your record."],
+];
+
+function openHowToPlay() {
+  const wrap = document.createElement("div");
+  for (const [heading, body] of HOW_TO_PLAY) {
+    const section = document.createElement("div");
+    section.className = "howto-section";
+    const h = document.createElement("h4");
+    h.textContent = heading;
+    const p = document.createElement("p");
+    p.textContent = body;
+    section.appendChild(h);
+    section.appendChild(p);
+    wrap.appendChild(section);
+  }
+  openModal("How to Play", wrap);
+}
+
+document.getElementById("btn-how-to-play").addEventListener("click", openHowToPlay);
+
 // ---- Auth screen ----
 // The whole app sits behind this: no anonymous play, so a player's record,
 // badges and rank always belong to a real account they can come back to.
@@ -748,10 +858,22 @@ function onPoolPick(player) {
   const slots = eligibleOpenSlots(player, roster, game.draft.slots);
   if (slots.length === 1) {
     finalizePick(player, slots[0]);
-  } else {
-    game.round.pendingPlayer = player;
-    renderDraftRound();
+    return;
   }
+  // More than one slot fits, so ask - in a popup rather than by re-rendering
+  // the board and hoping the position strip is noticed. Dismissing puts the
+  // player back rather than dropping the pick.
+  game.round.pendingPlayer = player;
+  renderDraftRound();
+  openSlotPicker(
+    player,
+    slots,
+    (slot) => finalizePick(player, slot),
+    () => {
+      game.round.pendingPlayer = null;
+      renderDraftRound();
+    }
+  );
 }
 
 function finalizePick(player, slot) {
@@ -1012,7 +1134,7 @@ function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
 /** Plays the live quarter-by-quarter reveal and final box score for any
  * already-computed result (local simulateGame() output or a normalized
  * server result), then calls onComplete() once everything is on screen. */
-function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete }) {
+function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, onComplete }) {
   finalBanner.classList.add("hidden");
   gameRecapEl.classList.add("hidden");
   mvpCallout.classList.add("hidden");
@@ -1042,7 +1164,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
   // reduced live table alongside a separate full one meant two box scores on
   // screen saying different things.
   fullBoxScore.classList.remove("hidden");
-  renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null);
+  renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
   renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
   pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
 
@@ -1172,7 +1294,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
       `${label} in progress`,
       `End of ${label}`
     );
-    renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null);
+    renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
 
     i += 1;
@@ -1211,7 +1333,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, onComplete })
     )} PTS / ${Math.round(mvp.line.reb)} REB / ${Math.round(mvp.line.ast)} AST`;
     mvpCallout.classList.remove("hidden");
 
-    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB);
+    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB, minutesA, minutesB);
     fullBoxScore.classList.remove("hidden");
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
@@ -1227,10 +1349,15 @@ function runLocalSimulation() {
   // The bot commits to a plan too, chosen at random - a fixed opponent plan
   // would make one counter always correct and collapse the choice.
   const botTactic = TACTIC_IDS[Math.floor(Math.random() * TACTIC_IDS.length)];
+  // Resolve both rotations up front so the box score can show the same
+  // minutes the simulation actually used, rather than a second guess at them.
+  const minutesA = rotationMinutes || defaultMinutes(draft.rosterA);
+  const minutesB = defaultMinutes(draft.rosterB);
   const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats, {
     tacticA: selectedTactic,
     tacticB: botTactic,
-    minutesA: rotationMinutes || undefined,
+    minutesA,
+    minutesB,
   });
 
   playOutResult({
@@ -1239,6 +1366,8 @@ function runLocalSimulation() {
     labelB: game.nameB,
     rosterA: draft.rosterA,
     rosterB: draft.rosterB,
+    minutesA,
+    minutesB,
     onComplete: () => {
       const ownLines = draft.slots.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
 

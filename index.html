@@ -110,6 +110,7 @@
         </div>
         <p class="hint-text" id="mode-hint"></p>
         <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
+        <button id="btn-how-to-play" class="btn btn-secondary btn-block">How to Play</button>
         <button id="btn-cancel-search" class="btn btn-secondary btn-block hidden">Cancel Search</button>
         <div id="search-status" class="search-status hidden"></div>
       </div>
@@ -253,6 +254,19 @@
       </div>
     </section>
   </main>
+
+  <!-- One modal serves both the draft's position picker and How to Play:
+       same shell, different body, so there is a single set of open/close and
+       focus rules rather than two that drift apart. -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <h3 id="modal-title" class="modal-title"></h3>
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
 
   <script type="module" src="js/main.js"></script>
 </body>

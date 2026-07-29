@@ -1872,3 +1872,122 @@ table.box-table th, table.history-table th {
 .rotation-total.rotation-warning {
   color: var(--warn, #e0a030);
 }
+
+/* ---- Modal ----
+   One shell reused by the draft's position picker and the How to Play tab. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 14, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--accent), 0 18px 50px rgba(0, 0, 0, 0.55);
+  width: min(560px, 100%);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: modal-in 0.16s ease;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.modal-close:hover { color: var(--text); }
+
+/* Scrolls inside itself so long content never scrolls the page behind it. */
+.modal-body {
+  padding: 1rem 1.1rem 1.2rem;
+  overflow-y: auto;
+}
+
+/* Position picker inside the modal */
+.modal-player {
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
+}
+
+.modal-player-meta {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.modal-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.5rem;
+}
+
+.modal-slot {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text);
+  padding: 0.7rem 0.6rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.modal-slot:hover {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.18), transparent);
+}
+
+/* How to Play copy */
+.howto-section { margin-bottom: 1rem; }
+.howto-section:last-child { margin-bottom: 0; }
+
+.howto-section h4 {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-bright);
+}
+
+.howto-section p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
