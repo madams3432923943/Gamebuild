@@ -168,8 +168,8 @@ export const VARIANCE_MAX = 1.18;
 // AFTER talent parity below, which is what makes it bite: rolled before
 // compression, the gap and the noise shrink together and quarters never
 // change hands.
-export const TEAM_QUARTER_VARIANCE_MIN = 0.74;
-export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
+export const TEAM_QUARTER_VARIANCE_MIN = 0.66;
+export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
 
 // How much of a roster's talent advantage actually reaches the scoreboard.
 //
@@ -187,17 +187,20 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 // than from a scoring collapse. 1 = today's raw talent gap, 0 = pure coin
 // flip. Solved by simulation alongside the variance range.
 //
-// Re-solved after defender ratings were damped (see DEFENDER_RATING_EXPONENT),
-// which changed how much defence suppresses scoring and therefore how much a
-// talent edge is worth. Measured over 2,500 games with a clear talent gap:
-//   stronger roster wins the game     ~78%   (target 80%)
-//   stronger roster sweeps every qtr  ~28%   (was 88.8% before any of this)
-//   mean quarter margin                ~7.2  (real NBA 6-7)
+// Re-solved after the squad pool grew to 154 team-decades: every matchup is
+// normalised against positional averages drawn from the pool, so more than
+// doubling it moves the baseline every game is measured against. Verified
+// over 2,000 games with a clear talent gap:
+//   stronger roster wins the game    76.3%  (target 75%)
+//   stronger roster wins a quarter   66.1%
+//   stronger roster sweeps every qtr 26.4%
+//   mean quarter margin               8.0   (target ~7)
 //
-// Win rate is insensitive to this knob now - pushing it from 0.95 to 1.25
-// moved wins only 77.4% -> 79.2% while inflating scoring - so it sits where
-// the other three land correctly rather than being forced to hit 80 exactly.
-export const TALENT_PARITY = 0.88;
+// The margin is the honest cost of the win-rate target: winning three games
+// in four requires a real talent edge, and a real edge shows up on the
+// scoreboard. Tuning parity down trades win rate for a closer scoreline; the
+// knob is here if that trade is ever worth revisiting.
+export const TALENT_PARITY = 0.91;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's
