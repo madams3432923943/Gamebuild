@@ -42,6 +42,7 @@ import {
   ASSIST_K,
   TURNOVER_K,
   FACTOR_MIN,
+  DEFENDER_RATING_EXPONENT,
   FACTOR_MAX,
   VARIANCE_MIN,
   VARIANCE_MAX,
@@ -218,11 +219,74 @@ function fatigueFactor(minutes) {
   return 1 - Math.min(FATIGUE_MAX_PENALTY, over * FATIGUE_PER_MINUTE);
 }
 
-/** The defense a position actually faces, as a minutes-weighted blend of the
- * opponent's players there. Facing a great defender for 12 minutes should not
- * play the same as facing him for 40, and with two players per position there
- * is no longer a single obvious defender to point at. Weights fall back to
- * equal shares when no minutes map is supplied. */
+/** The default assignment when nobody set one: everyone guards the opposing
+ * player at their own position. Returns a map from a defender's slot to the
+ * opposing slot they cover.
+ *
+ * Only the five starters are assignable - they form a permutation, so nobody
+ * ends up unguarded or double-teamed. Bench players are matched by position
+ * automatically, since there is no clean way to keep a permutation across two
+ * benches whose players run different minutes. */
+export function defaultMatchups(roster, oppRoster) {
+  const mine = slotsByPosition(roster);
+  const theirs = slotsByPosition(oppRoster);
+  const map = {};
+  for (const pos of Object.keys(mine)) {
+    const targets = theirs[pos] || [];
+    mine[pos].forEach((slot, i) => {
+      // Depth beyond the opponent's at this position wraps around rather than
+      // going unassigned - somebody is always guarding somebody.
+      if (targets.length > 0) map[slot] = targets[i % targets.length];
+    });
+  }
+  return map;
+}
+
+/** Who is guarding `slot`, given the opposing side's assignments: whoever on
+ * that side points at them. Usually one player; more if the opponent stacked
+ * several onto the same man. */
+function defendersOf(slot, oppMatchups, oppRoster) {
+  const found = Object.keys(oppMatchups || {}).filter((s) => oppMatchups[s] === slot && oppRoster[s]);
+  return found;
+}
+
+/** The defence a player actually faces over a whole game.
+ *
+ * Two things are folded in. First, several defenders can share the job, so
+ * their stats are blended by minutes. Second - and this is what stops a
+ * 10-minute stopper from erasing a 40-minute scorer - a defender only covers
+ * the share of the attacker's minutes he is actually on court for. The rest
+ * of the time the attacker faces a league-average defender at that position,
+ * so an assignment is worth what the defender's minutes make it worth. */
+function resolveDefender(attackerSlot, attackerMinutes, oppRoster, oppMatchups, oppMinutes, oppMods, datasetStats, fallbackPos) {
+  const slots = defendersOf(attackerSlot, oppMatchups, oppRoster);
+  if (slots.length === 0) return leagueAverageDefender(datasetStats, fallbackPos);
+
+  const assigned = blendedDefender(oppRoster, slots, oppMinutes, oppMods);
+  const cover = slots.reduce((sum, s) => sum + playerMinutes(s, oppMinutes), 0);
+  const share = Math.max(0, Math.min(1, cover / Math.max(1, attackerMinutes)));
+  if (share >= 1) return assigned;
+
+  const average = leagueAverageDefender(datasetStats, assigned.pos[0] || fallbackPos);
+  const blend = { pos: assigned.pos };
+  for (const key of ["ppg", "rpg", "apg", "spg", "bpg", "tov"]) {
+    blend[key] = assigned[key] * share + average[key] * (1 - share);
+  }
+  return blend;
+}
+
+/** A generic defender at a position - what an attacker faces for any minutes
+ * nobody is assigned to cover him. */
+function leagueAverageDefender(datasetStats, pos) {
+  const bucket = (pos && datasetStats.byPos[pos]) || datasetStats.overall;
+  return {
+    ppg: bucket.ppg, rpg: bucket.rpg, apg: bucket.apg,
+    spg: bucket.spg, bpg: bucket.bpg, tov: bucket.tov,
+    pos: [pos || STARTER_SLOTS[0]],
+  };
+}
+
+/** Blends several defenders into one by minutes played. */
 function blendedDefender(roster, slots, minutesMap, mods) {
   const weights = slots.map((slot) => minutesScaleFor(slot, minutesMap));
   const total = weights.reduce((sum, w) => sum + w, 0) || 1;
@@ -294,27 +358,32 @@ function primaryPos(player) {
 
 /** Simulate one quarter for both rosters. Returns per-slot per-line stat
  * objects for each team, e.g. { PG: {pts,reb,ast,stl,blk,tov}, ... }. */
-function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB) {
+function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB, matchupsA, matchupsB) {
   const linesA = {};
   const linesB = {};
 
-  const groupsA = slotsByPosition(rosterA);
-  const groupsB = slotsByPosition(rosterB);
-
-  for (const pos of Object.keys(groupsA)) {
-    const slotsA = groupsA[pos];
-    const slotsB = groupsB[pos] || slotsA;
-
-    // Each side faces a minutes-weighted blend of whoever the opponent plays
-    // at this position, rather than one nominated defender.
-    const defenderForA = blendedDefender(rosterB, slotsB, minutesB, modsB);
-    const defenderForB = blendedDefender(rosterA, slotsA, minutesA, modsA);
-
-    for (const slot of slotsA) {
-      linesA[slot] = simulatePlayerQuarter(rosterA[slot], defenderForA, slot, datasetStats, modsA, minutesA);
-    }
-    for (const slot of slotsB) {
-      linesB[slot] = simulatePlayerQuarter(rosterB[slot], defenderForB, slot, datasetStats, modsB, minutesB);
+  // Who guards whom is chosen, not derived from position - so a defensive
+  // specialist can be put on the opponent's best scorer wherever he lines up.
+  // A player's defender is whoever on the other side is assigned to him,
+  // which is the inverse of THAT side's map.
+  for (const [roster, oppRoster, lines, mods, oppMods, minutes, oppMinutes, oppMatchups] of [
+    [rosterA, rosterB, linesA, modsA, modsB, minutesA, minutesB, matchupsB],
+    [rosterB, rosterA, linesB, modsB, modsA, minutesB, minutesA, matchupsA],
+  ]) {
+    for (const slot of activeSlots(roster)) {
+      if (slot === "6TH") continue;
+      const attacker = roster[slot];
+      const def = resolveDefender(
+        slot,
+        playerMinutes(slot, minutes),
+        oppRoster,
+        oppMatchups,
+        oppMinutes,
+        oppMods,
+        datasetStats,
+        primaryPos(attacker)
+      );
+      lines[slot] = simulatePlayerQuarter(attacker, def, slot, datasetStats, mods, minutes);
     }
   }
 
@@ -361,10 +430,11 @@ function simulatePlayerQuarter(offPlayer, def, slot, datasetStats, offMods, minu
   const off = effectiveStats(offPlayer, offMods);
 
   const offScoreRating = ratingVsAvg(off.ppg, posAvg(datasetStats, pos, "ppg"));
-  const defScoreRating =
+  const rawDefRating =
     (ratingVsAvg(def.bpg, posAvg(datasetStats, defPos, "bpg")) +
       ratingVsAvg(def.spg, posAvg(datasetStats, defPos, "spg"))) /
     2;
+  const defScoreRating = Math.pow(rawDefRating, DEFENDER_RATING_EXPONENT);
   const scoringFactor = matchupFactor(offScoreRating, defScoreRating, SCORING_K);
 
   const offRebRating = ratingVsAvg(off.rpg, posAvg(datasetStats, pos, "rpg"));
@@ -441,7 +511,7 @@ function rosterBaselinePoints(roster, minutesMap) {
  * derived from rosterA (both sides always share the same roster shape in
  * every mode today), so a 5-slot Quick Play roster never gets a "6TH" key
  * anywhere downstream. */
-function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB, minutesA, minutesB, teamVariance, parity) {
+function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB) {
   const slots = activeSlots(rosterA);
   const vMin = (teamVariance && teamVariance.min) ?? TEAM_QUARTER_VARIANCE_MIN;
   const vMax = (teamVariance && teamVariance.max) ?? TEAM_QUARTER_VARIANCE_MAX;
@@ -454,7 +524,7 @@ function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, mo
   const quarterBoxScores = [];
 
   for (let i = 0; i < periods; i++) {
-    const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB);
+    const { linesA, linesB } = simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB, matchupsA, matchupsB);
 
     // Pull each side's quarter toward what a league-average roster would
     // score in the same minutes. Anchoring to a FIXED league baseline rather
@@ -585,6 +655,10 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
   // range without rewriting constants.js between runs.
   const teamVariance = opts.teamVariance || null;
   const parity = Number.isFinite(opts.parity) ? opts.parity : TALENT_PARITY;
+  // Unset matchups mean "guard your own position", so a caller that doesn't
+  // care about assignments gets the sensible default rather than nothing.
+  const matchupsA = opts.matchupsA || defaultMatchups(rosterA, rosterB);
+  const matchupsB = opts.matchupsB || defaultMatchups(rosterB, rosterA);
 
   // Regulation quarters 1-3 at base mods; quarter 4 gets the clutch mods, so
   // a clutch-scoring style only pays off in exactly the moment it promises.
@@ -599,9 +673,11 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
     minutesA,
     minutesB,
     teamVariance,
-    parity
+    parity,
+    matchupsA,
+    matchupsB
   );
-  const q4 = runPeriods(rosterA, rosterB, datasetStats, 1, 1, clutchA, clutchB, minutesA, minutesB, teamVariance, parity);
+  const q4 = runPeriods(rosterA, rosterB, datasetStats, 1, 1, clutchA, clutchB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB);
   for (const slot of Object.keys(totalsA)) {
     addLine(totalsA[slot], q4.totalsA[slot]);
     addLine(totalsB[slot], q4.totalsB[slot]);
@@ -621,7 +697,7 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
   ) {
     // OT is already crunch time - it plays out under the same clutch mods as
     // the 4th quarter, not the base ones.
-    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB, teamVariance, parity);
+    const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB);
     for (const slot of Object.keys(totalsA)) {
       addLine(totalsA[slot], ot.totalsA[slot]);
       addLine(totalsB[slot], ot.totalsB[slot]);

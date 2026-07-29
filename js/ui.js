@@ -773,6 +773,62 @@ function renderRotationTotal(totalEl, minutesMap, list) {
   }
 }
 
+/** Defensive matchup picker: one row per starter, each choosing which
+ * opposing starter he guards.
+ *
+ * Reassigning SWAPS rather than overwrites - if you put your stopper on their
+ * star, whoever was on the star inherits the man your stopper left. That
+ * keeps the assignment a permutation, so nobody is ever double-teamed or left
+ * unguarded, and it means the screen can't be put into an invalid state that
+ * would then need validating.
+ */
+export function renderMatchupPicker(container, myRoster, oppRoster, myStarters, oppStarters, matchups, oppLabel) {
+  container.innerHTML = "";
+
+  const draw = () => {
+    container.innerHTML = "";
+    for (const slot of myStarters) {
+      const row = document.createElement("div");
+      row.className = "matchup-row";
+
+      const mine = document.createElement("span");
+      mine.className = "matchup-mine";
+      mine.innerHTML = `<span class="matchup-slot">${slot}</span>${escapeHtml(myRoster[slot].name)}`;
+      row.appendChild(mine);
+
+      const arrow = document.createElement("span");
+      arrow.className = "matchup-arrow";
+      arrow.textContent = "guards";
+      row.appendChild(arrow);
+
+      const pick = document.createElement("select");
+      pick.className = "matchup-pick";
+      for (const target of oppStarters) {
+        const opt = document.createElement("option");
+        opt.value = target;
+        opt.textContent = `${target} · ${oppRoster[target].name}`;
+        opt.selected = matchups[slot] === target;
+        pick.appendChild(opt);
+      }
+      pick.addEventListener("change", () => {
+        const wanted = pick.value;
+        const previous = matchups[slot];
+        // Whoever already had this assignment takes the one being vacated,
+        // which is what preserves the permutation.
+        const displaced = myStarters.find((s) => s !== slot && matchups[s] === wanted);
+        matchups[slot] = wanted;
+        if (displaced) matchups[displaced] = previous;
+        draw();
+      });
+      row.appendChild(pick);
+
+      container.appendChild(row);
+    }
+  };
+
+  draw();
+}
+
 /** Pre-game tactic picker. Options passed in are whichever ones this game
  * offers - the catalog is larger than what any single game shows. */
 export function renderTacticPicker(container, tacticsToShow, selectedId, onSelect) {

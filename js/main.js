@@ -8,7 +8,7 @@ import { buildRecap, buildGameScript } from "./recap.js";
 import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
 
 const TACTIC_IDS = TACTICS.map((t) => t.id);
-import { simulateGame, defaultMinutes } from "./engine.js";
+import { simulateGame, defaultMinutes, defaultMatchups } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
@@ -20,6 +20,7 @@ import {
   PICK_TIMER_SECONDS,
   TACTIC_TIMER_SECONDS,
   ROTATION_TIMER_SECONDS,
+  MATCHUP_TIMER_SECONDS,
 } from "./constants.js";
 import {
   loadProfile,
@@ -60,6 +61,7 @@ import {
   renderEquippedBanner,
   renderTacticPicker,
   renderRotationPicker,
+  renderMatchupPicker,
   pushPlayHeadline,
   clearPlayFeed,
   buildShotLines,
@@ -504,6 +506,7 @@ function goToTab(tab, onArrive) {
   cleanupPickTimer();
   cleanupTacticTimer();
   cleanupRotationTimer();
+  cleanupMatchupTimer();
   setActiveNav(tab);
   onArrive();
 }
@@ -588,6 +591,10 @@ const rotationGridEl = document.getElementById("rotation-grid");
 const rotationTotalEl = document.getElementById("rotation-total");
 const rotationPhaseHintEl = document.getElementById("rotation-phase-hint");
 const btnConfirmRotation = document.getElementById("btn-confirm-rotation");
+const matchupPhaseEl = document.getElementById("matchup-phase");
+const matchupGridEl = document.getElementById("matchup-grid");
+const matchupPhaseHintEl = document.getElementById("matchup-phase-hint");
+const btnConfirmMatchups = document.getElementById("btn-confirm-matchups");
 
 // The game plan is chosen AFTER the draft, as a final timed round: you should
 // be picking how to play the team you actually ended up with, not guessing at
@@ -715,6 +722,60 @@ function startRotationPhase(roster, slots, onConfirm) {
   btnConfirmRotation.onclick = confirm;
 }
 
+// Who guards whom. Null outside ranked practice, in which case the engine
+// falls back to everyone guarding their own position.
+let selectedMatchups = null;
+let matchupTimerInterval = null;
+
+function cleanupMatchupTimer() {
+  if (matchupTimerInterval) {
+    clearInterval(matchupTimerInterval);
+    matchupTimerInterval = null;
+  }
+}
+
+/** Between the rotation and the gamestyle: point your defenders at the
+ * opponent you actually want them on. Timing out locks in whatever is set,
+ * same as the other timed phases - the clock keeps a match moving, it
+ * doesn't punish deliberation. */
+function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
+  cleanupPickTimer();
+  cleanupMatchupTimer();
+
+  const myStarters = STARTER_SLOTS.filter((slot) => myRoster[slot]);
+  const oppStarters = STARTER_SLOTS.filter((slot) => oppRoster[slot]);
+  selectedMatchups = defaultMatchups(myRoster, oppRoster);
+
+  renderMatchupPicker(matchupGridEl, myRoster, oppRoster, myStarters, oppStarters, selectedMatchups, oppLabel);
+
+  draftPoolPanel.classList.add("hidden");
+  matchupPhaseEl.classList.remove("hidden");
+  pickTimerEl.hidden = false;
+
+  let remaining = MATCHUP_TIMER_SECONDS;
+  renderPickTimer(pickTimerEl, remaining);
+  matchupTimerInterval = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      cleanupMatchupTimer();
+      confirm();
+      return;
+    }
+    renderPickTimer(pickTimerEl, remaining);
+  }, 1000);
+
+  function confirm() {
+    cleanupMatchupTimer();
+    matchupPhaseEl.classList.add("hidden");
+    pickTimerEl.hidden = true;
+    pickTimerEl.textContent = "";
+    btnConfirmMatchups.onclick = null;
+    onConfirm();
+  }
+
+  btnConfirmMatchups.onclick = confirm;
+}
+
 /** The draft board reads differently under each ruleset, so the search box
  * and its hint have to say which game is actually being played. */
 function applyRulesetToDraftUI() {
@@ -753,9 +814,12 @@ function startDraft() {
   cleanupPickTimer();
   cleanupTacticTimer();
   cleanupRotationTimer();
+  cleanupMatchupTimer();
   tacticPhaseEl.classList.add("hidden");
   rotationPhaseEl.classList.add("hidden");
+  matchupPhaseEl.classList.add("hidden");
   rotationMinutes = null;
+  selectedMatchups = null;
   draftPoolPanel.classList.remove("hidden");
   applyRulesetToDraftUI();
   game.draft = new DraftState(PLAYERS, recentSquadIds, slotsForRuleset(game.ruleset));
@@ -952,9 +1016,15 @@ function renderDraftComplete() {
     `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
     `Lower someone to free minutes before raising someone else.`;
   startRotationPhase(draft.rosterA, draft.slots, () => {
+    draftTurnBanner.textContent = "Set your defensive matchups";
+    matchupPhaseHintEl.textContent =
+      `Your starters are on their opposite numbers by default. Move anyone you want - ` +
+      `switching two players trades their assignments.`;
+    startMatchupPhase(draft.rosterA, draft.rosterB, game.nameB, () => {
     draftTurnBanner.textContent = "Final round — set your game plan";
     tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
     startTacticPhase(runLocalSimulation);
+    });
   });
 }
 
@@ -1358,6 +1428,7 @@ function runLocalSimulation() {
     tacticB: botTactic,
     minutesA,
     minutesB,
+    matchupsA: selectedMatchups || undefined,
   });
 
   playOutResult({

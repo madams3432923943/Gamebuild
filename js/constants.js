@@ -130,6 +130,23 @@ export const REBOUND_K = 0.4;
 export const ASSIST_K = 0.3;
 export const TURNOVER_K = 0.35;
 export const FACTOR_MIN = 0.55;
+
+// How sharply a defender's rating is damped before it reaches the scoring
+// matchup. Applied as rating ** DEFENDER_RATING_EXPONENT.
+//
+// Blocks are rare and heavily skewed, so a rim protector rates five or six
+// times the positional average. That was harmless while a defender was an
+// average of everyone at a position, but once he can be ASSIGNED to a
+// specific opponent the extreme becomes reachable on purpose: undamped,
+// moving one elite defender onto a star took 12.5 points off the opposing
+// team, which would make the matchup screen matter more than the draft.
+//
+// A flat ceiling can't fix it - ordinary defenders already rate above any
+// ceiling low enough to bind, so capping erases the difference between a
+// good defender and a great one instead of narrowing it. An exponent damps
+// the extremes while preserving order everywhere, which is the same
+// diminishing-returns treatment decadeWeight() uses on squad counts.
+export const DEFENDER_RATING_EXPONENT = 0.7;
 export const FACTOR_MAX = 1.6;
 
 // Per-quarter random variance multiplier range, rolled independently for
@@ -170,15 +187,16 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 // than from a scoring collapse. 1 = today's raw talent gap, 0 = pure coin
 // flip. Solved by simulation alongside the variance range.
 //
-// Measured over 2,500 games with a clear talent gap, before -> after:
-//   stronger roster wins the game    90.9% -> 79.5%   (target 80%)
-//   stronger roster sweeps every qtr 88.8% -> 54.6%
-//   mean quarter margin               10.5 -> 10.5
+// Re-solved after defender ratings were damped (see DEFENDER_RATING_EXPONENT),
+// which changed how much defence suppresses scoring and therefore how much a
+// talent edge is worth. Measured over 2,500 games with a clear talent gap:
+//   stronger roster wins the game     ~78%   (target 80%)
+//   stronger roster sweeps every qtr  ~28%   (was 88.8% before any of this)
+//   mean quarter margin                ~7.2  (real NBA 6-7)
 //
-// The margin is the honest cost of the 80% target: winning four games in
-// five requires a real talent edge, and a real edge shows up on the
-// scoreboard. Tuned lower (0.72 -> ~73% wins) margins fall to 8.7. The knob
-// is here if that trade is ever worth revisiting.
+// Win rate is insensitive to this knob now - pushing it from 0.95 to 1.25
+// moved wins only 77.4% -> 79.2% while inflating scoring - so it sits where
+// the other three land correctly rather than being forced to hit 80 exactly.
 export const TALENT_PARITY = 0.88;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
@@ -246,6 +264,10 @@ export const TACTIC_TIMER_SECONDS = 45;
 // Practice, before the gamestyle pick. Offline value; Online Ranked uses its
 // own longer duration (2 minutes) since it also has to wait on an opponent.
 export const ROTATION_TIMER_SECONDS = 60;
+
+// How long to set defensive matchups. Shorter than the rotation: it's five
+// dropdowns against a roster already on screen, not a budget to balance.
+export const MATCHUP_TIMER_SECONDS = 45;
 
 // The real-basketball baseline a rotation's minutes are measured against: 5
 // players on court at all times over a 48-minute game.

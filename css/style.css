@@ -1991,3 +1991,59 @@ table.box-table th, table.history-table th {
   line-height: 1.5;
   color: var(--muted);
 }
+
+/* ---- Defensive matchups ---- */
+.matchup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.matchup-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0.45rem 0.6rem;
+}
+
+.matchup-mine {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.matchup-arrow {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.matchup-pick {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.4rem;
+  width: 100%;
+}
+
+.matchup-pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.matchup-slot {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  margin-right: 0.2rem;
+}
