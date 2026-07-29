@@ -112,6 +112,63 @@ export function basePosition(slot) {
   return slot.replace(/\d+$/, "");
 }
 
+// Era brackets. Every mode can be played over the whole history or narrowed
+// to one stretch of it, which turns the same draft into a different knowledge
+// test: knowing the 2010s well is a different skill from knowing the 1970s.
+//
+// Each bracket is its own ranked ladder - a rank earned in Modern Ball says
+// nothing about whether you can name the 1978 Sonics - so `id` is the key
+// records are stored under and must stay stable even if a label changes.
+//
+// Decade coverage is uneven by nature (there were fewer teams in 1965 and
+// their rosters are less documented), so the brackets are sized by what the
+// data can actually support rather than by equal spans of time.
+export const ERAS = [
+  {
+    id: "all",
+    label: "All Years",
+    emoji: "🏀",
+    decades: null, // null = no filter
+    blurb: "Every squad from the 1960s to today. The full test.",
+  },
+  {
+    id: "grandpas",
+    label: "Grandpa's Game",
+    emoji: "📻",
+    decades: ["1960s", "1970s", "1980s"],
+    blurb: "1960s-1980s. Territorial centres, short shorts, no three-point line worth speaking of.",
+  },
+  {
+    id: "unc",
+    label: "Unc Status",
+    emoji: "📼",
+    decades: ["1990s", "2000s"],
+    blurb: "1990s-2000s. Hand-checking, hard fouls, and the last great centre era.",
+  },
+  {
+    id: "modern",
+    label: "Modern Ball",
+    emoji: "📱",
+    decades: ["2010s", "2020s"],
+    blurb: "2010s-today. Pace, space, and switching everything.",
+  },
+];
+
+export const DEFAULT_ERA = "all";
+
+export function eraById(id) {
+  return ERAS.find((e) => e.id === id) || ERAS[0];
+}
+
+/** The players an era bracket draws from. Returns the same array for "all"
+ * rather than a copy, since nothing downstream mutates it. */
+export function playersInEra(players, eraId) {
+  const era = eraById(eraId);
+  if (!era.decades) return players;
+  const wanted = new Set(era.decades);
+  return players.filter((p) => wanted.has(p.decade));
+}
+
 export const QUARTERS_PER_GAME = 4;
 
 // Minutes model: starters assumed at a 36-minute-per-game historical

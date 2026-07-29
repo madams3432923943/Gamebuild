@@ -98,6 +98,31 @@ whatever those two produce.
 
 Current spread across the full 10x9 field: **47.3%-52.4%**.
 
+## Era brackets
+
+Every mode can be played over all of history or narrowed to one stretch of it,
+which turns the same draft into a different knowledge test:
+
+| Bracket | Decades | Squads |
+| --- | --- | --- |
+| All Years | 1960s-2020s | 154 |
+| Grandpa's Game | 1960s-1980s | 36 |
+| Unc Status | 1990s-2000s | 58 |
+| Modern Ball | 2010s-2020s | 60 |
+
+Brackets are defined once in `js/constants.js` (`ERAS`) and applied by
+filtering the pool handed to `DraftState`, so nothing downstream needs to know
+an era exists. Each bracket keeps its own record in `profiles.era_records`,
+since knowing the 2010s is a different skill from knowing the 1970s.
+
+## Who's online
+
+The header ticker counts browsers that have sent a heartbeat in the last 75
+seconds (`js/presence.js` + `heartbeat_presence()`). It is a table and one
+SECURITY DEFINER function rather than a Realtime presence channel, so the
+count survives reconnects and no client needs a websocket to render a number.
+Signed-out visitors count too, so the key is a per-browser id, not a user id.
+
 ## Data
 
 `js/data.js` is generated, not hand-edited. See `tools/README.md` for importing

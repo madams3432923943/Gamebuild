@@ -52,6 +52,7 @@ function normalize(row) {
     personalBests: row.personal_bests || {},
     careerTotals: row.career_totals || {},
     teamBanners: row.team_banners || {},
+    eraRecords: row.era_records || {},
     equippedBanner: row.equipped_banner || null,
     featuredBadges: row.featured_badges || [],
     history: row.history || [],
@@ -92,6 +93,9 @@ export async function recordDraftPicks(playerNames) {
  * results are never recorded this way - see js/online.js, which reads the
  * server-computed outcome instead.
  * @param mode "offline" (vs. bot)
+ * @param era the era bracket this game was drafted from ("all", "modern",
+ *   ...). Each bracket keeps its own record, since knowing the 2010s is a
+ *   different skill from knowing the 1970s.
  * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
  *   full box score of the user's OWN roster this game, used to update the
  *   per-stat personal-best records.
@@ -101,6 +105,7 @@ export async function recordDraftPicks(playerNames) {
  */
 export async function recordPracticeResult({
   mode,
+  era = "all",
   won,
   opponentLabel,
   scoreFor,
@@ -136,6 +141,8 @@ export async function recordPracticeResult({
     50
   );
 
+  const eraRecords = bumpEraRecord(profile.eraRecords, era, "offline", won);
+
   const session = await requireSession();
   const supabase = await getSupabase();
   const { error } = await supabase
@@ -145,10 +152,34 @@ export async function recordPracticeResult({
       offline_losses: profile.offlineLosses + (won ? 0 : 1),
       personal_bests: personalBests,
       career_totals: careerTotals,
+      era_records: eraRecords,
       history,
     })
     .eq("id", session.user.id);
   if (error) throw error;
+}
+
+export const EMPTY_ERA_RECORD = {
+  online_wins: 0,
+  online_losses: 0,
+  offline_wins: 0,
+  offline_losses: 0,
+};
+
+/** This era's record, with every counter present so callers never have to
+ * guard against a bracket nobody has played yet. */
+export function eraRecord(profile, eraId) {
+  return { ...EMPTY_ERA_RECORD, ...(profile.eraRecords?.[eraId] || {}) };
+}
+
+/** Returns a NEW era_records object with one counter incremented. Online
+ * results are written server-side by simulate-match for the same reason the
+ * top-level online record is: a client that can grant itself rank isn't
+ * ranking anything. */
+function bumpEraRecord(records, eraId, kind, won) {
+  const current = { ...EMPTY_ERA_RECORD, ...((records || {})[eraId] || {}) };
+  const key = `${kind}_${won ? "wins" : "losses"}`;
+  return { ...(records || {}), [eraId]: { ...current, [key]: (current[key] || 0) + 1 } };
 }
 
 /** Equips a banner (or clears it with null). Purely cosmetic, so unlike the

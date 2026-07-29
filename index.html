@@ -18,6 +18,12 @@
     <button class="brand" id="btn-brand" type="button">
       <span class="brand-ball">🏀</span> Ball Knowledge
     </button>
+    <!-- Live count of players with the game open. Hidden until the first
+         successful read so a failed fetch shows nothing rather than "0". -->
+    <div class="online-ticker hidden" id="online-ticker" title="Players with Ball Knowledge open right now">
+      <span class="online-dot" aria-hidden="true"></span>
+      <span id="online-ticker-count">—</span>
+    </div>
     <nav class="nav-tabs" id="nav-tabs" hidden>
       <button class="nav-tab active" id="nav-play" type="button">Play</button>
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
@@ -109,6 +115,12 @@
           </label>
         </div>
         <p class="hint-text" id="mode-hint"></p>
+
+        <!-- Era bracket. Narrowing the pool turns the same draft into a
+             different knowledge test, and each bracket ranks separately. -->
+        <div class="era-picker" id="era-picker" role="radiogroup" aria-label="Era"></div>
+        <p class="hint-text" id="era-hint"></p>
+
         <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
         <button id="btn-how-to-play" class="btn btn-secondary btn-block">How to Play</button>
         <button id="btn-cancel-search" class="btn btn-secondary btn-block hidden">Cancel Search</button>

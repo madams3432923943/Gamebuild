@@ -5,6 +5,7 @@
 
 import { PLAYERS } from "./data.js";
 import { buildRecap, buildGameScript } from "./recap.js";
+import { startPresence } from "./presence.js";
 import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
 
 const TACTIC_IDS = TACTICS.map((t) => t.id);
@@ -14,6 +15,10 @@ import {
   SLOTS,
   STARTER_SLOTS,
   RANKED_SLOTS,
+  ERAS,
+  DEFAULT_ERA,
+  eraById,
+  playersInEra,
   QUARTER_REVEAL_DELAY_MS,
   QUARTER_TICK_MS,
   DRAFT_REVEAL_DELAY_MS,
@@ -25,6 +30,7 @@ import {
 import {
   loadProfile,
   recordPracticeResult,
+  eraRecord,
   recordDraftPicks,
   setUsername,
   setEquippedBanner,
@@ -325,6 +331,8 @@ async function refreshHome() {
     game.nameA = profile.username || "Player";
     renderHomeHeader(homeHeaderRefs, profile);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
+    lastProfile = profile;
+    renderEraChoice();
   } catch (e) {
     console.error("Failed to load profile:", e);
     game.nameA = "Player";
@@ -440,7 +448,81 @@ function renderModeChoice() {
   modeHintEl.textContent = currentModeConfig().hint;
 }
 
+// --- Era bracket -----------------------------------------------------------
+// The chosen bracket narrows the draft pool. It persists across visits because
+// somebody grinding Modern Ball shouldn't have to re-pick it every session.
+const ERA_KEY = "bk_era";
+// Held so the era chips can show this player's record per bracket without
+// re-fetching the profile every time a chip is clicked.
+let lastProfile = null;
+const eraPickerEl = document.getElementById("era-picker");
+const eraHintEl = document.getElementById("era-hint");
+
+let selectedEra = readStoredEra();
+
+function readStoredEra() {
+  try {
+    const stored = localStorage.getItem(ERA_KEY);
+    return stored && ERAS.some((e) => e.id === stored) ? stored : DEFAULT_ERA;
+  } catch {
+    return DEFAULT_ERA;
+  }
+}
+
+function getEra() {
+  return selectedEra;
+}
+
+function setEra(id) {
+  selectedEra = eraById(id).id;
+  try {
+    localStorage.setItem(ERA_KEY, selectedEra);
+  } catch {
+    // Storage refused (private mode) - the choice still applies this session.
+  }
+  renderEraChoice();
+}
+
+function renderEraChoice() {
+  eraPickerEl.innerHTML = "";
+  for (const era of ERAS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "era-chip" + (era.id === selectedEra ? " active" : "");
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(era.id === selectedEra));
+    const rec = lastProfile ? eraRecord(lastProfile, era.id) : null;
+    const played = rec ? rec.online_wins + rec.online_losses + rec.offline_wins + rec.offline_losses : 0;
+    btn.innerHTML =
+      `<span class="era-chip-emoji" aria-hidden="true">${era.emoji}</span>` +
+      `<span class="era-chip-label">${era.label}</span>` +
+      // Only shown once there is a record to show - "0-0" on every chip is
+      // noise, and it makes a fresh account look like a losing one.
+      (played > 0
+        ? `<span class="era-chip-record">${rec.online_wins + rec.offline_wins}-${
+            rec.online_losses + rec.offline_losses
+          }</span>`
+        : "");
+    btn.addEventListener("click", () => setEra(era.id));
+    eraPickerEl.appendChild(btn);
+  }
+  eraHintEl.textContent = eraById(selectedEra).blurb;
+}
+
+renderEraChoice();
 renderModeChoice();
+
+// --- Online ticker ---------------------------------------------------------
+// Decoration, so it fails silently: startPresence never rejects, and the
+// ticker stays hidden until a real number arrives rather than showing "0"
+// when the network is the thing that's actually down.
+const onlineTickerEl = document.getElementById("online-ticker");
+const onlineTickerCountEl = document.getElementById("online-ticker-count");
+
+startPresence((count) => {
+  onlineTickerCountEl.textContent = `${count} online`;
+  onlineTickerEl.classList.remove("hidden");
+});
 
 let onlineSearchActive = false;
 
@@ -822,7 +904,8 @@ function startDraft() {
   selectedMatchups = null;
   draftPoolPanel.classList.remove("hidden");
   applyRulesetToDraftUI();
-  game.draft = new DraftState(PLAYERS, recentSquadIds, slotsForRuleset(game.ruleset));
+  game.era = getEra();
+  game.draft = new DraftState(playersInEra(PLAYERS, game.era), recentSquadIds, slotsForRuleset(game.ruleset));
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
   poolSearch.value = "";
@@ -1444,6 +1527,7 @@ function runLocalSimulation() {
 
       recordPracticeResult({
         mode: "offline",
+        era: game.era || DEFAULT_ERA,
         opponentLabel: "Bot",
         won: result.winner === "A",
         draftedTeams: draft.slots.map((slot) => draft.rosterA[slot].team),
