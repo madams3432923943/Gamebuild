@@ -28,16 +28,15 @@ import {
   basePosition,
   isBenchSlot,
   orderedRosterSlots,
-  minutesFloorFor,
   FATIGUE_MINUTES,
   FATIGUE_PER_MINUTE,
   FATIGUE_MAX_PENALTY,
-  POSITION_MINUTES,
+  ROTATION_BUDGET,
+  DEFAULT_STARTER_MINUTES,
+  DEFAULT_BENCH_MINUTES,
   QUARTERS_PER_GAME,
   STARTER_MINUTES,
   SIXTH_MAN_SCALE,
-  RANKED_STARTER_MINUTES,
-  RANKED_BACKUP_MINUTES,
   SCORING_K,
   REBOUND_K,
   ASSIST_K,
@@ -174,51 +173,45 @@ export function slotsByPosition(roster) {
   return groups;
 }
 
-/** The rotation a roster gets when nobody set one: each position's 48
- * minutes split across whoever actually covers it. This has to know the
- * position grouping, so it cannot be derived per-slot - with an open bench a
- * position may have one player or three, and guessing per-slot totalled 280
- * minutes against a real team's 240, inflating every stat by a fifth.
+/** The rotation a roster gets when nobody set one.
+ *
+ * Minutes belong to PLAYERS, not positions: one 240-minute pool spread across
+ * the roster, rather than five separate 48-minute pools. That is what lets a
+ * rotation be a single set of trade-offs, and it is why this no longer needs
+ * the position grouping at all.
  *
  * Shared with the rotation screen (main.js) so an untouched rotation
  * simulates identically to no rotation at all. */
 export function defaultMinutes(roster) {
   const minutes = {};
-  const groups = slotsByPosition(roster);
-  const grouped = new Set();
+  const slots = activeSlots(roster);
 
-  for (const group of Object.values(groups)) {
-    const floor = minutesFloorFor(group.length);
-    let left = POSITION_MINUTES;
-    group.forEach((slot, i) => {
-      const playersAfter = group.length - 1 - i;
-      const wanted =
-        i === group.length - 1
-          ? left
-          : group.length === 2
-          ? RANKED_STARTER_MINUTES
-          : Math.round(POSITION_MINUTES / group.length);
-      // Never take so much that someone behind drops below the floor.
-      const cap = Math.max(floor, left - floor * playersAfter);
-      minutes[slot] = Math.min(cap, Math.max(floor, wanted));
-      left -= minutes[slot];
-      grouped.add(slot);
-    });
+  for (const slot of slots) {
+    minutes[slot] = isBenchSlot(slot) || slot === "6TH" ? DEFAULT_BENCH_MINUTES : DEFAULT_STARTER_MINUTES;
   }
 
-  // Whatever the grouping doesn't cover (the legacy 6th man) keeps its own
-  // fixed allocation.
-  for (const slot of activeSlots(roster)) {
-    if (grouped.has(slot)) continue;
-    minutes[slot] = slot === "6TH" ? SIXTH_MAN_SCALE * STARTER_MINUTES : STARTER_MINUTES;
+  // The defaults hit 240 exactly on a ten-man roster. Smaller rosters (Quick
+  // Play's five, the legacy six) can't, so their minutes are scaled to fill
+  // the same budget - otherwise a five-man team would field 160 minutes of
+  // production against a ten-man team's 240 and look mysteriously feeble.
+  const total = slots.reduce((sum, slot) => sum + minutes[slot], 0);
+  if (total > 0 && total !== ROTATION_BUDGET) {
+    const scale = ROTATION_BUDGET / total;
+    let spent = 0;
+    slots.forEach((slot, i) => {
+      minutes[slot] = i === slots.length - 1 ? ROTATION_BUDGET - spent : Math.round(minutes[slot] * scale);
+      spent += minutes[slot];
+    });
   }
   return minutes;
 }
 
-/** Minutes lost to tiring. A position with nobody behind its starter has to
- * run him the full 48, and he gives production back for it - which is the
- * mechanism that makes bench depth worth drafting rather than a formality.
- * Returns a multiplier at or below 1. */
+/** Minutes lost to tiring - a multiplier at or below 1.
+ *
+ * With minutes capped per player this is what stops a rotation from simply
+ * loading the best five: the threshold sits below the cap, so pushing someone
+ * toward it costs real production and spreading the load is a genuine
+ * alternative rather than a concession. */
 function fatigueFactor(minutes) {
   if (!Number.isFinite(minutes) || minutes <= FATIGUE_MINUTES) return 1;
   const over = minutes - FATIGUE_MINUTES;
@@ -271,15 +264,14 @@ function playerMinutes(slot, minutesMap) {
   return defaultMinutesScaleFor(slot) * STARTER_MINUTES;
 }
 
+/** What a slot plays when no rotation was supplied at all. Callers normally
+ * pass one - simulateGame falls back to defaultMinutes() - so this only
+ * backstops a partial map. Scales are relative to STARTER_MINUTES, the
+ * 36-minute baseline a player's recorded per-game stats already reflect. */
 function defaultMinutesScaleFor(slot) {
   if (slot === "6TH") return SIXTH_MAN_SCALE;
-  // A bench spot defaults to a backup's load; a named starter to a starter's.
-  if (isBenchSlot(slot)) return RANKED_BACKUP_MINUTES / STARTER_MINUTES;
-  if (/\d$/.test(slot)) {
-    const minutes = slot.endsWith("1") ? RANKED_STARTER_MINUTES : RANKED_BACKUP_MINUTES;
-    return minutes / STARTER_MINUTES;
-  }
-  return 1;
+  const minutes = isBenchSlot(slot) ? DEFAULT_BENCH_MINUTES : DEFAULT_STARTER_MINUTES;
+  return minutes / STARTER_MINUTES;
 }
 
 function posAvg(datasetStats, pos, key) {

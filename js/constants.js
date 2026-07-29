@@ -52,39 +52,50 @@ export function orderedRosterSlots(roster) {
 // 48 minutes = 240 total, split per position).
 export const POSITION_MINUTES = 48;
 
-// Default split of a position's 48 minutes when the player hasn't set a
-// rotation. These must sum to POSITION_MINUTES: the engine falls back to
-// them whenever no minutes map is supplied (calibration scripts, online
-// play), and without them a 10-man roster would default every slot to full
-// starter minutes - ten full-time players, roughly double a real team's
-// output.
-export const RANKED_STARTER_MINUTES = 28;
-export const RANKED_BACKUP_MINUTES = POSITION_MINUTES - RANKED_STARTER_MINUTES;
+// A team's whole minutes budget for a game: five players on the floor for
+// 48 minutes. Minutes are allocated per PLAYER against this single pool
+// rather than per position, so a rotation is one set of trade-offs across
+// the whole roster instead of five separate little ones.
+export const ROTATION_BUDGET = 240;
 
-// Nobody you drafted rides the bench all night: every rostered player gets at
-// least this many minutes. It keeps all ten picks meaningful rather than
-// letting a rotation collapse onto the five best, and it means a bad pick
-// actually costs you.
-//
-// A position can hold more players than this floor divides into - if every
-// bench player can only play centre, they all pile onto C - so callers fall
-// back to an even split when POSITION_MINUTES won't stretch that far.
+// Nobody rides the bench all night and nobody plays the whole game.
 export const MIN_PLAYER_MINUTES = 10;
+export const MAX_PLAYER_MINUTES = 40;
 
-/** The per-player minutes floor for a position covered by `groupSize`
- * players, reduced only when the floor genuinely cannot fit. */
-export function minutesFloorFor(groupSize) {
-  if (groupSize <= 1) return POSITION_MINUTES;
-  return Math.min(MIN_PLAYER_MINUTES, Math.floor(POSITION_MINUTES / groupSize));
+// Starters have to outplay the bench. Enforced by splitting the range rather
+// than by clamping sliders against each other: with disjoint ranges every
+// legal combination satisfies the rule automatically, so the sliders never
+// fight you mid-drag or silently rewrite a value you just set.
+//
+// The split still leaves 240 comfortably reachable - the achievable total
+// spans 5x25+5x10 = 175 up to 5x40+5x24 = 320.
+export const STARTER_MIN_MINUTES = 25;
+export const STARTER_MAX_MINUTES = MAX_PLAYER_MINUTES;
+export const BENCH_MIN_MINUTES = MIN_PLAYER_MINUTES;
+export const BENCH_MAX_MINUTES = 24;
+
+// Opening allocation: 5x32 + 5x16 = exactly 240, so the rotation screen is
+// valid the moment it appears rather than asking you to make it valid.
+export const DEFAULT_STARTER_MINUTES = 32;
+export const DEFAULT_BENCH_MINUTES = 16;
+
+/** The legal minutes range for a slot, which is what makes "starters play
+ * more than the bench" structural rather than policed. */
+export function minutesRangeFor(slot) {
+  return isBenchSlot(slot) || slot === "6TH"
+    ? { min: BENCH_MIN_MINUTES, max: BENCH_MAX_MINUTES }
+    : { min: STARTER_MIN_MINUTES, max: STARTER_MAX_MINUTES };
 }
 
-// Above this many minutes a player tires and gives back production. This is
-// what makes roster depth matter: a position with nobody behind the starter
-// has to run him the full 48, and he pays for it. Cover every position - or
-// draft players who can cover more than one - and the load spreads.
-// Deliberately near a real heavy starter's night, so a normal rotation never
-// trips it and only genuinely overworking someone does.
-export const FATIGUE_MINUTES = 40;
+// Above this many minutes a player tires and gives back production.
+//
+// Set below the 40-minute cap on purpose. Sitting it AT the cap would make it
+// unreachable and the penalty dead code - which is what happened when the cap
+// came in, since it had been tuned for a model where an uncovered position ran
+// its starter the full 48. Below the cap it does real work again: pushing a
+// star to 40 costs something, so loading up your best five is a trade rather
+// than a free win.
+export const FATIGUE_MINUTES = 34;
 // Production lost per minute beyond the threshold, capped so fatigue is a
 // real cost without erasing a star.
 export const FATIGUE_PER_MINUTE = 0.012;

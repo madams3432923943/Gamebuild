@@ -8,23 +8,18 @@ import { buildRecap, buildGameScript } from "./recap.js";
 import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
 
 const TACTIC_IDS = TACTICS.map((t) => t.id);
-import { simulateGame, slotsByPosition, defaultMinutes } from "./engine.js";
+import { simulateGame, defaultMinutes } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
   STARTER_SLOTS,
   RANKED_SLOTS,
-  POSITION_MINUTES,
-  RANKED_STARTER_MINUTES,
-  RANKED_BACKUP_MINUTES,
   QUARTER_REVEAL_DELAY_MS,
   QUARTER_TICK_MS,
   DRAFT_REVEAL_DELAY_MS,
   PICK_TIMER_SECONDS,
   TACTIC_TIMER_SECONDS,
   ROTATION_TIMER_SECONDS,
-  STARTER_MINUTES,
-  SIXTH_MAN_MINUTES,
 } from "./constants.js";
 import {
   loadProfile,
@@ -566,11 +561,6 @@ function cleanupRotationTimer() {
 // rotation screen starts valid rather than asking you to make it valid.
 // Shares the same constants the engine falls back to, so an untouched
 // rotation simulates identically to no rotation at all.
-// Shared with the engine so an untouched rotation simulates exactly like no
-// rotation at all - and so the 240-minute budget is defined in one place.
-function defaultRotationMinutes(roster) {
-  return defaultMinutes(roster);
-}
 
 /** Between draft-complete and the gamestyle pick in Ranked Practice: assign
  * minutes across your roster before choosing how to play them. Timing out
@@ -579,11 +569,13 @@ function defaultRotationMinutes(roster) {
 function startRotationPhase(roster, slots, onConfirm) {
   cleanupPickTimer();
   cleanupRotationTimer();
-  rotationMinutes = defaultRotationMinutes(roster);
-  // Ranked rosters group by position so the picker can show who actually
-  // covers each spot; the legacy shapes fall back to per-slot rows.
-  const groups = slots.some((s) => s.startsWith("BENCH")) ? slotsByPosition(roster) : null;
-  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl, slots, groups);
+  rotationMinutes = defaultMinutes(roster);
+  // Confirm stays locked until the whole 240 is spent. Leaving minutes on the
+  // table is never a real choice - it just fields a weaker team - so it's
+  // blocked rather than warned about.
+  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl, slots, (valid) => {
+    btnConfirmRotation.disabled = !valid;
+  });
 
   draftPoolPanel.classList.add("hidden");
   rotationPhaseEl.classList.remove("hidden");
@@ -834,7 +826,9 @@ function renderDraftComplete() {
   }
 
   draftTurnBanner.textContent = "Set your rotation";
-  rotationPhaseHintEl.textContent = `Both rosters are set. ${ROTATION_TIMER_SECONDS} seconds to assign minutes.`;
+  rotationPhaseHintEl.textContent =
+    `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
+    `Lower someone to free minutes before raising someone else.`;
   startRotationPhase(draft.rosterA, draft.slots, () => {
     draftTurnBanner.textContent = "Final round — set your game plan";
     tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;

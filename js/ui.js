@@ -6,10 +6,8 @@ import {
   STARTER_SLOTS,
   MIN_SEARCH_CHARS,
   basePosition,
-  POSITION_MINUTES,
-  ROTATION_MINUTES_BUDGET,
-  MIN_PLAYER_MINUTES,
-  minutesFloorFor,
+  ROTATION_BUDGET,
+  minutesRangeFor,
   orderedRosterSlots,
   isBenchSlot,
 } from "./constants.js";
@@ -695,121 +693,81 @@ export function renderProfileScreen(refs, profile) {
  * The legacy/online 6-slot roster has no position pairs, so its slots fall
  * back to independent sliders against a running total.
  */
-export function renderRotationPicker(container, roster, minutesMap, totalEl, slots, groupsByPosition) {
+export function renderRotationPicker(container, roster, minutesMap, totalEl, slots, onValidChange) {
   container.innerHTML = "";
-  const groups = groupsByPosition || fallbackGroups(roster, slots);
+  const list = (slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster));
+  const rows = [];
 
-  for (const [pos, group] of Object.entries(groups)) {
-    const block = document.createElement("div");
-    block.className = "rotation-group";
+  const sync = () => {
+    const spent = list.reduce((sum, slot) => sum + (minutesMap[slot] || 0), 0);
+    const remaining = ROTATION_BUDGET - spent;
+    list.forEach((slot, i) => {
+      const { min, max } = minutesRangeFor(slot);
+      // A slider may claim its own value plus whatever is still unspent, and
+      // no more. That is what makes going over 240 impossible rather than
+      // merely discouraged - there is no invalid state to validate against.
+      const cap = Math.min(max, minutesMap[slot] + Math.max(0, remaining));
+      rows[i].slider.min = String(min);
+      rows[i].slider.max = String(cap);
+      rows[i].slider.value = String(minutesMap[slot]);
+      rows[i].value.textContent = `${minutesMap[slot]} min`;
+    });
+    renderRotationTotal(totalEl, minutesMap, list);
+    if (onValidChange) onValidChange(remaining === 0);
+  };
 
-    const heading = document.createElement("div");
-    heading.className = "rotation-group-head";
-    heading.textContent = `${pos} — ${POSITION_MINUTES} minutes`;
-    if (group.length === 1) {
-      // Nobody behind him: he has to play the whole game and will tire for
-      // it. Saying so here is the whole point of drafting depth.
-      heading.textContent += " · no relief";
-      heading.classList.add("rotation-thin");
-    }
-    block.appendChild(heading);
+  for (const slot of list) {
+    const player = roster[slot];
+    const { min, max } = minutesRangeFor(slot);
+    const bench = isBenchSlot(slot) || slot === "6TH";
 
-    const rows = group.map((slot) => rotationRow(roster[slot], slotLabel(slot), roster[slot].pos.join("/")));
+    const row = document.createElement("div");
+    row.className = "rotation-row" + (bench ? " rotation-bench" : " rotation-starter");
 
-    // Every player but the last gets a slider; the last absorbs whatever is
-    // left. That makes the position's 48 minutes structurally impossible to
-    // break regardless of how many players share it - there is no invalid
-    // allocation to validate against.
-    const sliders = [];
-    for (let i = 0; i < group.length - 1; i++) {
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.className = "rotation-slider";
-      slider.step = "1";
-      slider.value = String(minutesMap[group[i]] ?? Math.round(POSITION_MINUTES / group.length));
-      sliders.push(slider);
-    }
+    const name = document.createElement("span");
+    name.className = "rotation-label";
+    name.innerHTML =
+      `<span class="rotation-role">${bench ? "Bench" : slotLabel(slot)}</span> ` +
+      `${escapeHtml(player.name)} <span class="rotation-pos">${player.pos.join("/")}</span>`;
+    row.appendChild(name);
 
-    const floor = minutesFloorFor(group.length);
-    const sync = () => {
-      let remaining = POSITION_MINUTES;
-      sliders.forEach((slider, i) => {
-        // Each slider may only claim what is left after reserving the floor
-        // for everyone behind it - including the last player, who takes the
-        // remainder and so has no slider of his own to defend him. That
-        // bound is what guarantees nobody can be driven under the minimum.
-        const playersAfter = group.length - 1 - i;
-        const cap = Math.max(floor, remaining - floor * playersAfter);
-        const v = Math.min(cap, Math.max(floor, parseInt(slider.value, 10) || 0));
-        slider.min = String(floor);
-        slider.max = String(cap);
-        slider.value = String(v);
-        minutesMap[group[i]] = v;
-        remaining -= v;
-      });
-      minutesMap[group[group.length - 1]] = Math.max(floor, remaining);
-      group.forEach((slot, i) => {
-        rows[i].value.textContent = `${minutesMap[slot]} min`;
-      });
-      renderRotationTotal(totalEl, minutesMap);
-    };
+    const value = document.createElement("span");
+    value.className = "rotation-value";
+    row.appendChild(value);
 
-    group.forEach((slot, i) => {
-      block.appendChild(rows[i].row);
-      if (sliders[i]) {
-        sliders[i].addEventListener("input", sync);
-        block.appendChild(sliders[i]);
-      }
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "rotation-slider";
+    slider.step = "1";
+    slider.min = String(min);
+    slider.max = String(max);
+    slider.value = String(minutesMap[slot] ?? min);
+    slider.addEventListener("input", () => {
+      minutesMap[slot] = Math.min(max, Math.max(min, parseInt(slider.value, 10) || min));
+      sync();
     });
 
-    sync();
-    container.appendChild(block);
+    rows.push({ slider, value });
+    container.appendChild(row);
+    container.appendChild(slider);
   }
-  renderRotationTotal(totalEl, minutesMap);
+
+  sync();
 }
 
-/** Used when no position grouping was supplied (the legacy 5/6-slot rosters):
- * every slot is its own group, so each keeps an independent allocation. */
-function fallbackGroups(roster, slots) {
-  const list = slots ? slots.filter((s) => roster[s]) : rosterSlots(roster);
-  return Object.fromEntries(list.map((slot) => [slotLabel(slot), [slot]]));
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
-/** One player's name + minutes readout. Returns the row and the readout node
- * so the slider handler can update the number without a re-render. */
-function rotationRow(player, label, positions) {
-  const row = document.createElement("div");
-  row.className = "rotation-row";
-
-  const name = document.createElement("span");
-  name.className = "rotation-label";
-  name.textContent = positions ? `${label} \u00b7 ${player.name} [${positions}]` : `${label} \u00b7 ${player.name}`;
-  row.appendChild(name);
-
-  const value = document.createElement("span");
-  value.className = "rotation-value";
-  row.appendChild(value);
-
-  return { row, value };
-}
-
-function renderRotationTotal(totalEl, minutesMap) {
-  const values = Object.values(minutesMap).map((m) => Number(m) || 0);
-  const total = values.reduce((sum, m) => sum + m, 0);
-  const lowest = values.length > 0 ? Math.min(...values) : 0;
-
-  // Coupled sliders guarantee both the budget and the floor, so there is no
-  // invalid state to warn about - but the floor itself gives way when a
-  // position is stacked deeper than 48 minutes can cover at the full
-  // minimum. Report what everyone is ACTUALLY getting rather than repeating
-  // a promise the rotation can't always keep.
-  if (lowest >= MIN_PLAYER_MINUTES) {
-    totalEl.textContent = `${total} of ${ROTATION_MINUTES_BUDGET} minutes assigned \u00b7 everyone plays at least ${MIN_PLAYER_MINUTES}`;
+function renderRotationTotal(totalEl, minutesMap, list) {
+  const spent = list.reduce((sum, slot) => sum + (minutesMap[slot] || 0), 0);
+  const remaining = ROTATION_BUDGET - spent;
+  if (remaining === 0) {
+    totalEl.textContent = `All ${ROTATION_BUDGET} minutes assigned`;
     totalEl.className = "rotation-total";
   } else {
     totalEl.textContent =
-      `${total} of ${ROTATION_MINUTES_BUDGET} minutes assigned \u00b7 lowest ${lowest} min \u2014 ` +
-      `too many players stacked at one position to give everyone ${MIN_PLAYER_MINUTES}`;
+      `${spent} of ${ROTATION_BUDGET} assigned \u2014 ${remaining} minute${remaining === 1 ? "" : "s"} still to give out`;
     totalEl.className = "rotation-total rotation-warning";
   }
 }
