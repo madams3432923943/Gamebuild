@@ -833,6 +833,13 @@ table.box-table th, table.history-table th {
   letter-spacing: 0.03em;
 }
 
+/* Team + era under a player's name in the box score. */
+.box-meta {
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
 .team-heading {
   font-family: var(--font-display);
   font-weight: 800;

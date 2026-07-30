@@ -148,12 +148,13 @@ function isTripleDouble(line) {
 }
 
 /** Strips a roster down to just what a stored box-score snapshot needs to
- * re-render later (boxRow only ever reads player.name) - keeping team/pos/
- * stat fields out of it is what keeps a jsonb snapshot cheap. */
+ * re-render later (boxRow reads player.name/team/decade, nothing else) -
+ * keeping pos/per-game stat fields out of it is what keeps a jsonb snapshot
+ * cheap. */
 function snapshotRoster(roster) {
   const out = {};
   for (const [slot, player] of Object.entries(roster)) {
-    if (player) out[slot] = { name: player.name };
+    if (player) out[slot] = { name: player.name, team: player.team, decade: player.decade };
   }
   return out;
 }

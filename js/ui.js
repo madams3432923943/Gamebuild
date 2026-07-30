@@ -246,19 +246,31 @@ function r(n) {
   return Math.max(0, Math.round(n));
 }
 
+/** One shooting-split cell, e.g. "6/16" - a dash rather than "0/0" when a
+ * player took none, so a center's FT column doesn't read as "missed every
+ * free throw" when he simply never shot one. */
+function splitCell(makes, attempts) {
+  return attempts > 0 ? `${r(makes)}/${r(attempts)}` : "-";
+}
+
 function boxRow(slotLabel, player, line, shots, minutes) {
-  const shooting = shots ? formatShotLine(shots) : "";
+  const meta = player.team ? `<div class="box-meta">${escapeHtml(player.team)} ${escapeHtml(player.decade || "")}</div>` : "";
   return (
-    `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}` +
-    (shooting ? `<div class="box-shooting">${shooting}</div>` : "") +
-    `</td><td>${minutes == null ? "-" : r(minutes)}</td>` +
+    `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}${meta}</td>` +
+    `<td>${minutes == null ? "-" : r(minutes)}</td>` +
     `<td>${r(line.pts)}</td><td>${r(line.reb)}</td><td>${r(line.ast)}</td>` +
-    `<td>${r(line.stl)}</td><td>${r(line.blk)}</td><td>${r(line.tov)}</td></tr>`
+    `<td>${r(line.stl)}</td><td>${r(line.blk)}</td><td>${r(line.tov)}</td>` +
+    `<td>${shots ? splitCell(shots.fgm, shots.fga) : "-"}</td>` +
+    `<td>${shots ? splitCell(shots.tpm, shots.tpa) : "-"}</td>` +
+    `<td>${shots ? splitCell(shots.ftm, shots.fta) : "-"}</td></tr>`
   );
 }
 
 function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
-  let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
+  let html =
+    `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr>` +
+    `<th>Slot</th><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th>` +
+    `<th>FG</th><th>3PT</th><th>FT</th></tr></thead><tbody>`;
   // Mid-game, roster order (starters then bench) is what makes the table
   // readable as it fills in - rows aren't jumping around every tick. At the
   // final buzzer the game is a finished box score, and those read top scorer
@@ -714,25 +726,25 @@ export function renderProfileScreen(refs, profile, rankInfo) {
   const scoringGame = profile.highestScoringGame;
   refs.highestScoringGame.disabled = !scoringGame;
   refs.highestScoringGame.innerHTML = scoringGame
-    ? `<span>${scoringGame.scoreFor} pts vs ${scoringGame.opponentLabel}</span>` +
-      `<span class="performance-line">${scoringGame.scoreFor}-${scoringGame.scoreAgainst} — ${new Date(scoringGame.date).toLocaleDateString()}</span>`
-    : "Play a game to start tracking this.";
+    ? `<span>Highest Scoring Game — vs ${scoringGame.opponentLabel}</span>` +
+      `<span class="performance-line">${scoringGame.scoreFor} — ${new Date(scoringGame.date).toLocaleDateString()}</span>`
+    : `<span>Highest Scoring Game</span><span class="performance-line">—</span>`;
 
   const marginGame = profile.largestMarginGame;
   refs.largestMargin.innerHTML = marginGame
-    ? `<div class="performance-row"><span>${marginGame.value}-point win vs ${marginGame.opponentLabel}</span>` +
-      `<span class="performance-line">${marginGame.scoreFor}-${marginGame.scoreAgainst} — ${new Date(marginGame.date).toLocaleDateString()}</span></div>`
-    : `<div class="empty-note">Win a game to start tracking this.</div>`;
+    ? `<div class="performance-row"><span>Biggest Win — vs ${marginGame.opponentLabel}</span>` +
+      `<span class="performance-line">${marginGame.value}-point win — ${new Date(marginGame.date).toLocaleDateString()}</span></div>`
+    : `<div class="performance-row"><span>Biggest Win</span><span class="performance-line">—</span></div>`;
 
   const tripleDoubles = mostTripleDoubles(profile);
   refs.mostTripleDoubles.innerHTML = tripleDoubles
-    ? `<div class="performance-row"><span>${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x triple-double</span></div>`
-    : `<div class="empty-note">Draft someone who goes off to start tracking this.</div>`;
+    ? `<div class="performance-row"><span>Most Triple-Doubles — ${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x</span></div>`
+    : `<div class="performance-row"><span>Most Triple-Doubles</span><span class="performance-line">—</span></div>`;
 
   const mvps = mostMVPs(profile);
   refs.mostMvps.innerHTML = mvps
-    ? `<div class="performance-row"><span>${mvps.name}</span><span class="performance-line">${mvps.count}x MVP</span></div>`
-    : `<div class="empty-note">Win MVP with one of your picks to start tracking this.</div>`;
+    ? `<div class="performance-row"><span>Most MVPs — ${mvps.name}</span><span class="performance-line">${mvps.count}x</span></div>`
+    : `<div class="performance-row"><span>Most MVPs</span><span class="performance-line">—</span></div>`;
 
   refs.historyBody.innerHTML = "";
   for (const entry of profile.history) {
