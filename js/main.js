@@ -1299,6 +1299,10 @@ async function enterOnlineMatch(matchId) {
     oppRoster: {},
     currentSquad: null,
     stopWatcher: null,
+    // Set once the game reveal has been entered, so the watcher and the
+    // post-strategy fallback poll can both aim for it without ever running
+    // two reveals at once. See handleOnlineMatchState.
+    simulationStarted: false,
   };
 
   if (picks.length === 0) {
@@ -1322,7 +1326,13 @@ async function enterOnlineMatch(matchId) {
   // Harmless mid-draft, but for ready_to_simulate/complete it meant two
   // concurrent runOnlineSimulationFlow() calls racing over the same
   // scoreboard timers/DOM - a real cause of a frozen-looking game screen.
-  game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange, undefined, match);
+  game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange, undefined, match, (e) => {
+    // Only fires after a sustained run of failed polls - see WATCH_ERROR_STREAK.
+    console.error("Match polling keeps failing:", e);
+    if (game.online && !game.online.simulationStarted) {
+      draftTurnBanner.textContent = "Lost contact with the match - check your connection. It'll pick back up on its own.";
+    }
+  });
 }
 
 async function onOnlineMatchChange(match) {
@@ -1340,10 +1350,44 @@ async function onOnlineMatchChange(match) {
  * screen, so that branch handles its own errors and reports to finalBanner
  * instead (see runOnlineSimulationFlow). */
 async function handleOnlineMatchState(match) {
+  // Left the match (or signed out) while a poll was already in flight - the
+  // whole online state this routes into is gone, so there's nothing to do.
+  if (!game.online) return;
+
   if (match.status === "ready_to_simulate" || match.status === "complete") {
+    // The reveal is deliberately reachable from more than one place (the
+    // match watcher AND the post-submit fallback poll in
+    // beginOnlineStrategyPhase), because a single trigger that silently dies
+    // leaves the player staring at a draft screen forever. Redundant triggers
+    // are only safe if entering twice is impossible: two concurrent
+    // runOnlineSimulationFlow() calls would fight over the same scoreboard
+    // intervals and DOM and look exactly like a frozen game.
+    if (game.online.simulationStarted) return;
+    game.online.simulationStarted = true;
+
     cleanupOnlineWatcher();
     cleanupPickTimer();
-    await runOnlineSimulationFlow(match.id);
+    // A strategy phase abandoned mid-flight (opponent finished first) leaves
+    // its own timers running. They aren't covered by cleanupPickTimer, and on
+    // firing they'd re-submit a strategy the server has already moved past,
+    // then route the failure back through here.
+    cleanupRotationTimer();
+    cleanupMatchupTimer();
+    cleanupTacticTimer();
+
+    try {
+      await runOnlineSimulationFlow(match.id, match.winner);
+    } catch (e) {
+      // Nothing above this catch can report to the player: the game screen is
+      // showing by now, so the draft banner is hidden. Without this the
+      // scoreboard just sits on "Simulating…" forever with the real reason
+      // buried in an unhandled promise rejection.
+      console.error("Online simulation flow failed:", e);
+      finalBanner.textContent = "Couldn't play back the game (" + e.message + ") - your result is safe, check Profile > Recent Games.";
+      finalBanner.classList.remove("hidden");
+      btnToProfile.classList.remove("hidden");
+      btnPlayAgain.classList.remove("hidden");
+    }
     return;
   }
   try {
@@ -1557,6 +1601,7 @@ async function beginOnlineStrategyPhase(match) {
         try {
           await submitStrategy(o.matchId, rotationMinutes, selectedMatchups, selectedTactic);
           draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
+          awaitSimulationStart();
         } catch (e) {
           draftTurnBanner.textContent = "Couldn't submit your game plan (" + e.message + ") - try again.";
           const freshMatch = await getMatch(o.matchId);
@@ -1565,6 +1610,46 @@ async function beginOnlineStrategyPhase(match) {
       });
     });
   }, ONLINE_ROTATION_TIMER_SECONDS);
+}
+
+/** A second, independent path from "I've submitted my game plan" to the game
+ * reveal, running alongside the match watcher.
+ *
+ * The watcher is a single long-lived poller started once at match entry, and
+ * anything that stops it early (a tab switch, a run of failed polls, an
+ * unhandled error in an earlier handler) silently takes the reveal with it -
+ * the match completes server-side, the profile updates, and the player is
+ * left on a draft screen that never changes. This starts fresh at the exact
+ * moment the reveal becomes possible and only has to survive seconds, so the
+ * two failure modes don't overlap. handleOnlineMatchState is idempotent
+ * (simulationStarted), so whichever gets there first wins and the other is a
+ * no-op. */
+function awaitSimulationStart() {
+  const matchId = game.online && game.online.matchId;
+  if (!matchId) return;
+  let tries = 0;
+
+  async function poll() {
+    // Left the match, or the reveal already started from the watcher.
+    if (!game.online || game.online.matchId !== matchId || game.online.simulationStarted) return;
+    if (tries > 150) {
+      draftTurnBanner.textContent = "Still waiting on your opponent - you can leave the match if they've dropped.";
+      return;
+    }
+    tries += 1;
+    try {
+      const match = await getMatch(matchId);
+      if (match.status !== "strategy") {
+        await handleOnlineMatchState(match);
+        return;
+      }
+    } catch (e) {
+      console.error("Waiting-for-simulation poll failed:", e);
+    }
+    setTimeout(poll, 2000);
+  }
+
+  setTimeout(poll, 2000);
 }
 
 poolSearch.addEventListener("input", () => {
@@ -1914,9 +1999,17 @@ function runLocalSimulation() {
 
 /** Re-expresses a server match_results row (whose a/b sides refer to the
  * DB's player_a/player_b, not "me") into the "A = me" frame every render
- * function here already expects. */
-function normalizeServerResult(dbResult, iAmA) {
+ * function here already expects.
+ *
+ * `serverWinner` comes from the MATCH row (matches.winner, exposed through
+ * matches_public), not from match_results - that table has no winner column
+ * at all. Reading dbResult.winner, as this used to, always yielded undefined,
+ * which normalized to "B" every single time: both players were told their
+ * opponent had won, regardless of the actual score. Falls back to comparing
+ * the two scores so a missing/blank winner still resolves correctly. */
+function normalizeServerResult(dbResult, iAmA, serverWinner) {
   const dbSideIsMe = (side) => side === (iAmA ? "A" : "B");
+  const winnerSide = serverWinner || (dbResult.score_a > dbResult.score_b ? "A" : "B");
   return {
     teamScoreA: iAmA ? dbResult.score_a : dbResult.score_b,
     teamScoreB: iAmA ? dbResult.score_b : dbResult.score_a,
@@ -1928,7 +2021,7 @@ function normalizeServerResult(dbResult, iAmA) {
       overtime: q.overtime,
     })),
     overtimePeriods: dbResult.overtime_periods,
-    winner: dbSideIsMe(dbResult.winner) ? "A" : "B",
+    winner: dbSideIsMe(winnerSide) ? "A" : "B",
     mvp: {
       player: { name: dbResult.mvp.name },
       side: dbSideIsMe(dbResult.mvp.side) ? "A" : "B",
@@ -1937,7 +2030,7 @@ function normalizeServerResult(dbResult, iAmA) {
   };
 }
 
-async function runOnlineSimulationFlow(matchId) {
+async function runOnlineSimulationFlow(matchId, serverWinner) {
   const o = game.online;
   btnLeaveMatch.classList.add("hidden");
   showScreen("game");
@@ -1969,7 +2062,18 @@ async function runOnlineSimulationFlow(matchId) {
   }
 
   const iAmA = o.mySide === "A";
-  const result = normalizeServerResult(dbResult, iAmA);
+  // matches.winner is only stamped alongside the result; if this client got
+  // here off a 'ready_to_simulate' poll the field can still be blank, so
+  // re-read the match rather than trusting the status that triggered us.
+  let winnerSide = serverWinner;
+  if (!winnerSide) {
+    try {
+      winnerSide = (await getMatch(matchId)).winner;
+    } catch (e) {
+      console.error("Couldn't re-read the match for its winner:", e);
+    }
+  }
+  const result = normalizeServerResult(dbResult, iAmA, winnerSide);
 
   // showScreen("game") already ran above, so draftTurnBanner (the error
   // target for the drafting/strategy branches in handleOnlineMatchState) is

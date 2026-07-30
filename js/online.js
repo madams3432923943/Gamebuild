@@ -232,21 +232,33 @@ export async function getOpponentSummary(userId) {
  * ready_to_simulate/complete it means two concurrent
  * runOnlineSimulationFlow() calls fighting over the same scoreboard
  * intervals and DOM - a real cause of a "frozen" game screen.
+ *
+ * `onError` fires once the poll has failed WATCH_ERROR_STREAK times in a
+ * row. Swallowing every failure silently (what this used to do) means a
+ * genuinely broken connection is indistinguishable from a quiet match: the
+ * screen just sits there forever with no explanation. One-off hiccups still
+ * pass silently - only a sustained streak, which the player cannot recover
+ * from on their own, gets surfaced.
  */
-export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = null) {
+const WATCH_ERROR_STREAK = 5;
+
+export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = null, onError = null) {
   let stopped = false;
   let last = initialMatch;
+  let failures = 0;
 
   async function tick() {
     if (stopped) return;
     try {
       const match = await getMatch(matchId);
+      failures = 0;
       if (!last || match.status !== last.status || match.round_number !== last.round_number) {
         last = match;
         onChange(match);
       }
-    } catch {
-      // transient network hiccup - just try again next tick
+    } catch (e) {
+      failures += 1;
+      if (failures === WATCH_ERROR_STREAK && onError) onError(e);
     }
     if (!stopped) setTimeout(tick, intervalMs);
   }
