@@ -92,6 +92,7 @@ import {
   renderBadgeSportTabs,
   renderUnlockableTabs,
   renderBanners,
+  renderBannerSportTabs,
   renderEquippedBanner,
   renderTacticPicker,
   renderRotationPicker,
@@ -1705,6 +1706,8 @@ const profileRefs = {
   mostMvps: document.getElementById("most-mvps"),
   historyBody: document.getElementById("history-body"),
 };
+const profileEquippedBannerEl = document.getElementById("profile-equipped-banner");
+const btnCustomizeBanner = document.getElementById("btn-customize-banner");
 
 // Kept only so the "highest scoring game" button can open its stored box
 // score on click without a second round-trip to Supabase.
@@ -1717,9 +1720,56 @@ async function openProfileScreen() {
     currentProfile = profile;
     const rankInfo = await loadRankInfo(profile);
     renderProfileScreen(profileRefs, profile, rankInfo);
+    renderEquippedBanner(profileEquippedBannerEl, profile);
   } catch (e) {
     console.error("Failed to load profile:", e);
   }
+}
+
+btnCustomizeBanner.addEventListener("click", () => openCustomizeBannerModal());
+
+/** "Customize Banner" from the Profile screen - the same sport-tabbed
+ * banner grid Unlockables > Banners shows, just reached from Profile too
+ * (rather than duplicating renderBanners/renderBannerSportTabs) since
+ * equipping a banner is really a profile customization, not an unlock. */
+function openCustomizeBannerModal() {
+  const wrap = document.createElement("div");
+  const tabs = document.createElement("div");
+  tabs.className = "subtabs";
+  const summary = document.createElement("p");
+  summary.className = "hint-text";
+  const grid = document.createElement("div");
+  grid.className = "banner-grid";
+  wrap.append(tabs, summary, grid);
+
+  renderBannerSportTabs(tabs, activeBannerSport, (sport) => {
+    activeBannerSport = sport;
+    openCustomizeBannerModal();
+  });
+
+  openModal("Customize Banner", wrap);
+
+  loadProfile()
+    .then((profile) => {
+      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport);
+    })
+    .catch((e) => {
+      console.error("Failed to load banners:", e);
+      summary.textContent = "Couldn't load your banners right now.";
+    });
+}
+
+async function onEquipBannerFromProfile(franchiseId) {
+  try {
+    await setEquippedBanner(franchiseId);
+  } catch (e) {
+    console.error("Failed to equip banner:", e);
+    return;
+  }
+  openCustomizeBannerModal();
+  const profile = await loadProfile();
+  currentProfile = profile;
+  renderEquippedBanner(profileEquippedBannerEl, profile);
 }
 
 profileRefs.highestScoringGame.addEventListener("click", () => {
@@ -1751,10 +1801,12 @@ const badgeSummaryEl = document.getElementById("badge-summary");
 const badgeSportTabsEl = document.getElementById("badge-sport-tabs");
 const bannerGridEl = document.getElementById("banner-grid");
 const bannerSummaryEl = document.getElementById("banner-summary");
+const bannerSportTabsEl = document.getElementById("banner-sport-tabs");
 
-// Which sport's badges are on screen, and which of Badges/Banners. Kept
-// across visits so switching tabs and coming back doesn't reset either pick.
+// Which sport's badges/banners are on screen, and which of Badges/Banners.
+// Kept across visits so switching tabs and coming back doesn't reset any pick.
 let activeBadgeSport = "nba";
+let activeBannerSport = "nba";
 let activeUnlockablesTab = "badges";
 
 async function openBadgesScreen() {
@@ -1767,9 +1819,13 @@ async function openBadgesScreen() {
   unlockablesBannersEl.classList.toggle("hidden", activeUnlockablesTab !== "banners");
 
   if (activeUnlockablesTab === "banners") {
+    renderBannerSportTabs(bannerSportTabsEl, activeBannerSport, (sport) => {
+      activeBannerSport = sport;
+      openBadgesScreen();
+    });
     try {
       const profile = await loadProfile();
-      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner);
+      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner, activeBannerSport);
     } catch (e) {
       console.error("Failed to load banners:", e);
       bannerSummaryEl.textContent = "Couldn't load your banners right now.";

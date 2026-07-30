@@ -3,6 +3,26 @@
 // and the 0.0035 compression coefficient) auditable without hunting through
 // engine logic.
 
+// Every sport the game advertises, whether playable yet or not - the one
+// place a sport gets registered, so the home screen tiles, badge/banner
+// subtabs, and online play's sport scoping all agree on the same list
+// instead of drifting copies. Each live sport is expected to bring its own
+// engine and player dataset (see js/engine.js's header comment) rather than
+// share NBA's - `live` here just gates whether that engine/dataset/draft
+// flow actually exists yet.
+export const SPORTS = [
+  { id: "nba", name: "NBA", icon: "🏀", live: true },
+  { id: "nfl", name: "NFL", icon: "🏈", live: false },
+  { id: "nhl", name: "NHL", icon: "🏒", live: false },
+  { id: "soccer", name: "Soccer", icon: "⚽", live: false },
+];
+
+// Online matchmaking/challenges need a sport to scope to. Hardcoded rather
+// than read from a selector because there isn't one yet - NBA is the only
+// sport with a real online draft flow. Swap this for real sport selection
+// once a second sport goes live.
+export const DEFAULT_SPORT = "nba";
+
 export const SLOTS = ["PG", "SG", "SF", "PF", "C", "6TH"];
 export const STARTER_SLOTS = ["PG", "SG", "SF", "PF", "C"];
 

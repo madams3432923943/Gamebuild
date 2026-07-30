@@ -11,6 +11,7 @@ import {
   orderedRosterSlots,
   isBenchSlot,
   ERAS,
+  SPORTS,
 } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import {
@@ -23,11 +24,11 @@ import {
 } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import {
-  FRANCHISES,
   BANNER_THRESHOLD,
   bannerProgress,
   bannerSummary,
   franchiseById,
+  franchisesForSport,
   bannerById,
   FOUNDER_BANNER,
   isFounder,
@@ -393,15 +394,6 @@ export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
     : `${standing} — you've reached the top tier, Legend.`;
 }
 
-/** Sports the home screen advertises. Only NBA is playable; the rest show
- * their locked state so the roadmap is visible rather than hidden. */
-const SPORTS = [
-  { id: "nba", name: "NBA", icon: "🏀", live: true },
-  { id: "nfl", name: "NFL", icon: "🏈", live: false },
-  { id: "nhl", name: "NHL", icon: "🏒", live: false },
-  { id: "soccer", name: "Soccer", icon: "⚽", live: false },
-];
-
 /** Home-screen header: who you are, plus your rank in each sport. This is the
  * first thing on the page now, so the profile leads the experience instead of
  * being buried behind a tab. */
@@ -509,9 +501,9 @@ function renderFeaturedBadges(container, profile) {
   }
 }
 
-/** The two kinds of thing under the Unlockables tab. Badges get their own
- * sport-scoped subtabs underneath (see renderBadgeSportTabs); banners don't
- * need that split since franchise banners aren't per-sport. */
+/** The two kinds of thing under the Unlockables tab. Both get their own
+ * sport-scoped subtabs underneath (see renderBadgeSportTabs/
+ * renderBannerSportTabs) now that franchise banners come per-sport too. */
 const UNLOCKABLE_KINDS = [
   { id: "badges", label: "Badges" },
   { id: "banners", label: "Banners" },
@@ -633,6 +625,18 @@ function bannerArt(franchise) {
   el.className = "banner-art";
   el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
   el.dataset.abbr = franchise.abbr;
+
+  // A placeholder sport marker until franchise banners get real art (city
+  // skylines, etc.) - just enough so a banner reads as "this is the NFL one"
+  // at a glance once more than one sport has franchises here.
+  const sport = SPORTS.find((s) => s.id === franchise.sport);
+  if (sport) {
+    const badge = document.createElement("span");
+    badge.className = "banner-sport-badge";
+    badge.textContent = sport.icon;
+    el.appendChild(badge);
+  }
+
   return el;
 }
 
@@ -684,8 +688,24 @@ function specialBannerTile(banner, glowClass, profile, onEquip) {
   return tile;
 }
 
-export function renderBanners(container, summaryEl, profile, onEquip) {
-  const { unlocked, total } = bannerSummary(profile);
+/** Sport subtabs for the banners screen - same pattern as
+ * renderBadgeSportTabs, just filtering FRANCHISES instead of BADGES. */
+export function renderBannerSportTabs(container, activeSport, onSelect) {
+  container.innerHTML = "";
+  for (const sport of SPORTS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "subtab" + (sport.id === activeSport ? " active" : "") + (sport.live ? "" : " locked");
+    btn.textContent = `${sport.icon} ${sport.name}`;
+    btn.addEventListener("click", () => onSelect(sport.id));
+    container.appendChild(btn);
+  }
+}
+
+export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba") {
+  const list = franchisesForSport(sport);
+  const { unlocked, total } = bannerSummary(profile, sport);
   summaryEl.textContent =
     `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise across ranked wins` +
     " (practice doesn't count)";
@@ -694,15 +714,16 @@ export function renderBanners(container, summaryEl, profile, onEquip) {
 
   // Founder and 1st Player: not earned through play, so they skip the
   // progress bar entirely and only ever show for the one account each is
-  // hardcoded to (banners.js).
-  if (isFounder(profile)) {
+  // hardcoded to (banners.js) - and only on the NBA tab, since that's the
+  // sport they were earned for.
+  if (sport === "nba" && isFounder(profile)) {
     container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip));
   }
-  if (isFirstPlayer(profile)) {
+  if (sport === "nba" && isFirstPlayer(profile)) {
     container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip));
   }
 
-  for (const franchise of FRANCHISES) {
+  for (const franchise of list) {
     const progress = bannerProgress(franchise, profile);
     const equipped = profile.equippedBanner === franchise.id;
 

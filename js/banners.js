@@ -32,12 +32,13 @@ export const BANNER_THRESHOLD = 10;
  * names used by older squads.
  */
 export const FRANCHISES = [
-  { id: "hawks", name: "Atlanta Hawks", abbr: "ATL", colors: ["#e03a3e", "#26282a"], aliases: [] },
-  { id: "celtics", name: "Boston Celtics", abbr: "BOS", colors: ["#007a33", "#ba9653"], aliases: [] },
+  { id: "hawks", name: "Atlanta Hawks", abbr: "ATL", sport: "nba", colors: ["#e03a3e", "#26282a"], aliases: [] },
+  { id: "celtics", name: "Boston Celtics", abbr: "BOS", sport: "nba", colors: ["#007a33", "#ba9653"], aliases: [] },
   {
     id: "nets",
     name: "Brooklyn Nets",
     abbr: "BKN",
+    sport: "nba",
     colors: ["#000000", "#ffffff"],
     aliases: ["New Jersey Nets", "Brooklyn/New Jersey Nets"],
   },
@@ -45,68 +46,120 @@ export const FRANCHISES = [
     id: "hornets",
     name: "Charlotte Hornets",
     abbr: "CHA",
+    sport: "nba",
     colors: ["#1d1160", "#00788c"],
     aliases: ["Charlotte Bobcats"],
   },
-  { id: "bulls", name: "Chicago Bulls", abbr: "CHI", colors: ["#ce1141", "#000000"], aliases: [] },
-  { id: "cavaliers", name: "Cleveland Cavaliers", abbr: "CLE", colors: ["#860038", "#fdbb30"], aliases: [] },
-  { id: "mavericks", name: "Dallas Mavericks", abbr: "DAL", colors: ["#00538c", "#002b5e"], aliases: [] },
-  { id: "nuggets", name: "Denver Nuggets", abbr: "DEN", colors: ["#0e2240", "#fec524"], aliases: [] },
-  { id: "pistons", name: "Detroit Pistons", abbr: "DET", colors: ["#c8102e", "#1d42ba"], aliases: [] },
-  { id: "warriors", name: "Golden State Warriors", abbr: "GSW", colors: ["#1d428a", "#ffc72c"], aliases: [] },
-  { id: "rockets", name: "Houston Rockets", abbr: "HOU", colors: ["#ce1141", "#000000"], aliases: [] },
-  { id: "pacers", name: "Indiana Pacers", abbr: "IND", colors: ["#002d62", "#fdbb30"], aliases: [] },
+  { id: "bulls", name: "Chicago Bulls", abbr: "CHI", sport: "nba", colors: ["#ce1141", "#000000"], aliases: [] },
+  { id: "cavaliers", name: "Cleveland Cavaliers", abbr: "CLE", sport: "nba", colors: ["#860038", "#fdbb30"], aliases: [] },
+  { id: "mavericks", name: "Dallas Mavericks", abbr: "DAL", sport: "nba", colors: ["#00538c", "#002b5e"], aliases: [] },
+  { id: "nuggets", name: "Denver Nuggets", abbr: "DEN", sport: "nba", colors: ["#0e2240", "#fec524"], aliases: [] },
+  { id: "pistons", name: "Detroit Pistons", abbr: "DET", sport: "nba", colors: ["#c8102e", "#1d42ba"], aliases: [] },
+  { id: "warriors", name: "Golden State Warriors", abbr: "GSW", sport: "nba", colors: ["#1d428a", "#ffc72c"], aliases: [] },
+  { id: "rockets", name: "Houston Rockets", abbr: "HOU", sport: "nba", colors: ["#ce1141", "#000000"], aliases: [] },
+  { id: "pacers", name: "Indiana Pacers", abbr: "IND", sport: "nba", colors: ["#002d62", "#fdbb30"], aliases: [] },
   {
     id: "clippers",
     name: "LA Clippers",
     abbr: "LAC",
+    sport: "nba",
     colors: ["#c8102e", "#1d428a"],
     aliases: ["San Diego Clippers", "Los Angeles Clippers"],
   },
-  { id: "lakers", name: "LA Lakers", abbr: "LAL", colors: ["#552583", "#fdb927"], aliases: ["Los Angeles Lakers"] },
+  { id: "lakers", name: "LA Lakers", abbr: "LAL", sport: "nba", colors: ["#552583", "#fdb927"], aliases: ["Los Angeles Lakers"] },
   {
     id: "grizzlies",
     name: "Memphis Grizzlies",
     abbr: "MEM",
+    sport: "nba",
     colors: ["#5d76a9", "#12173f"],
     aliases: ["Vancouver Grizzlies"],
   },
-  { id: "heat", name: "Miami Heat", abbr: "MIA", colors: ["#98002e", "#f9a01b"], aliases: [] },
-  { id: "bucks", name: "Milwaukee Bucks", abbr: "MIL", colors: ["#00471b", "#eee1c6"], aliases: [] },
-  { id: "timberwolves", name: "Minnesota Timberwolves", abbr: "MIN", colors: ["#0c2340", "#78be20"], aliases: [] },
+  { id: "heat", name: "Miami Heat", abbr: "MIA", sport: "nba", colors: ["#98002e", "#f9a01b"], aliases: [] },
+  { id: "bucks", name: "Milwaukee Bucks", abbr: "MIL", sport: "nba", colors: ["#00471b", "#eee1c6"], aliases: [] },
+  { id: "timberwolves", name: "Minnesota Timberwolves", abbr: "MIN", sport: "nba", colors: ["#0c2340", "#78be20"], aliases: [] },
   {
     id: "pelicans",
     name: "New Orleans Pelicans",
     abbr: "NOP",
+    sport: "nba",
     colors: ["#0c2340", "#c8102e"],
     aliases: ["New Orleans Hornets", "New Orleans Hornets/Pelicans"],
   },
-  { id: "knicks", name: "New York Knicks", abbr: "NYK", colors: ["#006bb6", "#f58426"], aliases: [] },
+  { id: "knicks", name: "New York Knicks", abbr: "NYK", sport: "nba", colors: ["#006bb6", "#f58426"], aliases: [] },
   {
     // Sonics and Thunder are one franchise on paper, and the 2000s squad
     // deliberately spans the move, so they share a banner.
     id: "thunder",
     name: "Thunder / SuperSonics",
     abbr: "OKC",
+    sport: "nba",
     colors: ["#007ac1", "#ef3b24"],
     aliases: ["Oklahoma City Thunder", "Seattle SuperSonics", "Seattle SuperSonics / OKC Thunder"],
   },
-  { id: "magic", name: "Orlando Magic", abbr: "ORL", colors: ["#0077c0", "#c4ced4"], aliases: [] },
-  { id: "sixers", name: "Philadelphia 76ers", abbr: "PHI", colors: ["#006bb6", "#ed174c"], aliases: [] },
-  { id: "suns", name: "Phoenix Suns", abbr: "PHX", colors: ["#1d1160", "#e56020"], aliases: [] },
-  { id: "blazers", name: "Portland Trail Blazers", abbr: "POR", colors: ["#e03a3e", "#000000"], aliases: [] },
-  { id: "kings", name: "Sacramento Kings", abbr: "SAC", colors: ["#5a2d81", "#63727a"], aliases: [] },
-  { id: "spurs", name: "San Antonio Spurs", abbr: "SAS", colors: ["#c4ced4", "#000000"], aliases: [] },
-  { id: "raptors", name: "Toronto Raptors", abbr: "TOR", colors: ["#ce1141", "#000000"], aliases: [] },
-  { id: "jazz", name: "Utah Jazz", abbr: "UTA", colors: ["#002b5c", "#00471b"], aliases: [] },
+  { id: "magic", name: "Orlando Magic", abbr: "ORL", sport: "nba", colors: ["#0077c0", "#c4ced4"], aliases: [] },
+  { id: "sixers", name: "Philadelphia 76ers", abbr: "PHI", sport: "nba", colors: ["#006bb6", "#ed174c"], aliases: [] },
+  { id: "suns", name: "Phoenix Suns", abbr: "PHX", sport: "nba", colors: ["#1d1160", "#e56020"], aliases: [] },
+  { id: "blazers", name: "Portland Trail Blazers", abbr: "POR", sport: "nba", colors: ["#e03a3e", "#000000"], aliases: [] },
+  { id: "kings", name: "Sacramento Kings", abbr: "SAC", sport: "nba", colors: ["#5a2d81", "#63727a"], aliases: [] },
+  { id: "spurs", name: "San Antonio Spurs", abbr: "SAS", sport: "nba", colors: ["#c4ced4", "#000000"], aliases: [] },
+  { id: "raptors", name: "Toronto Raptors", abbr: "TOR", sport: "nba", colors: ["#ce1141", "#000000"], aliases: [] },
+  { id: "jazz", name: "Utah Jazz", abbr: "UTA", sport: "nba", colors: ["#002b5c", "#00471b"], aliases: [] },
   {
     id: "wizards",
     name: "Washington Wizards",
     abbr: "WAS",
+    sport: "nba",
     colors: ["#002b5c", "#e31837"],
     aliases: ["Washington Bullets"],
   },
+
+  // ---- NFL: sport field is what makes this a drop-in extension rather than
+  // a rewrite - franchisesForSport() below is the only new plumbing needed.
+  // Not earnable yet (no NFL draft engine/dataset exists - see constants.js's
+  // SPORTS list), so every one of these sits locked at 0 progress until NFL
+  // goes live. IDs are sport-prefixed since a future sport (NHL, soccer)
+  // could otherwise collide with a short team nickname. ----
+  { id: "nfl-bills", name: "Buffalo Bills", abbr: "BUF", sport: "nfl", colors: ["#00338d", "#c60c30"], aliases: [] },
+  { id: "nfl-dolphins", name: "Miami Dolphins", abbr: "MIA", sport: "nfl", colors: ["#008e97", "#fc4c02"], aliases: [] },
+  { id: "nfl-patriots", name: "New England Patriots", abbr: "NE", sport: "nfl", colors: ["#002244", "#c60c30"], aliases: [] },
+  { id: "nfl-jets", name: "New York Jets", abbr: "NYJ", sport: "nfl", colors: ["#125740", "#000000"], aliases: [] },
+  { id: "nfl-ravens", name: "Baltimore Ravens", abbr: "BAL", sport: "nfl", colors: ["#241773", "#000000"], aliases: [] },
+  { id: "nfl-bengals", name: "Cincinnati Bengals", abbr: "CIN", sport: "nfl", colors: ["#fb4f14", "#000000"], aliases: [] },
+  { id: "nfl-browns", name: "Cleveland Browns", abbr: "CLE", sport: "nfl", colors: ["#311d00", "#ff3c00"], aliases: [] },
+  { id: "nfl-steelers", name: "Pittsburgh Steelers", abbr: "PIT", sport: "nfl", colors: ["#ffb612", "#101820"], aliases: [] },
+  { id: "nfl-texans", name: "Houston Texans", abbr: "HOU", sport: "nfl", colors: ["#03202f", "#a71930"], aliases: [] },
+  { id: "nfl-colts", name: "Indianapolis Colts", abbr: "IND", sport: "nfl", colors: ["#002c5f", "#a2aaad"], aliases: [] },
+  { id: "nfl-jaguars", name: "Jacksonville Jaguars", abbr: "JAX", sport: "nfl", colors: ["#101820", "#d7a22a"], aliases: [] },
+  { id: "nfl-titans", name: "Tennessee Titans", abbr: "TEN", sport: "nfl", colors: ["#0c2340", "#4b92db"], aliases: [] },
+  { id: "nfl-broncos", name: "Denver Broncos", abbr: "DEN", sport: "nfl", colors: ["#fb4f14", "#002244"], aliases: [] },
+  { id: "nfl-chiefs", name: "Kansas City Chiefs", abbr: "KC", sport: "nfl", colors: ["#e31837", "#ffb81c"], aliases: [] },
+  { id: "nfl-raiders", name: "Las Vegas Raiders", abbr: "LV", sport: "nfl", colors: ["#000000", "#a5acaf"], aliases: [] },
+  { id: "nfl-chargers", name: "Los Angeles Chargers", abbr: "LAC", sport: "nfl", colors: ["#0080c6", "#ffc20e"], aliases: [] },
+  { id: "nfl-cowboys", name: "Dallas Cowboys", abbr: "DAL", sport: "nfl", colors: ["#041e42", "#869397"], aliases: [] },
+  { id: "nfl-giants", name: "New York Giants", abbr: "NYG", sport: "nfl", colors: ["#0b2265", "#a71930"], aliases: [] },
+  { id: "nfl-eagles", name: "Philadelphia Eagles", abbr: "PHI", sport: "nfl", colors: ["#004c54", "#a5acaf"], aliases: [] },
+  { id: "nfl-commanders", name: "Washington Commanders", abbr: "WAS", sport: "nfl", colors: ["#5a1414", "#ffb612"], aliases: [] },
+  { id: "nfl-bears", name: "Chicago Bears", abbr: "CHI", sport: "nfl", colors: ["#0b162a", "#c83803"], aliases: [] },
+  { id: "nfl-lions", name: "Detroit Lions", abbr: "DET", sport: "nfl", colors: ["#0076b6", "#b0b7bc"], aliases: [] },
+  { id: "nfl-packers", name: "Green Bay Packers", abbr: "GB", sport: "nfl", colors: ["#203731", "#ffb612"], aliases: [] },
+  { id: "nfl-vikings", name: "Minnesota Vikings", abbr: "MIN", sport: "nfl", colors: ["#4f2683", "#ffc62f"], aliases: [] },
+  { id: "nfl-falcons", name: "Atlanta Falcons", abbr: "ATL", sport: "nfl", colors: ["#a71930", "#000000"], aliases: [] },
+  { id: "nfl-panthers", name: "Carolina Panthers", abbr: "CAR", sport: "nfl", colors: ["#0085ca", "#101820"], aliases: [] },
+  { id: "nfl-saints", name: "New Orleans Saints", abbr: "NO", sport: "nfl", colors: ["#d3bc8d", "#101820"], aliases: [] },
+  { id: "nfl-buccaneers", name: "Tampa Bay Buccaneers", abbr: "TB", sport: "nfl", colors: ["#d50a0a", "#34302b"], aliases: [] },
+  { id: "nfl-cardinals", name: "Arizona Cardinals", abbr: "ARI", sport: "nfl", colors: ["#97233f", "#000000"], aliases: [] },
+  { id: "nfl-rams", name: "Los Angeles Rams", abbr: "LAR", sport: "nfl", colors: ["#003594", "#ffa300"], aliases: [] },
+  { id: "nfl-49ers", name: "San Francisco 49ers", abbr: "SF", sport: "nfl", colors: ["#aa0000", "#b3995d"], aliases: [] },
+  { id: "nfl-seahawks", name: "Seattle Seahawks", abbr: "SEA", sport: "nfl", colors: ["#002244", "#69be28"], aliases: [] },
 ];
+
+/** Franchises for one sport - mirrors badgesForSport()'s pattern so the
+ * Unlockables > Banners subtabs can filter the same way the Badges subtabs
+ * already do. */
+export function franchisesForSport(sport = "nba") {
+  return FRANCHISES.filter((f) => f.sport === sport);
+}
 
 const TEAM_TO_FRANCHISE = new Map();
 for (const f of FRANCHISES) {
@@ -199,9 +252,10 @@ export function bannerProgress(franchise, profile) {
   };
 }
 
-export function bannerSummary(profile) {
-  const unlocked = FRANCHISES.filter((f) => bannerProgress(f, profile).unlocked).length;
-  return { unlocked, total: FRANCHISES.length };
+export function bannerSummary(profile, sport = "nba") {
+  const list = franchisesForSport(sport);
+  const unlocked = list.filter((f) => bannerProgress(f, profile).unlocked).length;
+  return { unlocked, total: list.length };
 }
 
 // Banner progress is awarded server-side (a trigger on match_results, see
