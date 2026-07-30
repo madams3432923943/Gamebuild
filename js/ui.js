@@ -31,6 +31,8 @@ import {
   bannerById,
   FOUNDER_BANNER,
   isFounder,
+  FIRST_PLAYER_BANNER,
+  isFirstPlayer,
 } from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
 import { squadTierForRep } from "./squads.js";
@@ -406,13 +408,22 @@ const SPORTS = [
 export function renderHomeHeader(refs, profile, rankInfo) {
   refs.username.textContent = profile.username || "Player";
 
-  // The banner's own colours wash the card behind the name. Falls back to the
-  // brand accent when nothing is equipped, so the layout never depends on
-  // having earned something.
+  // The equipped banner's own colors and ghosted abbreviation become the
+  // whole card's background (see .player-banner.has-banner in style.css) -
+  // a real banner behind the player, not a small icon next to their name.
+  // Falls back to the plain panel background when nothing is equipped, so
+  // the layout never depends on having earned something.
   const franchise = profile.equippedBanner ? bannerById(profile.equippedBanner) : null;
-  const [c1, c2] = franchise ? franchise.colors : ["#2f6fe0", "#0d1117"];
-  refs.card.style.background = `linear-gradient(135deg, ${c1}55 0%, ${c2}33 45%, transparent 100%), var(--panel)`;
-  refs.card.style.borderColor = franchise ? `${c1}aa` : "";
+  refs.card.classList.toggle("has-banner", !!franchise);
+  if (franchise) {
+    refs.card.style.setProperty("--banner-c1", franchise.colors[0]);
+    refs.card.style.setProperty("--banner-c2", franchise.colors[1]);
+    refs.card.dataset.bannerAbbr = franchise.abbr;
+  } else {
+    refs.card.style.removeProperty("--banner-c1");
+    refs.card.style.removeProperty("--banner-c2");
+    delete refs.card.dataset.bannerAbbr;
+  }
 
   const rankName = rankInfo.provisional ? "Provisional" : rankInfo.tier.name;
   refs.record.innerHTML = "";
@@ -612,32 +623,31 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
   }
 }
 
-/** One franchise banner: a two-tone flag with the team's abbreviation. The
- * look comes entirely from the franchise entry's colors, so every team gets
- * artwork without a single commissioned asset - and with no player likeness
- * anywhere near it. */
-function bannerArt(franchise, opts = {}) {
+/** One franchise banner: a vertical field of the team's two colors with the
+ * abbreviation ghosted large in the corner, like a number on a retired
+ * jersey banner. The look comes entirely from the franchise entry's colors
+ * and abbreviation - no commissioned asset, no player likeness anywhere
+ * near it, and it reads as a real banner rather than a badge/icon. */
+function bannerArt(franchise) {
   const el = document.createElement("div");
-  el.className = "banner-art" + (opts.small ? " small" : "");
-  el.style.background = `linear-gradient(135deg, ${franchise.colors[0]} 0%, ${franchise.colors[0]} 55%, ${franchise.colors[1]} 55%, ${franchise.colors[1]} 100%)`;
-  const abbr = document.createElement("span");
-  abbr.className = "banner-abbr";
-  abbr.textContent = franchise.abbr;
-  el.appendChild(abbr);
+  el.className = "banner-art";
+  el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
+  el.dataset.abbr = franchise.abbr;
   return el;
 }
 
-/** The equipped banner shown on the home header. Returns null when nothing
- * is equipped so the caller can leave the slot empty. */
+/** The equipped banner's name, shown as a small caption under the player's
+ * name on the home header - the banner artwork itself is now the whole
+ * card's background (see renderHomeHeader), so this is just enough text to
+ * say which team it is, not a second copy of the art. */
 export function renderEquippedBanner(container, profile) {
   container.innerHTML = "";
   const franchise = profile.equippedBanner ? bannerById(profile.equippedBanner) : null;
   container.hidden = !franchise;
   if (!franchise) return;
-  container.appendChild(bannerArt(franchise, { small: true }));
   const label = document.createElement("span");
   label.className = "banner-flying";
-  label.textContent = franchise.name;
+  label.textContent = `Flying ${franchise.name}`;
   container.appendChild(label);
 }
 
@@ -645,6 +655,35 @@ export function renderEquippedBanner(container, profile) {
  * The banner collection. Locked banners still show the franchise and how far
  * along you are - a reward you can't see the shape of isn't motivating.
  */
+/** A hardcoded, always-unlocked banner tile (Founder, 1st Player) - no
+ * progress bar, just the art, name, equip state, and a distinct glow class
+ * marking it as different in kind from an earnable team banner. */
+function specialBannerTile(banner, glowClass, profile, onEquip) {
+  const equipped = profile.equippedBanner === banner.id;
+  const tile = document.createElement("div");
+  tile.className = `banner-tile ${glowClass}` + (equipped ? " equipped" : "");
+  tile.appendChild(bannerArt(banner));
+
+  const name = document.createElement("div");
+  name.className = "banner-name";
+  name.textContent = banner.name;
+  tile.appendChild(name);
+
+  const caption = document.createElement("div");
+  caption.className = "banner-progress";
+  caption.textContent = equipped ? "Flying now" : "Unlocked";
+  tile.appendChild(caption);
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-secondary banner-equip";
+  btn.textContent = equipped ? "Take down" : "Fly this";
+  btn.addEventListener("click", () => onEquip(equipped ? null : banner.id));
+  tile.appendChild(btn);
+
+  return tile;
+}
+
 export function renderBanners(container, summaryEl, profile, onEquip) {
   const { unlocked, total } = bannerSummary(profile);
   summaryEl.textContent =
@@ -653,32 +692,14 @@ export function renderBanners(container, summaryEl, profile, onEquip) {
 
   container.innerHTML = "";
 
-  // Founder: not earned through play, so it skips the progress bar entirely
-  // and only ever shows for the one account it's hardcoded to (banners.js).
+  // Founder and 1st Player: not earned through play, so they skip the
+  // progress bar entirely and only ever show for the one account each is
+  // hardcoded to (banners.js).
   if (isFounder(profile)) {
-    const equipped = profile.equippedBanner === FOUNDER_BANNER.id;
-    const tile = document.createElement("div");
-    tile.className = "banner-tile founder-tile" + (equipped ? " equipped" : "");
-    tile.appendChild(bannerArt(FOUNDER_BANNER));
-
-    const name = document.createElement("div");
-    name.className = "banner-name";
-    name.textContent = FOUNDER_BANNER.name;
-    tile.appendChild(name);
-
-    const caption = document.createElement("div");
-    caption.className = "banner-progress";
-    caption.textContent = equipped ? "Flying now" : "Unlocked";
-    tile.appendChild(caption);
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn-secondary banner-equip";
-    btn.textContent = equipped ? "Take down" : "Fly this";
-    btn.addEventListener("click", () => onEquip(equipped ? null : FOUNDER_BANNER.id));
-    tile.appendChild(btn);
-
-    container.appendChild(tile);
+    container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip));
+  }
+  if (isFirstPlayer(profile)) {
+    container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip));
   }
 
   for (const franchise of FRANCHISES) {

@@ -125,10 +125,9 @@ export function franchiseById(id) {
   return FRANCHISES.find((f) => f.id === id) || null;
 }
 
-// A single hardcoded Founder banner for the account that built this game -
-// not earned through play, so it deliberately lives outside FRANCHISES:
-// folding it into that array would inflate everyone else's "X of 30
-// unlocked" banner count for a banner they can never earn.
+// Hardcoded, non-earnable banners for specific accounts - deliberately live
+// outside FRANCHISES: folding them into that array would inflate everyone
+// else's "X of 30 unlocked" count for a banner they can never earn.
 const FOUNDER_USER_ID = "eb5b91cf-7a08-4757-b2a7-967db2424846"; // madams
 export const FOUNDER_BANNER = {
   id: "founder",
@@ -141,12 +140,27 @@ export function isFounder(profile) {
   return profile.id === FOUNDER_USER_ID;
 }
 
-/** Resolves an equipped-banner id to its art/metadata, checking the Founder
- * banner first since it isn't in FRANCHISES. Used everywhere equippedBanner
- * gets displayed, so equipping "founder" renders correctly wherever a plain
- * franchiseById(id) lookup used to be the only option. */
+// dotch: the first person to download the game.
+const FIRST_PLAYER_USER_ID = "94f3e329-60ce-425d-9a86-1046df04e660"; // dotch
+export const FIRST_PLAYER_BANNER = {
+  id: "first-player",
+  name: "1st Player",
+  abbr: "1",
+  colors: ["#d7dee6", "#232a35"],
+};
+
+export function isFirstPlayer(profile) {
+  return profile.id === FIRST_PLAYER_USER_ID;
+}
+
+/** Resolves an equipped-banner id to its art/metadata, checking the special
+ * hardcoded banners first since they aren't in FRANCHISES. Used everywhere
+ * equippedBanner gets displayed, so equipping "founder" or "first-player"
+ * renders correctly wherever a plain franchiseById(id) lookup used to be
+ * the only option. */
 export function bannerById(id) {
   if (id === FOUNDER_BANNER.id) return FOUNDER_BANNER;
+  if (id === FIRST_PLAYER_BANNER.id) return FIRST_PLAYER_BANNER;
   return franchiseById(id);
 }
 

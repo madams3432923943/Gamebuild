@@ -1055,13 +1055,62 @@ table.box-table th, table.history-table th {
 }
 
 /* ---- Player banner (home screen identity card) ----
-   The equipped team banner tints the whole card via an inline gradient set in
-   ui.js, so a player's colours carry the header rather than sitting in a
-   corner. */
+   The equipped team's banner IS the card's background - a vertical field of
+   its two colors with the abbreviation ghosted huge in the corner, the same
+   treatment as a standalone banner tile (see .banner-art) but filling the
+   whole card instead of sitting in it. --banner-c1/--banner-c2 are set
+   inline in ui.js's renderHomeHeader; the class/vars stay off entirely when
+   nothing is equipped, so the layout never depends on having earned
+   something. */
 .player-banner {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.player-banner.has-banner {
+  background: linear-gradient(180deg, var(--banner-c1) 0%, var(--banner-c2) 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.player-banner.has-banner::before {
+  content: attr(data-banner-abbr);
+  position: absolute;
+  right: -0.04em;
+  bottom: -0.32em;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 9rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.player-banner.has-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 30%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.42) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.player-banner.has-banner > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 560px) {
+  .player-banner.has-banner::before {
+    font-size: 6rem;
+  }
 }
 
 .pb-top {
@@ -1335,39 +1384,44 @@ table.box-table th, table.history-table th {
 }
 
 /* ---- Team banners ----
-   Artwork is a two-tone diagonal built from the franchise's colours, so every
-   team gets a distinct banner with no image assets to ship and no likeness to
+   A vertical field of the franchise's two colours with the abbreviation
+   ghosted huge in the corner, like a number on a retired jersey banner -
+   built entirely from the franchise entry's colors/abbr, so every team gets
+   a distinct banner with no image assets to ship and no likeness to
    license. Renders identically in a WebView, so it carries over to the app
-   build unchanged. */
+   build unchanged. Wide (5:2) rather than square, so it reads as a banner
+   rather than a badge/icon. */
 .banner-art {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 2;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  aspect-ratio: 5 / 2;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
+  font-size: 1rem;
 }
 
-.banner-art.small {
-  width: 2.2rem;
-  aspect-ratio: 3 / 2;
-  border-radius: 5px;
-}
-
-.banner-abbr {
+.banner-art::before {
+  content: attr(data-abbr);
+  position: absolute;
+  right: -0.05em;
+  bottom: -0.22em;
   font-family: var(--font-display);
   font-weight: 900;
-  letter-spacing: 0.04em;
-  font-size: 1.35rem;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  font-size: 3.4em;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-.banner-art.small .banner-abbr {
-  font-size: 0.7rem;
+.banner-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 32%);
+  pointer-events: none;
 }
 
 .equipped-banner {
@@ -1428,6 +1482,17 @@ table.box-table th, table.history-table th {
 
 .founder-tile.equipped {
   box-shadow: 0 0 0 1px #f2c14e, 0 0 22px rgba(242, 193, 78, 0.55);
+}
+
+/* 1st Player: the other banner nobody else can earn - a silver glow keeps
+   it visually distinct from Founder's gold rather than reading as a dupe. */
+.first-player-tile {
+  border-color: #d7dee6;
+  box-shadow: 0 0 0 1px #d7dee6, 0 0 16px rgba(215, 222, 230, 0.3);
+}
+
+.first-player-tile.equipped {
+  box-shadow: 0 0 0 1px #d7dee6, 0 0 22px rgba(215, 222, 230, 0.5);
 }
 
 .banner-name {
