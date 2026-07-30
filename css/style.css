@@ -470,6 +470,136 @@ input[type="text"]:focus-visible {
   cursor: not-allowed;
 }
 
+/* --- Matchup intro: the ~5s "you've been matched" beat before an online
+   draft starts (see playMatchupIntro in main.js) - both banners fly in from
+   the edges, then a 3-2-1 countdown. --- */
+.matchup-intro {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  min-height: 60vh;
+  padding: 2rem 1rem;
+}
+
+.matchup-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(260px, 40vw);
+  opacity: 0;
+  transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+}
+
+.matchup-side-a {
+  transform: translateX(-140%);
+}
+
+.matchup-side-b {
+  transform: translateX(140%);
+}
+
+.matchup-side.fly-in {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.matchup-banner-slot {
+  width: 100%;
+}
+
+.matchup-banner-slot .banner-art {
+  aspect-ratio: 5 / 3;
+}
+
+.matchup-banner-placeholder {
+  width: 100%;
+  aspect-ratio: 5 / 3;
+  border-radius: 6px;
+  border: 1px dashed var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.matchup-username {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  text-align: center;
+  word-break: break-word;
+}
+
+.matchup-rank {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.matchup-vs {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 2.2rem;
+  color: var(--accent-bright);
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 10px rgba(var(--accent-rgb), 0.5));
+}
+
+.matchup-countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 5rem;
+  line-height: 1;
+  color: var(--accent-bright);
+  text-shadow: 0 0 24px rgba(var(--accent-rgb), 0.6);
+  pointer-events: none;
+}
+
+.matchup-countdown.pulse {
+  animation: matchup-countdown-pulse 1s ease-out;
+}
+
+@keyframes matchup-countdown-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1.7);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  .matchup-intro {
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .matchup-side {
+    width: min(220px, 70vw);
+  }
+  .matchup-side-a {
+    transform: translateY(-140%);
+  }
+  .matchup-side-b {
+    transform: translateY(140%);
+  }
+}
+
 .turn-banner {
   text-align: center;
   padding: 0.5rem;

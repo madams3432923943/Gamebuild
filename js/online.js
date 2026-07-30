@@ -192,11 +192,26 @@ export async function getMatchResult(matchId) {
   return data;
 }
 
-export async function getUsername(userId) {
+/** Everything the pre-draft matchup intro needs about the opponent -
+ * username, online record (for their rank tier via loadRankInfo), and
+ * equipped banner - in one query, since `profiles` is publicly readable
+ * (see loadRankInfo's own comment on that) and none of this is sensitive. */
+export async function getOpponentSummary(userId) {
   const supabase = await getSupabase();
-  const { data, error } = await supabase.from("profiles").select("username").eq("id", userId).maybeSingle();
-  if (error || !data) return "Opponent";
-  return data.username || "Opponent";
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("username, online_wins, online_losses, equipped_banner")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data) {
+    return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null };
+  }
+  return {
+    username: data.username || "Opponent",
+    onlineWins: data.online_wins || 0,
+    onlineLosses: data.online_losses || 0,
+    equippedBanner: data.equipped_banner || null,
+  };
 }
 
 /**

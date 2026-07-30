@@ -620,7 +620,7 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
  * jersey banner. The look comes entirely from the franchise entry's colors
  * and abbreviation - no commissioned asset, no player likeness anywhere
  * near it, and it reads as a real banner rather than a badge/icon. */
-function bannerArt(franchise) {
+export function bannerArt(franchise) {
   const el = document.createElement("div");
   el.className = "banner-art";
   el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
@@ -653,6 +653,25 @@ export function renderEquippedBanner(container, profile) {
   label.className = "banner-flying";
   label.textContent = `Flying ${franchise.name}`;
   container.appendChild(label);
+}
+
+/** One side of the pre-draft matchup intro (see playMatchupIntro in
+ * main.js): the player's equipped banner art (or a neutral placeholder if
+ * they haven't equipped one), username, and rank label. `refs` is
+ * { bannerSlot, username, rank } - the three elements for one side. */
+export function renderMatchupSide(refs, { username, tierLabel, bannerId }) {
+  refs.bannerSlot.innerHTML = "";
+  const banner = bannerId ? bannerById(bannerId) : null;
+  if (banner) {
+    refs.bannerSlot.appendChild(bannerArt(banner));
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "matchup-banner-placeholder";
+    placeholder.textContent = "No banner flown";
+    refs.bannerSlot.appendChild(placeholder);
+  }
+  refs.username.textContent = username;
+  refs.rank.textContent = tierLabel;
 }
 
 /**

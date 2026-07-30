@@ -78,7 +78,7 @@ import {
   submitSkip,
   simulateMatch,
   getMatchResult,
-  getUsername,
+  getOpponentSummary,
   watchMatch,
   cancelMatch,
   submitStrategy,
@@ -99,6 +99,7 @@ import {
   renderBanners,
   renderBannerSportTabs,
   renderEquippedBanner,
+  renderMatchupSide,
   renderTacticPicker,
   renderRotationPicker,
   renderMatchupPicker,
@@ -130,6 +131,7 @@ function sleep(ms) {
 const screens = {
   auth: document.getElementById("screen-auth"),
   home: document.getElementById("screen-home"),
+  matchupIntro: document.getElementById("screen-matchup-intro"),
   draft: document.getElementById("screen-draft"),
   game: document.getElementById("screen-game"),
   profile: document.getElementById("screen-profile"),
@@ -1190,6 +1192,62 @@ function renderDraftComplete() {
 
 // ---- Online draft flow ----
 
+const matchupSideAEl = document.getElementById("matchup-side-a");
+const matchupSideBEl = document.getElementById("matchup-side-b");
+const matchupCountdownEl = document.getElementById("matchup-countdown");
+const matchupRefsA = {
+  bannerSlot: document.getElementById("matchup-banner-a"),
+  username: document.getElementById("matchup-username-a"),
+  rank: document.getElementById("matchup-rank-a"),
+};
+const matchupRefsB = {
+  bannerSlot: document.getElementById("matchup-banner-b"),
+  username: document.getElementById("matchup-username-b"),
+  rank: document.getElementById("matchup-rank-b"),
+};
+
+function rankLabelFor(rankInfo) {
+  return rankInfo && !rankInfo.provisional ? rankInfo.tier.name : "Unranked";
+}
+
+/** The ~5s "you've been matched" beat between finding an opponent and the
+ * draft actually starting: both players' banners fly in from the edges
+ * alongside their username and rank, then a 3-2-1 countdown. Only for a
+ * genuinely fresh match (enterOnlineMatch only calls this when there are no
+ * picks yet) - reconnecting to a draft already in progress skips straight
+ * to it instead of replaying the intro every time. */
+async function playMatchupIntro(mySide, oppSide) {
+  showScreen("matchupIntro");
+  matchupSideAEl.classList.remove("fly-in");
+  matchupSideBEl.classList.remove("fly-in");
+  matchupCountdownEl.classList.add("hidden");
+  matchupCountdownEl.classList.remove("pulse");
+  matchupCountdownEl.textContent = "";
+
+  renderMatchupSide(matchupRefsA, mySide);
+  renderMatchupSide(matchupRefsB, oppSide);
+
+  // Force layout before adding the class, so removing it above and adding
+  // it back here actually retriggers the transition instead of no-op'ing
+  // against the previous match's already-settled state.
+  void matchupSideAEl.offsetWidth;
+  await sleep(50);
+  matchupSideAEl.classList.add("fly-in");
+  matchupSideBEl.classList.add("fly-in");
+
+  await sleep(1500);
+  matchupCountdownEl.classList.remove("hidden");
+  for (const n of [3, 2, 1]) {
+    matchupCountdownEl.textContent = String(n);
+    matchupCountdownEl.classList.remove("pulse");
+    void matchupCountdownEl.offsetWidth;
+    matchupCountdownEl.classList.add("pulse");
+    await sleep(1000);
+  }
+  matchupCountdownEl.textContent = "GO!";
+  await sleep(400);
+}
+
 async function enterOnlineMatch(matchId) {
   btnStartDraft.disabled = false;
   btnCancelSearch.classList.add("hidden");
@@ -1200,7 +1258,13 @@ async function enterOnlineMatch(matchId) {
   const match = await getMatch(matchId);
   const mySide = match.player_a === session.user.id ? "A" : "B";
   const oppUserId = mySide === "A" ? match.player_b : match.player_a;
-  const oppUsername = await getUsername(oppUserId);
+
+  const [oppSummary, myProfile, picks] = await Promise.all([
+    getOpponentSummary(oppUserId),
+    loadProfile(),
+    getVisiblePicks(matchId),
+  ]);
+  const oppUsername = oppSummary.username;
 
   game.online = {
     matchId,
@@ -1212,6 +1276,17 @@ async function enterOnlineMatch(matchId) {
     currentSquad: null,
     stopWatcher: null,
   };
+
+  if (picks.length === 0) {
+    const [myRankInfo, oppRankInfo] = await Promise.all([
+      loadRankInfo(myProfile),
+      loadRankInfo({ onlineWins: oppSummary.onlineWins, onlineLosses: oppSummary.onlineLosses }),
+    ]);
+    await playMatchupIntro(
+      { username: myProfile.username || "You", tierLabel: rankLabelFor(myRankInfo), bannerId: myProfile.equippedBanner },
+      { username: oppUsername, tierLabel: rankLabelFor(oppRankInfo), bannerId: oppSummary.equippedBanner }
+    );
+  }
 
   applyRulesetToDraftUI();
   btnLeaveMatch.classList.remove("hidden");

@@ -130,6 +130,26 @@
       </div>
     </section>
 
+    <!-- Plays once, right when two players are matched (fresh match only -
+         reconnecting to a draft already in progress skips straight to it).
+         See playMatchupIntro() in main.js. -->
+    <section id="screen-matchup-intro" class="screen hidden">
+      <div class="matchup-intro">
+        <div class="matchup-side matchup-side-a" id="matchup-side-a">
+          <div class="matchup-banner-slot" id="matchup-banner-a"></div>
+          <div class="matchup-username" id="matchup-username-a"></div>
+          <div class="matchup-rank" id="matchup-rank-a"></div>
+        </div>
+        <div class="matchup-vs">VS</div>
+        <div class="matchup-side matchup-side-b" id="matchup-side-b">
+          <div class="matchup-banner-slot" id="matchup-banner-b"></div>
+          <div class="matchup-username" id="matchup-username-b"></div>
+          <div class="matchup-rank" id="matchup-rank-b"></div>
+        </div>
+        <div class="matchup-countdown hidden" id="matchup-countdown"></div>
+      </div>
+    </section>
+
     <section id="screen-draft" class="screen hidden">
       <div id="draft-round-label" class="round-label"></div>
       <button id="btn-leave-match" class="btn btn-secondary btn-small hidden" type="button">Leave Match</button>
