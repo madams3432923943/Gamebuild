@@ -1021,12 +1021,14 @@ table.box-table th, table.history-table th {
   cursor: pointer;
 }
 
+/* Pulled left by #app-root's own left padding so this sits flush against
+ * the true edge of the screen instead of the page's usual 1.25rem gutter. */
 .home-top-left {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
-  margin: 0 0 1rem;
+  margin: 0 0 1rem -1.25rem;
 }
 
 .how-to-play-btn {
