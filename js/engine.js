@@ -28,6 +28,7 @@ import {
   basePosition,
   isBenchSlot,
   orderedRosterSlots,
+  minutesRangeFor,
   FATIGUE_MINUTES,
   FATIGUE_PER_MINUTE,
   FATIGUE_MAX_PENALTY,
@@ -234,6 +235,50 @@ export function defaultMinutes(roster) {
       minutes[slot] = i === slots.length - 1 ? ROTATION_BUDGET - spent : Math.round(minutes[slot] * scale);
       spent += minutes[slot];
     });
+  }
+  return minutes;
+}
+
+/** The rotation a bot opponent uses: unlike defaultMinutes' flat split, this
+ * concentrates minutes on the roster's best players, the same lever a human
+ * has via the rotation screen. Every slot starts at its legal floor
+ * (minutesRangeFor), then the leftover budget is handed out greedily to the
+ * highest-impact players first, up to each slot's own cap - so the
+ * structural "starters outplay the bench" rule (baked into those min/max
+ * ranges) still holds automatically, it just no longer leaves the bot's
+ * stars sitting on a flat 32 minutes while a scrub also gets 32. */
+export function botMinutes(roster) {
+  const slots = activeSlots(roster);
+  if (!slots.length) return {};
+
+  const ranges = {};
+  let floorTotal = 0;
+  let maxTotal = 0;
+  for (const slot of slots) {
+    ranges[slot] = minutesRangeFor(slot);
+    floorTotal += ranges[slot].min;
+    maxTotal += ranges[slot].max;
+  }
+
+  // A small or bench-less roster (Quick Play's five, with no one to sub in)
+  // needs everyone playing beyond the "normal" starter cap just to fill the
+  // clock - exactly what the flat scaled default already does correctly.
+  // Only redistribute within the normal min/max bounds when there's both
+  // room to floor everyone AND enough max-out headroom to actually reach
+  // the budget without leaving minutes unspent.
+  if (floorTotal >= ROTATION_BUDGET || maxTotal <= ROTATION_BUDGET) return defaultMinutes(roster);
+
+  const minutes = {};
+  for (const slot of slots) minutes[slot] = ranges[slot].min;
+  let remaining = ROTATION_BUDGET - floorTotal;
+
+  const byImpact = [...slots].sort((a, b) => impact(roster[b]) - impact(roster[a]));
+  for (const slot of byImpact) {
+    if (remaining <= 0) break;
+    const room = ranges[slot].max - minutes[slot];
+    const grant = Math.min(room, remaining);
+    minutes[slot] += grant;
+    remaining -= grant;
   }
   return minutes;
 }

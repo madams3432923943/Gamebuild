@@ -312,9 +312,13 @@ export const OT_LENGTH_SCALE = 5 / 12;
 // under 1 so the bot drafts unevenly like a real (beatable) opponent
 // instead of playing a solved game. Calibrated via simulation: at 0.45 an
 // average/random drafter's win rate drops to ~14% (from ~21% at 0.35)
-// while a knowledgeable drafter still wins ~90% of the time - harder to
-// beat carelessly, but the skill test stays intact.
-export const BOT_SKILL = 0.45;
+// while a knowledgeable drafter still wins ~90% of the time - too generous
+// to a knowledgeable player, which is what "the bot loses every time" was
+// actually describing. Bumped to 0.6 to cut into that without turning the
+// draft into a solved game the bot can't lose - paired with botMinutes()
+// (engine.js) so the bot also stops wasting its better draft with a flat,
+// unweighted rotation.
+export const BOT_SKILL = 0.6;
 
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.

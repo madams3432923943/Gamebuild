@@ -1419,6 +1419,17 @@ table.box-table th, table.history-table th {
   box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgba(var(--accent-rgb), 0.3);
 }
 
+/* Founder: the one banner nobody else can earn - a permanent gold glow
+   marks it as different in kind, not just another unlocked tile. */
+.founder-tile {
+  border-color: #f2c14e;
+  box-shadow: 0 0 0 1px #f2c14e, 0 0 16px rgba(242, 193, 78, 0.35);
+}
+
+.founder-tile.equipped {
+  box-shadow: 0 0 0 1px #f2c14e, 0 0 22px rgba(242, 193, 78, 0.55);
+}
+
 .banner-name {
   font-family: var(--font-display);
   font-weight: 800;

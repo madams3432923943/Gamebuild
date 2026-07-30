@@ -22,7 +22,16 @@ import {
   eraRecord,
 } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
-import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
+import {
+  FRANCHISES,
+  BANNER_THRESHOLD,
+  bannerProgress,
+  bannerSummary,
+  franchiseById,
+  bannerById,
+  FOUNDER_BANNER,
+  isFounder,
+} from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
 import { squadTierForRep } from "./squads.js";
 
@@ -400,7 +409,7 @@ export function renderHomeHeader(refs, profile, rankInfo) {
   // The banner's own colours wash the card behind the name. Falls back to the
   // brand accent when nothing is equipped, so the layout never depends on
   // having earned something.
-  const franchise = profile.equippedBanner ? franchiseById(profile.equippedBanner) : null;
+  const franchise = profile.equippedBanner ? bannerById(profile.equippedBanner) : null;
   const [c1, c2] = franchise ? franchise.colors : ["#2f6fe0", "#0d1117"];
   refs.card.style.background = `linear-gradient(135deg, ${c1}55 0%, ${c2}33 45%, transparent 100%), var(--panel)`;
   refs.card.style.borderColor = franchise ? `${c1}aa` : "";
@@ -622,7 +631,7 @@ function bannerArt(franchise, opts = {}) {
  * is equipped so the caller can leave the slot empty. */
 export function renderEquippedBanner(container, profile) {
   container.innerHTML = "";
-  const franchise = profile.equippedBanner ? franchiseById(profile.equippedBanner) : null;
+  const franchise = profile.equippedBanner ? bannerById(profile.equippedBanner) : null;
   container.hidden = !franchise;
   if (!franchise) return;
   container.appendChild(bannerArt(franchise, { small: true }));
@@ -643,6 +652,35 @@ export function renderBanners(container, summaryEl, profile, onEquip) {
     " (practice doesn't count)";
 
   container.innerHTML = "";
+
+  // Founder: not earned through play, so it skips the progress bar entirely
+  // and only ever shows for the one account it's hardcoded to (banners.js).
+  if (isFounder(profile)) {
+    const equipped = profile.equippedBanner === FOUNDER_BANNER.id;
+    const tile = document.createElement("div");
+    tile.className = "banner-tile founder-tile" + (equipped ? " equipped" : "");
+    tile.appendChild(bannerArt(FOUNDER_BANNER));
+
+    const name = document.createElement("div");
+    name.className = "banner-name";
+    name.textContent = FOUNDER_BANNER.name;
+    tile.appendChild(name);
+
+    const caption = document.createElement("div");
+    caption.className = "banner-progress";
+    caption.textContent = equipped ? "Flying now" : "Unlocked";
+    tile.appendChild(caption);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-secondary banner-equip";
+    btn.textContent = equipped ? "Take down" : "Fly this";
+    btn.addEventListener("click", () => onEquip(equipped ? null : FOUNDER_BANNER.id));
+    tile.appendChild(btn);
+
+    container.appendChild(tile);
+  }
+
   for (const franchise of FRANCHISES) {
     const progress = bannerProgress(franchise, profile);
     const equipped = profile.equippedBanner === franchise.id;

@@ -125,6 +125,31 @@ export function franchiseById(id) {
   return FRANCHISES.find((f) => f.id === id) || null;
 }
 
+// A single hardcoded Founder banner for the account that built this game -
+// not earned through play, so it deliberately lives outside FRANCHISES:
+// folding it into that array would inflate everyone else's "X of 30
+// unlocked" banner count for a banner they can never earn.
+const FOUNDER_USER_ID = "eb5b91cf-7a08-4757-b2a7-967db2424846"; // madams
+export const FOUNDER_BANNER = {
+  id: "founder",
+  name: "Founder",
+  abbr: "★",
+  colors: ["#f2c14e", "#15181f"],
+};
+
+export function isFounder(profile) {
+  return profile.id === FOUNDER_USER_ID;
+}
+
+/** Resolves an equipped-banner id to its art/metadata, checking the Founder
+ * banner first since it isn't in FRANCHISES. Used everywhere equippedBanner
+ * gets displayed, so equipping "founder" renders correctly wherever a plain
+ * franchiseById(id) lookup used to be the only option. */
+export function bannerById(id) {
+  if (id === FOUNDER_BANNER.id) return FOUNDER_BANNER;
+  return franchiseById(id);
+}
+
 /** Any team string in the dataset that no franchise claims. Surfaces naming
  * drift (a new era-accurate label, a typo) instead of letting it quietly
  * break banner progress. */

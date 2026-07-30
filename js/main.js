@@ -7,7 +7,7 @@ import { PLAYERS } from "./data.js";
 import { buildRecap, buildGameScript } from "./recap.js";
 import { startPresence } from "./presence.js";
 import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
-import { simulateGame, defaultMinutes, defaultMatchups } from "./engine.js";
+import { simulateGame, defaultMinutes, defaultMatchups, botMinutes } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
@@ -1536,7 +1536,7 @@ function runLocalSimulation() {
   // Resolve both rotations up front so the box score can show the same
   // minutes the simulation actually used, rather than a second guess at them.
   const minutesA = rotationMinutes || defaultMinutes(draft.rosterA);
-  const minutesB = defaultMinutes(draft.rosterB);
+  const minutesB = botMinutes(draft.rosterB);
   const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats, {
     tacticA: selectedTactic,
     tacticB: botTactic,
