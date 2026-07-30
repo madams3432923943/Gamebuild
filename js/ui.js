@@ -690,9 +690,17 @@ function specialBannerTile(banner, glowClass, profile, onEquip) {
 
 /** Sport subtabs for the banners screen - same pattern as
  * renderBadgeSportTabs, just filtering FRANCHISES instead of BADGES. */
+// A pseudo-sport tab, not a real entry in SPORTS (constants.js) - it holds
+// banners that aren't earned through any sport's play at all (Founder, 1st
+// Player), so they don't belong filed under NBA just because that's where
+// they used to live. Prepended to the real sport tabs rather than folded in
+// as sport id "general" anywhere else, so nothing outside banner rendering
+// needs to know it exists.
+const GENERAL_BANNERS_TAB = { id: "general", name: "General", icon: "⭐", live: true };
+
 export function renderBannerSportTabs(container, activeSport, onSelect) {
   container.innerHTML = "";
-  for (const sport of SPORTS) {
+  for (const sport of [GENERAL_BANNERS_TAB, ...SPORTS]) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
@@ -703,28 +711,41 @@ export function renderBannerSportTabs(container, activeSport, onSelect) {
   }
 }
 
-export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba") {
-  const list = franchisesForSport(sport);
-  const { unlocked, total } = bannerSummary(profile, sport);
-  summaryEl.textContent =
-    `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise across ranked wins` +
-    " (practice doesn't count)";
-
+/** `onlyUnlocked` filters franchise banners down to ones this profile can
+ * actually equip - what Profile > Customize Banner shows, since offering to
+ * "customize" with a banner you haven't earned yet is just Unlockables with
+ * extra steps. Unlockables itself always passes false, since showing what's
+ * still locked (and how close you are) is the whole point there. */
+export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false) {
   container.innerHTML = "";
 
-  // Founder and 1st Player: not earned through play, so they skip the
-  // progress bar entirely and only ever show for the one account each is
-  // hardcoded to (banners.js) - and only on the NBA tab, since that's the
-  // sport they were earned for.
-  if (sport === "nba" && isFounder(profile)) {
-    container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip));
-  }
-  if (sport === "nba" && isFirstPlayer(profile)) {
-    container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip));
+  // Founder and 1st Player: not earned through any sport's play, so they
+  // get their own tab rather than being filed under whichever sport
+  // happened to be active when they were added.
+  if (sport === "general") {
+    const hasFounder = isFounder(profile);
+    const hasFirstPlayer = isFirstPlayer(profile);
+    summaryEl.textContent = hasFounder || hasFirstPlayer
+      ? "Special banners tied to your account, not earned through play."
+      : "Nothing here for this account - these are hardcoded to specific accounts (Founder, the game's first player).";
+    if (hasFounder) container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip));
+    if (hasFirstPlayer) container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip));
+    if (!hasFounder && !hasFirstPlayer) renderNote(container, "No general banners on this account.");
+    return;
   }
 
+  const list = franchisesForSport(sport);
+  const { unlocked, total } = bannerSummary(profile, sport);
+  summaryEl.textContent = onlyUnlocked
+    ? `${unlocked} of ${total} banners unlocked - pick one to fly on your profile.`
+    : `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise across ranked wins` +
+      " (practice doesn't count)";
+
+  let shown = 0;
   for (const franchise of list) {
     const progress = bannerProgress(franchise, profile);
+    if (onlyUnlocked && !progress.unlocked) continue;
+    shown += 1;
     const equipped = profile.equippedBanner === franchise.id;
 
     const tile = document.createElement("div");
@@ -763,6 +784,10 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
     }
 
     container.appendChild(tile);
+  }
+
+  if (onlyUnlocked && shown === 0) {
+    renderNote(container, "You haven't unlocked any banners here yet - draft players from a franchise in ranked wins to earn one.");
   }
 }
 
@@ -1425,11 +1450,25 @@ export function renderFriendsLeaderboard(container, entries, callbacks) {
     rank.textContent = `#${i + 1}`;
     row.appendChild(rank);
 
-    const info = document.createElement("span");
-    info.className = "friend-row-name";
+    // Name and record split into their own lines rather than one run-on
+    // string ("Name — 3-1 (75%)") - the record reads as a stat, not a
+    // continuation of the name, and it no longer visually collides with the
+    // rank/action buttons when the row wraps on a narrow screen.
+    const identity = document.createElement("div");
+    identity.className = "friend-identity";
+
+    const name = document.createElement("span");
+    name.className = "friend-name";
+    name.textContent = entry.username + (entry.isMe ? " (you)" : "");
+    identity.appendChild(name);
+
+    const record = document.createElement("span");
+    record.className = "friend-record";
     const pct = entry.gamesPlayed > 0 ? `${Math.round(100 * entry.winRate)}%` : "—";
-    info.textContent = `${entry.username}${entry.isMe ? " (you)" : ""} — ${entry.onlineWins}-${entry.onlineLosses} (${pct})`;
-    row.appendChild(info);
+    record.textContent = `${entry.onlineWins}-${entry.onlineLosses} online · ${pct} win rate`;
+    identity.appendChild(record);
+
+    row.appendChild(identity);
 
     if (!entry.isMe) {
       const actions = document.createElement("div");

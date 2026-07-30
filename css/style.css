@@ -1504,15 +1504,15 @@ table.box-table th, table.history-table th {
   box-shadow: 0 0 0 1px #f2c14e, 0 0 22px rgba(242, 193, 78, 0.55);
 }
 
-/* 1st Player: the other banner nobody else can earn - a silver glow keeps
+/* 1st Player: the other banner nobody else can earn - a platinum glow keeps
    it visually distinct from Founder's gold rather than reading as a dupe. */
 .first-player-tile {
-  border-color: #d7dee6;
-  box-shadow: 0 0 0 1px #d7dee6, 0 0 16px rgba(215, 222, 230, 0.3);
+  border-color: #e8e6e1;
+  box-shadow: 0 0 0 1px #e8e6e1, 0 0 16px rgba(232, 230, 225, 0.35);
 }
 
 .first-player-tile.equipped {
-  box-shadow: 0 0 0 1px #d7dee6, 0 0 22px rgba(215, 222, 230, 0.5);
+  box-shadow: 0 0 0 1px #e8e6e1, 0 0 22px rgba(232, 230, 225, 0.55);
 }
 
 .banner-name {
@@ -2512,6 +2512,7 @@ table.box-table th, table.history-table th {
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .friend-rank {
@@ -2519,6 +2520,38 @@ table.box-table th, table.history-table th {
   font-weight: 800;
   color: var(--muted);
   min-width: 2rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* Leaderboard rows get a dedicated rank | name+record | actions layout -
+   the plain .friend-row above (add/incoming/outgoing lists) has no rank
+   column and stays a simple two-part flex row. */
+.friend-leaderboard-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.friend-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.friend-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-record {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .friend-leaderboard-row.mine {
@@ -2528,4 +2561,13 @@ table.box-table th, table.history-table th {
 
 .friend-leaderboard-row.mine .friend-rank {
   color: var(--accent-bright);
+}
+
+@media (max-width: 480px) {
+  .friend-leaderboard-row {
+    grid-template-columns: auto 1fr;
+  }
+  .friend-leaderboard-row .friend-row-actions {
+    grid-column: 1 / -1;
+  }
 }

@@ -3,12 +3,12 @@
 // than realtime - see the comment on watchMatch() for why.
 
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { SLOTS, DEFAULT_SPORT } from "./constants.js";
+import { SLOTS, DEFAULT_SPORT, DEFAULT_ERA } from "./constants.js";
 
-export async function joinQueue(sport = DEFAULT_SPORT) {
+export async function joinQueue(sport = DEFAULT_SPORT, era = DEFAULT_ERA) {
   await requireSession();
   const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc("join_queue", { p_sport: sport });
+  const { data, error } = await supabase.rpc("join_queue", { p_sport: sport, p_era: era });
   if (error) throw error;
   return data; // { status: "waiting" } | { status: "matched", match_id }
 }
@@ -50,18 +50,39 @@ export async function getVisiblePicks(matchId) {
   return data;
 }
 
+/** A new squad is rolled every round (see advance_round_if_ready), so a
+ * match's picks can span many different team/decade squads by the time the
+ * draft is done - a single "current squad" lookup only ever covers the
+ * last one rolled. This fetches every distinct squad actually picked from
+ * across the whole match and returns a name|team|decade -> stats map, which
+ * is what buildVisibleState needs to enrich EVERY pick, not just the most
+ * recent round's. */
+export async function fetchStatsForPicks(picks) {
+  const pairs = new Map();
+  for (const p of picks) {
+    if (p.action !== "pick") continue;
+    pairs.set(`${p.team}|${p.decade}`, { team: p.team, decade: p.decade });
+  }
+  const squads = await Promise.all([...pairs.values()].map(({ team, decade }) => fetchSquadPlayers(team, decade)));
+  const statsByKey = new Map();
+  for (const squad of squads) {
+    for (const p of squad) statsByKey.set(`${p.name}|${p.team}|${p.decade}`, p);
+  }
+  return statsByKey;
+}
+
 /** Folds pick rows into per-side, per-slot roster objects (same shape the
  * existing UI/engine code already expects), plus which slots each side has
  * committed (revealed or not) this round.
  *
- * `squadPlayers` (optional) is the same match's draft pool - a match is
- * always drafted from one team+decade squad for its whole duration, so a
- * name lookup against that one list is enough to recover each pick's full
- * season stats. Without it, a roster slot only carries name/team/decade/pos,
- * which is enough to render a draft board but not enough for shotLine() to
- * produce a shooting split on the post-game box score. */
-export function buildVisibleState(picks, currentRound, squadPlayers = []) {
-  const statsByName = new Map(squadPlayers.map((p) => [p.name, p]));
+ * `statsByKey` (optional, from fetchStatsForPicks) keys stats by
+ * name|team|decade rather than just name, since the same player can appear
+ * in more than one squad (e.g. a player traded mid-career) - without the
+ * team/decade in the key a lookup could silently grab the wrong season.
+ * Without it, a roster slot only carries name/team/decade/pos, which is
+ * enough to render a draft board but not enough for shotLine() to produce a
+ * shooting split on the post-game box score. */
+export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
   const rosterA = {};
   const rosterB = {};
   const actedThisRound = { A: false, B: false };
@@ -70,7 +91,7 @@ export function buildVisibleState(picks, currentRound, squadPlayers = []) {
     if (p.round_number === currentRound) actedThisRound[p.side] = true;
     if (p.action !== "pick") continue;
     const roster = p.side === "A" ? rosterA : rosterB;
-    const stats = statsByName.get(p.player_name);
+    const stats = statsByKey.get(`${p.player_name}|${p.team}|${p.decade}`);
     roster[p.slot] = {
       name: p.player_name,
       team: p.team,
@@ -138,6 +159,22 @@ export async function submitPick(matchId, player, slot) {
 export async function submitSkip(matchId) {
   const supabase = await getSupabase();
   const { error } = await supabase.rpc("submit_skip", { p_match_id: matchId });
+  if (error) throw error;
+}
+
+/** Submits this side's rotation/matchups/tactic once, after locally running
+ * the same rotation -> matchups -> tactic sequence offline Ranked Practice
+ * uses (see startRotationPhase/startMatchupPhase/startTacticPhase in
+ * main.js). The server flips the match to ready_to_simulate once BOTH
+ * sides have called this - see submit_strategy in the matches migration. */
+export async function submitStrategy(matchId, rotation, matchups, tactic) {
+  const supabase = await getSupabase();
+  const { error } = await supabase.rpc("submit_strategy", {
+    p_match_id: matchId,
+    p_rotation: rotation,
+    p_matchups: matchups,
+    p_tactic: tactic,
+  });
   if (error) throw error;
 }
 

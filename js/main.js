@@ -13,6 +13,7 @@ import {
   SLOTS,
   STARTER_SLOTS,
   RANKED_SLOTS,
+  DEFAULT_SPORT,
   ERAS,
   DEFAULT_ERA,
   eraById,
@@ -23,6 +24,7 @@ import {
   PICK_TIMER_SECONDS,
   TACTIC_TIMER_SECONDS,
   ROTATION_TIMER_SECONDS,
+  ONLINE_ROTATION_TIMER_SECONDS,
   MATCHUP_TIMER_SECONDS,
 } from "./constants.js";
 import {
@@ -79,6 +81,8 @@ import {
   getUsername,
   watchMatch,
   cancelMatch,
+  submitStrategy,
+  fetchStatsForPicks,
 } from "./online.js";
 import {
   renderPositionSelector,
@@ -168,6 +172,14 @@ function cleanupSquadChatWatcher() {
 
 let pickTimerInterval = null;
 const pickTimerEl = document.getElementById("pick-timer");
+const btnForfeitPick = document.getElementById("btn-forfeit-pick");
+
+// Whatever startPickTimer's caller passed as onTimeout for the CURRENT turn -
+// the Forfeit Pick button just invokes this early instead of waiting out the
+// clock. Same handler either way (handleLocalTimeout for bot/practice,
+// handleOnlineTimeout online), so a forfeit and a timeout are indistinguishable
+// downstream: both auto-pick the worst eligible option, or skip if none exists.
+let currentPickTimeoutHandler = null;
 
 function cleanupPickTimer() {
   if (pickTimerInterval) {
@@ -175,6 +187,8 @@ function cleanupPickTimer() {
     pickTimerInterval = null;
   }
   if (pickTimerEl) pickTimerEl.textContent = "";
+  currentPickTimeoutHandler = null;
+  btnForfeitPick.classList.add("hidden");
 }
 
 /** (Re)starts the countdown from PICK_TIMER_SECONDS. Call exactly once per
@@ -183,6 +197,8 @@ function cleanupPickTimer() {
  * doesn't start a new turn) or the clock would never run out. */
 function startPickTimer(onTimeout) {
   cleanupPickTimer();
+  currentPickTimeoutHandler = onTimeout;
+  btnForfeitPick.classList.remove("hidden");
   let secondsRemaining = PICK_TIMER_SECONDS;
   if (pickTimerEl) renderPickTimer(pickTimerEl, secondsRemaining);
   pickTimerInterval = setInterval(() => {
@@ -195,6 +211,17 @@ function startPickTimer(onTimeout) {
     if (pickTimerEl) renderPickTimer(pickTimerEl, secondsRemaining);
   }, 1000);
 }
+
+/** Forfeits the current pick rather than waiting out the timer - a very bad
+ * option on purpose (the same worst-eligible-combo/skip logic a timeout
+ * already uses), for whenever nothing comes to mind and waiting isn't worth
+ * it. Works identically in every mode with a pick clock (bot, ranked
+ * practice, online), since all three funnel through startPickTimer. */
+btnForfeitPick.addEventListener("click", () => {
+  const handler = currentPickTimeoutHandler;
+  cleanupPickTimer();
+  if (handler) handler();
+});
 
 // ---- Modal ----
 // One shell for the draft's position picker and How to Play. Kept generic
@@ -582,7 +609,7 @@ async function startOnlineSearch() {
 
   try {
     while (onlineSearchActive) {
-      const res = await joinQueue();
+      const res = await joinQueue(DEFAULT_SPORT, getEra());
       if (res.status === "matched") {
         await enterOnlineMatch(res.match_id);
         return;
@@ -814,7 +841,7 @@ function cleanupRotationTimer() {
  * minutes across your roster before choosing how to play them. Timing out
  * locks in whatever's currently assigned, same philosophy as the tactic
  * timer - it keeps the match moving, it doesn't punish indecision. */
-function startRotationPhase(roster, slots, onConfirm) {
+function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS) {
   cleanupPickTimer();
   cleanupRotationTimer();
   rotationMinutes = defaultMinutes(roster);
@@ -829,7 +856,7 @@ function startRotationPhase(roster, slots, onConfirm) {
   rotationPhaseEl.classList.remove("hidden");
   pickTimerEl.hidden = false;
 
-  let remaining = ROTATION_TIMER_SECONDS;
+  let remaining = timerSeconds;
   renderPickTimer(pickTimerEl, remaining);
   rotationTimerInterval = setInterval(() => {
     remaining -= 1;
@@ -1189,15 +1216,28 @@ async function enterOnlineMatch(matchId) {
   applyRulesetToDraftUI();
   btnLeaveMatch.classList.remove("hidden");
   showScreen("draft");
-  await renderOnlineDraftRound(match);
+  await handleOnlineMatchState(match);
   game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange);
 }
 
 async function onOnlineMatchChange(match) {
+  await handleOnlineMatchState(match);
+}
+
+/** Routes to the right screen/phase for whatever state the match is
+ * currently in - shared by the initial entry (enterOnlineMatch) and every
+ * subsequent poll tick (onOnlineMatchChange) so a reload or a resume mid-
+ * strategy-phase lands in the same place a live status change would. */
+async function handleOnlineMatchState(match) {
   if (match.status === "ready_to_simulate" || match.status === "complete") {
     cleanupOnlineWatcher();
     cleanupPickTimer();
     await runOnlineSimulationFlow(match.id);
+    return;
+  }
+  if (match.status === "strategy") {
+    cleanupPickTimer();
+    await beginOnlineStrategyPhase(match);
     return;
   }
   await renderOnlineDraftRound(match);
@@ -1240,29 +1280,32 @@ async function renderOnlineDraftRound(match) {
   ]);
   o.currentSquad = { team: match.current_squad_team, decade: match.current_squad_decade, players };
 
-  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number, players);
+  // Stats enrichment isn't needed mid-draft (the roster panels don't show
+  // stats under the strict ruleset) - only the post-game box score needs
+  // it, via fetchStatsForPicks in runOnlineSimulationFlow.
+  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number);
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
   if (game.ruleset !== "easy") startPickTimer(handleOnlineTimeout);
   renderOnlinePositionAndPool();
-  renderRosterPanel(rosterPanelA, o.myRoster, "You", true);
-  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false);
+  renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: RANKED_SLOTS });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS });
 }
 
 function renderOnlinePositionAndPool() {
   const o = game.online;
-  const eligibleForPending = o.pendingPlayer ? eligibleOpenSlots(o.pendingPlayer, o.myRoster) : null;
+  const eligibleForPending = o.pendingPlayer ? eligibleOpenSlots(o.pendingPlayer, o.myRoster, RANKED_SLOTS) : null;
   renderPositionSelector(positionSelectorEl, o.myRoster, eligibleForPending, (slot) => {
     finalizeOnlinePick(o.pendingPlayer, slot);
-  });
+  }, RANKED_SLOTS);
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
-  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, PLAYERS, game.ruleset);
+  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, PLAYERS, game.ruleset, RANKED_SLOTS);
 }
 
 function onOnlinePoolPick(player) {
   const o = game.online;
-  const slots = eligibleOpenSlots(player, o.myRoster);
+  const slots = eligibleOpenSlots(player, o.myRoster, RANKED_SLOTS);
   if (slots.length === 1) {
     finalizeOnlinePick(player, slots[0]);
   } else {
@@ -1279,7 +1322,7 @@ function onOnlinePoolPick(player) {
 async function handleOnlineTimeout() {
   const o = game.online;
   if (!o || !o.currentSquad) return;
-  const combo = worstEligiblePick(o.currentSquad, o.myRoster);
+  const combo = worstEligiblePick(o.currentSquad, o.myRoster, RANKED_SLOTS);
   if (combo) {
     await finalizeOnlinePick(combo.player, combo.slot);
   } else {
@@ -1317,6 +1360,60 @@ async function onlineSkip() {
     const match = await getMatch(o.matchId);
     await renderOnlineDraftRound(match);
   }
+}
+
+/** Online's equivalent of renderDraftComplete's strict-ruleset branch: once
+ * both rosters are full (status flips to 'strategy'), run the identical
+ * rotation -> matchups -> tactic sequence offline Ranked Practice uses, then
+ * submit once instead of simulating locally - the server simulates once
+ * BOTH sides have submitted (see submit_strategy). Each side runs this
+ * independently at its own pace; nothing here waits on the opponent
+ * mid-phase, only after the final submit. */
+async function beginOnlineStrategyPhase(match) {
+  const o = game.online;
+  if (!o) return;
+
+  draftRoundLabel.textContent = "Draft complete";
+  squadBannerTeam.textContent = "Rosters set";
+  squadBannerDecade.textContent = "";
+  poolSearch.hidden = true;
+  positionSelectorEl.innerHTML = "";
+  poolList.innerHTML = "";
+
+  const picks = await getVisiblePicks(o.matchId);
+  const statsByKey = await fetchStatsForPicks(picks);
+  const { rosterA, rosterB } = buildVisibleState(picks, Infinity, statsByKey);
+  o.myRoster = o.mySide === "A" ? rosterA : rosterB;
+  o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
+
+  renderRosterPanel(rosterPanelA, o.myRoster, "You", false, { slots: RANKED_SLOTS });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS });
+
+  draftTurnBanner.textContent = "Set your rotation";
+  rotationPhaseHintEl.textContent =
+    `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
+    `Lower someone to free minutes before raising someone else.`;
+  startRotationPhase(o.myRoster, RANKED_SLOTS, () => {
+    draftTurnBanner.textContent = "Set your defensive matchups";
+    matchupPhaseHintEl.textContent =
+      `Your starters are on their opposite numbers by default. Move anyone you want - ` +
+      `switching two players trades their assignments.`;
+    startMatchupPhase(o.myRoster, o.oppRoster, o.oppUsername, () => {
+      draftTurnBanner.textContent = "Final round — set your game plan";
+      tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
+      startTacticPhase(async () => {
+        draftTurnBanner.textContent = "Submitting your game plan…";
+        try {
+          await submitStrategy(o.matchId, rotationMinutes, selectedMatchups, selectedTactic);
+          draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
+        } catch (e) {
+          draftTurnBanner.textContent = "Couldn't submit your game plan (" + e.message + ") - try again.";
+          const freshMatch = await getMatch(o.matchId);
+          await handleOnlineMatchState(freshMatch);
+        }
+      });
+    });
+  }, ONLINE_ROTATION_TIMER_SECONDS);
 }
 
 poolSearch.addEventListener("input", () => {
@@ -1404,7 +1501,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const q = result.quarterBoxScores[periodIndex];
     if (!q || !q[key]) return null;
     const options = [];
-    for (const slot of SLOTS) {
+    // Derived from the roster's own keys, not the fixed 6-slot legacy list -
+    // a Ranked roster's 5 bench players were previously invisible to the
+    // recap feed, which could never credit a bench performance no matter
+    // how big the quarter.
+    for (const slot of Object.keys(roster)) {
       const line = q[key][slot];
       const player = roster[slot];
       if (!line || !player) continue;
@@ -1684,7 +1785,8 @@ async function runOnlineSimulationFlow(matchId) {
   const result = normalizeServerResult(dbResult, iAmA);
 
   const picks = await getVisiblePicks(matchId);
-  const { rosterA, rosterB } = buildVisibleState(picks, Infinity, o.currentSquad?.players || []);
+  const statsByKey = await fetchStatsForPicks(picks);
+  const { rosterA, rosterB } = buildVisibleState(picks, Infinity, statsByKey);
   const myRosterFinal = iAmA ? rosterA : rosterB;
   const oppRosterFinal = iAmA ? rosterB : rosterA;
 
@@ -1775,7 +1877,7 @@ function openCustomizeBannerModal() {
 
   loadProfile()
     .then((profile) => {
-      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport);
+      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
     })
     .catch((e) => {
       console.error("Failed to load banners:", e);
@@ -2167,7 +2269,7 @@ async function loadFriendsPanel() {
 // loadFriendsPanel()/openSquadsScreen() refresh afterward would undo.
 async function onChallengeFriend(friendId) {
   try {
-    const matchId = await challengeFriend(friendId);
+    const matchId = await challengeFriend(friendId, DEFAULT_SPORT, getEra());
     await enterOnlineMatch(matchId);
   } catch (e) {
     setSquadStatus(e.message || "Couldn't start that challenge.", "error");

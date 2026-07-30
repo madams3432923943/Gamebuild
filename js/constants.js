@@ -367,6 +367,7 @@ export const TACTIC_TIMER_SECONDS = 45;
 // Practice, before the gamestyle pick. Offline value; Online Ranked uses its
 // own longer duration (2 minutes) since it also has to wait on an opponent.
 export const ROTATION_TIMER_SECONDS = 60;
+export const ONLINE_ROTATION_TIMER_SECONDS = 120;
 
 // How long to set defensive matchups. Shorter than the rotation: it's five
 // dropdowns against a roster already on screen, not a budget to balance.

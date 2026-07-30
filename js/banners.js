@@ -193,13 +193,17 @@ export function isFounder(profile) {
   return profile.id === FOUNDER_USER_ID;
 }
 
-// dotch: the first person to download the game.
+// dotch: the first person to download the game. Platinum, not silver/gray -
+// distinct from an ordinary team's colors and reads as a tier above them at
+// a glance, which is the point of a prestige banner nobody else can earn.
+// "1ST" rather than a bare "1" so the ghosted abbreviation (see bannerArt in
+// ui.js) is unambiguous even without reading the name label underneath.
 const FIRST_PLAYER_USER_ID = "94f3e329-60ce-425d-9a86-1046df04e660"; // dotch
 export const FIRST_PLAYER_BANNER = {
   id: "first-player",
   name: "1st Player",
-  abbr: "1",
-  colors: ["#d7dee6", "#232a35"],
+  abbr: "1ST",
+  colors: ["#e8e6e1", "#4a4d52"],
 };
 
 export function isFirstPlayer(profile) {
