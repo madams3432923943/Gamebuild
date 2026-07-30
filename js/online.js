@@ -41,8 +41,16 @@ export async function getVisiblePicks(matchId) {
 
 /** Folds pick rows into per-side, per-slot roster objects (same shape the
  * existing UI/engine code already expects), plus which slots each side has
- * committed (revealed or not) this round. */
-export function buildVisibleState(picks, currentRound) {
+ * committed (revealed or not) this round.
+ *
+ * `squadPlayers` (optional) is the same match's draft pool - a match is
+ * always drafted from one team+decade squad for its whole duration, so a
+ * name lookup against that one list is enough to recover each pick's full
+ * season stats. Without it, a roster slot only carries name/team/decade/pos,
+ * which is enough to render a draft board but not enough for shotLine() to
+ * produce a shooting split on the post-game box score. */
+export function buildVisibleState(picks, currentRound, squadPlayers = []) {
+  const statsByName = new Map(squadPlayers.map((p) => [p.name, p]));
   const rosterA = {};
   const rosterB = {};
   const actedThisRound = { A: false, B: false };
@@ -51,13 +59,26 @@ export function buildVisibleState(picks, currentRound) {
     if (p.round_number === currentRound) actedThisRound[p.side] = true;
     if (p.action !== "pick") continue;
     const roster = p.side === "A" ? rosterA : rosterB;
+    const stats = statsByName.get(p.player_name);
     roster[p.slot] = {
       name: p.player_name,
       team: p.team,
       decade: p.decade,
-      // pos/stat fields aren't needed for rendering a committed roster slot
-      // (only the pool needs them) - filled in as empty placeholders.
       pos: [p.slot === "6TH" ? "6TH" : p.slot],
+      ...(stats && {
+        ppg: stats.ppg,
+        rpg: stats.rpg,
+        apg: stats.apg,
+        spg: stats.spg,
+        bpg: stats.bpg,
+        tov: stats.tov,
+        fga: stats.fga,
+        fgp: stats.fgp,
+        tpa: stats.tpa,
+        tpp: stats.tpp,
+        fta: stats.fta,
+        ftp: stats.ftp,
+      }),
     };
   }
 
@@ -79,6 +100,15 @@ export async function fetchSquadPlayers(team, decade) {
     spg: Number(p.spg),
     bpg: Number(p.bpg),
     tov: Number(p.tov),
+    // Null for the 1960s/70s placeholder squads (no shooting-split data) -
+    // Number(null) is 0, which would wrongly claim a shooting profile, so
+    // these stay null exactly like the offline dataset's missing fields do.
+    fga: p.fga === null ? null : Number(p.fga),
+    fgp: p.fgp === null ? null : Number(p.fgp),
+    tpa: p.tpa === null ? null : Number(p.tpa),
+    tpp: p.tpp === null ? null : Number(p.tpp),
+    fta: p.fta === null ? null : Number(p.fta),
+    ftp: p.ftp === null ? null : Number(p.ftp),
   }));
 }
 

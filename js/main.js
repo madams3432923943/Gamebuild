@@ -1217,7 +1217,7 @@ async function renderOnlineDraftRound(match) {
   ]);
   o.currentSquad = { team: match.current_squad_team, decade: match.current_squad_decade, players };
 
-  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number);
+  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number, players);
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
@@ -1660,7 +1660,7 @@ async function runOnlineSimulationFlow(matchId) {
   const result = normalizeServerResult(dbResult, iAmA);
 
   const picks = await getVisiblePicks(matchId);
-  const { rosterA, rosterB } = buildVisibleState(picks, Infinity);
+  const { rosterA, rosterB } = buildVisibleState(picks, Infinity, o.currentSquad?.players || []);
   const myRosterFinal = iAmA ? rosterA : rosterB;
   const oppRosterFinal = iAmA ? rosterB : rosterA;
 
