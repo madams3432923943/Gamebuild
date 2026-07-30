@@ -48,6 +48,14 @@ export function mostTripleDoubles(profile) {
   return best;
 }
 
+export function mostMVPs(profile) {
+  let best = null;
+  for (const [name, count] of Object.entries(profile.mvpCounts)) {
+    if (!best || count > best.count) best = { name, count };
+  }
+  return best;
+}
+
 // Double-digit in any 3 of the 5 box-score categories - the general
 // definition, not just the classic pts/reb/ast one.
 const TRIPLE_DOUBLE_KEYS = ["pts", "reb", "ast", "stl", "blk"];
@@ -85,6 +93,7 @@ function normalize(row) {
     highestScoringGame: row.highest_scoring_game || null,
     largestMarginGame: row.largest_margin_game || null,
     tripleDoubleCounts: row.triple_double_counts || {},
+    mvpCounts: row.mvp_counts || {},
   };
 }
 
@@ -128,6 +137,9 @@ export async function recordDraftPicks(playerNames) {
  * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
  *   full box score of the user's OWN roster this game, used to update the
  *   per-stat personal-best records and scan for triple-doubles.
+ * @param mvpIsOwnTeam whether this game's MVP (pickMvp() in engine.js picks
+ *   from either roster) was one of the user's own drafted players - only
+ *   then does it count toward the "most MVPs" stat.
  * @param rosterA, rosterB, boxA, boxB, labelA, labelB, minutesA, minutesB -
  *   the complete two-sided box score for this game, kept only long enough to
  *   snapshot into highest_scoring_game if this game sets a new record (see
@@ -145,6 +157,7 @@ export async function recordPracticeResult({
   scoreFor,
   scoreAgainst,
   mvpName,
+  mvpIsOwnTeam,
   ownLines,
   rosterA,
   rosterB,
@@ -223,6 +236,12 @@ export async function recordPracticeResult({
     if (isTripleDouble(line)) tripleDoubleCounts[playerName] = (tripleDoubleCounts[playerName] || 0) + 1;
   }
 
+  // pickMvp() (engine.js) picks the best performer from EITHER roster, not
+  // just the user's own - only count it here when it's actually one of the
+  // user's drafted players, or the bot's best game would count as "yours".
+  const mvpCounts = { ...profile.mvpCounts };
+  if (mvpName && mvpIsOwnTeam) mvpCounts[mvpName] = (mvpCounts[mvpName] || 0) + 1;
+
   const session = await requireSession();
   const supabase = await getSupabase();
   const { error } = await supabase
@@ -237,6 +256,7 @@ export async function recordPracticeResult({
       highest_scoring_game: highestScoringGame,
       largest_margin_game: largestMarginGame,
       triple_double_counts: tripleDoubleCounts,
+      mvp_counts: mvpCounts,
     })
     .eq("id", session.user.id);
   if (error) throw error;

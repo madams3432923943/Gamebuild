@@ -1531,6 +1531,7 @@ function runLocalSimulation() {
         scoreFor: result.teamScoreA,
         scoreAgainst: result.teamScoreB,
         mvpName: result.mvp.player.name,
+        mvpIsOwnTeam: result.mvp.side === "A",
         ownLines,
         rosterA: draft.rosterA,
         rosterB: draft.rosterB,
@@ -1653,6 +1654,7 @@ const profileRefs = {
   highestScoringGame: document.getElementById("highest-scoring-game"),
   largestMargin: document.getElementById("largest-margin"),
   mostTripleDoubles: document.getElementById("most-triple-doubles"),
+  mostMvps: document.getElementById("most-mvps"),
   historyBody: document.getElementById("history-body"),
 };
 

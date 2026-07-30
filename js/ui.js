@@ -18,6 +18,7 @@ import {
   nextTier,
   mostDraftedPlayer,
   mostTripleDoubles,
+  mostMVPs,
   STAT_LABELS,
   FEATURED_BADGE_SLOTS,
   eraRecord,
@@ -719,6 +720,11 @@ export function renderProfileScreen(refs, profile) {
   refs.mostTripleDoubles.innerHTML = tripleDoubles
     ? `<div class="performance-row"><span>${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x triple-double</span></div>`
     : `<div class="empty-note">Draft someone who goes off to start tracking this.</div>`;
+
+  const mvps = mostMVPs(profile);
+  refs.mostMvps.innerHTML = mvps
+    ? `<div class="performance-row"><span>${mvps.name}</span><span class="performance-line">${mvps.count}x MVP</span></div>`
+    : `<div class="empty-note">Win MVP with one of your picks to start tracking this.</div>`;
 
   refs.historyBody.innerHTML = "";
   for (const entry of profile.history) {
