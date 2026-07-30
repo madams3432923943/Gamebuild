@@ -177,7 +177,7 @@ for (const file of files) {
         name: player,
         team,
         decade: decadeOf(startYear),
-        pos: positions(row.Pos),
+        posGames: {},
         games: 0,
         sums: { pts: 0, trb: 0, ast: 0, stl: 0, blk: 0, tov: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0 },
       });
@@ -185,6 +185,13 @@ for (const file of files) {
     const rec = acc.get(key);
     const g = games;
     rec.games += g;
+    // Games-weighted rather than "whichever season file is read first" -
+    // readdirSync order isn't chronological, so a player who moved from
+    // center to forward across a tenure needs their position picked by how
+    // much they actually played each, not by filesystem order.
+    for (const slot of positions(row.Pos)) {
+      rec.posGames[slot] = (rec.posGames[slot] || 0) + g;
+    }
     // Per-game values are weighted by games so a long tenure isn't outvoted by
     // a single short season.
     rec.sums.pts += num(row.PTS) * g;
@@ -205,6 +212,13 @@ for (const file of files) {
 const r1 = (v) => Math.round(v * 10) / 10;
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
+// Top 2 positions by games actually played at each, most-played first -
+// matches the shape `positions()` already returns for a single season.
+function dominantPos(posGames) {
+  const ranked = Object.entries(posGames).sort((a, b) => b[1] - a[1]);
+  return ranked.length > 0 ? ranked.slice(0, 2).map(([slot]) => slot) : ["SF"];
+}
+
 const players = [...acc.values()].map((rec) => {
   const g = rec.games || 1;
   const per = (k) => rec.sums[k] / g;
@@ -213,7 +227,7 @@ const players = [...acc.values()].map((rec) => {
     name: rec.name,
     team: rec.team,
     decade: rec.decade,
-    pos: rec.pos,
+    pos: dominantPos(rec.posGames),
     ppg: r1(per("pts")),
     rpg: r1(per("trb")),
     apg: r1(per("ast")),

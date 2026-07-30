@@ -52,13 +52,17 @@ const badNum = PLAYERS.filter((p) =>
 report(badNum.length === 0, "core stats finite and non-negative", badNum.slice(0, 3).map((p) => p.name).join(", "));
 
 // Shooting fields are optional (the game degrades without them), but if a
-// player has any, the whole set must be coherent.
+// player has any, the whole set must be coherent. Pre-1980 squads are
+// exempt: they predate real per-game data being imported, and stay on
+// model-recalled placeholders that never carried these fields.
 const withShooting = PLAYERS.filter((p) => typeof p.fga === "number");
 if (withShooting.length > 0) {
+  const modern = PLAYERS.filter((p) => parseInt(p.decade, 10) >= 1980);
+  const modernWithShooting = modern.filter((p) => typeof p.fga === "number");
   report(
-    withShooting.length === PLAYERS.length,
-    "shooting data present for every player",
-    `${withShooting.length}/${PLAYERS.length}`
+    modernWithShooting.length === modern.length,
+    "shooting data present for every 1980s+ player",
+    `${modernWithShooting.length}/${modern.length}`
   );
   const badPct = withShooting.filter((p) =>
     [p.fgp, p.tpp, p.ftp].some((v) => !Number.isFinite(v) || v < 0 || v > 1)
