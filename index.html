@@ -20,16 +20,10 @@
     <button class="brand" id="btn-brand" type="button">
       <span class="brand-ball">🏀</span> Ball Knowledge
     </button>
-    <!-- Live count of players with the game open. Hidden until the first
-         successful read so a failed fetch shows nothing rather than "0". -->
-    <div class="online-ticker hidden" id="online-ticker" title="Players with Ball Knowledge open right now">
-      <span class="online-dot" aria-hidden="true"></span>
-      <span id="online-ticker-count">—</span>
-    </div>
     <nav class="nav-tabs" id="nav-tabs" hidden>
       <button class="nav-tab active" id="nav-play" type="button">Play</button>
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
-      <button class="nav-tab" id="nav-badges" type="button">Badges</button>
+      <button class="nav-tab" id="nav-badges" type="button">Unlockables</button>
       <button class="nav-tab" id="nav-squads" type="button">Squads</button>
       <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
     </nav>
@@ -62,7 +56,15 @@
     </section>
 
     <section id="screen-home" class="screen hidden">
-      <button id="btn-how-to-play" class="link-btn how-to-play-link" type="button">How to Play</button>
+      <div class="home-top-left">
+        <button id="btn-how-to-play" class="how-to-play-btn" type="button">📖 How to Play</button>
+        <!-- Live count of players with the game open. Hidden until the first
+             successful read so a failed fetch shows nothing rather than "0". -->
+        <div class="online-ticker hidden" id="online-ticker" title="Players with Ball Knowledge open right now">
+          <span class="online-dot" aria-hidden="true"></span>
+          <span id="online-ticker-count">—</span>
+        </div>
+      </div>
 
       <div class="player-banner card" id="player-banner">
         <div class="pb-top">
@@ -252,12 +254,6 @@
         <div id="most-mvps"></div>
       </div>
 
-      <div class="card">
-        <h3>Banners</h3>
-        <p class="hint-text" id="banner-summary"></p>
-        <div id="banner-grid" class="banner-grid"></div>
-      </div>
-
       <h3>Recent Games</h3>
       <table class="history-table">
         <thead>
@@ -268,10 +264,19 @@
     </section>
 
     <section id="screen-badges" class="screen hidden">
-      <h2 class="section-heading">Badges</h2>
-      <div class="subtabs" id="badge-sport-tabs"></div>
-      <p class="hint-text" id="badge-summary"></p>
-      <div id="badge-grid" class="badge-grid"></div>
+      <h2 class="section-heading">Unlockables</h2>
+      <div class="subtabs" id="unlockables-tabs"></div>
+
+      <div id="unlockables-badges">
+        <div class="subtabs" id="badge-sport-tabs"></div>
+        <p class="hint-text" id="badge-summary"></p>
+        <div id="badge-grid" class="badge-grid"></div>
+      </div>
+
+      <div id="unlockables-banners" class="hidden">
+        <p class="hint-text" id="banner-summary"></p>
+        <div id="banner-grid" class="banner-grid"></div>
+      </div>
     </section>
 
     <section id="screen-squads" class="screen hidden">

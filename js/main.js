@@ -61,6 +61,7 @@ import {
   renderHomeHeader,
   renderBadgeCollection,
   renderBadgeSportTabs,
+  renderUnlockableTabs,
   renderBanners,
   renderEquippedBanner,
   renderTacticPicker,
@@ -1649,8 +1650,6 @@ const profileRefs = {
   offlineRecord: document.getElementById("offline-record"),
   totalGames: document.getElementById("total-games"),
   eraRecords: document.getElementById("era-records"),
-  bannerGrid: document.getElementById("banner-grid"),
-  bannerSummary: document.getElementById("banner-summary"),
   mostDrafted: document.getElementById("most-drafted"),
   topPerformances: document.getElementById("top-performances"),
   highestScoringGame: document.getElementById("highest-scoring-game"),
@@ -1671,7 +1670,6 @@ async function openProfileScreen() {
     currentProfile = profile;
     const rankInfo = await loadRankInfo(profile);
     renderProfileScreen(profileRefs, profile, rankInfo);
-    renderBanners(profileRefs.bannerGrid, profileRefs.bannerSummary, profile, onEquipBanner);
   } catch (e) {
     console.error("Failed to load profile:", e);
   }
@@ -1698,16 +1696,40 @@ profileRefs.highestScoringGame.addEventListener("click", () => {
   openModal(`${game.scoreFor}-${game.scoreAgainst} vs ${game.opponentLabel}`, wrap);
 });
 
+const unlockablesTabsEl = document.getElementById("unlockables-tabs");
+const unlockablesBadgesEl = document.getElementById("unlockables-badges");
+const unlockablesBannersEl = document.getElementById("unlockables-banners");
 const badgeGridEl = document.getElementById("badge-grid");
 const badgeSummaryEl = document.getElementById("badge-summary");
 const badgeSportTabsEl = document.getElementById("badge-sport-tabs");
+const bannerGridEl = document.getElementById("banner-grid");
+const bannerSummaryEl = document.getElementById("banner-summary");
 
-// Which sport's badges are on screen. Kept across visits so switching tabs
-// and coming back doesn't dump you on NBA every time.
+// Which sport's badges are on screen, and which of Badges/Banners. Kept
+// across visits so switching tabs and coming back doesn't reset either pick.
 let activeBadgeSport = "nba";
+let activeUnlockablesTab = "badges";
 
 async function openBadgesScreen() {
   showScreen("badges");
+  renderUnlockableTabs(unlockablesTabsEl, activeUnlockablesTab, (kind) => {
+    activeUnlockablesTab = kind;
+    openBadgesScreen();
+  });
+  unlockablesBadgesEl.classList.toggle("hidden", activeUnlockablesTab !== "badges");
+  unlockablesBannersEl.classList.toggle("hidden", activeUnlockablesTab !== "banners");
+
+  if (activeUnlockablesTab === "banners") {
+    try {
+      const profile = await loadProfile();
+      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner);
+    } catch (e) {
+      console.error("Failed to load banners:", e);
+      bannerSummaryEl.textContent = "Couldn't load your banners right now.";
+    }
+    return;
+  }
+
   renderBadgeSportTabs(badgeSportTabsEl, activeBadgeSport, (sport) => {
     activeBadgeSport = sport;
     openBadgesScreen();
@@ -1739,8 +1761,10 @@ async function onToggleFeaturedBadge(badgeId) {
   await openBadgesScreen();
 }
 
-/** Equipping is cosmetic, so it writes straight from the client. Repaint the
- * profile and the home header so the change shows everywhere it appears. */
+/** Equipping is cosmetic, so it writes straight from the client. Repaints
+ * the Unlockables screen (where the equip button lives) - the home header's
+ * equipped-banner display picks up the change next time it's shown, via
+ * refreshHome()'s normal reload. */
 async function onEquipBanner(franchiseId) {
   try {
     await setEquippedBanner(franchiseId);
@@ -1748,7 +1772,7 @@ async function onEquipBanner(franchiseId) {
     console.error("Failed to equip banner:", e);
     return;
   }
-  await openProfileScreen();
+  await openBadgesScreen();
 }
 
 profileRefs.usernameInput.addEventListener("change", async () => {

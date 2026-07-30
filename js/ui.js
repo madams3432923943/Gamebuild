@@ -488,6 +488,26 @@ function renderFeaturedBadges(container, profile) {
   }
 }
 
+/** The two kinds of thing under the Unlockables tab. Badges get their own
+ * sport-scoped subtabs underneath (see renderBadgeSportTabs); banners don't
+ * need that split since franchise banners aren't per-sport. */
+const UNLOCKABLE_KINDS = [
+  { id: "badges", label: "Badges" },
+  { id: "banners", label: "Banners" },
+];
+
+export function renderUnlockableTabs(container, active, onSelect) {
+  container.innerHTML = "";
+  for (const kind of UNLOCKABLE_KINDS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "subtab" + (kind.id === active ? " active" : "");
+    btn.textContent = kind.label;
+    btn.addEventListener("click", () => onSelect(kind.id));
+    container.appendChild(btn);
+  }
+}
+
 /** Sport subtabs for the badges screen. Sports with no badges yet still get
  * a tab so the roadmap is visible, but it's marked locked and says so when
  * opened rather than showing a confusing empty grid. */
