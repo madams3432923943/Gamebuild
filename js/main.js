@@ -30,7 +30,6 @@ import {
 import {
   loadProfile,
   recordPracticeResult,
-  eraRecord,
   recordDraftPicks,
   setUsername,
   setEquippedBanner,
@@ -331,8 +330,6 @@ async function refreshHome() {
     game.nameA = profile.username || "Player";
     renderHomeHeader(homeHeaderRefs, profile);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
-    lastProfile = profile;
-    renderEraChoice();
   } catch (e) {
     console.error("Failed to load profile:", e);
     game.nameA = "Player";
@@ -402,7 +399,7 @@ document.getElementById("nav-signout").addEventListener("click", async () => {
 
 // ---- Home screen ----
 
-const modeRadios = document.querySelectorAll('input[name="mode"]');
+const modeButtons = document.querySelectorAll(".mode-btn");
 const btnStartDraft = document.getElementById("btn-start-draft");
 const btnCancelSearch = document.getElementById("btn-cancel-search");
 const searchStatusEl = document.getElementById("search-status");
@@ -432,12 +429,21 @@ const MODE_CONFIG = {
 
 const modeHintEl = document.getElementById("mode-hint");
 
-for (const radio of modeRadios) {
-  radio.addEventListener("change", renderModeChoice);
+let selectedMode = "practice-easy";
+
+for (const btn of modeButtons) {
+  btn.addEventListener("click", () => {
+    selectedMode = btn.dataset.mode;
+    for (const b of modeButtons) {
+      b.classList.toggle("active", b === btn);
+      b.setAttribute("aria-checked", String(b === btn));
+    }
+    renderModeChoice();
+  });
 }
 
 function getMode() {
-  return [...modeRadios].find((r) => r.checked).value;
+  return selectedMode;
 }
 
 function currentModeConfig() {
@@ -452,9 +458,6 @@ function renderModeChoice() {
 // The chosen bracket narrows the draft pool. It persists across visits because
 // somebody grinding Modern Ball shouldn't have to re-pick it every session.
 const ERA_KEY = "bk_era";
-// Held so the era chips can show this player's record per bracket without
-// re-fetching the profile every time a chip is clicked.
-let lastProfile = null;
 const eraPickerEl = document.getElementById("era-picker");
 const eraHintEl = document.getElementById("era-hint");
 
@@ -483,6 +486,9 @@ function setEra(id) {
   renderEraChoice();
 }
 
+// Records live on the Profile tab only (one row per era, split online/offline
+// - see renderProfileScreen) - the home screen is for picking what to play
+// next, not for re-showing a record you can already see one tab over.
 function renderEraChoice() {
   eraPickerEl.innerHTML = "";
   for (const era of ERAS) {
@@ -491,18 +497,9 @@ function renderEraChoice() {
     btn.className = "era-chip" + (era.id === selectedEra ? " active" : "");
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", String(era.id === selectedEra));
-    const rec = lastProfile ? eraRecord(lastProfile, era.id) : null;
-    const played = rec ? rec.online_wins + rec.online_losses + rec.offline_wins + rec.offline_losses : 0;
     btn.innerHTML =
       `<span class="era-chip-emoji" aria-hidden="true">${era.emoji}</span>` +
-      `<span class="era-chip-label">${era.label}</span>` +
-      // Only shown once there is a record to show - "0-0" on every chip is
-      // noise, and it makes a fresh account look like a losing one.
-      (played > 0
-        ? `<span class="era-chip-record">${rec.online_wins + rec.offline_wins}-${
-            rec.online_losses + rec.offline_losses
-          }</span>`
-        : "");
+      `<span class="era-chip-label">${era.label}</span>`;
     btn.addEventListener("click", () => setEra(era.id));
     eraPickerEl.appendChild(btn);
   }
@@ -1486,7 +1483,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     )} PTS / ${Math.round(mvp.line.reb)} REB / ${Math.round(mvp.line.ast)} AST`;
     mvpCallout.classList.remove("hidden");
 
-    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB, minutesA, minutesB);
+    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB, minutesA, minutesB, true);
     fullBoxScore.classList.remove("hidden");
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
@@ -1641,6 +1638,7 @@ const profileRefs = {
   onlineRecord: document.getElementById("online-record"),
   offlineRecord: document.getElementById("offline-record"),
   totalGames: document.getElementById("total-games"),
+  eraRecords: document.getElementById("era-records"),
   bannerGrid: document.getElementById("banner-grid"),
   bannerSummary: document.getElementById("banner-summary"),
   mostDrafted: document.getElementById("most-drafted"),

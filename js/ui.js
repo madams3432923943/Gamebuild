@@ -10,9 +10,10 @@ import {
   minutesRangeFor,
   orderedRosterSlots,
   isBenchSlot,
+  ERAS,
 } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
-import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS } from "./profile.js";
+import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS, eraRecord } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
@@ -249,19 +250,24 @@ function boxRow(slotLabel, player, line, shots, minutes) {
   );
 }
 
-function boxTable(roster, box, teamLabel, shotLines, minutesMap) {
+function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
   let html = `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr><th>Slot</th><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead><tbody>`;
-  for (const slot of rosterSlots(roster)) {
-    if (!box[slot]) continue;
+  // Mid-game, roster order (starters then bench) is what makes the table
+  // readable as it fills in - rows aren't jumping around every tick. At the
+  // final buzzer the game is a finished box score, and those read top scorer
+  // first, so re-sort only once there's nothing left to fill in.
+  const slots = rosterSlots(roster).filter((slot) => box[slot]);
+  const ordered = final ? [...slots].sort((a, b) => box[b].pts - box[a].pts) : slots;
+  for (const slot of ordered) {
     html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot], minutesMap && minutesMap[slot]);
   }
   html += "</tbody></table>";
   return html;
 }
 
-export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB, minutesA, minutesB) {
+export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB, minutesA, minutesB, final = false) {
   container.innerHTML =
-    boxTable(rosterA, boxA, labelA, shotsA, minutesA) + boxTable(rosterB, boxB, labelB, shotsB, minutesB);
+    boxTable(rosterA, boxA, labelA, shotsA, minutesA, final) + boxTable(rosterB, boxB, labelB, shotsB, minutesB, final);
 }
 
 /** Shot splits for a finished roster, computed once so the same line is
@@ -630,6 +636,25 @@ export function renderBanners(container, summaryEl, profile, onEquip) {
   }
 }
 
+/** One row per era bracket, online and offline broken out separately - a
+ * rank earned in Modern Ball says nothing about Grandpa's Game, so folding
+ * them into one number would hide more than it showed. Lives on the Profile
+ * tab only; the home screen's era chips are for picking what to play next,
+ * not for re-showing a record. */
+function renderEraRecords(container, profile) {
+  container.innerHTML = "";
+  for (const era of ERAS) {
+    const rec = eraRecord(profile, era.id);
+    const row = document.createElement("div");
+    row.className = "era-record-row";
+    row.innerHTML =
+      `<span class="era-record-name"><span aria-hidden="true">${era.emoji}</span> ${era.label}</span>` +
+      `<span class="era-record-split"><span class="era-record-label">Online</span> ${rec.online_wins}-${rec.online_losses}</span>` +
+      `<span class="era-record-split"><span class="era-record-label">Offline</span> ${rec.offline_wins}-${rec.offline_losses}</span>`;
+    container.appendChild(row);
+  }
+}
+
 export function renderProfileScreen(refs, profile) {
   refs.usernameInput.value = profile.username || "";
   renderTierSummary(refs.tierBadge, refs.tierCaption, profile.onlineWins);
@@ -641,6 +666,8 @@ export function renderProfileScreen(refs, profile) {
   refs.totalGames.textContent = String(
     profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses
   );
+
+  renderEraRecords(refs.eraRecords, profile);
 
   const top = mostDraftedPlayer(profile);
   refs.mostDrafted.innerHTML = top

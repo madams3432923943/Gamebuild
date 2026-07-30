@@ -100,19 +100,16 @@
       <div class="card start-card">
         <h2>Start a Draft Battle</h2>
         <p class="hint-text">Drafting as <span id="signed-in-as" class="signed-in-as"></span></p>
-        <div class="mode-toggle">
-          <label class="radio-option">
-            <input type="radio" name="mode" value="practice-easy" checked />
+        <div class="mode-toggle" id="mode-toggle" role="radiogroup" aria-label="Draft mode">
+          <button type="button" class="mode-btn active" data-mode="practice-easy" aria-checked="true" role="radio">
             Quick Play <small>(vs Bot &middot; all players &amp; stats shown)</small>
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="mode" value="practice-hard" />
+          </button>
+          <button type="button" class="mode-btn" data-mode="practice-hard" aria-checked="false" role="radio">
             Ranked Practice <small>(vs Bot &middot; ranked rules + rotation &amp; gamestyle)</small>
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="mode" value="online" />
+          </button>
+          <button type="button" class="mode-btn" data-mode="online" aria-checked="false" role="radio">
             Ranked <small>(online &middot; counts toward your record)</small>
-          </label>
+          </button>
         </div>
         <p class="hint-text" id="mode-hint"></p>
 
@@ -230,6 +227,12 @@
           <div id="total-games" class="record-value"></div>
           <div class="player-stats">every mode combined</div>
         </div>
+      </div>
+
+      <div class="card">
+        <h3>Records by Era</h3>
+        <p class="hint-text">Each bracket keeps its own record - Modern Ball and Grandpa's Game don't share one.</p>
+        <div id="era-records" class="era-records"></div>
       </div>
 
       <div class="card">

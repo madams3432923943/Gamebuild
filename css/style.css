@@ -218,17 +218,41 @@ input[type="text"]:focus-visible {
 
 .mode-toggle {
   display: flex;
-  gap: 1.25rem;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
-  color: var(--muted);
-  flex-wrap: wrap;
 }
 
-.radio-option {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+.mode-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mode-btn small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.mode-btn:hover {
+  border-color: var(--accent);
+}
+
+.mode-btn.active {
+  border-color: var(--accent-bright);
+  background: rgba(var(--accent-rgb), 0.16);
+  font-weight: 600;
 }
 
 .hint-text {
@@ -2091,15 +2115,45 @@ table.box-table th, table.history-table th {
   line-height: 1;
 }
 
-.era-chip-record {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  color: var(--muted);
-  padding-left: 0.15rem;
+/* --- Profile: per-era records ---------------------------------------------
+   One row per bracket, online/offline broken out - this is the ONLY place a
+   record is shown per era; the home screen's chips are choice-only. */
+.era-records {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.era-chip.active .era-chip-record {
-  color: var(--accent-bright);
+.era-record-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+.era-record-name {
+  font-weight: 600;
+  flex: 1 1 auto;
+  min-width: 8rem;
+}
+
+.era-record-split {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.era-record-label {
+  font-family: var(--font-body);
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-right: 0.3rem;
 }
 
 /* --- Online ticker -------------------------------------------------------
