@@ -1019,6 +1019,12 @@ table.box-table th, table.history-table th {
   cursor: pointer;
 }
 
+.how-to-play-link {
+  display: block;
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
 .signed-in-as {
   color: var(--accent-bright);
   font-weight: 700;
