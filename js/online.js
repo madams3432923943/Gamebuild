@@ -222,10 +222,20 @@ export async function getOpponentSummary(userId) {
  * same leak the matches_public view exists to prevent. A column-limited
  * poll keeps that guarantee intact; 2-3s of latency on a turn-based draft
  * is imperceptible. Returns a stop() function.
+ *
+ * `initialMatch` should be the match state the caller already rendered
+ * before starting the watcher (enterOnlineMatch always fetches and handles
+ * one first). Without it, `last` starts null, so the FIRST tick - which
+ * fires immediately, no delay - always looks like a change and re-fires
+ * onChange for state the caller already handled, running two concurrent
+ * handlers over the same match. That's harmless while drafting, but for
+ * ready_to_simulate/complete it means two concurrent
+ * runOnlineSimulationFlow() calls fighting over the same scoreboard
+ * intervals and DOM - a real cause of a "frozen" game screen.
  */
-export function watchMatch(matchId, onChange, intervalMs = 2000) {
+export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = null) {
   let stopped = false;
-  let last = null;
+  let last = initialMatch;
 
   async function tick() {
     if (stopped) return;

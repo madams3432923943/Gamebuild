@@ -1082,13 +1082,16 @@ function renderPoolForCurrentState() {
 function onPoolPick(player) {
   const roster = rosterFor(game.round.activeSide);
   const slots = eligibleOpenSlots(player, roster, game.draft.slots);
-  if (slots.length === 1) {
+  // One eligible slot, or every eligible slot is bench (interchangeable, so
+  // asking which one isn't a real decision) - place him without a popup.
+  if (slots.length === 1 || slots.every((s) => s.startsWith("BENCH"))) {
     finalizePick(player, slots[0]);
     return;
   }
-  // More than one slot fits, so ask - in a popup rather than by re-rendering
-  // the board and hoping the position strip is noticed. Dismissing puts the
-  // player back rather than dropping the pick.
+  // A genuine choice exists (a real position, alone or alongside bench), so
+  // ask - in a popup rather than by re-rendering the board and hoping the
+  // position strip is noticed. Dismissing puts the player back rather than
+  // dropping the pick.
   game.round.pendingPlayer = player;
   renderDraftRound();
   openSlotPicker(
@@ -1192,8 +1195,10 @@ function renderDraftComplete() {
 
 // ---- Online draft flow ----
 
+const matchupIntroEl = document.getElementById("matchup-intro");
 const matchupSideAEl = document.getElementById("matchup-side-a");
 const matchupSideBEl = document.getElementById("matchup-side-b");
+const matchupVsEl = document.getElementById("matchup-vs");
 const matchupCountdownEl = document.getElementById("matchup-countdown");
 const matchupRefsA = {
   bannerSlot: document.getElementById("matchup-banner-a"),
@@ -1210,18 +1215,21 @@ function rankLabelFor(rankInfo) {
   return rankInfo && !rankInfo.provisional ? rankInfo.tier.name : "Unranked";
 }
 
-/** The ~5s "you've been matched" beat between finding an opponent and the
- * draft actually starting: both players' banners fly in from the edges
- * alongside their username and rank, then a 3-2-1 countdown. Only for a
- * genuinely fresh match (enterOnlineMatch only calls this when there are no
- * picks yet) - reconnecting to a draft already in progress skips straight
- * to it instead of replaying the intro every time. */
+/** The ~7s "you've been matched" beat between finding an opponent and the
+ * draft actually starting: both players' banners fly in from the edges with
+ * a little overshoot, an impact flash lands as they settle, then a 3-2-1
+ * countdown and a buzzer-red "GO!". Only for a genuinely fresh match
+ * (enterOnlineMatch only calls this when there are no picks yet) -
+ * reconnecting to a draft already in progress skips straight to it instead
+ * of replaying the intro every time. */
 async function playMatchupIntro(mySide, oppSide) {
   showScreen("matchupIntro");
   matchupSideAEl.classList.remove("fly-in");
   matchupSideBEl.classList.remove("fly-in");
+  matchupVsEl.classList.remove("vs-fade");
+  matchupIntroEl.classList.remove("impact-flash");
   matchupCountdownEl.classList.add("hidden");
-  matchupCountdownEl.classList.remove("pulse");
+  matchupCountdownEl.classList.remove("pulse", "go");
   matchupCountdownEl.textContent = "";
 
   renderMatchupSide(matchupRefsA, mySide);
@@ -1235,7 +1243,16 @@ async function playMatchupIntro(mySide, oppSide) {
   matchupSideAEl.classList.add("fly-in");
   matchupSideBEl.classList.add("fly-in");
 
-  await sleep(1500);
+  // A beat after the banners land (the fly-in transition itself is 0.9s),
+  // a quick radial flash sells the "impact" of the two sides meeting.
+  await sleep(900);
+  matchupIntroEl.classList.add("impact-flash");
+
+  await sleep(1300);
+  // The countdown and "VS" occupy the exact same dead-center spot by
+  // design - fading VS out is what keeps them from rendering on top of
+  // each other instead of the countdown looking like a glitch.
+  matchupVsEl.classList.add("vs-fade");
   matchupCountdownEl.classList.remove("hidden");
   for (const n of [3, 2, 1]) {
     matchupCountdownEl.textContent = String(n);
@@ -1244,8 +1261,12 @@ async function playMatchupIntro(mySide, oppSide) {
     matchupCountdownEl.classList.add("pulse");
     await sleep(1000);
   }
+  // The payoff beat: bigger, and in the same buzzer-red the pick timer
+  // already uses for urgency, so it reads as "go" rather than just a
+  // fourth number in the same countdown color.
   matchupCountdownEl.textContent = "GO!";
-  await sleep(400);
+  matchupCountdownEl.classList.add("go");
+  await sleep(900);
 }
 
 async function enterOnlineMatch(matchId) {
@@ -1292,7 +1313,13 @@ async function enterOnlineMatch(matchId) {
   btnLeaveMatch.classList.remove("hidden");
   showScreen("draft");
   await handleOnlineMatchState(match);
-  game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange);
+  // Pass the match we just handled as the watcher's starting point - without
+  // this, watchMatch's first poll (which fires immediately) always looks
+  // like a change and re-runs the handler above a second time, concurrently.
+  // Harmless mid-draft, but for ready_to_simulate/complete it meant two
+  // concurrent runOnlineSimulationFlow() calls racing over the same
+  // scoreboard timers/DOM - a real cause of a frozen-looking game screen.
+  game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange, undefined, match);
 }
 
 async function onOnlineMatchChange(match) {
@@ -1302,7 +1329,13 @@ async function onOnlineMatchChange(match) {
 /** Routes to the right screen/phase for whatever state the match is
  * currently in - shared by the initial entry (enterOnlineMatch) and every
  * subsequent poll tick (onOnlineMatchChange) so a reload or a resume mid-
- * strategy-phase lands in the same place a live status change would. */
+ * strategy-phase lands in the same place a live status change would.
+ *
+ * Only the drafting/strategy branches get a try/catch writing to
+ * draftTurnBanner here - by the time runOnlineSimulationFlow could throw,
+ * showScreen("game") has already run and draftTurnBanner is on a hidden
+ * screen, so that branch handles its own errors and reports to finalBanner
+ * instead (see runOnlineSimulationFlow). */
 async function handleOnlineMatchState(match) {
   if (match.status === "ready_to_simulate" || match.status === "complete") {
     cleanupOnlineWatcher();
@@ -1310,12 +1343,17 @@ async function handleOnlineMatchState(match) {
     await runOnlineSimulationFlow(match.id);
     return;
   }
-  if (match.status === "strategy") {
-    cleanupPickTimer();
-    await beginOnlineStrategyPhase(match);
-    return;
+  try {
+    if (match.status === "strategy") {
+      cleanupPickTimer();
+      await beginOnlineStrategyPhase(match);
+      return;
+    }
+    await renderOnlineDraftRound(match);
+  } catch (e) {
+    console.error("Failed to update online match:", e);
+    draftTurnBanner.textContent = "Something went wrong (" + e.message + ") - try refreshing, or leave the match.";
   }
-  await renderOnlineDraftRound(match);
 }
 
 /** Lets a player walk away from a stuck or unwanted online draft rather than
@@ -1326,6 +1364,14 @@ btnLeaveMatch.addEventListener("click", async () => {
   const matchId = game.online.matchId;
   cleanupOnlineWatcher();
   cleanupPickTimer();
+  // The strategy phase's own timers (rotation/matchups/tactic) aren't
+  // covered by cleanupPickTimer - leaving mid-phase without clearing them
+  // left a zombie interval that could still fire minutes later against a
+  // match cancelMatch just deleted, throwing unhandled deep inside a timer
+  // callback with no game.online left to reference.
+  cleanupRotationTimer();
+  cleanupMatchupTimer();
+  cleanupTacticTimer();
   btnLeaveMatch.classList.add("hidden");
   try {
     await cancelMatch(matchId);
@@ -1362,10 +1408,20 @@ async function renderOnlineDraftRound(match) {
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
+  // The opponent's pick from the round that just finished becomes visible
+  // for the first time exactly when this fires (get_visible_picks only
+  // reveals a side's current-round pick once BOTH sides have acted this
+  // round) - same highlight animation offline's renderRoundReveal already
+  // gives the bot's pick, via the same revealSlots opt on renderRosterPanel.
+  const oppSide = o.mySide === "A" ? "B" : "A";
+  const oppRevealSlots = picks
+    .filter((p) => p.round_number === match.round_number - 1 && p.side === oppSide && p.action === "pick")
+    .map((p) => p.slot);
+
   if (game.ruleset !== "easy") startPickTimer(handleOnlineTimeout);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: RANKED_SLOTS });
-  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS, revealSlots: oppRevealSlots });
 }
 
 function renderOnlinePositionAndPool() {
@@ -1381,12 +1437,26 @@ function renderOnlinePositionAndPool() {
 function onOnlinePoolPick(player) {
   const o = game.online;
   const slots = eligibleOpenSlots(player, o.myRoster, RANKED_SLOTS);
-  if (slots.length === 1) {
+  // Mirrors onPoolPick (offline) exactly: one eligible slot, or every
+  // eligible slot is bench (interchangeable, not a real decision) - place
+  // him without a popup.
+  if (slots.length === 1 || slots.every((s) => s.startsWith("BENCH"))) {
     finalizeOnlinePick(player, slots[0]);
-  } else {
-    o.pendingPlayer = player;
-    renderOnlinePositionAndPool();
+    return;
   }
+  // A genuine choice exists - same popup offline uses, not a different
+  // online-only pattern.
+  o.pendingPlayer = player;
+  renderOnlinePositionAndPool();
+  openSlotPicker(
+    player,
+    slots,
+    (slot) => finalizeOnlinePick(player, slot),
+    () => {
+      o.pendingPlayer = null;
+      renderOnlinePositionAndPool();
+    }
+  );
 }
 
 /** Pick-timer timeout for an online turn: auto-picks the worst eligible
@@ -1454,6 +1524,9 @@ async function beginOnlineStrategyPhase(match) {
   poolSearch.hidden = true;
   positionSelectorEl.innerHTML = "";
   poolList.innerHTML = "";
+  // Visible feedback for the round-trip below, so a slow (not failed) load
+  // reads as "working" instead of a blank, seemingly frozen screen.
+  draftTurnBanner.textContent = "Loading final rosters…";
 
   const picks = await getVisiblePicks(o.matchId);
   const statsByKey = await fetchStatsForPicks(picks);
@@ -1859,9 +1932,21 @@ async function runOnlineSimulationFlow(matchId) {
   const iAmA = o.mySide === "A";
   const result = normalizeServerResult(dbResult, iAmA);
 
-  const picks = await getVisiblePicks(matchId);
-  const statsByKey = await fetchStatsForPicks(picks);
-  const { rosterA, rosterB } = buildVisibleState(picks, Infinity, statsByKey);
+  // showScreen("game") already ran above, so draftTurnBanner (the error
+  // target for the drafting/strategy branches in handleOnlineMatchState) is
+  // on a hidden screen from here on - anything that throws in this section
+  // has to report to finalBanner instead, which IS visible on this screen.
+  let rosterA, rosterB;
+  try {
+    const picks = await getVisiblePicks(matchId);
+    const statsByKey = await fetchStatsForPicks(picks);
+    ({ rosterA, rosterB } = buildVisibleState(picks, Infinity, statsByKey));
+  } catch (e) {
+    console.error("Failed to load final rosters for the result screen:", e);
+    finalBanner.textContent = "Result saved, but the box score couldn't load - check Profile > Recent Games.";
+    finalBanner.classList.remove("hidden");
+    return;
+  }
   const myRosterFinal = iAmA ? rosterA : rosterB;
   const oppRosterFinal = iAmA ? rosterB : rosterA;
 

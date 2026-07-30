@@ -470,9 +470,10 @@ input[type="text"]:focus-visible {
   cursor: not-allowed;
 }
 
-/* --- Matchup intro: the ~5s "you've been matched" beat before an online
+/* --- Matchup intro: the ~7s "you've been matched" beat before an online
    draft starts (see playMatchupIntro in main.js) - both banners fly in from
-   the edges, then a 3-2-1 countdown. --- */
+   the edges with a little overshoot, an impact flash lands as they settle,
+   then a 3-2-1 countdown and a buzzer-red "GO!". --- */
 .matchup-intro {
   position: relative;
   display: flex;
@@ -483,6 +484,29 @@ input[type="text"]:focus-visible {
   padding: 2rem 1rem;
 }
 
+/* A brief radial glow timed to the banners landing - sells the two sides
+   actually meeting, rather than just sliding to a stop. Opacity-only, same
+   restrained language as pulse-lock/pulse-buzzer elsewhere - no color
+   cycling. */
+.matchup-intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(var(--accent-rgb), 0.35), transparent 65%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.matchup-intro.impact-flash::before {
+  animation: matchup-impact-flash 0.7s ease-out;
+}
+
+@keyframes matchup-impact-flash {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .matchup-side {
   display: flex;
   flex-direction: column;
@@ -490,7 +514,9 @@ input[type="text"]:focus-visible {
   gap: 0.6rem;
   width: min(260px, 40vw);
   opacity: 0;
-  transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+  /* A back-out curve on the way in - the side overshoots slightly and
+     settles, a small bounce rather than a flat slide-and-stop. */
+  transition: transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease;
 }
 
 .matchup-side-a {
@@ -550,6 +576,14 @@ input[type="text"]:focus-visible {
   color: var(--accent-bright);
   flex-shrink: 0;
   filter: drop-shadow(0 0 10px rgba(var(--accent-rgb), 0.5));
+  transition: opacity 0.4s ease;
+}
+
+/* "VS" and the countdown are both dead-center by design - once the
+   countdown starts, VS has to get out of the way or the two render on top
+   of each other. */
+.matchup-vs.vs-fade {
+  opacity: 0;
 }
 
 .matchup-countdown {
@@ -580,6 +614,26 @@ input[type="text"]:focus-visible {
   }
   100% {
     transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* The payoff beat - buzzer-red (the same color the pick timer already uses
+   for urgency) and a bigger pop than the 3-2-1 numbers, so "GO!" reads as
+   the moment the countdown was building to, not just a fourth number. */
+.matchup-countdown.go {
+  color: var(--buzzer);
+  text-shadow: 0 0 28px rgba(232, 67, 61, 0.65);
+  animation: matchup-go-pulse 0.6s ease-out;
+}
+
+@keyframes matchup-go-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1.4);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.1);
     opacity: 1;
   }
 }
@@ -704,14 +758,28 @@ input[type="text"]:focus-visible {
   50% { opacity: 1; }
 }
 
+/* Shared by offline (the bot's pick, via renderRoundReveal) and online (the
+   opponent's pick, via renderOnlineDraftRound) - one animation, so a reveal
+   reads identically in both modes. The flip alone read as a reveal; the
+   glow on top is what makes it a HIGHLIGHT - worth a beat to actually look
+   at and compare against your own pick, not just a flicker. */
 .slot-reveal {
-  animation: flip-reveal 0.5s ease;
+  display: inline-block;
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  animation: flip-reveal 0.5s ease, slot-highlight-glow 1.2s ease-out;
 }
 
 @keyframes flip-reveal {
   0% { transform: rotateX(90deg); opacity: 0; }
   60% { transform: rotateX(-12deg); opacity: 1; }
   100% { transform: rotateX(0deg); opacity: 1; }
+}
+
+@keyframes slot-highlight-glow {
+  0% { background: rgba(var(--accent-rgb), 0.6); box-shadow: 0 0 0 rgba(var(--accent-rgb), 0); }
+  35% { background: rgba(var(--accent-rgb), 0.4); box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.55); }
+  100% { background: rgba(var(--accent-rgb), 0); box-shadow: 0 0 0 rgba(var(--accent-rgb), 0); }
 }
 
 .draft-pool-panel {
