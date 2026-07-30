@@ -24,6 +24,7 @@ import {
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
+import { squadTierForRep } from "./squads.js";
 
 /** Display name for a roster slot. Derived rather than looked up in a fixed
  * map, because roster shape varies by mode: Quick Play uses bare positions,
@@ -1037,7 +1038,8 @@ export function renderSquadBrowseList(container, squads, onJoin) {
 
     const meta = document.createElement("div");
     meta.className = "squad-card-meta";
-    meta.textContent = `${squad.memberCount} / ${squad.memberCap} members`;
+    const tierName = squadTierForRep(squad.rep).name;
+    meta.textContent = `${squad.memberCount} / ${squad.memberCap} members · ${tierName} · ${squad.rep} Rep`;
     card.appendChild(meta);
 
     const full = squad.memberCount >= squad.memberCap;
@@ -1053,8 +1055,8 @@ export function renderSquadBrowseList(container, squads, onJoin) {
   }
 }
 
-/** The squad detail header: crest, name/tag, motto, member count, squad
- * rank (same percentile-tier language as the individual/era rank displays),
+/** The squad detail header: crest, name/tag, motto, member count, Squad
+ * Rep (a persistent trophy-style score - see squadRankInfo in squads.js),
  * and - leader/co-leader only - the invite code and an inline settings
  * editor. `data.editing` toggles the editor; callbacks.onToggleEdit flips it
  * via a full re-render (cheap, and matches how every other tab-like toggle
@@ -1087,18 +1089,25 @@ export function renderSquadHeader(container, data, callbacks) {
   rankWrap.className = "squad-rank-wrap";
   const badge = document.createElement("span");
   badge.className = "tier-badge";
+  badge.textContent = rankInfo.tier.name;
+  rankWrap.appendChild(badge);
+
+  const track = document.createElement("div");
+  track.className = "progress-bar-track";
+  const fill = document.createElement("div");
+  fill.className = "progress-bar-fill";
+  const pct = rankInfo.next
+    ? Math.min(100, (100 * (rankInfo.rep - rankInfo.tier.minRep)) / (rankInfo.next.minRep - rankInfo.tier.minRep))
+    : 100;
+  fill.style.width = `${pct}%`;
+  track.appendChild(fill);
+  rankWrap.appendChild(track);
+
   const caption = document.createElement("div");
   caption.className = "squad-rank-caption";
-  if (rankInfo.provisional) {
-    badge.textContent = "Provisional";
-    const g = rankInfo.gamesNeeded;
-    caption.textContent = `${g} more squad online ${g === 1 ? "game" : "games"} to get a squad rank.`;
-  } else {
-    badge.textContent = rankInfo.tier.name;
-    const pct = Math.max(1, Math.round(100 - rankInfo.percentile));
-    caption.textContent = `Top ${pct}% of squads (#${rankInfo.rank} of ${rankInfo.totalQualifying})`;
-  }
-  rankWrap.appendChild(badge);
+  caption.textContent = rankInfo.next
+    ? `${rankInfo.rep} Rep — ${rankInfo.next.minRep - rankInfo.rep} more to reach ${rankInfo.next.name}`
+    : `${rankInfo.rep} Rep — the top tier, Legend.`;
   rankWrap.appendChild(caption);
   container.appendChild(rankWrap);
 

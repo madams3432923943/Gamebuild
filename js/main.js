@@ -52,7 +52,7 @@ import {
   regenerateInviteCode,
   updateSquadSettings,
   disbandSquad,
-  loadSquadRankInfo,
+  squadRankInfo,
 } from "./squads.js";
 import {
   joinQueue,
@@ -1892,7 +1892,7 @@ async function loadSquadDetail() {
     await openSquadsScreen();
     return;
   }
-  const rankInfo = await loadSquadRankInfo(detail.squad.id);
+  const rankInfo = squadRankInfo(detail.squad);
   const session = await getSession();
   squadDetailData = { ...detail, rankInfo, myUserId: session.user.id };
   renderSquadDetailFromCache();

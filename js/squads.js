@@ -6,13 +6,56 @@
 // client. This module is just a thin, typed wrapper around those RPCs plus
 // the read paths RLS already allows directly.
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { TIERS, tierForPercentile, nextTierAbove } from "./profile.js";
 
-// Aggregate online games (wins+losses, summed across every member) a squad
-// needs before it gets a real rank instead of "Provisional" - same
-// placement-match idea as RANK_GAMES_FLOOR in profile.js, just scaled up
-// since a squad's total is a sum over several players.
-export const SQUAD_GAMES_FLOOR = 15;
+// Squad Rep: a persistent, Clash-Royale-trophy-style score - not a live
+// percentile against other squads anymore. +10 rep per member win, -3 per
+// member loss (asymmetric on purpose: losses should sting far less than
+// wins reward), floored at 0. The actual accounting happens in Postgres
+// (see the add_squad_rep migration's sync_squad_rep trigger, which fires
+// whenever a member's online_wins/online_losses changes) - `rep` here is
+// just a plain column read straight off the squads row, so unlike the old
+// percentile system this needs no extra query and no games-floor/
+// "Provisional" state: a brand new squad simply starts at 0 rep and climbs.
+export const SQUAD_REP_TIERS = [
+  { name: "YMCA", minRep: 0 },
+  { name: "Middle School", minRep: 40 },
+  { name: "High School", minRep: 90 },
+  { name: "AAU", minRep: 150 },
+  { name: "Community College", minRep: 220 },
+  { name: "Div 3", minRep: 300 },
+  { name: "Div 2", minRep: 390 },
+  { name: "Div 1", minRep: 490 },
+  { name: "College Starter", minRep: 600 },
+  { name: "Conference Champ", minRep: 720 },
+  { name: "March Madness", minRep: 850 },
+  { name: "Sweet Sixteen", minRep: 990 },
+  { name: "Final Four", minRep: 1140 },
+  { name: "National Champion", minRep: 1300 },
+  { name: "NBA Draftee", minRep: 1470 },
+  { name: "Rookie of the Year", minRep: 1650 },
+  { name: "NBA All-Star", minRep: 1840 },
+  { name: "NBA All-Pro", minRep: 2040 },
+  { name: "NBA MVP", minRep: 2250 },
+  { name: "NBA Champion", minRep: 2470 },
+  { name: "Hall of Fame", minRep: 2700 },
+  { name: "Legend", minRep: 3000 },
+];
+
+export function squadTierForRep(rep) {
+  let tier = SQUAD_REP_TIERS[0];
+  for (const t of SQUAD_REP_TIERS) if (rep >= t.minRep) tier = t;
+  return tier;
+}
+
+export function nextSquadTierAbove(rep) {
+  return SQUAD_REP_TIERS.find((t) => t.minRep > rep) || null;
+}
+
+/** Rep + tier for a squad - pure, synchronous, no network call, since rep
+ * is already a plain column on the squad row wherever one is loaded. */
+export function squadRankInfo(squad) {
+  return { rep: squad.rep, tier: squadTierForRep(squad.rep), next: nextSquadTierAbove(squad.rep) };
+}
 
 function normalizeSquad(row) {
   return {
@@ -23,6 +66,7 @@ function normalizeSquad(row) {
     motto: row.motto || "",
     visibility: row.visibility,
     memberCap: row.member_cap,
+    rep: row.rep,
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
@@ -255,77 +299,3 @@ export async function disbandSquad() {
   await requireSession();
   return callRpc("disband_squad", {});
 }
-
-// ---- squad rank ----
-// Same percentile idea as profile.js's loadRankInfo, one level up: a squad's
-// win rate is every member's online wins/losses summed, compared against
-// every other squad's summed win rate. The comparison pool is whatever
-// squad_members rows RLS lets the caller read - every public squad's roster,
-// plus the caller's own squad even if it's private. A private squad the
-// caller isn't in is invisible to this by design (same as everywhere else
-// private-squad data is gated), not an oversight - it just means the pool
-// undercounts private squads other than your own, which is an acceptable
-// tradeoff for not leaking private roster data into a rank computation.
-export async function loadSquadRankInfo(squadId) {
-  const supabase = await getSupabase();
-  const { data: memberRows, error } = await supabase.from("squad_members").select("squad_id, user_id");
-  if (error) throw error;
-
-  const bySquad = new Map();
-  for (const row of memberRows) {
-    if (!bySquad.has(row.squad_id)) bySquad.set(row.squad_id, []);
-    bySquad.get(row.squad_id).push(row.user_id);
-  }
-  if (!bySquad.has(squadId)) return { provisional: true, gamesPlayed: 0, gamesNeeded: SQUAD_GAMES_FLOOR };
-
-  const allIds = memberRows.map((r) => r.user_id);
-  const { data: profiles, error: profileErr } = await supabase
-    .from("profiles")
-    .select("id, online_wins, online_losses")
-    .in("id", allIds);
-  if (profileErr) throw profileErr;
-  const winsById = new Map(profiles.map((p) => [p.id, p.online_wins]));
-  const lossesById = new Map(profiles.map((p) => [p.id, p.online_losses]));
-
-  const squadTotals = new Map();
-  for (const [sid, userIds] of bySquad) {
-    let wins = 0;
-    let losses = 0;
-    for (const uid of userIds) {
-      wins += winsById.get(uid) || 0;
-      losses += lossesById.get(uid) || 0;
-    }
-    squadTotals.set(sid, { wins, losses, played: wins + losses });
-  }
-
-  const mine = squadTotals.get(squadId);
-  if (mine.played < SQUAD_GAMES_FLOOR) {
-    return { provisional: true, gamesPlayed: mine.played, gamesNeeded: SQUAD_GAMES_FLOOR - mine.played };
-  }
-
-  const myRate = mine.wins / mine.played;
-  let below = 0;
-  let above = 0;
-  let qualifying = 0;
-  for (const [sid, totals] of squadTotals) {
-    if (totals.played < SQUAD_GAMES_FLOOR) continue;
-    qualifying += 1;
-    const rate = totals.wins / totals.played;
-    if (rate < myRate) below += 1;
-    else if (rate > myRate) above += 1;
-  }
-
-  const percentile = qualifying > 0 ? (100 * below) / qualifying : 100;
-  return {
-    provisional: false,
-    tier: tierForPercentile(percentile),
-    next: nextTierAbove(percentile),
-    percentile,
-    rank: above + 1,
-    totalQualifying: qualifying,
-    winRate: myRate,
-    gamesPlayed: mine.played,
-  };
-}
-
-export { TIERS };
