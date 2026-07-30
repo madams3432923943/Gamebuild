@@ -669,7 +669,13 @@ export function renderBanners(container, summaryEl, profile, onEquip) {
  * rank earned in Modern Ball says nothing about Grandpa's Game, so folding
  * them into one number would hide more than it showed. Lives on the Profile
  * tab only; the home screen's era chips are for picking what to play next,
- * not for re-showing a record. */
+ * not for re-showing a record.
+ *
+ * The online side also shows a per-era rank. Today that's always
+ * "Provisional" - loadRankInfo() (profile.js) only computes the one
+ * cross-era percentile shown at the top of the profile; a real per-era
+ * version (same idea, scoped to eraRecord's online_wins/online_losses
+ * instead of the profile-wide total) is a follow-up, not built yet. */
 function renderEraRecords(container, profile) {
   container.innerHTML = "";
   for (const era of ERAS) {
@@ -678,7 +684,8 @@ function renderEraRecords(container, profile) {
     row.className = "era-record-row";
     row.innerHTML =
       `<span class="era-record-name"><span aria-hidden="true">${era.emoji}</span> ${era.label}</span>` +
-      `<span class="era-record-split"><span class="era-record-label">Online</span> ${rec.online_wins}-${rec.online_losses}</span>` +
+      `<span class="era-record-split"><span class="era-record-label">Online</span> ${rec.online_wins}-${rec.online_losses}` +
+      `<span class="era-record-rank">Provisional</span></span>` +
       `<span class="era-record-split"><span class="era-record-label">Offline</span> ${rec.offline_wins}-${rec.offline_losses}</span>`;
     container.appendChild(row);
   }

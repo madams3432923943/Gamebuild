@@ -2026,6 +2026,14 @@ table.box-table th, table.history-table th {
   margin-right: 0.3rem;
 }
 
+.era-record-rank {
+  font-family: var(--font-body);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: italic;
+  margin-left: 0.4rem;
+}
+
 /* --- Online ticker -------------------------------------------------------
    Sits between the brand and the nav tabs. Hidden until the first successful
    count so a network failure shows nothing rather than a misleading "0". */
