@@ -7,8 +7,6 @@ import { PLAYERS } from "./data.js";
 import { buildRecap, buildGameScript } from "./recap.js";
 import { startPresence } from "./presence.js";
 import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
-
-const TACTIC_IDS = TACTICS.map((t) => t.id);
 import { simulateGame, defaultMinutes, defaultMatchups } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
@@ -77,6 +75,7 @@ import {
 // copy of the same dataset/engine so a client can't fake a result.
 import { computeDatasetStats } from "./engine.js";
 const datasetStats = computeDatasetStats(PLAYERS);
+const TACTIC_IDS = TACTICS.map((t) => t.id);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,5 +1,8 @@
 {
   "name": "ball-knowledge",
+  "description": "An NBA draft-battle game: draft a shared team-and-decade squad from memory, then play out the result.",
+  "repository": "github:madams3432923943/gamebuild",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "scripts": {
