@@ -44,10 +44,15 @@
 // thing this engine converts directly into wins, and hand-picked scoring
 // bonuses on a pace/transition style previously ran away with a 65% win rate
 // before that pass. Re-solved after defender ratings were damped, since that
-// changed how much defence suppresses scoring. Verified over the full 10x9
-// field (150 games per matchup): 48.0-52.9%, spread 4.9 - re-run the script
-// and paste in new mods whenever a style's identity stats or the engine's
-// balance change.
+// changed how much defence suppresses scoring.
+//
+// Re-solved again after real per-game stats replaced the 1980s-2020s
+// placeholder data and scoringEfficiencyFactor (engine.js) started letting
+// real shooting efficiency affect scoring - a real engine-behavior change,
+// exactly the case this file's own instructions call for a re-run on.
+// Verified over the full 10x9 field (150 games per matchup): 46.8-53.9%,
+// spread 7.0 - re-run the script and paste in new mods whenever a style's
+// identity stats or the engine's balance change.
 export const TACTICS = [
   {
     id: "balanced",
@@ -61,49 +66,49 @@ export const TACTICS = [
     name: "Run & Gun",
     icon: "🏃",
     blurb: "+2 Pace, +2 Transition Offense. Bleeds halfcourt offense and defense to get there.",
-    mods: { pts: 1.0395, reb: 0.92, ast: 1.08, stl: 0.82, blk: 0.82, tov: 1.3 },
+    mods: { pts: 1.0302, reb: 0.92, ast: 1.08, stl: 0.82, blk: 0.82, tov: 1.3 },
   },
   {
     id: "spread-perimeter",
     name: "Spread the Perimeter",
     icon: "🎯",
     blurb: "+2 3PT Shooting, +1 Spacing (flavor only). Costs offensive rebounding and interior scoring.",
-    mods: { pts: 1.0065, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
+    mods: { pts: 1.0019, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
   },
   {
     id: "lockdown-defense",
     name: "Lockdown Defense",
     icon: "🔒",
     blurb: "+2 Perimeter Defense, +2 Interior Defense. Slower pace, less offensive efficiency.",
-    mods: { pts: 0.9337, reb: 0.97, ast: 0.9, stl: 1.35, blk: 1.35, tov: 0.85 },
+    mods: { pts: 0.9411, reb: 0.97, ast: 0.9, stl: 1.35, blk: 1.35, tov: 0.85 },
   },
   {
     id: "crash-the-glass",
     name: "Crash the Glass",
     icon: "💪",
     blurb: "+2 Offensive Rebounding, +2 Defensive Rebounding. Weak in transition D, worse from three.",
-    mods: { pts: 1.0049, reb: 1.4, ast: 0.85, stl: 0.88, blk: 1.05, tov: 0.95 },
+    mods: { pts: 1.0085, reb: 1.4, ast: 0.85, stl: 0.88, blk: 1.05, tov: 0.95 },
   },
   {
     id: "paint-dominance",
     name: "Paint Dominance",
     icon: "🏀",
     blurb: "+2 Interior Scoring, +2 Free Throw Rate. Trades away three-point shooting and pace.",
-    mods: { pts: 1.0057, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
+    mods: { pts: 1.0003, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
   },
   {
     id: "ball-movement",
     name: "Ball Movement",
     icon: "🔀",
     blurb: "+2 Passing, +2 Offensive IQ. Everybody touches it, but isolation scoring and boards suffer.",
-    mods: { pts: 1.0205, reb: 0.9, ast: 1.35, stl: 0.95, blk: 0.9, tov: 0.85 },
+    mods: { pts: 1.0125, reb: 0.9, ast: 1.35, stl: 0.95, blk: 0.9, tov: 0.85 },
   },
   {
     id: "isolation-heavy",
     name: "Isolation Heavy",
     icon: "🌟",
     blurb: "+2 Shot Creation, +2 Clutch Scoring (real 4th-quarter/OT bonus). Passing and chemistry (flavor) take the hit.",
-    mods: { pts: 0.9844, reb: 0.9, ast: 0.7, stl: 0.92, blk: 0.9, tov: 1.05 },
+    mods: { pts: 0.9847, reb: 0.9, ast: 0.7, stl: 0.92, blk: 0.9, tov: 1.05 },
     clutchMods: { pts: 1.15 },
   },
   {
@@ -111,14 +116,14 @@ export const TACTICS = [
     name: "Small Ball",
     icon: "⚡",
     blurb: "+2 3PT Shooting, +2 Switching Defense (steals). Gives up rebounding and interior defense hard.",
-    mods: { pts: 1.04, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 },
+    mods: { pts: 1.0385, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 },
   },
   {
     id: "defensive-pressure",
     name: "Defensive Pressure",
     icon: "🕸️",
     blurb: "+2 Steals, +2 Forced Turnovers. Foul discipline (flavor) and defensive rebounding pay for it.",
-    mods: { pts: 0.962, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 },
+    mods: { pts: 0.9667, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 },
   },
 ];
 

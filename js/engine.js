@@ -44,6 +44,7 @@ import {
   FACTOR_MIN,
   DEFENDER_RATING_EXPONENT,
   FACTOR_MAX,
+  EFFICIENCY_K,
   VARIANCE_MIN,
   VARIANCE_MAX,
   TEAM_QUARTER_VARIANCE_MIN,
@@ -73,8 +74,23 @@ function randRange(lo, hi) {
   return lo + Math.random() * (hi - lo);
 }
 
+/** True shooting % - points per shooting possession, folding in threes and
+ * free throws rather than just field goals. Derived from the same real
+ * per-game fields the box score already reports (ppg/fga/fta), so it needs
+ * no data this dataset doesn't already have. Returns null for anyone without
+ * a shooting profile (every 1960s/70s placeholder, and any player somehow
+ * missing fga), which is what keeps this a no-op for legacy data. */
+function trueShooting(player) {
+  if (typeof player.fga !== "number" || player.fga <= 0) return null;
+  const fta = player.fta || 0;
+  return player.ppg / (2 * (player.fga + 0.44 * fta));
+}
+
 /** Dataset-wide and per-position averages, used to normalize matchups so a
- * center's raw block numbers aren't compared on the same scale as a guard's. */
+ * center's raw block numbers aren't compared on the same scale as a guard's.
+ * Also tracks average true-shooting % (overall and per position), counted
+ * only over players who have a shooting profile - a dataset with none (or a
+ * mix, like today's) still produces a sensible average from whoever qualifies. */
 export function computeDatasetStats(players) {
   const overall = { ppg: 0, rpg: 0, apg: 0, spg: 0, bpg: 0, tov: 0 };
   const byPos = {};
@@ -82,22 +98,37 @@ export function computeDatasetStats(players) {
     byPos[pos] = { ppg: 0, rpg: 0, apg: 0, spg: 0, bpg: 0, tov: 0, count: 0 };
   }
 
+  let tsSum = 0, tsCount = 0;
+  const byPosTs = {};
+  for (const pos of STARTER_SLOTS) byPosTs[pos] = { sum: 0, count: 0 };
+
   for (const p of players) {
     for (const k of STAT_KEYS) overall[k] += p[k];
+    const ts = trueShooting(p);
+    if (ts != null) {
+      tsSum += ts;
+      tsCount += 1;
+    }
     for (const pos of p.pos) {
       if (!byPos[pos]) continue;
       for (const k of STAT_KEYS) byPos[pos][k] += p[k];
       byPos[pos].count += 1;
+      if (ts != null) {
+        byPosTs[pos].sum += ts;
+        byPosTs[pos].count += 1;
+      }
     }
   }
 
   const n = players.length || 1;
   for (const k of STAT_KEYS) overall[k] /= n;
+  overall.ts = tsCount > 0 ? tsSum / tsCount : null;
 
   for (const pos of STARTER_SLOTS) {
     const bucket = byPos[pos];
     const count = bucket.count || 1;
     for (const k of STAT_KEYS) bucket[k] = bucket[k] / count || overall[k];
+    bucket.ts = byPosTs[pos].count > 0 ? byPosTs[pos].sum / byPosTs[pos].count : overall.ts;
   }
 
   return { overall, byPos };
@@ -356,6 +387,20 @@ function primaryPos(player) {
   return player.pos[0];
 }
 
+/** How much a player's real shooting efficiency scales their scoring, beyond
+ * raw ppg. No opposing side to weigh against here - defense already
+ * suppresses scoring through blocks/steals in scoringFactor - so this is a
+ * player's own finishing quality on top of that, compared to the position
+ * average the same way the matchup factors compare offense to defense.
+ * Neutral (1, no effect) for anyone without a shooting profile. */
+function scoringEfficiencyFactor(player, pos, datasetStats) {
+  const ts = trueShooting(player);
+  if (ts == null) return 1;
+  const avg = posAvg(datasetStats, pos, "ts");
+  if (!avg) return 1;
+  return matchupFactor(ratingVsAvg(ts, avg), 1, EFFICIENCY_K);
+}
+
 /** Simulate one quarter for both rosters. Returns per-slot per-line stat
  * objects for each team, e.g. { PG: {pts,reb,ast,stl,blk,tov}, ... }. */
 function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA, minutesB, matchupsA, matchupsB) {
@@ -392,8 +437,8 @@ function simulateQuarter(rosterA, rosterB, datasetStats, modsA, modsB, minutesA,
   // bonus). Only the legacy/online 6-slot roster has one - Quick Play's 5 and
   // Ranked's 10 both omit it, so this is skipped rather than simulated
   // against an undefined player.
-  if (rosterA["6TH"]) linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"], modsA, minutesA);
-  if (rosterB["6TH"]) linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"], modsB, minutesB);
+  if (rosterA["6TH"]) linesA["6TH"] = simulateSixthManQuarter(rosterA["6TH"], modsA, minutesA, datasetStats);
+  if (rosterB["6TH"]) linesB["6TH"] = simulateSixthManQuarter(rosterB["6TH"], modsB, minutesB, datasetStats);
 
   return { linesA, linesB };
 }
@@ -448,8 +493,10 @@ function simulatePlayerQuarter(offPlayer, def, slot, datasetStats, offMods, minu
   const defStealPressure = ratingVsAvg(def.spg, posAvg(datasetStats, defPos, "spg"));
   const turnoverFactor = matchupFactor(defStealPressure, 1, TURNOVER_K);
 
+  const efficiencyFactor = scoringEfficiencyFactor(offPlayer, pos, datasetStats);
+
   return {
-    pts: off.ppg * scale * scoringFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
+    pts: off.ppg * scale * scoringFactor * efficiencyFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
     reb: off.rpg * scale * reboundFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
     ast: off.apg * scale * assistFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
     stl: off.spg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
@@ -458,11 +505,12 @@ function simulatePlayerQuarter(offPlayer, def, slot, datasetStats, offMods, minu
   };
 }
 
-function simulateSixthManQuarter(rawPlayer, mods, minutesMap) {
+function simulateSixthManQuarter(rawPlayer, mods, minutesMap, datasetStats) {
   const scale = minutesScaleFor("6TH", minutesMap) * (1 / QUARTERS_PER_GAME);
   const player = effectiveStats(rawPlayer, mods);
+  const efficiencyFactor = scoringEfficiencyFactor(rawPlayer, primaryPos(rawPlayer), datasetStats);
   return {
-    pts: player.ppg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
+    pts: player.ppg * scale * efficiencyFactor * randRange(VARIANCE_MIN, VARIANCE_MAX),
     reb: player.rpg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
     ast: player.apg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
     stl: player.spg * scale * randRange(VARIANCE_MIN, VARIANCE_MAX),
@@ -609,9 +657,10 @@ function roundLine(line) {
 }
 
 export function gameScore(line) {
-  // Simplified Hollinger game score: the standard formula's FG/FTA terms
-  // are dropped because this dataset intentionally has no shooting-attempt
-  // data (see build spec #9 - shooting percentages are out of scope).
+  // Simplified Hollinger game score, working off the finished box-score line
+  // rather than shot attempts: the standard formula's FG/FTA terms would be
+  // redundant here since inefficient/efficient scoring already shows up in
+  // `pts` itself (see scoringEfficiencyFactor in the simulation above).
   return line.pts + 0.7 * line.reb + 0.7 * line.ast + line.stl + 0.7 * line.blk - line.tov;
 }
 

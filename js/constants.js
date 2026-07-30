@@ -206,6 +206,17 @@ export const FACTOR_MIN = 0.55;
 export const DEFENDER_RATING_EXPONENT = 0.7;
 export const FACTOR_MAX = 1.6;
 
+// How strongly a player's real shooting efficiency (true shooting % vs the
+// position average, from fga/fgp/tpa/tpp/fta/ftp) scales their scoring
+// beyond raw ppg. Same shape as the matchup factors above - a rating-vs-1
+// comparison run through matchupFactor and clamped the same way - but with
+// no opposing side to compare against, since defense already suppresses
+// scoring through blocks/steals in SCORING_K; this is a player's own
+// finishing quality on top of that. Neutral (1, no effect) for anyone
+// without a shooting profile - every 1960s/70s placeholder - so legacy data
+// behaves exactly as it did before this existed.
+export const EFFICIENCY_K = 0.5;
+
 // Per-quarter random variance multiplier range, rolled independently for
 // every player and stat. This is what makes each quarter an independent
 // simulation instead of game-total / 4.
@@ -248,17 +259,24 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 // normalised against positional averages drawn from the pool, so more than
 // doubling it moves the baseline every game is measured against - and the
 // flat 240-minute rotation changed how those minutes are spread on top of
-// that. Verified over 2,000 games with a clear talent gap:
-//   stronger roster wins the game    77.1%  (target 75%)
-//   stronger roster wins a quarter   66.8%
-//   stronger roster sweeps every qtr 27.1%
-//   mean quarter margin               6.7   (target ~7)
+// that.
+//
+// Re-solved again after real per-game stats replaced the 1980s-2020s
+// placeholder data and scoringEfficiencyFactor (engine.js) started letting
+// real shooting efficiency affect scoring: real numbers plus an efficiency
+// factor genuinely differentiate rosters more than the old model-recalled
+// data did on its own, so parity needed to come down to hold the same win
+// rate. Verified over 2,000 games with a clear talent gap:
+//   stronger roster wins the game    75.6%  (target 75%)
+//   stronger roster wins a quarter   65.9%
+//   stronger roster sweeps every qtr 24.9%  (target ~27%)
+//   mean quarter margin               6.6   (target ~7)
 //
 // The margin is the honest cost of the win-rate target: winning three games
 // in four requires a real talent edge, and a real edge shows up on the
 // scoreboard. Tuning parity down trades win rate for a closer scoreline; the
 // knob is here if that trade is ever worth revisiting.
-export const TALENT_PARITY = 0.871;
+export const TALENT_PARITY = 0.84;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's
