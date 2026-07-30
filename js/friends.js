@@ -5,6 +5,7 @@
 // shouldn't be forgeable by a client that just knows another player's id.
 import { getSupabase, requireSession } from "./supabaseClient.js";
 import { DEFAULT_SPORT, DEFAULT_ERA } from "./constants.js";
+import { DEFAULT_BANNER_ID } from "./banners.js";
 
 async function callRpc(name, args) {
   const supabase = await getSupabase();
@@ -68,7 +69,7 @@ async function profilesById(ids) {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, online_wins, online_losses")
+    .select("id, username, online_wins, online_losses, equipped_banner")
     .in("id", ids);
   if (error) throw error;
   return new Map(data.map((p) => [p.id, p]));
@@ -99,6 +100,7 @@ export async function listFriendsLeaderboard() {
         onlineLosses: p.online_losses,
         winRate: played > 0 ? p.online_wins / played : 0,
         gamesPlayed: played,
+        equippedBanner: p.equipped_banner || DEFAULT_BANNER_ID,
       };
     });
 

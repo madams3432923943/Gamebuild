@@ -800,6 +800,16 @@ input[type="text"]:focus-visible {
   gap: 0.5rem;
   max-height: 380px;
   overflow-y: auto;
+  /* Momentum scrolling on iOS - without it the list scrolls a fixed distance
+     and stops dead on each swipe, which is most of what "frozen" describes. */
+  -webkit-overflow-scrolling: touch;
+  /* Keeps a flick that reaches the end of the list from scrolling the page
+     underneath, so the board doesn't jump while you're picking. */
+  overscroll-behavior: contain;
+  /* Each card is its own layout/paint scope, so the browser doesn't re-layout
+     the whole list (10-15 cards with borders and chips) on every scroll
+     frame. This is the difference between smooth and stuttering on a phone. */
+  contain: layout paint;
 }
 
 .player-card {
@@ -814,9 +824,20 @@ input[type="text"]:focus-visible {
   align-items: center;
 }
 
-.player-card:hover {
+/* Only on devices that actually hover. On a touchscreen there's no hover to
+   leave, so the transform stuck to the last-touched card and every scroll
+   frame had to repaint a moved element - the jank this rule used to cause on
+   a phone was worse than the polish it added on a desktop. */
+@media (hover: hover) {
+  .player-card:hover {
+    border-color: var(--accent);
+    transform: translateX(2px);
+  }
+}
+
+/* Immediate feedback on tap, replacing the hover state above on touch. */
+.player-card:active {
   border-color: var(--accent);
-  transform: translateX(2px);
 }
 
 .player-card.disabled {
@@ -1037,6 +1058,13 @@ input[type="text"]:focus-visible {
 
 .game-actions .btn {
   flex: 1;
+}
+
+/* Always-available way out of a finished game, under the primary actions -
+   Play Again and View Profile both commit you to something, and there was no
+   plain "I'm done" until now. */
+.game-home-btn {
+  margin-top: 0.75rem;
 }
 
 table.box-table, table.history-table {
@@ -2851,9 +2879,18 @@ table.box-table th, table.history-table th {
    column and stays a simple two-part flex row. */
 .friend-leaderboard-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* rank | banner | identity | actions */
+  grid-template-columns: auto auto 1fr auto;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Each friend's equipped banner, at thumbnail scale. Fixed width rather than
+   the tile's usual 100%, so a long username can't squeeze it to nothing. */
+.friend-banner {
+  width: 3.6rem;
+  flex: none;
+  font-size: 0.5rem;
 }
 
 .friend-identity {
@@ -2887,9 +2924,175 @@ table.box-table th, table.history-table th {
 
 @media (max-width: 480px) {
   .friend-leaderboard-row {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto auto 1fr;
   }
   .friend-leaderboard-row .friend-row-actions {
     grid-column: 1 / -1;
+  }
+  .friend-banner { width: 2.8rem; }
+}
+
+/* ---- Phone layout pass ----------------------------------------------------
+   One block rather than tweaks scattered through the file, so the small-screen
+   story is readable in one place. Everything here is additive: the desktop
+   layout above is untouched.
+
+   The recurring problems this fixes are (a) fixed-width/multi-column things
+   forcing the page itself to scroll sideways, (b) tap targets under the ~44px
+   users can reliably hit, and (c) tables that simply don't fit a 360px screen
+   and need to scroll inside their own box instead of stretching the page. */
+
+/* Nothing may make the PAGE scroll horizontally - wide content scrolls inside
+   its own container instead. This is the single most common way a layout
+   "breaks" on a phone. */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Box scores and history are genuinely wider than a phone. Let them scroll
+   inside their own frame rather than squeezing columns to nothing. */
+#full-box-score,
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 700px) {
+  #app-root {
+    padding: 1rem 0.85rem 2.5rem;
+  }
+
+  /* The nav is 5 items; below this width they no longer fit on one line at
+     full padding, and the row was pushing the brand off-screen. */
+  .top-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .nav-tabs {
+    justify-content: space-between;
+    gap: 0.25rem;
+  }
+
+  .nav-tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.2rem;
+    font-size: 0.78rem;
+  }
+
+  /* Comfortable thumb targets. 2.75rem ~= 44px, the usual floor. */
+  .btn,
+  .mode-btn,
+  .sport-tile,
+  .era-chip {
+    min-height: 2.75rem;
+  }
+
+  .btn-small {
+    min-height: 2.25rem;
+  }
+
+  /* Mode/era pickers stack instead of cramming several per row. */
+  .mode-toggle {
+    flex-direction: column;
+  }
+
+  .mode-btn {
+    width: 100%;
+  }
+
+  /* A taller pool: on a phone the draft board is the whole screen, and a
+     380px window showed barely three players at a time. */
+  .pool-list {
+    max-height: 55vh;
+  }
+
+  /* Scoreboard digits at desktop size overflow their row on a narrow phone. */
+  .scoreboard {
+    padding: 1rem 0.6rem;
+  }
+
+  .scoreboard-score {
+    font-size: 2rem;
+    min-width: 2.5ch;
+  }
+
+  .scoreboard-team-name {
+    font-size: 0.8rem;
+  }
+
+  .scoreboard-grid {
+    font-size: 0.75rem;
+  }
+
+  .scoreboard-grid th,
+  .scoreboard-grid td {
+    padding: 0.3rem 0.25rem;
+  }
+
+  /* End-of-game actions side by side are too narrow to read; stack them. */
+  .game-actions {
+    flex-direction: column;
+  }
+
+  /* Squad/friend rows: let the action buttons wrap under the name instead of
+     squeezing the name to an ellipsis. */
+  .squad-roster-row,
+  .friend-row {
+    flex-wrap: wrap;
+  }
+
+  .squad-roster-actions,
+  .friend-row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* The matchup intro is absolutely positioned around a centered VS; at phone
+     width the two banner columns need to be narrower or they collide. */
+  .matchup-side {
+    width: 42%;
+  }
+
+  .matchup-vs {
+    font-size: 2rem;
+  }
+}
+
+/* Very narrow phones (~360px and under). */
+@media (max-width: 400px) {
+  .nav-tab {
+    font-size: 0.7rem;
+    padding: 0.45rem 0.1rem;
+  }
+
+  .player-name {
+    font-size: 1.1rem;
+  }
+
+  .pb-stats {
+    gap: 1rem;
+  }
+
+  .banner-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Respect a reduced-motion preference across everything added for feel this
+   round - the ambient court glow, the live score pulse, the diamond sheen and
+   the hot-card glow all loop forever, which is exactly what this setting is
+   meant to stop. */
+@media (prefers-reduced-motion: reduce) {
+  .court-stage::before,
+  .scoreboard-score.pulse,
+  .play-card.hot:first-child,
+  .banner-art-camo-diamond::after,
+  .matchup-countdown.go {
+    animation: none;
   }
 }

@@ -7,15 +7,21 @@
 // the read paths RLS already allows directly.
 import { getSupabase, requireSession } from "./supabaseClient.js";
 
-// Squad Rep: a persistent, Clash-Royale-trophy-style score - not a live
-// percentile against other squads anymore. +10 rep per member win, -3 per
-// member loss (asymmetric on purpose: losses should sting far less than
-// wins reward), floored at 0. The actual accounting happens in Postgres
-// (see the add_squad_rep migration's sync_squad_rep trigger, which fires
-// whenever a member's online_wins/online_losses changes) - `rep` here is
-// just a plain column read straight off the squads row, so unlike the old
-// percentile system this needs no extra query and no games-floor/
-// "Provisional" state: a brand new squad simply starts at 0 rep and climbs.
+// Squad Rep: a persistent, Clash-Royale-trophy-style score earned by playing
+// squad-vs-squad TOURNAMENTS together.
+//
+// Tournaments don't exist yet, so nothing currently awards rep and every
+// squad sits at 0 - that's the intended state, not a bug. It used to accrue
+// from each member's solo ranked record (+10 win / -3 loss, via a Postgres
+// trigger on profiles), but that measured how much a squad's members played
+// alone rather than anything the squad did as a unit, so a squad could climb
+// the ladder without ever playing together once. The trigger and the rep it
+// had granted were both removed (see the squad_rep_tournaments_only
+// migration). The tier ladder below stays as the shape rep will climb once
+// tournaments land.
+//
+// `rep` is a plain column on the squads row, so this needs no extra query
+// and has no games-floor/"Provisional" state.
 export const SQUAD_REP_TIERS = [
   { name: "YMCA", minRep: 0 },
   { name: "Middle School", minRep: 40 },

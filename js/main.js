@@ -1385,6 +1385,7 @@ async function handleOnlineMatchState(match) {
       finalBanner.classList.remove("hidden");
       btnToProfile.classList.remove("hidden");
       btnPlayAgain.classList.remove("hidden");
+      btnGameHome.classList.remove("hidden");
     }
     return;
   }
@@ -1671,6 +1672,7 @@ const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
 const btnToProfile = document.getElementById("btn-to-profile");
 const btnPlayAgain = document.getElementById("btn-play-again");
+const btnGameHome = document.getElementById("btn-game-home");
 
 const REGULATION_PERIODS = 4;
 
@@ -1696,6 +1698,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   fullBoxScore.classList.add("hidden");
   btnToProfile.classList.add("hidden");
   btnPlayAgain.classList.add("hidden");
+  btnGameHome.classList.add("hidden");
   // These flash/glow classes live directly on the container elements, not on
   // content renderScoreboard rebuilds each tick - so a leftover class from a
   // previous game would otherwise survive into this one.
@@ -1931,6 +1934,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     fullBoxScore.classList.remove("hidden");
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
+    btnGameHome.classList.remove("hidden");
 
     onComplete();
   }
@@ -2056,6 +2060,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   if (!dbResult) {
     finalBanner.textContent = "Couldn't load the result - check Profile > Recent Games in a moment.";
     finalBanner.classList.remove("hidden");
+    btnGameHome.classList.remove("hidden");
     return;
   }
 
@@ -2086,6 +2091,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
     console.error("Failed to load final rosters for the result screen:", e);
     finalBanner.textContent = "Result saved, but the box score couldn't load - check Profile > Recent Games.";
     finalBanner.classList.remove("hidden");
+    btnGameHome.classList.remove("hidden");
     return;
   }
   const myRosterFinal = iAmA ? rosterA : rosterB;
@@ -2113,6 +2119,12 @@ btnToProfile.addEventListener("click", () => {
   cleanupOnlineWatcher();
   setActiveNav("profile");
   openProfileScreen();
+});
+btnGameHome.addEventListener("click", () => {
+  cleanupOnlineWatcher();
+  setActiveNav("play");
+  showScreen("home");
+  refreshHome();
 });
 
 // ---- Profile screen ----
@@ -2436,6 +2448,9 @@ async function openSquadsScreen() {
     if (activeSquadsTab === "home") {
       squadsBrowseEl.classList.add("hidden");
       squadsDetailEl.classList.remove("hidden");
+      // Needed before the roster renders, so Add Friend is hidden on people
+      // you're already connected to rather than appearing then vanishing.
+      await refreshKnownFriendIds();
     } else {
       squadChatNoneEl.classList.add("hidden");
       squadChatActiveEl.classList.remove("hidden");
@@ -2501,17 +2516,61 @@ function renderSquadDetailFromCache() {
     }
   );
 
-  renderSquadRoster(squadRosterEl, roster, myUserId, myRole, {
-    onSetRole: (userId, role) => runSquadAction(() => setMemberRole(userId, role)),
-    onTransfer: (userId) => {
-      if (!window.confirm("Make this player the new leader? You'll become a co-leader.")) return;
-      runSquadAction(() => transferLeadership(userId));
+  renderSquadRoster(
+    squadRosterEl,
+    roster,
+    myUserId,
+    myRole,
+    {
+      onSetRole: (userId, role) => runSquadAction(() => setMemberRole(userId, role)),
+      onTransfer: (userId) => {
+        if (!window.confirm("Make this player the new leader? You'll become a co-leader.")) return;
+        runSquadAction(() => transferLeadership(userId));
+      },
+      onKick: (userId) => {
+        if (!window.confirm("Remove this player from the squad?")) return;
+        runSquadAction(() => kickMember(userId));
+      },
+      onAddFriend: (username) => addFriendFromSquad(username),
     },
-    onKick: (userId) => {
-      if (!window.confirm("Remove this player from the squad?")) return;
-      runSquadAction(() => kickMember(userId));
-    },
-  });
+    squadKnownFriendIds
+  );
+}
+
+/** Ids we already have a friendship row with (accepted OR pending, either
+ * direction) - the squad roster hides its Add Friend button for these, so it
+ * never offers a request the server would reject as a duplicate. Refreshed
+ * whenever the squad screen loads; an empty set just means every button
+ * shows, which is the safe direction to fail in. */
+let squadKnownFriendIds = new Set();
+
+async function refreshKnownFriendIds() {
+  try {
+    const [leaderboard, incoming, outgoing] = await Promise.all([
+      listFriendsLeaderboard(),
+      listIncomingRequests(),
+      listOutgoingRequests(),
+    ]);
+    squadKnownFriendIds = new Set([
+      ...leaderboard.map((e) => e.userId),
+      ...incoming.map((r) => r.requesterId),
+      ...outgoing.map((r) => r.addresseeId),
+    ]);
+  } catch (e) {
+    console.error("Couldn't load existing friendships:", e);
+    squadKnownFriendIds = new Set();
+  }
+}
+
+async function addFriendFromSquad(username) {
+  try {
+    await sendFriendRequest(username);
+  } catch (e) {
+    window.alert(`Couldn't send that friend request: ${e.message}`);
+    return;
+  }
+  await refreshKnownFriendIds();
+  renderSquadDetailFromCache();
 }
 
 document.getElementById("btn-leave-squad").addEventListener("click", () => {

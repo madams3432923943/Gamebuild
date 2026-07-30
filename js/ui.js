@@ -1304,9 +1304,15 @@ export function renderSquadHeader(container, data, callbacks) {
 
   const caption = document.createElement("div");
   caption.className = "squad-rank-caption";
-  caption.textContent = rankInfo.next
-    ? `${rankInfo.rep} Rep — ${rankInfo.next.minRep - rankInfo.rep} more to reach ${rankInfo.next.name}`
-    : `${rankInfo.rep} Rep — the top tier, Legend.`;
+  // Rep only moves in squad-vs-squad tournaments, which aren't built yet, so
+  // every squad is legitimately on 0 - say so rather than showing a dead
+  // progress bar that looks like something is broken.
+  caption.textContent =
+    rankInfo.rep === 0
+      ? "0 Rep — Rep is earned in squad tournaments, coming soon."
+      : rankInfo.next
+        ? `${rankInfo.rep} Rep — ${rankInfo.next.minRep - rankInfo.rep} more to reach ${rankInfo.next.name}`
+        : `${rankInfo.rep} Rep — the top tier, Legend.`;
   rankWrap.appendChild(caption);
   container.appendChild(rankWrap);
 
@@ -1390,8 +1396,12 @@ const SQUAD_ROLE_LABEL = { leader: "👑 Leader", "co-leader": "⭐ Co-Leader", 
 
 /** Roster rows with role-appropriate actions: the leader can promote/demote/
  * transfer/kick anyone but themself, a co-leader can only kick plain
- * members, and a plain member sees no action buttons at all. */
-export function renderSquadRoster(container, roster, myUserId, myRole, callbacks) {
+ * members, and a plain member sees no action buttons at all.
+ *
+ * `friendIds` is the set of user ids you already have a friendship row with
+ * (accepted or pending), so the Add Friend button only appears where it would
+ * actually do something. */
+export function renderSquadRoster(container, roster, myUserId, myRole, callbacks, friendIds = new Set()) {
   container.innerHTML = "";
   for (const member of roster) {
     const row = document.createElement("div");
@@ -1408,6 +1418,14 @@ export function renderSquadRoster(container, roster, myUserId, myRole, callbacks
     const actions = document.createElement("div");
     actions.className = "squad-roster-actions";
     const isSelf = member.userId === myUserId;
+
+    // Squadmates are the people you're most likely to want as friends, and
+    // the only way to add one used to be retyping their name on the Friends
+    // tab. Hidden once a friendship or request already exists so the button
+    // never invites a duplicate request the server would just reject.
+    if (!isSelf && !friendIds.has(member.userId) && callbacks.onAddFriend) {
+      actions.appendChild(smallBtn("+ Friend", () => callbacks.onAddFriend(member.username)));
+    }
 
     if (!isSelf && myRole === "leader") {
       if (member.role === "member") {
@@ -1543,6 +1561,17 @@ export function renderFriendsLeaderboard(container, entries, callbacks) {
     rank.className = "friend-rank";
     rank.textContent = `#${i + 1}`;
     row.appendChild(rank);
+
+    // Each player's equipped banner, at thumbnail size - the leaderboard was
+    // the one place friends are listed side by side with no sign of what
+    // anyone has actually earned, which is the whole point of banners.
+    const banner = entry.equippedBanner ? bannerById(entry.equippedBanner) : null;
+    if (banner) {
+      const art = bannerArt(banner);
+      art.classList.add("friend-banner");
+      art.title = banner.name;
+      row.appendChild(art);
+    }
 
     // Name and record split into their own lines rather than one run-on
     // string ("Name — 3-1 (75%)") - the record reads as a stat, not a

@@ -23,7 +23,7 @@
     <nav class="nav-tabs" id="nav-tabs" hidden>
       <button class="nav-tab active" id="nav-play" type="button">Play</button>
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
-      <button class="nav-tab" id="nav-badges" type="button">Unlockables</button>
+      <button class="nav-tab" id="nav-badges" type="button">Rewards</button>
       <button class="nav-tab" id="nav-squads" type="button">Squads</button>
       <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
     </nav>
@@ -110,7 +110,7 @@
         <p class="hint-text">Drafting as <span id="signed-in-as" class="signed-in-as"></span></p>
         <div class="mode-toggle" id="mode-toggle" role="radiogroup" aria-label="Draft mode">
           <button type="button" class="mode-btn active" data-mode="practice-easy" aria-checked="true" role="radio">
-            Quick Play <small>(vs Bot &middot; all players &amp; stats shown)</small>
+            Quick Play - Learn Stats <small>(vs Bot &middot; all players &amp; stats shown)</small>
           </button>
           <button type="button" class="mode-btn" data-mode="practice-hard" aria-checked="false" role="radio">
             Ranked Practice <small>(vs Bot &middot; ranked rules + rotation &amp; gamestyle)</small>
@@ -228,6 +228,7 @@
         <button id="btn-to-profile" class="btn btn-secondary hidden">View Profile</button>
         <button id="btn-play-again" class="btn btn-primary hidden">Play Again</button>
       </div>
+      <button id="btn-game-home" class="btn btn-secondary btn-block game-home-btn hidden" type="button">Return to Home</button>
     </section>
 
     <section id="screen-profile" class="screen hidden">
@@ -281,16 +282,18 @@
       </div>
 
       <h3>Recent Games</h3>
-      <table class="history-table">
-        <thead>
-          <tr><th>Date</th><th>Result</th><th>Score</th><th>MVP</th></tr>
-        </thead>
-        <tbody id="history-body"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="history-table">
+          <thead>
+            <tr><th>Date</th><th>Result</th><th>Score</th><th>MVP</th></tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <section id="screen-badges" class="screen hidden">
-      <h2 class="section-heading">Unlockables</h2>
+      <h2 class="section-heading">Rewards</h2>
       <div class="subtabs" id="unlockables-tabs"></div>
 
       <div id="unlockables-badges">
