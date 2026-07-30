@@ -330,11 +330,6 @@ input[type="text"]:focus-visible {
   border-color: var(--accent);
 }
 
-.btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 :focus-visible {
   outline: 2px solid var(--accent-bright);
   outline-offset: 2px;
@@ -1520,101 +1515,8 @@ table.box-table th, table.history-table th {
 /* ---- Court backdrop ----
    Drawn with borders and radial gradients rather than an image, so it stays
    crisp at any size and ships nothing extra to the app build. */
-.court-stage {
-  position: relative;
-  border-radius: 14px;
-  overflow: hidden;
-  margin-bottom: 1rem;
-  border: 1px solid var(--line);
-  background: radial-gradient(ellipse at 50% 40%, #1b2740 0%, var(--bg) 70%);
-}
-
-.court {
-  position: absolute;
-  inset: 0;
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.court span {
-  position: absolute;
-  border: 2px solid rgba(var(--accent-rgb), 0.35);
-}
-
-.court-circle {
-  width: 22%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.court-halfline {
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 0;
-  border-width: 0 0 0 2px;
-}
-
-.court-key {
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16%;
-  height: 42%;
-}
-
-.court-key-left { left: 0; }
-.court-key-right { right: 0; }
-
-.court-arc {
-  top: 50%;
-  transform: translateY(-50%);
-  width: 26%;
-  height: 74%;
-  border-radius: 50%;
-}
-
-.court-arc-left { left: -13%; }
-.court-arc-right { right: -13%; }
-
-.court-stage .scoreboard {
-  position: relative;
-  background: transparent;
-  border: none;
-  margin-bottom: 0;
-}
 
 /* ---- Play-by-play feed ---- */
-.play-feed {
-  position: relative;
-  padding: 0 1rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-height: 3.2rem;
-}
-
-.play-card {
-  background: rgba(0, 0, 0, 0.45);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 0.4rem 0.65rem;
-  font-size: 0.8rem;
-  animation: play-in 0.35s ease;
-}
-
-.play-card.hot {
-  border-left-color: var(--buzzer);
-  color: var(--text);
-}
-
-.play-card.final {
-  border-left-color: var(--accent-bright);
-  color: var(--accent-bright);
-  font-weight: 600;
-}
 
 @keyframes play-in {
   from { opacity: 0; transform: translateY(-6px); }
@@ -1622,47 +1524,12 @@ table.box-table th, table.history-table th {
 }
 
 /* Shot splits under a player's name in the final box score. */
-.box-shooting {
-  font-size: 0.66rem;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  margin-top: 0.1rem;
-}
 
 /* Final-round game-plan phase, shown in place of the draft pool. */
-.tactic-phase {
-  background: var(--panel);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  padding: 1rem;
-  box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(var(--accent-rgb), 0.22);
-}
-
-.tactic-phase .tactic-grid {
-  grid-template-columns: 1fr;
-  gap: 0.4rem;
-  margin-bottom: 0.9rem;
-}
-
-.tactic-phase .tactic-card {
-  min-height: 0;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.tactic-phase .tactic-head { flex: 0 0 9.5rem; }
 
 /* ---- Rotation phase ----
    One row per player against a single 240-minute budget: minutes belong to
    players, not positions, so the list reads as one set of trade-offs. */
-.rotation-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.6rem;
-  padding: 0.35rem 0.1rem 0.1rem;
-}
 
 .rotation-row.rotation-starter .rotation-role {
   color: var(--accent-bright);
@@ -1670,11 +1537,6 @@ table.box-table th, table.history-table th {
 
 .rotation-row.rotation-bench .rotation-role {
   color: var(--muted);
-}
-
-.rotation-label {
-  font-size: 0.8rem;
-  color: var(--text);
 }
 
 .rotation-role {
@@ -1688,37 +1550,6 @@ table.box-table th, table.history-table th {
 .rotation-pos {
   font-size: 0.66rem;
   color: var(--muted);
-}
-
-.rotation-value {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--scoreboard);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.rotation-slider {
-  width: 100%;
-  margin: 0 0 0.5rem;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.rotation-grid {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 0.6rem;
-}
-
-.rotation-total {
-  font-size: 0.72rem;
-  color: var(--muted);
-  margin: 0 0 0.9rem;
-}
-
-.rotation-total.rotation-warning {
-  color: var(--warn, #e0a030);
 }
 
 /* A blocked confirm needs to look blocked, or it reads as a broken button. */
@@ -1916,6 +1747,7 @@ table.box-table th, table.history-table th {
   font-size: 0.8rem;
   color: var(--scoreboard);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .rotation-slider {
