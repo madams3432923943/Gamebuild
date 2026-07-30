@@ -55,6 +55,17 @@ import {
   squadRankInfo,
 } from "./squads.js";
 import {
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  removeFriend,
+  challengeFriend,
+  listFriendsLeaderboard,
+  listIncomingRequests,
+  listOutgoingRequests,
+  listPendingChallenges,
+} from "./friends.js";
+import {
   joinQueue,
   leaveQueue,
   getMatch,
@@ -93,6 +104,10 @@ import {
   renderSquadHeader,
   renderSquadRoster,
   renderSquadChat,
+  renderSquadsTopTabs,
+  renderFriendChallenges,
+  renderFriendRequests,
+  renderFriendsLeaderboard,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -1187,7 +1202,7 @@ async function renderOnlineDraftRound(match) {
   const o = game.online;
   if (!o) return;
 
-  draftRoundLabel.textContent = `Round ${match.round_number}`;
+  draftRoundLabel.textContent = `Round ${match.round_number}` + (match.is_friendly ? " · Friendly Match (unranked)" : "");
   squadBannerTeam.textContent = match.current_squad_team;
   squadBannerDecade.textContent = match.current_squad_decade;
   draftTurnBanner.textContent = "Your Pick";
@@ -1808,6 +1823,15 @@ async function onEquipBanner(franchiseId) {
 }
 
 // ---- Squads screen ----
+// Four subtabs sharing one screen: Friends (add/accept, leaderboard,
+// challenges), Home (browse/create when squad-less, or squad info + roster
+// once in one), Chat (squad chat, needs a squad), Tournaments (placeholder).
+
+const squadsTabsEl = document.getElementById("squads-tabs");
+const squadsPanelFriendsEl = document.getElementById("squads-panel-friends");
+const squadsPanelHomeEl = document.getElementById("squads-panel-home");
+const squadsPanelChatEl = document.getElementById("squads-panel-chat");
+const squadsPanelTournamentsEl = document.getElementById("squads-panel-tournaments");
 
 const squadsBrowseEl = document.getElementById("squads-browse");
 const squadsDetailEl = document.getElementById("squads-detail");
@@ -1816,8 +1840,19 @@ const squadSearchInput = document.getElementById("input-squad-search");
 const squadsListEl = document.getElementById("squads-list");
 const squadHeaderEl = document.getElementById("squad-header");
 const squadRosterEl = document.getElementById("squad-roster");
+const squadChatNoneEl = document.getElementById("squad-chat-none");
+const squadChatActiveEl = document.getElementById("squad-chat-active");
 const squadChatMessagesEl = document.getElementById("squad-chat-messages");
 const squadChatInput = document.getElementById("input-squad-chat");
+
+const friendUsernameInput = document.getElementById("input-friend-username");
+const friendChallengesListEl = document.getElementById("friend-challenges-list");
+const friendRequestsListEl = document.getElementById("friend-requests-list");
+const friendsLeaderboardEl = document.getElementById("friends-leaderboard");
+
+// Which of the four subtabs is showing, kept across visits like every other
+// subtab pattern in this app.
+let activeSquadsTab = "home";
 
 // Cache of the last-loaded squad detail, so toggling the settings editor is
 // a pure re-render (no round trip) - only actual mutations refetch. Cleared
@@ -1846,6 +1881,19 @@ async function runSquadAction(fn) {
   await openSquadsScreen();
 }
 
+/** Same shape as runSquadAction, for friends.js mutations - kept separate
+ * because it refreshes only the Friends panel, not the whole screen. */
+async function runFriendAction(fn) {
+  try {
+    await fn();
+    setSquadStatus("");
+  } catch (e) {
+    setSquadStatus(e.message || "Something went wrong.", "error");
+    return;
+  }
+  await loadFriendsPanel();
+}
+
 let squadSearchDebounce = null;
 squadSearchInput.addEventListener("input", () => {
   clearTimeout(squadSearchDebounce);
@@ -1865,19 +1913,48 @@ async function refreshSquadBrowseList(search = "") {
 async function openSquadsScreen() {
   showScreen("squads");
   cleanupSquadChatWatcher();
+  renderSquadsTopTabs(squadsTabsEl, activeSquadsTab, (tab) => {
+    activeSquadsTab = tab;
+    openSquadsScreen();
+  });
+  setSquadStatus("");
+
+  squadsPanelFriendsEl.classList.toggle("hidden", activeSquadsTab !== "friends");
+  squadsPanelHomeEl.classList.toggle("hidden", activeSquadsTab !== "home");
+  squadsPanelChatEl.classList.toggle("hidden", activeSquadsTab !== "chat");
+  squadsPanelTournamentsEl.classList.toggle("hidden", activeSquadsTab !== "tournaments");
+
+  if (activeSquadsTab === "friends") {
+    await loadFriendsPanel();
+    return;
+  }
+  if (activeSquadsTab === "tournaments") {
+    return;
+  }
+
+  // Home and Chat both hinge on squad membership.
   squadDetailData = null;
   squadEditing = false;
-  setSquadStatus("");
   try {
     const membership = await myMembership();
     if (!membership) {
-      squadsBrowseEl.classList.remove("hidden");
-      squadsDetailEl.classList.add("hidden");
-      await refreshSquadBrowseList(squadSearchInput.value);
+      if (activeSquadsTab === "home") {
+        squadsBrowseEl.classList.remove("hidden");
+        squadsDetailEl.classList.add("hidden");
+        await refreshSquadBrowseList(squadSearchInput.value);
+      } else {
+        squadChatNoneEl.classList.remove("hidden");
+        squadChatActiveEl.classList.add("hidden");
+      }
       return;
     }
-    squadsBrowseEl.classList.add("hidden");
-    squadsDetailEl.classList.remove("hidden");
+    if (activeSquadsTab === "home") {
+      squadsBrowseEl.classList.add("hidden");
+      squadsDetailEl.classList.remove("hidden");
+    } else {
+      squadChatNoneEl.classList.add("hidden");
+      squadChatActiveEl.classList.remove("hidden");
+    }
     await loadSquadDetail();
   } catch (e) {
     console.error("Failed to load squad membership:", e);
@@ -1885,6 +1962,9 @@ async function openSquadsScreen() {
   }
 }
 
+/** Fetches the caller's squad + roster + rank, then renders whichever of
+ * Home/Chat is actually active - the other tab's content stays stale until
+ * it's opened, and the chat poller only ever runs while Chat is on screen. */
 async function loadSquadDetail() {
   const detail = await loadMySquad();
   if (!detail) {
@@ -1895,12 +1975,15 @@ async function loadSquadDetail() {
   const rankInfo = squadRankInfo(detail.squad);
   const session = await getSession();
   squadDetailData = { ...detail, rankInfo, myUserId: session.user.id };
-  renderSquadDetailFromCache();
 
-  cleanupSquadChatWatcher();
-  squadChatStop = watchSquadChat(detail.squad.id, (messages) => {
-    renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId);
-  });
+  if (activeSquadsTab === "home") {
+    renderSquadDetailFromCache();
+  } else if (activeSquadsTab === "chat") {
+    cleanupSquadChatWatcher();
+    squadChatStop = watchSquadChat(detail.squad.id, (messages) => {
+      renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId);
+    });
+  }
 }
 
 /** Re-renders the header + roster from the cached detail - no network call.
@@ -1967,6 +2050,71 @@ async function sendSquadChatFromInput() {
     setSquadStatus(e.message || "Couldn't send that message.", "error");
   }
 }
+
+// ---- Friends panel ----
+
+async function loadFriendsPanel() {
+  try {
+    const [challenges, incoming, outgoing, leaderboard] = await Promise.all([
+      listPendingChallenges(),
+      listIncomingRequests(),
+      listOutgoingRequests(),
+      listFriendsLeaderboard(),
+    ]);
+    renderFriendChallenges(friendChallengesListEl, challenges, onJoinChallenge);
+    renderFriendRequests(friendRequestsListEl, incoming, outgoing, {
+      onAccept: (id) => runFriendAction(() => acceptFriendRequest(id)),
+      onDecline: (id) => runFriendAction(() => declineFriendRequest(id)),
+      // Cancelling a request you sent uses the same RPC as declining one you
+      // received - decline_friend_request checks both directions.
+      onCancel: (id) => runFriendAction(() => declineFriendRequest(id)),
+    });
+    renderFriendsLeaderboard(friendsLeaderboardEl, leaderboard, {
+      onChallenge: onChallengeFriend,
+      onRemove: (friendId) => {
+        if (!window.confirm("Remove this friend?")) return;
+        runFriendAction(() => removeFriend(friendId));
+      },
+    });
+  } catch (e) {
+    console.error("Failed to load friends:", e);
+    setSquadStatus("Couldn't load friends right now.", "error");
+  }
+}
+
+// Deliberately NOT routed through runFriendAction: success here means
+// leaving the squads screen entirely for the draft screen, which a
+// loadFriendsPanel()/openSquadsScreen() refresh afterward would undo.
+async function onChallengeFriend(friendId) {
+  try {
+    const matchId = await challengeFriend(friendId);
+    await enterOnlineMatch(matchId);
+  } catch (e) {
+    setSquadStatus(e.message || "Couldn't start that challenge.", "error");
+  }
+}
+
+async function onJoinChallenge(matchId) {
+  try {
+    await enterOnlineMatch(matchId);
+  } catch (e) {
+    setSquadStatus(e.message || "Couldn't open that match.", "error");
+  }
+}
+
+document.getElementById("btn-send-friend-request").addEventListener("click", async () => {
+  const username = friendUsernameInput.value.trim();
+  if (!username) return;
+  try {
+    await sendFriendRequest(username);
+    friendUsernameInput.value = "";
+    setSquadStatus("");
+  } catch (e) {
+    setSquadStatus(e.message || "Couldn't send that request.", "error");
+    return;
+  }
+  await loadFriendsPanel();
+});
 
 document.getElementById("btn-join-by-code").addEventListener("click", () => {
   const wrap = document.createElement("div");

@@ -1288,3 +1288,115 @@ export function renderSquadChat(container, messages, myUserId) {
   }
   if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }
+
+// ---- Squads top-level subtabs: Friends | Home | Chat | Tournaments ------
+
+const SQUADS_TOP_TABS = [
+  { id: "friends", label: "Friends" },
+  { id: "home", label: "Home" },
+  { id: "chat", label: "Chat" },
+  { id: "tournaments", label: "Tournaments" },
+];
+
+export function renderSquadsTopTabs(container, active, onSelect) {
+  container.innerHTML = "";
+  for (const tab of SQUADS_TOP_TABS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "subtab" + (tab.id === active ? " active" : "");
+    btn.textContent = tab.label;
+    btn.addEventListener("click", () => onSelect(tab.id));
+    container.appendChild(btn);
+  }
+}
+
+// ---- Friends --------------------------------------------------------------
+
+/** Open challenges (created via challengeFriend, not yet entered) where the
+ * caller is a participant - "X challenged you" if they didn't start it,
+ * "Waiting on X" if they did (opening it just re-enters the same draft). */
+export function renderFriendChallenges(container, challenges, onJoin) {
+  container.innerHTML = "";
+  if (!challenges.length) {
+    renderNote(container, "No open challenges.");
+    return;
+  }
+  for (const c of challenges) {
+    const row = document.createElement("div");
+    row.className = "friend-row";
+    const info = document.createElement("span");
+    info.textContent = c.iChallenged ? `Waiting on ${c.opponentUsername}` : `${c.opponentUsername} challenged you!`;
+    row.appendChild(info);
+    row.appendChild(smallBtn(c.iChallenged ? "Open" : "Join", () => onJoin(c.matchId)));
+    container.appendChild(row);
+  }
+}
+
+/** Incoming (accept/decline) and outgoing (cancel) friend requests in one
+ * list, distinguished by which action they offer - there's rarely more
+ * than one or two of either at a time, so a shared list reads fine. */
+export function renderFriendRequests(container, incoming, outgoing, callbacks) {
+  container.innerHTML = "";
+  if (!incoming.length && !outgoing.length) {
+    renderNote(container, "No pending requests.");
+    return;
+  }
+  for (const r of incoming) {
+    const row = document.createElement("div");
+    row.className = "friend-row";
+    const info = document.createElement("span");
+    info.textContent = `${r.username} wants to be friends`;
+    row.appendChild(info);
+    const actions = document.createElement("div");
+    actions.className = "friend-row-actions";
+    actions.appendChild(smallBtn("Accept", () => callbacks.onAccept(r.requesterId)));
+    actions.appendChild(smallBtn("Decline", () => callbacks.onDecline(r.requesterId), "btn-danger-small"));
+    row.appendChild(actions);
+    container.appendChild(row);
+  }
+  for (const r of outgoing) {
+    const row = document.createElement("div");
+    row.className = "friend-row";
+    const info = document.createElement("span");
+    info.textContent = `Request sent to ${r.username}`;
+    row.appendChild(info);
+    row.appendChild(smallBtn("Cancel", () => callbacks.onCancel(r.addresseeId), "btn-danger-small"));
+    container.appendChild(row);
+  }
+}
+
+/** Accepted friends ranked among themselves by online win rate (see
+ * listFriendsLeaderboard in friends.js) - your own row is included so
+ * "where do I stand against my friends" doesn't need a second screen. */
+export function renderFriendsLeaderboard(container, entries, callbacks) {
+  container.innerHTML = "";
+  if (entries.length <= 1) {
+    renderNote(container, "Add some friends to build a leaderboard.");
+    return;
+  }
+  entries.forEach((entry, i) => {
+    const row = document.createElement("div");
+    row.className = "friend-row friend-leaderboard-row" + (entry.isMe ? " mine" : "");
+
+    const rank = document.createElement("span");
+    rank.className = "friend-rank";
+    rank.textContent = `#${i + 1}`;
+    row.appendChild(rank);
+
+    const info = document.createElement("span");
+    info.className = "friend-row-name";
+    const pct = entry.gamesPlayed > 0 ? `${Math.round(100 * entry.winRate)}%` : "—";
+    info.textContent = `${entry.username}${entry.isMe ? " (you)" : ""} — ${entry.onlineWins}-${entry.onlineLosses} (${pct})`;
+    row.appendChild(info);
+
+    if (!entry.isMe) {
+      const actions = document.createElement("div");
+      actions.className = "friend-row-actions";
+      actions.appendChild(smallBtn("Challenge", () => callbacks.onChallenge(entry.userId)));
+      actions.appendChild(smallBtn("Remove", () => callbacks.onRemove(entry.userId), "btn-danger-small"));
+      row.appendChild(actions);
+    }
+
+    container.appendChild(row);
+  });
+}

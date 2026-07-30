@@ -281,35 +281,76 @@
 
     <section id="screen-squads" class="screen hidden">
       <h2 class="section-heading">Squads</h2>
+      <div class="subtabs" id="squads-tabs"></div>
       <div id="squad-status" class="auth-status hidden"></div>
 
-      <!-- Shown when the player isn't in a squad yet. -->
-      <div id="squads-browse">
+      <!-- Friends: add/accept, a win-rate leaderboard, and 1v1 challenges. -->
+      <div id="squads-panel-friends" class="hidden">
         <div class="card">
-          <h3>Find a Squad</h3>
-          <p class="hint-text">One squad at a time - joining a new one means leaving your current squad first.</p>
+          <h3>Add a Friend</h3>
           <div class="field-row">
-            <label for="input-squad-search">Search</label>
-            <input id="input-squad-search" type="text" placeholder="Search by name or tag" />
+            <label for="input-friend-username">Username</label>
+            <input id="input-friend-username" type="text" placeholder="Their exact username" />
           </div>
-          <div class="squads-browse-actions">
-            <button id="btn-create-squad" class="btn btn-primary" type="button">Create a Squad</button>
-            <button id="btn-join-by-code" class="btn btn-secondary" type="button">Join by Invite Code</button>
-          </div>
+          <button id="btn-send-friend-request" class="btn btn-primary" type="button">Send Request</button>
         </div>
-        <div id="squads-list" class="squads-list"></div>
+
+        <div class="card" id="friend-challenges-card">
+          <h3>Challenges</h3>
+          <div id="friend-challenges-list"></div>
+        </div>
+
+        <div class="card" id="friend-requests-card">
+          <h3>Requests</h3>
+          <div id="friend-requests-list"></div>
+        </div>
+
+        <div class="card">
+          <h3>Friends Leaderboard</h3>
+          <div id="friends-leaderboard"></div>
+        </div>
       </div>
 
-      <!-- Shown once the player is in a squad. -->
-      <div id="squads-detail" class="hidden">
-        <div class="card squad-header-card" id="squad-header"></div>
-
-        <div class="card">
-          <h3>Roster</h3>
-          <div id="squad-roster" class="squad-roster"></div>
+      <!-- Home: browse/create when squad-less, or squad info + roster once in one. -->
+      <div id="squads-panel-home">
+        <div id="squads-browse">
+          <div class="card">
+            <h3>Find a Squad</h3>
+            <p class="hint-text">One squad at a time - joining a new one means leaving your current squad first.</p>
+            <div class="field-row">
+              <label for="input-squad-search">Search</label>
+              <input id="input-squad-search" type="text" placeholder="Search by name or tag" />
+            </div>
+            <div class="squads-browse-actions">
+              <button id="btn-create-squad" class="btn btn-primary" type="button">Create a Squad</button>
+              <button id="btn-join-by-code" class="btn btn-secondary" type="button">Join by Invite Code</button>
+            </div>
+          </div>
+          <div id="squads-list" class="squads-list"></div>
         </div>
 
-        <div class="card squad-chat-card">
+        <div id="squads-detail" class="hidden">
+          <div class="card squad-header-card" id="squad-header"></div>
+
+          <div class="card">
+            <h3>Roster</h3>
+            <div id="squad-roster" class="squad-roster"></div>
+          </div>
+
+          <div class="squad-leave-row">
+            <button id="btn-leave-squad" class="btn btn-secondary" type="button">Leave Squad</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat: needs a squad; shows a placeholder otherwise. -->
+      <div id="squads-panel-chat" class="hidden">
+        <div id="squad-chat-none" class="card coming-soon-card hidden">
+          <span class="coming-soon-icon">💬</span>
+          <h3>No squad yet</h3>
+          <p class="coming-soon-memo">Join or create a squad on the Home tab to start chatting.</p>
+        </div>
+        <div id="squad-chat-active" class="card squad-chat-card hidden">
           <h3>Squad Chat</h3>
           <div id="squad-chat-messages" class="squad-chat-messages"></div>
           <div class="squad-chat-input-row">
@@ -317,9 +358,14 @@
             <button id="btn-squad-chat-send" class="btn btn-primary" type="button">Send</button>
           </div>
         </div>
+      </div>
 
-        <div class="squad-leave-row">
-          <button id="btn-leave-squad" class="btn btn-secondary" type="button">Leave Squad</button>
+      <!-- Tournaments: not built yet. -->
+      <div id="squads-panel-tournaments" class="hidden">
+        <div class="card coming-soon-card">
+          <span class="coming-soon-icon">🏆</span>
+          <h3>Coming soon!</h3>
+          <p class="coming-soon-memo">Squad tournaments are on the way.</p>
         </div>
       </div>
     </section>

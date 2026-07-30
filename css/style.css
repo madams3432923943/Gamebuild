@@ -2404,3 +2404,43 @@ table.box-table th, table.history-table th {
   justify-content: flex-end;
   margin-top: 1rem;
 }
+
+/* --- Friends -------------------------------------------------------------- */
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  flex-wrap: wrap;
+}
+
+.friend-row + .friend-row {
+  margin-top: 0.5rem;
+}
+
+.friend-row-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.friend-rank {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--muted);
+  min-width: 2rem;
+}
+
+.friend-leaderboard-row.mine {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.friend-leaderboard-row.mine .friend-rank {
+  color: var(--accent-bright);
+}
