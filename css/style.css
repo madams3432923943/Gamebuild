@@ -1373,7 +1373,7 @@ table.box-table th, table.history-table th {
   margin-top: 0.3rem;
 }
 
-.pb-joined, .pb-top-era {
+.pb-joined {
   display: inline-flex;
   align-items: center;
   font-family: var(--font-mono);
@@ -1386,10 +1386,6 @@ table.box-table th, table.history-table th {
   white-space: nowrap;
 }
 
-.pb-top-era {
-  border-color: var(--accent);
-  color: var(--accent-bright);
-}
 
 /* Badges get their own full-width row rather than sharing pb-top with the
    avatar/name - at 2x size (see .pb-badge) they're meant to be the second
@@ -1621,6 +1617,64 @@ table.box-table th, table.history-table th {
   font-size: 1rem;
 }
 
+/* ---- Camo banner patterns ----
+   Layered radial-gradient blobs at irregular offsets read as disruptive
+   camo without an image asset, the same reasoning as the court backdrop.
+   Both colors come from the banner entry via --art-c1/--art-c2 (set inline
+   in bannerArt), so one rule per pattern covers any palette. */
+.banner-art-camo-woodland,
+.banner-art-camo-desert,
+.banner-art-camo-tiger,
+.banner-art-camo-gold,
+.banner-art-camo-diamond {
+  background-color: var(--art-c2);
+  background-image:
+    radial-gradient(ellipse 38% 46% at 18% 26%, var(--art-c1) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 40% at 62% 70%, var(--art-c1) 0%, transparent 62%),
+    radial-gradient(ellipse 26% 34% at 88% 22%, var(--art-c1) 0%, transparent 58%),
+    radial-gradient(ellipse 22% 30% at 40% 88%, var(--art-c1) 0%, transparent 60%);
+}
+
+/* Tiger stripes are directional bars, not blobs. */
+.banner-art-camo-tiger {
+  background-image:
+    repeating-linear-gradient(72deg, var(--art-c2) 0 8%, transparent 8% 14%, var(--art-c2) 14% 19%, transparent 19% 30%),
+    linear-gradient(180deg, var(--art-c1) 0%, var(--art-c1) 100%);
+}
+
+/* Gold gets a metallic sheen band rather than more blobs. */
+.banner-art-camo-gold {
+  background-image:
+    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 46%, transparent 58%),
+    radial-gradient(ellipse 40% 50% at 22% 30%, var(--art-c1) 0%, transparent 62%),
+    radial-gradient(ellipse 34% 42% at 74% 72%, var(--art-c1) 0%, transparent 60%),
+    linear-gradient(180deg, var(--art-c2) 0%, var(--art-c1) 100%);
+}
+
+/* Diamond: the rarest one, so it gets the most going on - a faceted
+   cross-hatch plus a bright sweep, and it's the only banner that animates. */
+.banner-art-camo-diamond {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.22) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.18) 0 6px, transparent 6px 12px),
+    linear-gradient(160deg, var(--art-c1) 0%, var(--art-c2) 55%, var(--art-c1) 100%);
+  box-shadow: inset 0 0 20px rgba(159, 232, 255, 0.55);
+}
+
+.banner-art-camo-diamond::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.75) 50%, transparent 65%);
+  animation: diamond-sheen 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes diamond-sheen {
+  0%, 100% { transform: translateX(-60%); opacity: 0.35; }
+  50% { transform: translateX(60%); opacity: 0.8; }
+}
+
 .banner-art::before {
   content: attr(data-abbr);
   position: absolute;
@@ -1793,14 +1847,7 @@ table.box-table th, table.history-table th {
   color: var(--accent-bright);
 }
 
-.banner-toggle-row {
-  margin: 0.6rem 0 0.9rem;
-}
 
-.banner-toggle.is-active {
-  border-color: var(--accent);
-  color: var(--accent-bright);
-}
 
 /* ---- Tactic picker ---- */
 .tactic-heading {

@@ -35,8 +35,6 @@ import {
   setUsername,
   setEquippedBanner,
   setFeaturedBadges,
-  setShowTopEra,
-  topEra,
   FEATURED_BADGE_SLOTS,
 } from "./profile.js";
 import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
@@ -68,6 +66,7 @@ import {
   listIncomingRequests,
   listOutgoingRequests,
   listPendingChallenges,
+  countFriends,
 } from "./friends.js";
 import {
   joinQueue,
@@ -390,7 +389,6 @@ const homeHeaderRefs = {
   record: document.getElementById("home-record"),
   featured: document.getElementById("home-featured-badges"),
   joined: document.getElementById("home-joined"),
-  topEra: document.getElementById("home-top-era"),
   equippedBanner: document.getElementById("home-equipped-banner"),
 };
 
@@ -2165,13 +2163,11 @@ function openCustomizeBannerModal() {
   const wrap = document.createElement("div");
   const tabs = document.createElement("div");
   tabs.className = "subtabs";
-  const toggleRow = document.createElement("div");
-  toggleRow.className = "banner-toggle-row";
   const summary = document.createElement("p");
   summary.className = "hint-text";
   const grid = document.createElement("div");
   grid.className = "banner-grid";
-  wrap.append(tabs, toggleRow, summary, grid);
+  wrap.append(tabs, summary, grid);
 
   renderBannerSportTabs(tabs, activeBannerSport, (sport) => {
     activeBannerSport = sport;
@@ -2180,40 +2176,16 @@ function openCustomizeBannerModal() {
 
   openModal("Customize Banner", wrap);
 
-  loadProfile()
-    .then((profile) => {
-      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
-      renderTopEraToggle(toggleRow, profile);
+  // Friend count drives the friend-count banners; it isn't on the profile
+  // row, so it's fetched alongside it rather than inferred.
+  Promise.all([loadProfile(), countFriends().catch(() => 0)])
+    .then(([profile, friendCount]) => {
+      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true, { friendCount });
     })
     .catch((e) => {
       console.error("Failed to load banners:", e);
       summary.textContent = "Couldn't load your banners right now.";
     });
-}
-
-/** The "show top sport & era" setting - a banner-wide toggle, not tied to
- * any one franchise, so it lives above the grid rather than inside it. */
-function renderTopEraToggle(container, profile) {
-  container.innerHTML = "";
-  const best = topEra(profile);
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "btn btn-secondary banner-toggle" + (profile.showTopEra ? " is-active" : "");
-  btn.textContent = profile.showTopEra ? "Showing top sport & era on banner" : "Show top sport & era on banner";
-  btn.disabled = !best;
-  btn.title = best ? "" : "Play a game in an era to unlock this";
-  btn.addEventListener("click", () => onToggleShowTopEra(!profile.showTopEra));
-  container.appendChild(btn);
-}
-
-async function onToggleShowTopEra(show) {
-  try {
-    await setShowTopEra(show);
-  } catch (e) {
-    console.error("Failed to update banner setting:", e);
-    return;
-  }
-  openCustomizeBannerModal();
 }
 
 async function onEquipBannerFromProfile(franchiseId) {
@@ -2281,8 +2253,8 @@ async function openBadgesScreen() {
       openBadgesScreen();
     });
     try {
-      const profile = await loadProfile();
-      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner, activeBannerSport);
+      const [profile, friendCount] = await Promise.all([loadProfile(), countFriends().catch(() => 0)]);
+      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner, activeBannerSport, false, { friendCount });
     } catch (e) {
       console.error("Failed to load banners:", e);
       bannerSummaryEl.textContent = "Couldn't load your banners right now.";

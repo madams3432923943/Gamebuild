@@ -327,18 +327,13 @@ export const MAX_OT_PERIODS = 4;
 // Overtime periods are shorter than a full quarter (5 real minutes vs 12).
 export const OT_LENGTH_SCALE = 5 / 12;
 
-// Bot draft skill: chance the bot takes the objectively best (player, slot)
-// combo available each round rather than a random legal one. Kept well
-// under 1 so the bot drafts unevenly like a real (beatable) opponent
-// instead of playing a solved game. Calibrated via simulation: at 0.45 an
-// average/random drafter's win rate drops to ~14% (from ~21% at 0.35)
-// while a knowledgeable drafter still wins ~90% of the time - too generous
-// to a knowledgeable player, which is what "the bot loses every time" was
-// actually describing. Bumped to 0.6 to cut into that without turning the
-// draft into a solved game the bot can't lose - paired with botMinutes()
-// (engine.js) so the bot also stops wasting its better draft with a flat,
-// unweighted rotation.
-export const BOT_SKILL = 0.6;
+// How many of the best available (player, slot) combos the bot draws from,
+// with equal odds on each - see DraftState.botAutoPick. Five gives every one
+// of its top five a 20% shot: good enough that the bot never fields a
+// nonsense roster, loose enough that it regularly passes on the best player
+// on the board and can be out-drafted. Widen this to make the bot easier,
+// narrow it to make it sharper (1 = always optimal).
+export const BOT_POOL_SIZE = 5;
 
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.

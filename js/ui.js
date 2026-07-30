@@ -21,7 +21,6 @@ import {
   STAT_LABELS,
   FEATURED_BADGE_SLOTS,
   eraRecord,
-  topEra,
 } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import {
@@ -35,6 +34,9 @@ import {
   isFounder,
   FIRST_PLAYER_BANNER,
   isFirstPlayer,
+  GENERAL_BANNERS,
+  generalBannerProgress,
+  DEFAULT_BANNER_ID,
 } from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
 import { squadTierForRep } from "./squads.js";
@@ -442,19 +444,6 @@ export function renderHomeHeader(refs, profile, rankInfo) {
   refs.joined.textContent = joinTag || "";
   refs.joined.classList.toggle("hidden", !joinTag);
 
-  // Opt-in (Customize Banner) - and only meaningful once an era's actually
-  // been played. "Top sport" is always the one live sport for now; this
-  // starts pulling double duty once a second sport has its own stats.
-  const best = profile.showTopEra ? topEra(profile) : null;
-  const liveSport = SPORTS.find((s) => s.live);
-  if (best && liveSport) {
-    refs.topEra.textContent = `${liveSport.icon} ${liveSport.name} · ${best.era.emoji} ${best.era.label}`;
-    refs.topEra.classList.remove("hidden");
-  } else {
-    refs.topEra.textContent = "";
-    refs.topEra.classList.add("hidden");
-  }
-
   renderFeaturedBadges(refs.featured, profile);
 
   const rankName = rankInfo.provisional ? "Provisional" : rankInfo.tier.name;
@@ -560,8 +549,20 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
   const { earned, maxed, total } = badgeSummary(profile, sport);
   summaryEl.textContent = `${earned} of ${total} badges earned${maxed > 0 ? ` · ${maxed} at Hall of Fame` : ""}`;
 
-  for (const badge of list) {
-    const progress = badgeProgress(badge, profile);
+  // Highest tier first, so what you've actually achieved leads the screen and
+  // unearned badges settle at the bottom. Ties break on how far into the
+  // current tier you are, then name, so the order is stable between renders
+  // rather than shuffling every time the screen is opened.
+  const ranked = list
+    .map((badge) => ({ badge, progress: badgeProgress(badge, profile) }))
+    .sort(
+      (x, y) =>
+        y.progress.tierIndex - x.progress.tierIndex ||
+        y.progress.percent - x.progress.percent ||
+        x.badge.name.localeCompare(y.badge.name)
+    );
+
+  for (const { badge, progress } of ranked) {
     const earnedIt = progress.tierIndex >= 0;
 
     const tile = document.createElement("div");
@@ -631,8 +632,15 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
  * near it, and it reads as a real banner rather than a badge/icon. */
 export function bannerArt(franchise) {
   const el = document.createElement("div");
-  el.className = "banner-art";
-  el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
+  // `art` (general banners only - see GENERAL_BANNERS in banners.js) swaps the
+  // flat two-color gradient for a real pattern. The two colors still drive it
+  // via CSS vars, so one class covers every camo instead of a rule per banner.
+  el.className = "banner-art" + (franchise.art ? ` banner-art-${franchise.art}` : "");
+  el.style.setProperty("--art-c1", franchise.colors[0]);
+  el.style.setProperty("--art-c2", franchise.colors[1]);
+  if (!franchise.art) {
+    el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
+  }
   el.dataset.abbr = franchise.abbr;
 
   // A placeholder sport marker until franchise banners get real art (city
@@ -716,6 +724,51 @@ function specialBannerTile(banner, glowClass, profile, onEquip) {
   return tile;
 }
 
+/** A general banner tile: like a franchise tile, but its caption comes from
+ * the banner's own requirement ("Win 500 online ranked games") rather than a
+ * shared draft threshold, since each one is earned a different way. */
+function generalBannerTile(banner, progress, profile, onEquip) {
+  const equipped = profile.equippedBanner === banner.id;
+  const tile = document.createElement("div");
+  tile.className = "banner-tile" + (progress.unlocked ? "" : " locked") + (equipped ? " equipped" : "");
+  tile.appendChild(bannerArt(banner));
+
+  const name = document.createElement("div");
+  name.className = "banner-name";
+  name.textContent = banner.name;
+  tile.appendChild(name);
+
+  if (!progress.unlocked) {
+    const track = document.createElement("div");
+    track.className = "progress-bar-track";
+    const fill = document.createElement("div");
+    fill.className = "progress-bar-fill";
+    fill.style.width = `${progress.percent}%`;
+    track.appendChild(fill);
+    tile.appendChild(track);
+  }
+
+  const caption = document.createElement("div");
+  caption.className = "banner-progress";
+  caption.textContent = progress.unlocked
+    ? equipped ? "Flying now" : "Unlocked"
+    : `${progress.value} / ${progress.required} — ${banner.blurb}`;
+  tile.appendChild(caption);
+
+  // The default banner has no "take down": clearing it just falls back to
+  // itself (see normalize() in profile.js), so the button would do nothing.
+  if (progress.unlocked && !(equipped && banner.id === DEFAULT_BANNER_ID)) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-secondary banner-equip";
+    btn.textContent = equipped ? "Take down" : "Fly this";
+    btn.addEventListener("click", () => onEquip(equipped ? null : banner.id));
+    tile.appendChild(btn);
+  }
+
+  return tile;
+}
+
 /** Sport subtabs for the banners screen - same pattern as
  * renderBadgeSportTabs, just filtering FRANCHISES instead of BADGES. */
 // A pseudo-sport tab, not a real entry in SPORTS (constants.js) - it holds
@@ -744,7 +797,7 @@ export function renderBannerSportTabs(container, activeSport, onSelect) {
  * "customize" with a banner you haven't earned yet is just Unlockables with
  * extra steps. Unlockables itself always passes false, since showing what's
  * still locked (and how close you are) is the whole point there. */
-export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false) {
+export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false, stats = {}) {
   container.innerHTML = "";
 
   // Founder and 1st Player: not earned through any sport's play, so they
@@ -753,12 +806,25 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
   if (sport === "general") {
     const hasFounder = isFounder(profile);
     const hasFirstPlayer = isFirstPlayer(profile);
-    summaryEl.textContent = hasFounder || hasFirstPlayer
-      ? "Special banners tied to your account, not earned through play."
-      : "Nothing here for this account - these are hardcoded to specific accounts (Founder, the game's first player).";
     if (hasFounder) container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip));
     if (hasFirstPlayer) container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip));
-    if (!hasFounder && !hasFirstPlayer) renderNote(container, "No general banners on this account.");
+
+    let unlockedCount = 0;
+    let shownGeneral = 0;
+    for (const banner of GENERAL_BANNERS) {
+      const progress = generalBannerProgress(banner, profile, stats);
+      if (progress.unlocked) unlockedCount += 1;
+      if (onlyUnlocked && !progress.unlocked) continue;
+      shownGeneral += 1;
+      container.appendChild(generalBannerTile(banner, progress, profile, onEquip));
+    }
+
+    summaryEl.textContent = onlyUnlocked
+      ? `${unlockedCount} of ${GENERAL_BANNERS.length} general banners unlocked - pick one to fly.`
+      : `${unlockedCount} of ${GENERAL_BANNERS.length} unlocked · earned across the whole game, not one franchise.`;
+    if (onlyUnlocked && shownGeneral === 0 && !hasFounder && !hasFirstPlayer) {
+      renderNote(container, "No general banners unlocked yet.");
+    }
     return;
   }
 

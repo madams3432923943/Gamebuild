@@ -1,7 +1,7 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { SLOTS, STARTER_SLOTS, BOT_SKILL, MIN_SEARCH_CHARS, basePosition, isBenchSlot } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, BOT_POOL_SIZE, MIN_SEARCH_CHARS, basePosition, isBenchSlot } from "./constants.js";
 import { impact } from "./engine.js";
 
 export { basePosition };
@@ -280,20 +280,24 @@ export class DraftState {
     this.history.push({ side, squad: this.currentSquad, player, slot });
   }
 
-  /** Bot pick: usually a random legal (player, slot) combo, occasionally
-   * (BOT_SKILL chance) the objectively best one. A bot that always drafts
-   * optimally plays a solved game and isn't fun to face - this keeps it
-   * beatable while still capable of the occasional sharp pick. */
+  /** Bot pick: one of the BOT_POOL_SIZE best legal (player, slot) combos,
+   * chosen uniformly - so each has an equal (1-in-5, by default) shot.
+   *
+   * This used to take the single best combo most of the time and a fully
+   * random one otherwise, which made the bot swing between perfect and
+   * careless. Always drafting from the top of the board keeps it credible,
+   * while never insisting on the very best pick leaves a knowledgeable
+   * drafter room to win the draft outright - the difficulty comes from the
+   * width of the pool, which is one number to tune.
+   *
+   * Fewer than BOT_POOL_SIZE legal combos left (late rounds, thin squads)
+   * just means a narrower pool, not a crash. */
   botAutoPick(side = "B") {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
     const combos = eligibleCombos(this.currentSquad, roster, this.slots);
-    let choice;
-    if (Math.random() < BOT_SKILL) {
-      choice = combos.reduce((best, c) => (c.score > best.score ? c : best));
-    } else {
-      choice = combos[Math.floor(Math.random() * combos.length)];
-    }
+    const pool = [...combos].sort((a, b) => b.score - a.score).slice(0, BOT_POOL_SIZE);
+    const choice = pool[Math.floor(Math.random() * pool.length)];
     this.makePick(side, choice.player, choice.slot);
     return choice;
   }

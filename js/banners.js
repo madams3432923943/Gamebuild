@@ -210,6 +210,84 @@ export function isFirstPlayer(profile) {
   return profile.id === FIRST_PLAYER_USER_ID;
 }
 
+// ---- General banners -------------------------------------------------------
+// Earned through play, but not through any one franchise or sport, so they
+// can't live in FRANCHISES (which is per-sport and counted as "X of 30").
+// Each carries its own requirement and reads its own progress off the
+// profile, so adding another is one entry here and nothing else.
+//
+// `art` picks a CSS treatment in bannerArt (ui.js). Plain color-pair banners
+// leave it off; the camo ladder uses it to get a real pattern rather than a
+// flat gradient, since a camo that isn't patterned isn't a camo.
+
+/** Everyone starts with this equipped (see DEFAULT_BANNER_ID) - a new player
+ * on a blank card looked broken, and "no banner" isn't a reward state. Worn
+ * leather brown: deliberately the plainest thing in the game, so every real
+ * unlock reads as an upgrade on it. */
+export const DEFAULT_BANNER_ID = "rookie";
+
+export const GENERAL_BANNERS = [
+  {
+    id: DEFAULT_BANNER_ID,
+    name: "Rookie",
+    abbr: "RK",
+    colors: ["#7a5236", "#3d2a1c"],
+    blurb: "Every player starts here.",
+    progress: () => ({ value: 1, required: 1, unlocked: true }),
+  },
+  // Friend-count banners. Three tiers so the reward keeps pace with actually
+  // building a circle rather than being a single one-and-done unlock.
+  ...[
+    { id: "crew-5", name: "Crew", abbr: "5", need: 5, colors: ["#4f9d69", "#20402c"] },
+    { id: "crew-15", name: "Roster", abbr: "15", need: 15, colors: ["#3d7ea6", "#1b3a4d"] },
+    { id: "crew-30", name: "Front Office", abbr: "30", need: 30, colors: ["#8e5ea2", "#3a2547"] },
+  ].map((t) => ({
+    id: t.id,
+    name: t.name,
+    abbr: t.abbr,
+    colors: t.colors,
+    blurb: `Add ${t.need} friends.`,
+    progress: (profile, stats) => {
+      const value = stats.friendCount || 0;
+      return { value, required: t.need, unlocked: value >= t.need };
+    },
+  })),
+  // The camo ladder, gated on ranked wins. Diamond sits far out on purpose:
+  // it's the one banner meant to be genuinely rare, so it can't share a tier
+  // with anything reachable in a weekend.
+  ...[
+    { id: "camo-woodland", name: "Woodland Camo", abbr: "WDL", need: 10, art: "camo-woodland", colors: ["#4b5320", "#2f3317"] },
+    { id: "camo-desert", name: "Desert Camo", abbr: "DST", need: 50, art: "camo-desert", colors: ["#c2a373", "#7a6242"] },
+    { id: "camo-tiger", name: "Tiger Camo", abbr: "TGR", need: 100, art: "camo-tiger", colors: ["#d99b2b", "#241c10"] },
+    { id: "camo-gold", name: "Gold Camo", abbr: "GLD", need: 250, art: "camo-gold", colors: ["#e8c14a", "#8a6a12"] },
+    { id: "camo-diamond", name: "Diamond Camo", abbr: "DMD", need: 500, art: "camo-diamond", colors: ["#9fe8ff", "#2b6f86"] },
+  ].map((t) => ({
+    id: t.id,
+    name: t.name,
+    abbr: t.abbr,
+    colors: t.colors,
+    art: t.art,
+    blurb: `Win ${t.need} online ranked games.`,
+    progress: (profile) => {
+      const value = profile.onlineWins || 0;
+      return { value, required: t.need, unlocked: value >= t.need };
+    },
+  })),
+];
+
+export function generalBannerById(id) {
+  return GENERAL_BANNERS.find((b) => b.id === id) || null;
+}
+
+/** Progress for one general banner, in the same shape bannerProgress()
+ * returns for franchise banners so the tile renderer can treat both alike.
+ * `stats` carries anything that isn't on the profile row itself (today just
+ * friendCount). */
+export function generalBannerProgress(banner, profile, stats = {}) {
+  const { value, required, unlocked } = banner.progress(profile, stats);
+  return { drafted: value, value, required, unlocked, percent: Math.min(100, (100 * value) / required) };
+}
+
 /** Resolves an equipped-banner id to its art/metadata, checking the special
  * hardcoded banners first since they aren't in FRANCHISES. Used everywhere
  * equippedBanner gets displayed, so equipping "founder" or "first-player"
@@ -218,7 +296,7 @@ export function isFirstPlayer(profile) {
 export function bannerById(id) {
   if (id === FOUNDER_BANNER.id) return FOUNDER_BANNER;
   if (id === FIRST_PLAYER_BANNER.id) return FIRST_PLAYER_BANNER;
-  return franchiseById(id);
+  return generalBannerById(id) || franchiseById(id);
 }
 
 /** Any team string in the dataset that no franchise claims. Surfaces naming
