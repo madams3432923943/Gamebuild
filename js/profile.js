@@ -40,6 +40,32 @@ export function mostDraftedPlayer(profile) {
   return best;
 }
 
+export function mostTripleDoubles(profile) {
+  let best = null;
+  for (const [name, count] of Object.entries(profile.tripleDoubleCounts)) {
+    if (!best || count > best.count) best = { name, count };
+  }
+  return best;
+}
+
+// Double-digit in any 3 of the 5 box-score categories - the general
+// definition, not just the classic pts/reb/ast one.
+const TRIPLE_DOUBLE_KEYS = ["pts", "reb", "ast", "stl", "blk"];
+function isTripleDouble(line) {
+  return TRIPLE_DOUBLE_KEYS.filter((k) => (line[k] || 0) >= 10).length >= 3;
+}
+
+/** Strips a roster down to just what a stored box-score snapshot needs to
+ * re-render later (boxRow only ever reads player.name) - keeping team/pos/
+ * stat fields out of it is what keeps a jsonb snapshot cheap. */
+function snapshotRoster(roster) {
+  const out = {};
+  for (const [slot, player] of Object.entries(roster)) {
+    if (player) out[slot] = { name: player.name };
+  }
+  return out;
+}
+
 function normalize(row) {
   return {
     id: row.id,
@@ -56,6 +82,9 @@ function normalize(row) {
     equippedBanner: row.equipped_banner || null,
     featuredBadges: row.featured_badges || [],
     history: row.history || [],
+    highestScoringGame: row.highest_scoring_game || null,
+    largestMarginGame: row.largest_margin_game || null,
+    tripleDoubleCounts: row.triple_double_counts || {},
   };
 }
 
@@ -98,7 +127,12 @@ export async function recordDraftPicks(playerNames) {
  *   different skill from knowing the 1970s.
  * @param ownLines [{playerName, line: {pts,reb,ast,stl,blk,tov}}, ...] - the
  *   full box score of the user's OWN roster this game, used to update the
- *   per-stat personal-best records.
+ *   per-stat personal-best records and scan for triple-doubles.
+ * @param rosterA, rosterB, boxA, boxB, labelA, labelB, minutesA, minutesB -
+ *   the complete two-sided box score for this game, kept only long enough to
+ *   snapshot into highest_scoring_game if this game sets a new record (see
+ *   below); not otherwise persisted, since every other stat here only needs
+ *   the user's own line.
  * Note this never awards banner progress: banners come from ranked wins
  * only, granted server-side (see the award_banner_progress trigger), because
  * anything the client can grant itself isn't worth earning.
@@ -112,6 +146,14 @@ export async function recordPracticeResult({
   scoreAgainst,
   mvpName,
   ownLines,
+  rosterA,
+  rosterB,
+  boxA,
+  boxB,
+  labelA,
+  labelB,
+  minutesA,
+  minutesB,
 }) {
   const profile = await loadProfile();
   const date = new Date().toISOString();
@@ -143,6 +185,44 @@ export async function recordPracticeResult({
 
   const eraRecords = bumpEraRecord(profile.eraRecords, era, "offline", won);
 
+  // Highest-scoring game keeps a full box-score snapshot (roster names +
+  // lines only, see snapshotRoster) so the profile screen can show it back
+  // later - every other record here is a bare number, but "click to see the
+  // box score" needs the actual box score to click into.
+  let highestScoringGame = profile.highestScoringGame;
+  if (rosterA && rosterB && boxA && boxB && (!highestScoringGame || scoreFor > highestScoringGame.value)) {
+    highestScoringGame = {
+      value: scoreFor,
+      date,
+      mode,
+      era,
+      opponentLabel,
+      scoreFor,
+      scoreAgainst,
+      labelA,
+      labelB,
+      rosterA: snapshotRoster(rosterA),
+      rosterB: snapshotRoster(rosterB),
+      boxA,
+      boxB,
+      minutesA,
+      minutesB,
+    };
+  }
+
+  // Margin of victory only makes sense for wins - a loss has no "victory" to
+  // measure the margin of.
+  let largestMarginGame = profile.largestMarginGame;
+  const margin = scoreFor - scoreAgainst;
+  if (won && (!largestMarginGame || margin > largestMarginGame.value)) {
+    largestMarginGame = { value: margin, date, mode, era, opponentLabel, scoreFor, scoreAgainst };
+  }
+
+  const tripleDoubleCounts = { ...profile.tripleDoubleCounts };
+  for (const { playerName, line } of ownLines) {
+    if (isTripleDouble(line)) tripleDoubleCounts[playerName] = (tripleDoubleCounts[playerName] || 0) + 1;
+  }
+
   const session = await requireSession();
   const supabase = await getSupabase();
   const { error } = await supabase
@@ -154,6 +234,9 @@ export async function recordPracticeResult({
       career_totals: careerTotals,
       era_records: eraRecords,
       history,
+      highest_scoring_game: highestScoringGame,
+      largest_margin_game: largestMarginGame,
+      triple_double_counts: tripleDoubleCounts,
     })
     .eq("id", session.user.id);
   if (error) throw error;

@@ -13,7 +13,15 @@ import {
   ERAS,
 } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
-import { currentTier, nextTier, mostDraftedPlayer, STAT_LABELS, FEATURED_BADGE_SLOTS, eraRecord } from "./profile.js";
+import {
+  currentTier,
+  nextTier,
+  mostDraftedPlayer,
+  mostTripleDoubles,
+  STAT_LABELS,
+  FEATURED_BADGE_SLOTS,
+  eraRecord,
+} from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import { FRANCHISES, BANNER_THRESHOLD, bannerProgress, bannerSummary, franchiseById } from "./banners.js";
 import { shotLine, formatShotLine } from "./shooting.js";
@@ -693,6 +701,24 @@ export function renderProfileScreen(refs, profile) {
       refs.topPerformances.appendChild(row);
     }
   }
+
+  const scoringGame = profile.highestScoringGame;
+  refs.highestScoringGame.disabled = !scoringGame;
+  refs.highestScoringGame.innerHTML = scoringGame
+    ? `<span>${scoringGame.scoreFor} pts vs ${scoringGame.opponentLabel}</span>` +
+      `<span class="performance-line">${scoringGame.scoreFor}-${scoringGame.scoreAgainst} — ${new Date(scoringGame.date).toLocaleDateString()}</span>`
+    : "Play a game to start tracking this.";
+
+  const marginGame = profile.largestMarginGame;
+  refs.largestMargin.innerHTML = marginGame
+    ? `<div class="performance-row"><span>${marginGame.value}-point win vs ${marginGame.opponentLabel}</span>` +
+      `<span class="performance-line">${marginGame.scoreFor}-${marginGame.scoreAgainst} — ${new Date(marginGame.date).toLocaleDateString()}</span></div>`
+    : `<div class="empty-note">Win a game to start tracking this.</div>`;
+
+  const tripleDoubles = mostTripleDoubles(profile);
+  refs.mostTripleDoubles.innerHTML = tripleDoubles
+    ? `<div class="performance-row"><span>${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x triple-double</span></div>`
+    : `<div class="empty-note">Draft someone who goes off to start tracking this.</div>`;
 
   refs.historyBody.innerHTML = "";
   for (const entry of profile.history) {

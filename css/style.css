@@ -948,6 +948,31 @@ table.box-table th, table.history-table th {
   font-style: italic;
 }
 
+.record-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.45rem 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.record-link:not(:disabled):hover {
+  color: var(--accent-bright);
+}
+
+.record-link:disabled {
+  color: var(--muted);
+  font-style: italic;
+  cursor: default;
+}
+
 .pool-elsewhere-note {
   color: var(--accent-bright);
 }

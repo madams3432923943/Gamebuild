@@ -1532,6 +1532,14 @@ function runLocalSimulation() {
         scoreAgainst: result.teamScoreB,
         mvpName: result.mvp.player.name,
         ownLines,
+        rosterA: draft.rosterA,
+        rosterB: draft.rosterB,
+        boxA: result.boxA,
+        boxB: result.boxB,
+        labelA: game.nameA,
+        labelB: game.nameB,
+        minutesA,
+        minutesB,
       }).catch((e) => console.error("Failed to record result:", e));
 
       recordDraftPicks(draft.slots.map((slot) => draft.rosterA[slot].name)).catch((e) =>
@@ -1642,19 +1650,48 @@ const profileRefs = {
   bannerSummary: document.getElementById("banner-summary"),
   mostDrafted: document.getElementById("most-drafted"),
   topPerformances: document.getElementById("top-performances"),
+  highestScoringGame: document.getElementById("highest-scoring-game"),
+  largestMargin: document.getElementById("largest-margin"),
+  mostTripleDoubles: document.getElementById("most-triple-doubles"),
   historyBody: document.getElementById("history-body"),
 };
+
+// Kept only so the "highest scoring game" button can open its stored box
+// score on click without a second round-trip to Supabase.
+let currentProfile = null;
 
 async function openProfileScreen() {
   showScreen("profile");
   try {
     const profile = await loadProfile();
+    currentProfile = profile;
     renderProfileScreen(profileRefs, profile);
     renderBanners(profileRefs.bannerGrid, profileRefs.bannerSummary, profile, onEquipBanner);
   } catch (e) {
     console.error("Failed to load profile:", e);
   }
 }
+
+profileRefs.highestScoringGame.addEventListener("click", () => {
+  const game = currentProfile?.highestScoringGame;
+  if (!game) return;
+  const wrap = document.createElement("div");
+  renderFullBoxScore(
+    wrap,
+    game.rosterA,
+    game.boxA,
+    game.labelA,
+    game.rosterB,
+    game.boxB,
+    game.labelB,
+    null,
+    null,
+    game.minutesA,
+    game.minutesB,
+    true
+  );
+  openModal(`${game.scoreFor}-${game.scoreAgainst} vs ${game.opponentLabel}`, wrap);
+});
 
 const badgeGridEl = document.getElementById("badge-grid");
 const badgeSummaryEl = document.getElementById("badge-summary");
