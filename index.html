@@ -71,12 +71,15 @@
           <span class="player-avatar" id="home-avatar">🏀</span>
           <div class="pb-identity">
             <div class="player-name" id="home-username">Player</div>
+            <div class="pb-tags">
+              <span class="pb-joined hidden" id="home-joined"></span>
+              <span class="pb-top-era hidden" id="home-top-era"></span>
+            </div>
             <div class="equipped-banner" id="home-equipped-banner" hidden></div>
           </div>
-          <div class="pb-badges" id="home-featured-badges"></div>
         </div>
+        <div class="pb-badges" id="home-featured-badges"></div>
         <div class="pb-stats" id="home-record"></div>
-        <div class="rank-strip" id="home-rank-strip"></div>
       </div>
 
       <h2 class="section-heading">Choose your sport</h2>
@@ -201,7 +204,7 @@
     </section>
 
     <section id="screen-game" class="screen hidden">
-      <div class="court-stage">
+      <div class="court-stage" id="court-stage">
         <div class="court" aria-hidden="true">
           <span class="court-circle"></span>
           <span class="court-halfline"></span>

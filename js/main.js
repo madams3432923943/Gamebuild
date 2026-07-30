@@ -35,6 +35,8 @@ import {
   setUsername,
   setEquippedBanner,
   setFeaturedBadges,
+  setShowTopEra,
+  topEra,
   FEATURED_BADGE_SLOTS,
 } from "./profile.js";
 import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
@@ -387,7 +389,8 @@ const homeHeaderRefs = {
   username: document.getElementById("home-username"),
   record: document.getElementById("home-record"),
   featured: document.getElementById("home-featured-badges"),
-  rankStrip: document.getElementById("home-rank-strip"),
+  joined: document.getElementById("home-joined"),
+  topEra: document.getElementById("home-top-era"),
   equippedBanner: document.getElementById("home-equipped-banner"),
 };
 
@@ -1574,6 +1577,7 @@ poolSearch.addEventListener("input", () => {
 
 // ---- Game screen (live scoreboard + final box score) - shared by all modes ----
 
+const courtStageEl = document.getElementById("court-stage");
 const liveScoreboard = document.getElementById("live-scoreboard");
 const finalBanner = document.getElementById("final-banner");
 const mvpCallout = document.getElementById("mvp-callout");
@@ -1609,6 +1613,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   fullBoxScore.classList.add("hidden");
   btnToProfile.classList.add("hidden");
   btnPlayAgain.classList.add("hidden");
+  // These flash/glow classes live directly on the container elements, not on
+  // content renderScoreboard rebuilds each tick - so a leftover class from a
+  // previous game would otherwise survive into this one.
+  liveScoreboard.classList.remove("period-flash", "lead-flash");
+  courtStageEl.classList.remove("final-flash");
   showScreen("game");
 
   const deltaA = computeDisplayPeriodScores(result.quarterBoxScores, result.teamScoreA, "a");
@@ -1706,8 +1715,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     }
   }
 
-  /** Animates the scoreboard from one period's totals to the next. */
-  function tickScoreTo(fromA2, fromB2, toA, toB, periods, remaining, duringLabel, doneLabel) {
+  /** Animates the scoreboard from one period's totals to the next. `onDone`
+   * (optional) fires right as the numbers land on the new total - that's
+   * when a period-end flash actually reads as tied to the score, not just
+   * to a timer running somewhere else. */
+  function tickScoreTo(fromA2, fromB2, toA, toB, periods, remaining, duringLabel, doneLabel, onDone) {
     const started = Date.now();
     const tick = setInterval(() => {
       const t = Math.min(1, (Date.now() - started) / QUARTER_TICK_MS);
@@ -1724,9 +1736,22 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         done ? doneLabel : duringLabel,
         true
       );
-      if (done) clearInterval(tick);
+      if (done) {
+        clearInterval(tick);
+        if (onDone) onDone();
+      }
     }, 60);
     scoreTickIntervals.push(tick);
+  }
+
+  /** Retriggers a CSS animation class on `el` - removing then re-adding a
+   * class that's already present is a no-op without a reflow between the
+   * two, so back-to-back flashes (e.g. two period-end flashes in a row)
+   * would otherwise only play the first one. */
+  function flashClass(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
   }
 
   function step() {
@@ -1742,6 +1767,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     runningA += deltaA[i];
     runningB += deltaB[i];
 
+    // A real lead change (not just the opening 0-0 tie resolving) gets its
+    // own flash and headline - the score ticking up is the baseline, this is
+    // the moment actually worth reacting to.
+    const prevLeader = fromA === fromB ? null : fromA > fromB ? "A" : "B";
+    const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
+    const leadChanged = !!newLeader && !!prevLeader && newLeader !== prevLeader;
+
     for (const key of ["a", "b"]) {
       const period = result.quarterBoxScores[i][key];
       for (const slot of Object.keys(liveTotals[key])) {
@@ -1755,7 +1787,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const periodsRemaining = Math.max(0, REGULATION_PERIODS - regulationPlayed);
 
     // Climb to the new totals instead of snapping to them, so a quarter reads
-    // as being played rather than reported.
+    // as being played rather than reported. The flash fires once the count
+    // actually lands - a bigger, buzzer-colored one for a lead change, the
+    // calmer accent one for an ordinary period end.
     tickScoreTo(
       fromA,
       fromB,
@@ -1764,10 +1798,14 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       periodsSoFar,
       periodsRemaining,
       `${label} in progress`,
-      `End of ${label}`
+      `End of ${label}`,
+      () => flashClass(liveScoreboard, leadChanged ? "lead-flash" : "period-flash")
     );
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
+    if (leadChanged) {
+      pushPlayHeadline(playFeedEl, `${newLeader === "A" ? labelA : labelB} takes the lead in ${label}`, "lead-change");
+    }
 
     i += 1;
     setTimeout(step, QUARTER_REVEAL_DELAY_MS);
@@ -1776,6 +1814,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   function finish() {
     for (const t of scoreTickIntervals) clearInterval(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
+    flashClass(courtStageEl, "final-flash");
 
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.
@@ -2022,11 +2061,13 @@ function openCustomizeBannerModal() {
   const wrap = document.createElement("div");
   const tabs = document.createElement("div");
   tabs.className = "subtabs";
+  const toggleRow = document.createElement("div");
+  toggleRow.className = "banner-toggle-row";
   const summary = document.createElement("p");
   summary.className = "hint-text";
   const grid = document.createElement("div");
   grid.className = "banner-grid";
-  wrap.append(tabs, summary, grid);
+  wrap.append(tabs, toggleRow, summary, grid);
 
   renderBannerSportTabs(tabs, activeBannerSport, (sport) => {
     activeBannerSport = sport;
@@ -2038,11 +2079,37 @@ function openCustomizeBannerModal() {
   loadProfile()
     .then((profile) => {
       renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
+      renderTopEraToggle(toggleRow, profile);
     })
     .catch((e) => {
       console.error("Failed to load banners:", e);
       summary.textContent = "Couldn't load your banners right now.";
     });
+}
+
+/** The "show top sport & era" setting - a banner-wide toggle, not tied to
+ * any one franchise, so it lives above the grid rather than inside it. */
+function renderTopEraToggle(container, profile) {
+  container.innerHTML = "";
+  const best = topEra(profile);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-secondary banner-toggle" + (profile.showTopEra ? " is-active" : "");
+  btn.textContent = profile.showTopEra ? "Showing top sport & era on banner" : "Show top sport & era on banner";
+  btn.disabled = !best;
+  btn.title = best ? "" : "Play a game in an era to unlock this";
+  btn.addEventListener("click", () => onToggleShowTopEra(!profile.showTopEra));
+  container.appendChild(btn);
+}
+
+async function onToggleShowTopEra(show) {
+  try {
+    await setShowTopEra(show);
+  } catch (e) {
+    console.error("Failed to update banner setting:", e);
+    return;
+  }
+  openCustomizeBannerModal();
 }
 
 async function onEquipBannerFromProfile(franchiseId) {

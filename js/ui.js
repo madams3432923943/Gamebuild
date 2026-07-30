@@ -21,6 +21,7 @@ import {
   STAT_LABELS,
   FEATURED_BADGE_SLOTS,
   eraRecord,
+  topEra,
 } from "./profile.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "./badges.js";
 import {
@@ -327,11 +328,16 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
 
   const teams = document.createElement("div");
   teams.className = "scoreboard-teams";
+  // The pulse glow while live is the scoreboard's own "still playing" tell,
+  // the same job .scoreboard-period.live's blink does for the status line -
+  // together they read as a broadcast that's actually in progress, not a
+  // static final score sitting on screen early.
+  const scoreClass = "scoreboard-score" + (isLive ? " pulse" : "");
   teams.innerHTML = `
     <span class="scoreboard-team-name">${labelA}</span>
-    <span class="scoreboard-score">${Math.round(totalA)}</span>
+    <span class="${scoreClass}">${Math.round(totalA)}</span>
     <span class="scoreboard-dash">–</span>
-    <span class="scoreboard-score">${Math.round(totalB)}</span>
+    <span class="${scoreClass}">${Math.round(totalB)}</span>
     <span class="scoreboard-team-name">${labelB}</span>
   `;
   container.appendChild(teams);
@@ -394,9 +400,24 @@ export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
     : `${standing} — you've reached the top tier, Legend.`;
 }
 
-/** Home-screen header: who you are, plus your rank in each sport. This is the
- * first thing on the page now, so the profile leads the experience instead of
- * being buried behind a tab. */
+/** "Est. MM/YYYY" - a join-date plate in the style of a franchise banner's
+ * own "Est. 1946", built from the account's creation date. */
+function formatJoinTag(createdAt) {
+  if (!createdAt) return null;
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return null;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `Est. ${mm}/${d.getFullYear()}`;
+}
+
+/** Home-screen header: who you are, plus your online rep/rank and badges.
+ * This is the first thing on the page now, so the profile leads the
+ * experience instead of being buried behind a tab.
+ *
+ * Deliberately doesn't show total games played or a per-sport breakdown -
+ * those are private, and with only one sport live a per-sport list is just
+ * one entry repeated. Total games still lives on the Profile screen itself
+ * (your own stats, not something the banner broadcasts). */
 export function renderHomeHeader(refs, profile, rankInfo) {
   refs.username.textContent = profile.username || "Player";
 
@@ -417,15 +438,30 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     delete refs.card.dataset.bannerAbbr;
   }
 
+  const joinTag = formatJoinTag(profile.createdAt);
+  refs.joined.textContent = joinTag || "";
+  refs.joined.classList.toggle("hidden", !joinTag);
+
+  // Opt-in (Customize Banner) - and only meaningful once an era's actually
+  // been played. "Top sport" is always the one live sport for now; this
+  // starts pulling double duty once a second sport has its own stats.
+  const best = profile.showTopEra ? topEra(profile) : null;
+  const liveSport = SPORTS.find((s) => s.live);
+  if (best && liveSport) {
+    refs.topEra.textContent = `${liveSport.icon} ${liveSport.name} · ${best.era.emoji} ${best.era.label}`;
+    refs.topEra.classList.remove("hidden");
+  } else {
+    refs.topEra.textContent = "";
+    refs.topEra.classList.add("hidden");
+  }
+
+  renderFeaturedBadges(refs.featured, profile);
+
   const rankName = rankInfo.provisional ? "Provisional" : rankInfo.tier.name;
   refs.record.innerHTML = "";
   const parts = [
-    { label: "Ranked", value: `${profile.onlineWins}-${profile.onlineLosses}` },
+    { label: "Rep", value: `${profile.onlineWins}-${profile.onlineLosses}` },
     { label: "Rank", value: rankName },
-    {
-      label: "Games",
-      value: String(profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses),
-    },
   ];
   for (const part of parts) {
     const stat = document.createElement("div");
@@ -434,33 +470,6 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     stat.querySelector(".pb-stat-value").textContent = part.value;
     stat.querySelector(".pb-stat-label").textContent = part.label;
     refs.record.appendChild(stat);
-  }
-
-  renderFeaturedBadges(refs.featured, profile);
-
-  refs.rankStrip.innerHTML = "";
-  for (const sport of SPORTS) {
-    const chip = document.createElement("div");
-    chip.className = "rank-chip" + (sport.live ? "" : " locked");
-
-    const icon = document.createElement("span");
-    icon.className = "rank-chip-icon";
-    icon.textContent = sport.icon;
-    chip.appendChild(icon);
-
-    const label = document.createElement("span");
-    label.className = "rank-chip-sport";
-    label.textContent = sport.name;
-    chip.appendChild(label);
-
-    const rank = document.createElement("span");
-    rank.className = "rank-chip-rank";
-    // Rank tracks online win rate relative to other players - see
-    // loadRankInfo() in profile.js for why practice games don't move it.
-    rank.textContent = sport.live ? rankName : "Coming soon";
-    chip.appendChild(rank);
-
-    refs.rankStrip.appendChild(chip);
   }
 }
 

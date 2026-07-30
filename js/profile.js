@@ -5,6 +5,7 @@
 // can write online_wins/online_losses - see the protect_online_record
 // trigger in the schema).
 import { getSupabase, requireSession } from "./supabaseClient.js";
+import { ERAS } from "./constants.js";
 
 // Percentile bands: top X% by online win rate lands in this tier. Relative
 // to the player base rather than a fixed win count, so the ladder
@@ -174,6 +175,8 @@ function normalize(row) {
     eraRecords: row.era_records || {},
     equippedBanner: row.equipped_banner || null,
     featuredBadges: row.featured_badges || [],
+    createdAt: row.created_at || null,
+    showTopEra: row.show_top_era || false,
     history: row.history || [],
     highestScoringGame: row.highest_scoring_game || null,
     largestMarginGame: row.largest_margin_game || null,
@@ -370,6 +373,21 @@ function bumpEraRecord(records, eraId, kind, won) {
   return { ...(records || {}), [eraId]: { ...current, [key]: (current[key] || 0) + 1 } };
 }
 
+/** The era bracket a player has actually played the most of (online +
+ * offline games combined), or null if they haven't played any era-scoped
+ * game yet. "All Years" is excluded - it's the no-filter default, not a
+ * bracket preference worth bragging about on a banner. */
+export function topEra(profile) {
+  let best = null;
+  for (const era of ERAS) {
+    if (era.id === "all") continue;
+    const rec = eraRecord(profile, era.id);
+    const played = rec.online_wins + rec.online_losses + rec.offline_wins + rec.offline_losses;
+    if (played > 0 && (!best || played > best.played)) best = { era, played };
+  }
+  return best;
+}
+
 /** Equips a banner (or clears it with null). Purely cosmetic, so unlike the
  * ranked record this is safe for the client to write directly. */
 export async function setEquippedBanner(franchiseId) {
@@ -379,6 +397,15 @@ export async function setEquippedBanner(franchiseId) {
     .from("profiles")
     .update({ equipped_banner: franchiseId })
     .eq("id", session.user.id);
+  if (error) throw error;
+}
+
+/** Toggles the "top era" tag on your banner (see topEra() above). Cosmetic,
+ * so the client writes it directly. */
+export async function setShowTopEra(show) {
+  const session = await requireSession();
+  const supabase = await getSupabase();
+  const { error } = await supabase.from("profiles").update({ show_top_era: show }).eq("id", session.user.id);
   if (error) throw error;
 }
 
