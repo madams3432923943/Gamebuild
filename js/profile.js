@@ -6,30 +6,114 @@
 // trigger in the schema).
 import { getSupabase, requireSession } from "./supabaseClient.js";
 
+// Percentile bands: top X% by online win rate lands in this tier. Relative
+// to the player base rather than a fixed win count, so the ladder
+// self-adjusts as more people play instead of everyone eventually maxing
+// out the top tier at some fixed win count - see loadRankInfo() below.
+//
+// The ladder itself traces a basketball career: grassroots -> college ->
+// the NBA, ending in the same handful of legacy-defining tiers real
+// basketball culture already uses. Bands widen at the bottom and narrow at
+// the top on purpose - most of a real playing population never leaves
+// rec-league ball, while "hit an NBA MVP-tier win rate" should mean it,
+// not something half the player base reaches.
 export const TIERS = [
-  { name: "Rookie", minWins: 0 },
-  { name: "Starter", minWins: 3 },
-  { name: "All-Star", minWins: 7 },
-  { name: "Champion", minWins: 12 },
-  { name: "Hall of Famer", minWins: 20 },
-  { name: "Legend", minWins: 30 },
+  { name: "YMCA", minPercentile: 0 },
+  { name: "Middle School", minPercentile: 5 },
+  { name: "High School", minPercentile: 10 },
+  { name: "AAU", minPercentile: 16 },
+  { name: "Community College", minPercentile: 22 },
+  { name: "Div 3", minPercentile: 28 },
+  { name: "Div 2", minPercentile: 35 },
+  { name: "Div 1", minPercentile: 42 },
+  { name: "College Starter", minPercentile: 49 },
+  { name: "Conference Champ", minPercentile: 56 },
+  { name: "March Madness", minPercentile: 62 },
+  { name: "Sweet Sixteen", minPercentile: 68 },
+  { name: "Final Four", minPercentile: 73 },
+  { name: "National Champion", minPercentile: 78 },
+  { name: "NBA Draftee", minPercentile: 82 },
+  { name: "Rookie of the Year", minPercentile: 85.5 },
+  { name: "NBA All-Star", minPercentile: 88.5 },
+  { name: "NBA All-Pro", minPercentile: 91 },
+  { name: "NBA MVP", minPercentile: 93.5 },
+  { name: "NBA Champion", minPercentile: 96 },
+  { name: "Hall of Fame", minPercentile: 98 },
+  { name: "Legend", minPercentile: 99.5 },
 ];
+
+// Online games (wins+losses) needed before a percentile rank is shown -
+// standard placement-match floor, so a 1-0 record can't claim "100th
+// percentile" off a single lucky game, and so nobody with too small a
+// sample distorts what everyone else is being measured against.
+export const RANK_GAMES_FLOOR = 5;
 
 // One personal-best record per counting stat, each: {value, playerName, date}.
 export const FEATURED_BADGE_SLOTS = 3;
 
 export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
 
-// Tier progression tracks ONLINE (vs. human) wins only - bot games are
-// practice, not rank, since they are not a fair, verified ranking bar.
-export function currentTier(onlineWins) {
+export function tierForPercentile(percentile) {
   let tier = TIERS[0];
-  for (const t of TIERS) if (onlineWins >= t.minWins) tier = t;
+  for (const t of TIERS) if (percentile >= t.minPercentile) tier = t;
   return tier;
 }
 
-export function nextTier(onlineWins) {
-  return TIERS.find((t) => t.minWins > onlineWins) || null;
+export function nextTierAbove(percentile) {
+  return TIERS.find((t) => t.minPercentile > percentile) || null;
+}
+
+/**
+ * Where a player's online win rate stands relative to everyone else's -
+ * comparative, not an absolute win-count ladder, so this has to look at the
+ * whole player base rather than just one profile. Bot games are practice,
+ * not rank, since they're not a fair, verified bar to measure anyone
+ * against - only online (vs. human) results count here.
+ *
+ * `profiles` is publicly readable (the "profiles are publicly readable" RLS
+ * policy), so this reads win/loss counts directly rather than needing a
+ * dedicated RPC - the same reasoning presence.js's heartbeat function
+ * doesn't apply here, since win/loss counts aren't sensitive the way a raw
+ * browser-id list would be.
+ *
+ * Returns { provisional: true, gamesPlayed, gamesNeeded } below the games
+ * floor, or { provisional: false, tier, next, percentile, rank,
+ * totalQualifying, winRate, gamesPlayed } once ranked.
+ */
+export async function loadRankInfo(profile) {
+  const gamesPlayed = profile.onlineWins + profile.onlineLosses;
+  if (gamesPlayed < RANK_GAMES_FLOOR) {
+    return { provisional: true, gamesPlayed, gamesNeeded: RANK_GAMES_FLOOR - gamesPlayed };
+  }
+
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.from("profiles").select("online_wins, online_losses");
+  if (error) throw error;
+
+  const winRate = profile.onlineWins / gamesPlayed;
+  let below = 0;
+  let above = 0;
+  let qualifying = 0;
+  for (const row of data) {
+    const played = (row.online_wins || 0) + (row.online_losses || 0);
+    if (played < RANK_GAMES_FLOOR) continue;
+    qualifying += 1;
+    const rate = row.online_wins / played;
+    if (rate < winRate) below += 1;
+    else if (rate > winRate) above += 1;
+  }
+
+  const percentile = qualifying > 0 ? (100 * below) / qualifying : 100;
+  return {
+    provisional: false,
+    tier: tierForPercentile(percentile),
+    next: nextTierAbove(percentile),
+    percentile,
+    rank: above + 1,
+    totalQualifying: qualifying,
+    winRate,
+    gamesPlayed,
+  };
 }
 
 export function mostDraftedPlayer(profile) {

@@ -27,6 +27,7 @@ import {
 } from "./constants.js";
 import {
   loadProfile,
+  loadRankInfo,
   recordPracticeResult,
   recordDraftPicks,
   setUsername,
@@ -327,7 +328,8 @@ async function refreshHome() {
   try {
     const profile = await loadProfile();
     game.nameA = profile.username || "Player";
-    renderHomeHeader(homeHeaderRefs, profile);
+    const rankInfo = await loadRankInfo(profile);
+    renderHomeHeader(homeHeaderRefs, profile, rankInfo);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
   } catch (e) {
     console.error("Failed to load profile:", e);
@@ -1667,7 +1669,8 @@ async function openProfileScreen() {
   try {
     const profile = await loadProfile();
     currentProfile = profile;
-    renderProfileScreen(profileRefs, profile);
+    const rankInfo = await loadRankInfo(profile);
+    renderProfileScreen(profileRefs, profile, rankInfo);
     renderBanners(profileRefs.bannerGrid, profileRefs.bannerSummary, profile, onEquipBanner);
   } catch (e) {
     console.error("Failed to load profile:", e);

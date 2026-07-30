@@ -14,8 +14,6 @@ import {
 } from "./constants.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import {
-  currentTier,
-  nextTier,
   mostDraftedPlayer,
   mostTripleDoubles,
   mostMVPs,
@@ -337,13 +335,20 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
   container.appendChild(grid);
 }
 
-export function renderTierSummary(badgeContainer, captionContainer, onlineWins) {
-  const tier = currentTier(onlineWins);
-  const next = nextTier(onlineWins);
-
+export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
   badgeContainer.innerHTML = "";
   const badge = document.createElement("span");
   badge.className = "tier-badge";
+
+  if (rankInfo.provisional) {
+    badge.textContent = "Provisional";
+    badgeContainer.appendChild(badge);
+    const g = rankInfo.gamesNeeded;
+    captionContainer.textContent = `${g} more online ${g === 1 ? "game" : "games"} to get a rank.`;
+    return;
+  }
+
+  const { tier, next, percentile, rank, totalQualifying } = rankInfo;
   badge.textContent = tier.name;
   badgeContainer.appendChild(badge);
 
@@ -351,14 +356,17 @@ export function renderTierSummary(badgeContainer, captionContainer, onlineWins) 
   track.className = "progress-bar-track";
   const fill = document.createElement("div");
   fill.className = "progress-bar-fill";
-  const pct = next ? Math.min(100, (100 * (onlineWins - tier.minWins)) / (next.minWins - tier.minWins)) : 100;
+  const pct = next
+    ? Math.min(100, (100 * (percentile - tier.minPercentile)) / (next.minPercentile - tier.minPercentile))
+    : 100;
   fill.style.width = `${pct}%`;
   track.appendChild(fill);
   badgeContainer.appendChild(track);
 
+  const standing = `Top ${Math.max(1, Math.round(100 - percentile))}% online (#${rank} of ${totalQualifying})`;
   captionContainer.textContent = next
-    ? `${onlineWins} online wins — ${next.minWins - onlineWins} more to reach ${next.name}`
-    : `${onlineWins} online wins — you've reached the top tier, Legend.`;
+    ? `${standing} — climb into the top ${Math.round(100 - next.minPercentile)}% to reach ${next.name}.`
+    : `${standing} — you've reached the top tier, Legend.`;
 }
 
 /** Sports the home screen advertises. Only NBA is playable; the rest show
@@ -373,7 +381,7 @@ const SPORTS = [
 /** Home-screen header: who you are, plus your rank in each sport. This is the
  * first thing on the page now, so the profile leads the experience instead of
  * being buried behind a tab. */
-export function renderHomeHeader(refs, profile) {
+export function renderHomeHeader(refs, profile, rankInfo) {
   refs.username.textContent = profile.username || "Player";
 
   // The banner's own colours wash the card behind the name. Falls back to the
@@ -384,7 +392,7 @@ export function renderHomeHeader(refs, profile) {
   refs.card.style.background = `linear-gradient(135deg, ${c1}55 0%, ${c2}33 45%, transparent 100%), var(--panel)`;
   refs.card.style.borderColor = franchise ? `${c1}aa` : "";
 
-  const rankName = currentTier(profile.onlineWins).name;
+  const rankName = rankInfo.provisional ? "Provisional" : rankInfo.tier.name;
   refs.record.innerHTML = "";
   const parts = [
     { label: "Ranked", value: `${profile.onlineWins}-${profile.onlineLosses}` },
@@ -422,9 +430,9 @@ export function renderHomeHeader(refs, profile) {
 
     const rank = document.createElement("span");
     rank.className = "rank-chip-rank";
-    // Rank tracks online wins only - see the TIERS comment in profile.js for
-    // why practice games don't move it.
-    rank.textContent = sport.live ? currentTier(profile.onlineWins).name : "Coming soon";
+    // Rank tracks online win rate relative to other players - see
+    // loadRankInfo() in profile.js for why practice games don't move it.
+    rank.textContent = sport.live ? rankName : "Coming soon";
     chip.appendChild(rank);
 
     refs.rankStrip.appendChild(chip);
@@ -664,9 +672,9 @@ function renderEraRecords(container, profile) {
   }
 }
 
-export function renderProfileScreen(refs, profile) {
+export function renderProfileScreen(refs, profile, rankInfo) {
   refs.usernameInput.value = profile.username || "";
-  renderTierSummary(refs.tierBadge, refs.tierCaption, profile.onlineWins);
+  renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
 
   refs.onlineRecord.textContent = `${profile.onlineWins}-${profile.onlineLosses}`;
   refs.offlineRecord.textContent = `${profile.offlineWins}-${profile.offlineLosses}`;
