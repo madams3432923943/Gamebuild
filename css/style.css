@@ -2086,3 +2086,310 @@ table.box-table th, table.history-table th {
 @media (prefers-reduced-motion: reduce) {
   .online-dot { animation: none; }
 }
+
+/* --- Squads ---------------------------------------------------------------
+   Two states sharing one screen: browse/create (no squad yet) and detail
+   (in a squad - header, roster, chat). See js/squads.js for the data model. */
+
+.squads-browse-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.squads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.squad-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.squad-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 700;
+}
+
+.squad-card-emoji {
+  font-size: 1.6rem;
+}
+
+.squad-card-tag {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.squad-card-motto {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.35rem 0;
+}
+
+.squad-card-meta {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}
+
+.squad-header-top {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.squad-header-emoji {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+.squad-header-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.squad-header-tag {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.squad-header-visibility {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+}
+
+.squad-header-motto {
+  color: var(--text);
+  font-style: italic;
+  margin: 0.75rem 0 0;
+}
+
+.squad-rank-wrap {
+  margin-top: 0.9rem;
+}
+
+.squad-rank-caption {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+}
+
+.squad-manage {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.squad-invite-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.squad-invite-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.squad-invite-code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+}
+
+.squad-manage-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.btn-danger-small {
+  color: var(--buzzer);
+  border-color: var(--buzzer);
+}
+
+.btn-danger-small:hover {
+  background: var(--buzzer);
+  color: var(--text);
+}
+
+.squad-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.squad-emoji-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.squad-emoji-choice {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 1.2rem;
+  padding: 0.3rem 0.45rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.squad-emoji-choice.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.squad-edit-form textarea,
+.squad-edit-form select {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+
+.squad-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.squad-roster-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  flex-wrap: wrap;
+}
+
+.squad-roster-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.squad-roster-name {
+  font-weight: 700;
+}
+
+.squad-roster-role {
+  color: var(--accent-bright);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.squad-roster-record {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.squad-roster-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.squad-chat-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.squad-chat-messages {
+  height: 16rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem;
+  margin-bottom: 0.7rem;
+}
+
+.squad-chat-message {
+  max-width: 85%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+}
+
+.squad-chat-message.mine {
+  align-self: flex-end;
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: var(--accent);
+}
+
+.squad-chat-author {
+  font-weight: 700;
+  font-size: 0.78rem;
+  margin-right: 0.5rem;
+}
+
+.squad-chat-time {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.squad-chat-body {
+  font-size: 0.88rem;
+  margin-top: 0.15rem;
+  word-break: break-word;
+}
+
+.squad-chat-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.squad-chat-input-row input {
+  flex: 1;
+}
+
+.squad-leave-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}

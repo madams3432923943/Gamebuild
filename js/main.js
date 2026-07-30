@@ -37,6 +37,24 @@ import {
 } from "./profile.js";
 import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
 import {
+  myMembership,
+  loadMySquad,
+  listPublicSquads,
+  watchSquadChat,
+  sendSquadMessage,
+  createSquad,
+  joinPublicSquad,
+  joinSquadByCode,
+  leaveSquad,
+  kickMember,
+  setMemberRole,
+  transferLeadership,
+  regenerateInviteCode,
+  updateSquadSettings,
+  disbandSquad,
+  loadSquadRankInfo,
+} from "./squads.js";
+import {
   joinQueue,
   leaveQueue,
   getMatch,
@@ -70,6 +88,11 @@ import {
   pushPlayHeadline,
   clearPlayFeed,
   buildShotLines,
+  renderSquadEmojiPalette,
+  renderSquadBrowseList,
+  renderSquadHeader,
+  renderSquadRoster,
+  renderSquadChat,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -111,6 +134,14 @@ function cleanupOnlineWatcher() {
   if (game.online && game.online.stopWatcher) {
     game.online.stopWatcher();
     game.online.stopWatcher = null;
+  }
+}
+
+let squadChatStop = null;
+function cleanupSquadChatWatcher() {
+  if (squadChatStop) {
+    squadChatStop();
+    squadChatStop = null;
   }
 }
 
@@ -588,6 +619,7 @@ function goToTab(tab, onArrive) {
   cleanupTacticTimer();
   cleanupRotationTimer();
   cleanupMatchupTimer();
+  cleanupSquadChatWatcher();
   setActiveNav(tab);
   onArrive();
 }
@@ -611,7 +643,7 @@ document.getElementById("nav-badges").addEventListener("click", () => {
   goToTab("badges", openBadgesScreen);
 });
 document.getElementById("nav-squads").addEventListener("click", () => {
-  goToTab("squads", () => showScreen("squads"));
+  goToTab("squads", openSquadsScreen);
 });
 
 // ---- Draft screen (shared DOM for all three modes) ----
@@ -1774,6 +1806,312 @@ async function onEquipBanner(franchiseId) {
   }
   await openBadgesScreen();
 }
+
+// ---- Squads screen ----
+
+const squadsBrowseEl = document.getElementById("squads-browse");
+const squadsDetailEl = document.getElementById("squads-detail");
+const squadStatusEl = document.getElementById("squad-status");
+const squadSearchInput = document.getElementById("input-squad-search");
+const squadsListEl = document.getElementById("squads-list");
+const squadHeaderEl = document.getElementById("squad-header");
+const squadRosterEl = document.getElementById("squad-roster");
+const squadChatMessagesEl = document.getElementById("squad-chat-messages");
+const squadChatInput = document.getElementById("input-squad-chat");
+
+// Cache of the last-loaded squad detail, so toggling the settings editor is
+// a pure re-render (no round trip) - only actual mutations refetch. Cleared
+// whenever the player leaves the squads tab or their squad changes.
+let squadDetailData = null;
+let squadEditing = false;
+
+function setSquadStatus(message, kind) {
+  squadStatusEl.textContent = message || "";
+  squadStatusEl.classList.toggle("hidden", !message);
+  squadStatusEl.classList.toggle("auth-error", kind === "error");
+}
+
+/** Runs a squads.js mutation, shows its error message inline (these are
+ * already player-facing text - see the `raise exception` strings in the
+ * squads_*_rpcs migrations) instead of throwing, and refreshes the screen
+ * on success. Used by every button that changes squad/roster state. */
+async function runSquadAction(fn) {
+  try {
+    await fn();
+    setSquadStatus("");
+  } catch (e) {
+    setSquadStatus(e.message || "Something went wrong.", "error");
+    return;
+  }
+  await openSquadsScreen();
+}
+
+let squadSearchDebounce = null;
+squadSearchInput.addEventListener("input", () => {
+  clearTimeout(squadSearchDebounce);
+  squadSearchDebounce = setTimeout(() => refreshSquadBrowseList(squadSearchInput.value), 300);
+});
+
+async function refreshSquadBrowseList(search = "") {
+  try {
+    const squads = await listPublicSquads(search);
+    renderSquadBrowseList(squadsListEl, squads, (squadId) => runSquadAction(() => joinPublicSquad(squadId)));
+  } catch (e) {
+    console.error("Failed to load squads:", e);
+    setSquadStatus("Couldn't load squads right now.", "error");
+  }
+}
+
+async function openSquadsScreen() {
+  showScreen("squads");
+  cleanupSquadChatWatcher();
+  squadDetailData = null;
+  squadEditing = false;
+  setSquadStatus("");
+  try {
+    const membership = await myMembership();
+    if (!membership) {
+      squadsBrowseEl.classList.remove("hidden");
+      squadsDetailEl.classList.add("hidden");
+      await refreshSquadBrowseList(squadSearchInput.value);
+      return;
+    }
+    squadsBrowseEl.classList.add("hidden");
+    squadsDetailEl.classList.remove("hidden");
+    await loadSquadDetail();
+  } catch (e) {
+    console.error("Failed to load squad membership:", e);
+    setSquadStatus("Couldn't load your squad right now.", "error");
+  }
+}
+
+async function loadSquadDetail() {
+  const detail = await loadMySquad();
+  if (!detail) {
+    // Left/kicked between the membership check and here - just re-enter.
+    await openSquadsScreen();
+    return;
+  }
+  const rankInfo = await loadSquadRankInfo(detail.squad.id);
+  const session = await getSession();
+  squadDetailData = { ...detail, rankInfo, myUserId: session.user.id };
+  renderSquadDetailFromCache();
+
+  cleanupSquadChatWatcher();
+  squadChatStop = watchSquadChat(detail.squad.id, (messages) => {
+    renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId);
+  });
+}
+
+/** Re-renders the header + roster from the cached detail - no network call.
+ * Used after toggling the settings editor, which is pure UI state. */
+function renderSquadDetailFromCache() {
+  if (!squadDetailData) return;
+  const { squad, myRole, roster, inviteCode, rankInfo, myUserId } = squadDetailData;
+  renderSquadHeader(
+    squadHeaderEl,
+    { squad, myRole, memberCount: roster.length, rankInfo, inviteCode, editing: squadEditing },
+    {
+      onToggleEdit: () => {
+        squadEditing = !squadEditing;
+        renderSquadDetailFromCache();
+      },
+      onRegenerateCode: () => runSquadAction(() => regenerateInviteCode()),
+      onDisband: () => {
+        if (!window.confirm(`Disband ${squad.name}? This removes every member and can't be undone.`)) return;
+        runSquadAction(() => disbandSquad());
+      },
+      // Don't optimistically close the editor here - runSquadAction only
+      // re-renders (via a full openSquadsScreen(), which naturally resets
+      // squadEditing) on success. On failure it leaves the form exactly as
+      // the player left it, with their typed changes intact, so flipping
+      // squadEditing here first would desync in-memory state from what's
+      // still on screen if the save fails.
+      onSaveSettings: ({ emoji, motto, visibility }) => {
+        runSquadAction(() => updateSquadSettings({ emoji, motto, visibility }));
+      },
+    }
+  );
+
+  renderSquadRoster(squadRosterEl, roster, myUserId, myRole, {
+    onSetRole: (userId, role) => runSquadAction(() => setMemberRole(userId, role)),
+    onTransfer: (userId) => {
+      if (!window.confirm("Make this player the new leader? You'll become a co-leader.")) return;
+      runSquadAction(() => transferLeadership(userId));
+    },
+    onKick: (userId) => {
+      if (!window.confirm("Remove this player from the squad?")) return;
+      runSquadAction(() => kickMember(userId));
+    },
+  });
+}
+
+document.getElementById("btn-leave-squad").addEventListener("click", () => {
+  const label = squadDetailData ? squadDetailData.squad.name : "your squad";
+  if (!window.confirm(`Leave ${label}?`)) return;
+  runSquadAction(() => leaveSquad());
+});
+
+document.getElementById("btn-squad-chat-send").addEventListener("click", sendSquadChatFromInput);
+squadChatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendSquadChatFromInput();
+});
+async function sendSquadChatFromInput() {
+  const body = squadChatInput.value.trim();
+  if (!body || !squadDetailData) return;
+  squadChatInput.value = "";
+  try {
+    await sendSquadMessage(squadDetailData.squad.id, body);
+  } catch (e) {
+    console.error("Failed to send squad chat:", e);
+    setSquadStatus(e.message || "Couldn't send that message.", "error");
+  }
+}
+
+document.getElementById("btn-join-by-code").addEventListener("click", () => {
+  const wrap = document.createElement("div");
+
+  const field = document.createElement("div");
+  field.className = "field-row";
+  field.innerHTML = `<label for="input-join-code">Invite code</label>`;
+  const codeInput = document.createElement("input");
+  codeInput.id = "input-join-code";
+  codeInput.type = "text";
+  codeInput.maxLength = 6;
+  codeInput.placeholder = "e.g. BDF870";
+  field.appendChild(codeInput);
+  wrap.appendChild(field);
+
+  const errorEl = document.createElement("div");
+  errorEl.className = "auth-status hidden";
+  wrap.appendChild(errorEl);
+
+  const joinBtn = document.createElement("button");
+  joinBtn.type = "button";
+  joinBtn.className = "btn btn-primary btn-block";
+  joinBtn.textContent = "Join Squad";
+  joinBtn.addEventListener("click", async () => {
+    const code = codeInput.value.trim();
+    if (!code) return;
+    try {
+      await joinSquadByCode(code);
+    } catch (e) {
+      errorEl.textContent = e.message || "That code didn't work.";
+      errorEl.classList.remove("hidden");
+      errorEl.classList.add("auth-error");
+      return;
+    }
+    closeModal();
+    await openSquadsScreen();
+  });
+  wrap.appendChild(joinBtn);
+
+  openModal("Join by Invite Code", wrap);
+});
+
+document.getElementById("btn-create-squad").addEventListener("click", () => {
+  const wrap = document.createElement("div");
+  let chosenEmoji = "🏀";
+
+  const nameField = document.createElement("div");
+  nameField.className = "field-row";
+  nameField.innerHTML = `<label for="input-squad-name">Name</label>`;
+  const nameInput = document.createElement("input");
+  nameInput.id = "input-squad-name";
+  nameInput.type = "text";
+  nameInput.maxLength = 30;
+  nameInput.placeholder = "3-30 characters";
+  nameField.appendChild(nameInput);
+  wrap.appendChild(nameField);
+
+  const tagField = document.createElement("div");
+  tagField.className = "field-row";
+  tagField.innerHTML = `<label for="input-squad-tag">Tag</label>`;
+  const tagInput = document.createElement("input");
+  tagInput.id = "input-squad-tag";
+  tagInput.type = "text";
+  tagInput.maxLength = 5;
+  tagInput.placeholder = "2-5 letters/numbers";
+  tagField.appendChild(tagInput);
+  wrap.appendChild(tagField);
+
+  const emojiLabel = document.createElement("div");
+  emojiLabel.className = "field-row";
+  emojiLabel.innerHTML = `<label>Crest</label>`;
+  wrap.appendChild(emojiLabel);
+  const emojiPalette = document.createElement("div");
+  emojiPalette.className = "squad-emoji-palette";
+  wrap.appendChild(emojiPalette);
+  const paintCreatePalette = () => {
+    renderSquadEmojiPalette(emojiPalette, chosenEmoji, (emoji) => {
+      chosenEmoji = emoji;
+      paintCreatePalette();
+    });
+  };
+  paintCreatePalette();
+
+  const mottoField = document.createElement("div");
+  mottoField.className = "field-row";
+  mottoField.innerHTML = `<label for="input-squad-motto">Motto (optional)</label>`;
+  const mottoInput = document.createElement("textarea");
+  mottoInput.id = "input-squad-motto";
+  mottoInput.maxLength = 120;
+  mottoInput.rows = 2;
+  mottoField.appendChild(mottoInput);
+  wrap.appendChild(mottoField);
+
+  const visField = document.createElement("div");
+  visField.className = "field-row";
+  visField.innerHTML = `<label for="input-squad-visibility">Visibility</label>`;
+  const visSelect = document.createElement("select");
+  visSelect.id = "input-squad-visibility";
+  visSelect.innerHTML = `<option value="public">Public - anyone can join</option><option value="private">Private - invite code only</option>`;
+  visField.appendChild(visSelect);
+  wrap.appendChild(visField);
+
+  const errorEl = document.createElement("div");
+  errorEl.className = "auth-status hidden";
+  wrap.appendChild(errorEl);
+
+  const createBtn = document.createElement("button");
+  createBtn.type = "button";
+  createBtn.className = "btn btn-primary btn-block";
+  createBtn.textContent = "Create Squad";
+  const showCreateError = (message) => {
+    errorEl.textContent = message;
+    errorEl.classList.remove("hidden");
+    errorEl.classList.add("auth-error");
+  };
+
+  createBtn.addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    const tag = tagInput.value.trim();
+    if (!name || !tag) return;
+    // Client-side checks matching the squads table's own constraints, so a
+    // bad tag surfaces a readable message here instead of a raw Postgres
+    // check-constraint error from the RPC (which only catches name/tag
+    // uniqueness itself, not format - see create_squad in the migrations).
+    if (name.length < 3 || name.length > 30) {
+      showCreateError("Name must be 3-30 characters.");
+      return;
+    }
+    if (!/^[A-Za-z0-9]{2,5}$/.test(tag)) {
+      showCreateError("Tag must be 2-5 letters or numbers, no spaces or symbols.");
+      return;
+    }
+    try {
+      await createSquad({ name, tag, emoji: chosenEmoji, motto: mottoInput.value.trim(), visibility: visSelect.value });
+    } catch (e) {
+      showCreateError(e.message || "Couldn't create that squad.");
+      return;
+    }
+    closeModal();
+    await openSquadsScreen();
+  });
+  wrap.appendChild(createBtn);
+
+  openModal("Create a Squad", wrap);
+});
 
 profileRefs.usernameInput.addEventListener("change", async () => {
   const name = profileRefs.usernameInput.value.trim();

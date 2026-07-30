@@ -281,10 +281,46 @@
 
     <section id="screen-squads" class="screen hidden">
       <h2 class="section-heading">Squads</h2>
-      <div class="card coming-soon-card">
-        <span class="coming-soon-icon">🛡️</span>
-        <h3>Coming soon!</h3>
-        <p class="coming-soon-memo">Squad up with your friends to build the best team!</p>
+      <div id="squad-status" class="auth-status hidden"></div>
+
+      <!-- Shown when the player isn't in a squad yet. -->
+      <div id="squads-browse">
+        <div class="card">
+          <h3>Find a Squad</h3>
+          <p class="hint-text">One squad at a time - joining a new one means leaving your current squad first.</p>
+          <div class="field-row">
+            <label for="input-squad-search">Search</label>
+            <input id="input-squad-search" type="text" placeholder="Search by name or tag" />
+          </div>
+          <div class="squads-browse-actions">
+            <button id="btn-create-squad" class="btn btn-primary" type="button">Create a Squad</button>
+            <button id="btn-join-by-code" class="btn btn-secondary" type="button">Join by Invite Code</button>
+          </div>
+        </div>
+        <div id="squads-list" class="squads-list"></div>
+      </div>
+
+      <!-- Shown once the player is in a squad. -->
+      <div id="squads-detail" class="hidden">
+        <div class="card squad-header-card" id="squad-header"></div>
+
+        <div class="card">
+          <h3>Roster</h3>
+          <div id="squad-roster" class="squad-roster"></div>
+        </div>
+
+        <div class="card squad-chat-card">
+          <h3>Squad Chat</h3>
+          <div id="squad-chat-messages" class="squad-chat-messages"></div>
+          <div class="squad-chat-input-row">
+            <input id="input-squad-chat" type="text" maxlength="300" placeholder="Say something to your squad..." />
+            <button id="btn-squad-chat-send" class="btn btn-primary" type="button">Send</button>
+          </div>
+        </div>
+
+        <div class="squad-leave-row">
+          <button id="btn-leave-squad" class="btn btn-secondary" type="button">Leave Squad</button>
+        </div>
       </div>
     </section>
   </main>
