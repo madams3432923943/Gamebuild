@@ -19,6 +19,17 @@ export async function leaveQueue() {
   await supabase.rpc("leave_queue");
 }
 
+/** Walks away from a non-complete match - either side can call this, not
+ * just whoever's turn it is. Deletes the match outright rather than
+ * marking it some "cancelled" status: nothing worth keeping is recorded
+ * until simulate-match writes a result, so there's no history to preserve. */
+export async function cancelMatch(matchId) {
+  await requireSession();
+  const supabase = await getSupabase();
+  const { error } = await supabase.rpc("cancel_match", { p_match_id: matchId });
+  if (error) throw error;
+}
+
 /** The safe, column-limited view - never selects roster_a/roster_b, which
  * would otherwise leak a hidden pick the instant it's written (before the
  * round-reveal rule in get_visible_picks() applies). */

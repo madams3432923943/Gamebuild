@@ -78,6 +78,7 @@ import {
   getMatchResult,
   getUsername,
   watchMatch,
+  cancelMatch,
 } from "./online.js";
 import {
   renderPositionSelector,
@@ -673,6 +674,7 @@ const draftRoundLabel = document.getElementById("draft-round-label");
 const squadBannerTeam = document.getElementById("squad-banner-team");
 const squadBannerDecade = document.getElementById("squad-banner-decade");
 const draftTurnBanner = document.getElementById("draft-turn-banner");
+const btnLeaveMatch = document.getElementById("btn-leave-match");
 
 const game = {
   mode: "bot",
@@ -950,6 +952,7 @@ function startDraft() {
   rotationMinutes = null;
   selectedMatchups = null;
   draftPoolPanel.classList.remove("hidden");
+  btnLeaveMatch.classList.add("hidden");
   applyRulesetToDraftUI();
   game.era = getEra();
   game.draft = new DraftState(playersInEra(PLAYERS, game.era), recentSquadIds, slotsForRuleset(game.ruleset));
@@ -1184,6 +1187,7 @@ async function enterOnlineMatch(matchId) {
   };
 
   applyRulesetToDraftUI();
+  btnLeaveMatch.classList.remove("hidden");
   showScreen("draft");
   await renderOnlineDraftRound(match);
   game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange);
@@ -1198,6 +1202,25 @@ async function onOnlineMatchChange(match) {
   }
   await renderOnlineDraftRound(match);
 }
+
+/** Lets a player walk away from a stuck or unwanted online draft rather than
+ * wait out the 15-minute server-side staleness window (see cancel_match) -
+ * either side can leave, at any point before simulation starts. */
+btnLeaveMatch.addEventListener("click", async () => {
+  if (!game.online) return;
+  const matchId = game.online.matchId;
+  cleanupOnlineWatcher();
+  cleanupPickTimer();
+  btnLeaveMatch.classList.add("hidden");
+  try {
+    await cancelMatch(matchId);
+  } catch (e) {
+    console.error("Failed to cancel match:", e);
+  }
+  game.online = null;
+  showScreen("home");
+  refreshHome();
+});
 
 async function renderOnlineDraftRound(match) {
   const o = game.online;
@@ -1628,6 +1651,7 @@ function normalizeServerResult(dbResult, iAmA) {
 
 async function runOnlineSimulationFlow(matchId) {
   const o = game.online;
+  btnLeaveMatch.classList.add("hidden");
   showScreen("game");
   finalBanner.classList.add("hidden");
   mvpCallout.classList.add("hidden");
