@@ -1,89 +1,87 @@
-# Ball Knowledge — notes for next session
+# Ball Knowledge — session notes
 
 Repo: madams3432923943/gamebuild. Dev branch `claude/gambuild-file-purposes-7rxz2h`,
-mirrored straight to `main` every round (GitHub Pages deploys from `main`).
-Supabase project: aauvgiygwrwdbtruhxta. Working tree is clean as of commit
-`21a671b` — nothing uncommitted, nothing half-finished.
+mirrored to `main` every round (GitHub Pages deploys from `main`).
+Supabase project: aauvgiygwrwdbtruhxta.
 
-## Just shipped (this session, verify live before trusting it blind)
+## THE BIG CAVEAT — read this first
 
-- Fixed the online-match freeze on game start: `watchMatch()` had a race
-  where its first poll always re-ran the state handler concurrently with
-  the caller's own initial handling — could double-run the live sim.
-- Online Ranked now mirrors offline Ranked Practice exactly (position-picker
-  popup, bench auto-fill, opponent-pick reveal highlight) — this was a
-  standing complaint ("I keep telling you the same things") so if anything
-  online/offline still diverges, that's the bar to hold it to.
-- Matchup intro: fixed VS/countdown overlapping, added bounce/impact-flash/
-  bigger "GO!" payoff.
-- Reveal-highlight animation duration doubled (flip 0.5s→1s, glow
-  1.2s→2.4s).
-- Live game reveal (shared by online+offline via one `playOutResult` in
-  main.js) got a real presentation pass: live scoreboard pulse, period-end
-  and lead-change flashes, glowing "hot" play cards, ambient court glow,
-  final buzzer flash, MVP/recap pop-in.
-- Banner rework: badges 2x size on their own row, "Est. MM/YYYY" join tag,
-  removed Games-played + per-sport rank strip (privacy/redundancy), added
-  opt-in "top sport & era" tag (new `profiles.show_top_era` column,
-  client-writable like `equipped_banner`).
+**This sandbox cannot reach Supabase or any CDN** (the agent proxy 403s both
+`supabase.co` and `esm.sh`; only the Supabase MCP tools get through). So no
+online match has ever been played end-to-end from here. Everything online is
+verified by static analysis, live SQL against the real database, and Node
+unit tests against the real data shapes — never by actually playing a match
+in a browser. **A real two-device playtest is the single highest-value thing
+a human can do**, and it is the only way to confirm the P1 fix below.
 
-**None of this has been through a real browser click-through** — sandbox
-network policy blocks the CDN a live Playwright/browser session needs, so
-everything was verified via `node --check`, a DOM-mock render harness
-(`/tmp/.../scratchpad/dom-mock.mjs` + `test-banner.mjs`, reusable), and
-direct Supabase SQL/RPC checks. **First thing next session: if a real
-browser is reachable, actually play an online match end-to-end and eyeball
-the new animations** — this is the single biggest gap in verification
-across the whole session, not just this round.
+## P1: online reveal never reaching player screens
 
-## Standing advisory backlog (from the earlier "pre-work" plan, still open)
+Symptom: match completes server-side (profile W-L updates) but neither
+player ever sees the game screen.
 
-Tier 1 (worth doing before anything bigger):
-- Item 3, the live playtest pass above — now doubly relevant since two
-  more animation-heavy rounds have shipped since it was first flagged.
-- Item 4: "squad" still means two things (draft-pool team+decade pull vs.
-  the player-run clan feature). Not urgent, but cheap to fix now, expensive
-  once NFL adds its own draft-pool concept.
+What was PROVEN from the live DB / edge-function logs:
+- The server chain is fully correct. `submit_strategy` flips status to
+  `ready_to_simulate` once both tactics land; the edge function writes
+  `match_results` and sets `matches.status='complete'` + `matches.winner`.
+  Both real matches show `status=complete` with a result row and 20 picks.
+- Edge logs show TWO POST 200s per match, ~0.2s apart, with two separate
+  OPTIONS preflights ~1.2s apart — i.e. both clients reached
+  `runOnlineSimulationFlow` (the only caller of `simulateMatch`). The
+  20:28 match ran the current code, after the earlier race fix.
+- RLS is fine: participants can read `match_results` and `matches_public`.
+- Data shapes all check out (`period_scores` = array of 4 `{a,b}` keyed by
+  slot; `box_a/box_b` flat slot-keyed; `mvp` = `{name,side,line,score}`).
 
-Tier 2 (informs NFL, do alongside it):
-- Item 2: no `sport` column on `matches`/`matchmaking_queue`/`profiles`
-  yet. This session's "top sport" banner tag is a placeholder for exactly
-  this reason — it only ever shows NBA right now because there's no
-  per-sport data to pick a real winner from. Needs solving before NFL
-  launches or rank/rep/history will blend both sports nonsensically.
-- Item 5: NFL needs its own engine + roster model, not a generalized
-  version of `js/engine.js` (confirmed structurally basketball-specific
-  via an earlier Explore pass — quarter-by-quarter positional matchups,
-  6-stat vector, 5-on-5 SLOTS).
-- Item 6: badges/banners/eras already generalize cleanly to a second sport
-  (badges.js has a `sport` field, banners.js's franchise-list pattern is
-  sport-agnostic) — don't rebuild these, just extend the catalogs.
-- Item 7: no real account-recovery path (synthetic
-  `username@ballknowledge.app` emails, so Supabase's password-reset email
-  has nowhere real to go). Fine at current scale, gets worse as the player
-  base grows.
+Three real defects were found and fixed, all of which failed *silently*:
+1. The reveal had a single trigger — the long-lived match watcher. Anything
+   stopping it early (tab switch, failed-poll streak, an earlier handler
+   throwing) took the reveal with it. A second independent poll now starts
+   when a game plan is submitted.
+2. Reaching the reveal twice would run two `runOnlineSimulationFlow()`s over
+   the same scoreboard intervals/DOM — indistinguishable from a freeze. Now
+   guarded by `game.online.simulationStarted`, which is what makes the
+   redundant trigger above safe.
+3. Nothing between `showScreen("game")` and the animation could report a
+   failure (the draft banner is hidden by then), so any throw left
+   "Simulating…" on screen forever with the reason in an unhandled
+   rejection. That path now writes to the final banner.
 
-Tier 3 (polish, no urgency): accessibility/mobile QA pass on everything
-built this session (Squads, Friends, redesigned banners); revisit tuned
-constants (`BOT_SKILL`, Squad Rep weights/tiers) once there's real usage
-data; decide whether Founder/1st Player are the only prestige banners or
-there's a pattern coming for more.
+**Not yet root-caused with certainty.** The three above are genuine bugs and
+together should make the freeze impossible or at minimum self-explaining,
+but no reproduction was ever observed from here. If it still fails, the
+error banner should now name the reason — get that text.
 
-## Open threads specific to what shipped tonight
+Separately fixed: `normalizeServerResult` read `dbResult.winner`, but
+`match_results` **has no winner column** (it's on `matches`). That was always
+`undefined` → normalized to `"B"` every time, so BOTH players were told their
+opponent won regardless of score. Now taken from the match row with a
+score-comparison fallback. Covered by a unit test.
 
-- The "top sport" banner tag is honest-but-thin: it always resolves to
-  the one live sport (`SPORTS.find(s => s.live)`), not a real per-sport
-  comparison — flagged in a code comment in `js/ui.js`. Revisit once the
-  sport-scoping (tier-2 item 2 above) lands.
-- `profiles.show_top_era` migration was applied directly via the Supabase
-  MCP and also saved to `db/migrations/20260731_02_banner_show_top_era.sql`
-  — if a future session re-provisions the DB from migration files, confirm
-  it's still in the applied order (it's dated after `20260731_01`, so it
-  should be, but worth a glance since date-based migration filenames were
-  already slightly out of true chronological order earlier in the repo's
-  history — e.g. two files both dated `20260730_03_*`).
-- Didn't touch the `simulate-match` Edge Function this round. It was
-  synced with the client engine earlier in the session (task #4, marked
-  done) — if the live game feels inconsistent between online and offline
-  results (not presentation, actual box scores), that sync is the first
-  place to check for drift.
+## Also shipped this session
+
+Bot easier (top-5 pool, 20% each, `BOT_POOL_SIZE`); general banner framework
+(default brown Rookie for everyone, friend-count 5/15/30, camo ladder
+Woodland/Desert/Tiger/Gold/Diamond gated on ranked wins with Diamond at 500);
+badges auto-sorted by tier; phone layout pass; pool-list scroll fixes; Squad
+Rep reset to 0 and reserved for tournaments (trigger dropped); Add Friend on
+squadmates; banners on the friends leaderboard; Return to Home button after
+games; "Quick Play - Learn Stats"; Unlockables → Rewards.
+
+## Open / next
+
+- **Squad tournaments don't exist.** Rep is now permanently 0 until they're
+  built. This is intended, but it means the whole Rep ladder is dead UI.
+- No `sport` column on `matches`/`matchmaking_queue`/`profiles` — needed
+  before NFL, or rank/rep/history blend sports together.
+- NFL needs its own engine + roster model; `js/engine.js` is structurally
+  basketball-specific (quarter-by-quarter positional matchups, 6-stat
+  vector, 5-on-5 slots). Badges/banners/eras generalize cleanly — extend
+  those catalogs rather than rebuilding.
+- No account recovery (synthetic `username@ballknowledge.app` emails).
+- The `simulate-match` edge function is not in this repo — it's edited live
+  via the Supabase MCP tools. Its first-caller response omits the box score
+  (only the idempotent second-caller path returns the full row); harmless
+  today because the client re-reads `match_results`, but worth knowing.
+- Minutes (MIN column) are blank for online box scores: rotations live on
+  `matches.rotation_a/rotation_b` and aren't exposed through
+  `matches_public`, deliberately, so they can't leak mid-strategy.
