@@ -499,7 +499,7 @@ function renderFeaturedBadges(container, profile) {
   }
 }
 
-/** The two kinds of thing under the Unlockables tab. Both get their own
+/** The two kinds of thing under the Rewards tab. Both get their own
  * sport-scoped subtabs underneath (see renderBadgeSportTabs/
  * renderBannerSportTabs) now that franchise banners come per-sport too. */
 const UNLOCKABLE_KINDS = [
@@ -794,8 +794,8 @@ export function renderBannerSportTabs(container, activeSport, onSelect) {
 
 /** `onlyUnlocked` filters franchise banners down to ones this profile can
  * actually equip - what Profile > Customize Banner shows, since offering to
- * "customize" with a banner you haven't earned yet is just Unlockables with
- * extra steps. Unlockables itself always passes false, since showing what's
+ * "customize" with a banner you haven't earned yet is just the Rewards tab
+ * with extra steps. Rewards itself always passes false, since showing what's
  * still locked (and how close you are) is the whole point there. */
 export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false, stats = {}) {
   container.innerHTML = "";

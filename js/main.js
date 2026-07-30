@@ -2168,7 +2168,7 @@ async function openProfileScreen() {
 btnCustomizeBanner.addEventListener("click", () => openCustomizeBannerModal());
 
 /** "Customize Banner" from the Profile screen - the same sport-tabbed
- * banner grid Unlockables > Banners shows, just reached from Profile too
+ * banner grid Rewards > Banners shows, just reached from Profile too
  * (rather than duplicating renderBanners/renderBannerSportTabs) since
  * equipping a banner is really a profile customization, not an unlock. */
 function openCustomizeBannerModal() {
@@ -2306,7 +2306,7 @@ async function onToggleFeaturedBadge(badgeId) {
 }
 
 /** Equipping is cosmetic, so it writes straight from the client. Repaints
- * the Unlockables screen (where the equip button lives) - the home header's
+ * the Rewards screen (where the equip button lives) - the home header's
  * equipped-banner display picks up the change next time it's shown, via
  * refreshHome()'s normal reload. */
 async function onEquipBanner(franchiseId) {

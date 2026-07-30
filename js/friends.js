@@ -86,7 +86,6 @@ export async function listFriendsLeaderboard() {
   const friendIds = rows.filter((r) => r.status === "accepted").map((r) => (r.requester_id === myId ? r.addressee_id : r.requester_id));
 
   const profiles = await profilesById([myId, ...friendIds]);
-  const me = profiles.get(myId);
   const entries = [myId, ...friendIds]
     .map((id) => profiles.get(id))
     .filter(Boolean)

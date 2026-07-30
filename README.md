@@ -13,15 +13,11 @@ score, because a result you can't explain teaches you nothing about your draft.
 
 | Mode | Opponent | Roster | Rules |
 | --- | --- | --- | --- |
-| Quick Play | Bot | 5 (PG/SG/SF/PF/C) | Whole squad and stats shown, no clock |
+| Quick Play - Learn Stats | Bot | 5 (PG/SG/SF/PF/C) | Whole squad and stats shown, no clock |
 | Ranked Practice | Bot | 10 (5 starters + 5 bench) | Type from memory, no stats, pick clock, then rotation + gamestyle |
 | Ranked | Real opponent | 10 (5 starters + 5 bench) | Ranked rules, counts toward your record |
 
 Bot games never affect your rank; your profile still counts every game played.
-
-> Online Ranked still runs the older 6-man roster until the ranked backend
-> lands (queue mode, rotation state, server-side simulation). Ranked Practice
-> is already the real thing.
 
 ### Rosters and depth
 

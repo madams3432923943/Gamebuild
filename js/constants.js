@@ -68,10 +68,6 @@ export function orderedRosterSlots(roster) {
   return orderSlots(Object.keys(roster).filter((slot) => roster[slot]));
 }
 
-// Minutes available at each position across a full game (5 on the floor for
-// 48 minutes = 240 total, split per position).
-export const POSITION_MINUTES = 48;
-
 // A team's whole minutes budget for a game: five players on the floor for
 // 48 minutes. Minutes are allocated per PLAYER against this single pool
 // rather than per position, so a rotation is one set of trade-offs across
@@ -367,10 +363,6 @@ export const ONLINE_ROTATION_TIMER_SECONDS = 120;
 // How long to set defensive matchups. Shorter than the rotation: it's five
 // dropdowns against a roster already on screen, not a budget to balance.
 export const MATCHUP_TIMER_SECONDS = 45;
-
-// The real-basketball baseline a rotation's minutes are measured against: 5
-// players on court at all times over a 48-minute game.
-export const ROTATION_MINUTES_BUDGET = 240;
 
 // Minimum characters typed before the draft search reveals any matches -
 // with only 10 players per squad, revealing results after 1 character

@@ -16,8 +16,6 @@
 //    below. No player likenesses, nothing to license, and it scales to every
 //    team without commissioning a single asset.
 
-import { PLAYERS } from "./data.js";
-
 /** Players from a franchise you must draft in winning games to earn it. */
 export const BANNER_THRESHOLD = 10;
 
@@ -155,7 +153,7 @@ export const FRANCHISES = [
 ];
 
 /** Franchises for one sport - mirrors badgesForSport()'s pattern so the
- * Unlockables > Banners subtabs can filter the same way the Badges subtabs
+ * Rewards > Banners subtabs can filter the same way the Badges subtabs
  * already do. */
 export function franchisesForSport(sport = "nba") {
   return FRANCHISES.filter((f) => f.sport === sport);
@@ -297,17 +295,6 @@ export function bannerById(id) {
   if (id === FOUNDER_BANNER.id) return FOUNDER_BANNER;
   if (id === FIRST_PLAYER_BANNER.id) return FIRST_PLAYER_BANNER;
   return generalBannerById(id) || franchiseById(id);
-}
-
-/** Any team string in the dataset that no franchise claims. Surfaces naming
- * drift (a new era-accurate label, a typo) instead of letting it quietly
- * break banner progress. */
-export function unmappedTeams(players = PLAYERS) {
-  const missing = new Set();
-  for (const p of players) {
-    if (!franchiseIdForTeam(p.team)) missing.add(p.team);
-  }
-  return [...missing];
 }
 
 /** Every team string that belongs to a franchise, current name included. */
