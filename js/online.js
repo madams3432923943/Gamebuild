@@ -34,11 +34,19 @@ export async function cancelMatch(matchId) {
 /** The safe, column-limited view - never selects roster_a/roster_b, which
  * would otherwise leak a hidden pick the instant it's written (before the
  * round-reveal rule in get_visible_picks() applies). */
+/** Returns null when the match no longer exists, rather than throwing.
+ *
+ * That case is not an error, it is an outcome: cancel_match DELETES the row
+ * (nothing worth keeping is recorded until simulate-match writes a result),
+ * so an opponent walking away is indistinguishable from a network failure to
+ * a caller that only sees an exception. It isn't - one recovers on its own
+ * and the other never will, and telling a player to wait for a match that no
+ * longer exists is the worse of the two mistakes. */
 export async function getMatch(matchId) {
   const supabase = await getSupabase();
-  const { data, error } = await supabase.from("matches_public").select("*").eq("id", matchId).single();
+  const { data, error } = await supabase.from("matches_public").select("*").eq("id", matchId).maybeSingle();
   if (error) throw error;
-  return data;
+  return data ?? null;
 }
 
 /** This round's (and all prior rounds') picks, with the reveal rule already
@@ -243,7 +251,7 @@ export async function getOpponentSummary(userId) {
  */
 const WATCH_ERROR_STREAK = 5;
 
-export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = null, onError = null) {
+export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = null, onError = null, onGone = null) {
   let stopped = false;
   let last = initialMatch;
   let failures = 0;
@@ -253,6 +261,14 @@ export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = 
     try {
       const match = await getMatch(matchId);
       failures = 0;
+      // The match is gone - the opponent cancelled, or it was swept as stale.
+      // Terminal, so the poll stops rather than sitting on a row that will
+      // never come back while the player is told to wait for it.
+      if (!match) {
+        stopped = true;
+        if (onGone) onGone();
+        return;
+      }
       if (!last || match.status !== last.status || match.round_number !== last.round_number) {
         last = match;
         onChange(match);

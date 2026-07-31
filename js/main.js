@@ -1473,6 +1473,9 @@ async function enterOnlineMatch(matchId) {
 
   applyRulesetToDraftUI();
   btnLeaveMatch.classList.remove("hidden");
+  // Reset: handleOpponentLeft repurposes this button as "Back to Home", and a
+  // new match must not inherit that label.
+  btnLeaveMatch.textContent = "Leave Match";
   showScreen("draft");
   await handleOnlineMatchState(match);
   // Pass the match we just handled as the watcher's starting point - without
@@ -1481,17 +1484,51 @@ async function enterOnlineMatch(matchId) {
   // Harmless mid-draft, but for ready_to_simulate/complete it meant two
   // concurrent runOnlineSimulationFlow() calls racing over the same
   // scoreboard timers/DOM - a real cause of a frozen-looking game screen.
-  game.online.stopWatcher = watchMatch(matchId, onOnlineMatchChange, undefined, match, (e) => {
-    // Only fires after a sustained run of failed polls - see WATCH_ERROR_STREAK.
-    console.error("Match polling keeps failing:", e);
-    if (game.online && !game.online.simulationStarted) {
-      draftTurnBanner.textContent = "Lost contact with the match - check your connection. It'll pick back up on its own.";
-    }
-  });
+  game.online.stopWatcher = watchMatch(
+    matchId,
+    onOnlineMatchChange,
+    undefined,
+    match,
+    (e) => {
+      // Only fires after a sustained run of failed polls - see WATCH_ERROR_STREAK.
+      console.error("Match polling keeps failing:", e);
+      if (game.online && !game.online.simulationStarted) {
+        draftTurnBanner.textContent = "Lost contact with the match - check your connection. It'll pick back up on its own.";
+      }
+    },
+    handleOpponentLeft
+  );
 }
 
 async function onOnlineMatchChange(match) {
   await handleOnlineMatchState(match);
+}
+
+/**
+ * The match row is gone: the opponent left, or the stale-match sweep took it.
+ *
+ * This is terminal and has to say so. The polling-failure message above tells
+ * the player to sit tight because the connection will recover - true for a
+ * flaky network, and exactly wrong here, where waiting means staring at a
+ * draft screen for a match that no longer exists. Nothing was recorded (no
+ * result is written until simulate-match runs), so there is no rank
+ * consequence to explain, only a way back.
+ */
+function handleOpponentLeft() {
+  if (!game.online || game.online.simulationStarted) return;
+  cleanupPickTimer();
+  cleanupRotationTimer();
+  cleanupMatchupTimer();
+  cleanupTacticTimer();
+  cleanupOnlineWatcher();
+  game.online = null;
+
+  draftTurnBanner.textContent = "Your opponent left the match. Nothing was recorded - your rank is untouched.";
+  poolSearch.hidden = true;
+  positionSelectorEl.innerHTML = "";
+  poolList.innerHTML = "";
+  btnLeaveMatch.classList.remove("hidden");
+  btnLeaveMatch.textContent = "Back to Home";
 }
 
 /** Routes to the right screen/phase for whatever state the match is
@@ -1563,7 +1600,15 @@ async function handleOnlineMatchState(match) {
  * wait out the 15-minute server-side staleness window (see cancel_match) -
  * either side can leave, at any point before simulation starts. */
 btnLeaveMatch.addEventListener("click", async () => {
-  if (!game.online) return;
+  // Doubles as the way out after an opponent leaves, where the online state
+  // has already been torn down and there is no match left to cancel. Without
+  // this the button is on screen and does nothing, which is worse than not
+  // offering it.
+  if (!game.online) {
+    showScreen("home");
+    refreshHome();
+    return;
+  }
   const matchId = game.online.matchId;
   cleanupOnlineWatcher();
   cleanupPickTimer();
