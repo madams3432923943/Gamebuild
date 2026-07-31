@@ -26,6 +26,8 @@ import {
   ROTATION_TIMER_SECONDS,
   ONLINE_ROTATION_TIMER_SECONDS,
   MATCHUP_TIMER_SECONDS,
+  ONLINE_QUEUE_TIMEOUT_SECONDS,
+  ONLINE_QUEUE_POLL_MS,
 } from "./constants.js";
 import {
   loadProfile,
@@ -603,12 +605,57 @@ startPresence((count) => {
 
 let onlineSearchActive = false;
 
+/** Ends a search - whether it timed out, errored, or was cancelled - and
+ * hands back a working home screen.
+ *
+ * Always releases the queue row, even on the error path. Leaving one behind
+ * is the failure mode worth avoiding: the next player to search would be
+ * paired with someone who stopped waiting minutes ago and get a draft that
+ * never advances, which is a worse outcome than simply not matching.
+ *
+ * `message` is shown in place of the spinner when there's something to say,
+ * so "nobody's online" lands on the screen the player is looking at rather
+ * than the search just vanishing. */
+async function endOnlineSearch(message) {
+  onlineSearchActive = false;
+  btnStartDraft.disabled = false;
+  btnCancelSearch.classList.add("hidden");
+
+  try {
+    await leaveQueue();
+  } catch (e) {
+    console.error("Failed to leave the matchmaking queue:", e);
+  }
+
+  showScreen("home");
+  setActiveNav("play");
+  if (message) {
+    searchStatusEl.classList.remove("hidden");
+    searchStatusEl.textContent = message;
+  } else {
+    searchStatusEl.classList.add("hidden");
+  }
+}
+
 async function startOnlineSearch() {
   onlineSearchActive = true;
   btnStartDraft.disabled = true;
   btnCancelSearch.classList.remove("hidden");
   searchStatusEl.classList.remove("hidden");
-  searchStatusEl.innerHTML = '<span class="search-spinner"></span> Searching for an opponent…';
+
+  // A visible countdown, so the wait reads as bounded rather than open-ended.
+  // Someone who can see it end in 90 seconds waits; someone watching an
+  // endless spinner concludes the game is broken and closes the tab.
+  const deadline = Date.now() + ONLINE_QUEUE_TIMEOUT_SECONDS * 1000;
+  const renderWaiting = () => {
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    searchStatusEl.innerHTML =
+      `<span class="search-spinner"></span> Searching for an opponent… <strong>${left}s</strong>`;
+  };
+  renderWaiting();
+  const ticker = setInterval(() => {
+    if (onlineSearchActive) renderWaiting();
+  }, 1000);
 
   try {
     while (onlineSearchActive) {
@@ -617,30 +664,25 @@ async function startOnlineSearch() {
         await enterOnlineMatch(res.match_id);
         return;
       }
-      await sleep(2000);
+      // Checked after the poll, not before it: the last poll of the window
+      // is a real chance to match, and giving up without taking it would
+      // waste the final two seconds of the wait.
+      if (Date.now() >= deadline) {
+        await endOnlineSearch(
+          "No one else is looking for a game right now. Try Ranked Practice against the bot, or check back in a bit."
+        );
+        return;
+      }
+      await sleep(ONLINE_QUEUE_POLL_MS);
     }
   } catch (e) {
-    searchStatusEl.textContent = "Couldn't reach matchmaking: " + e.message;
+    await endOnlineSearch("Couldn't reach matchmaking: " + e.message);
   } finally {
-    if (onlineSearchActive === false) {
-      btnStartDraft.disabled = false;
-      btnCancelSearch.classList.add("hidden");
-      searchStatusEl.classList.add("hidden");
-    }
+    clearInterval(ticker);
   }
 }
 
-btnCancelSearch.addEventListener("click", async () => {
-  onlineSearchActive = false;
-  btnStartDraft.disabled = false;
-  btnCancelSearch.classList.add("hidden");
-  searchStatusEl.classList.add("hidden");
-  try {
-    await leaveQueue();
-  } catch (e) {
-    console.error(e);
-  }
-});
+btnCancelSearch.addEventListener("click", () => endOnlineSearch(null));
 
 btnStartDraft.addEventListener("click", async () => {
   const config = currentModeConfig();

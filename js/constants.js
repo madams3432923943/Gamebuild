@@ -364,6 +364,22 @@ export const ONLINE_ROTATION_TIMER_SECONDS = 120;
 // dropdowns against a roster already on screen, not a budget to balance.
 export const MATCHUP_TIMER_SECONDS = 45;
 
+// How long a player waits in the online queue before the search gives up.
+//
+// An empty lobby is the ordinary case at this player count, and a spinner
+// that never stops is indistinguishable from a broken game - "couldn't get
+// an online game" is what that looks like from the outside. Ending the
+// search says the true thing (nobody is here right now) and hands the
+// player back a working screen instead of a dead one.
+//
+// The queue row is released on the way out, which matters as much as the
+// timeout itself: a row left behind would later pair a real player against
+// someone who walked away minutes ago, which is worse than not matching.
+export const ONLINE_QUEUE_TIMEOUT_SECONDS = 120;
+
+// How often the search re-asks the server for an opponent while waiting.
+export const ONLINE_QUEUE_POLL_MS = 2000;
+
 // Minimum characters typed before the draft search reveals any matches -
 // with only 10 players per squad, revealing results after 1 character
 // would let someone brute-force the roster letter by letter.
