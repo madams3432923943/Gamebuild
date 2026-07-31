@@ -185,6 +185,15 @@ export const FOUNDER_BANNER = {
   name: "Founder",
   abbr: "★",
   colors: ["#f2c14e", "#15181f"],
+  // The star used to ride the generic ghosted-abbreviation slot, which is
+  // deliberately bled off the bottom-right corner so a three-letter code
+  // reads as a watermark - fine for "ATL", but it sliced the star in half.
+  // As an emblem it sits fully inside the frame at full opacity, and the
+  // corner carries readable words instead of a clipped glyph.
+  art: "founder",
+  emblem: "★",
+  label: "The Founder",
+  hideAbbr: true,
 };
 
 export function isFounder(profile) {
@@ -235,15 +244,24 @@ export const GENERAL_BANNERS = [
   },
   // Friend-count banners. Three tiers so the reward keeps pace with actually
   // building a circle rather than being a single one-and-done unlock.
+  //
+  // Each gets its own artwork rather than the ghosted requirement number the
+  // generic treatment would stamp in the corner. A banner is worn - it should
+  // say something about you, not restate the receipt for how it was earned,
+  // and "30" in the corner reads as a jersey number nobody chose. The three
+  // designs escalate the same way the tiers do: a huddle of five, a full
+  // lineup card, then pinstripes.
   ...[
-    { id: "crew-5", name: "Crew", abbr: "5", need: 5, colors: ["#4f9d69", "#20402c"] },
-    { id: "crew-15", name: "Roster", abbr: "15", need: 15, colors: ["#3d7ea6", "#1b3a4d"] },
-    { id: "crew-30", name: "Front Office", abbr: "30", need: 30, colors: ["#8e5ea2", "#3a2547"] },
+    { id: "crew-5", name: "Crew", abbr: "5", need: 5, art: "crew-huddle", colors: ["#4f9d69", "#20402c"] },
+    { id: "crew-15", name: "Roster", abbr: "15", need: 15, art: "crew-roster", colors: ["#3d7ea6", "#1b3a4d"] },
+    { id: "crew-30", name: "Front Office", abbr: "30", need: 30, art: "crew-front-office", colors: ["#8e5ea2", "#3a2547"] },
   ].map((t) => ({
     id: t.id,
     name: t.name,
     abbr: t.abbr,
     colors: t.colors,
+    art: t.art,
+    hideAbbr: true,
     blurb: `Add ${t.need} friends.`,
     progress: (profile, stats) => {
       const value = stats.friendCount || 0;
@@ -265,6 +283,9 @@ export const GENERAL_BANNERS = [
     abbr: t.abbr,
     colors: t.colors,
     art: t.art,
+    // Just the camo. A pattern with "WDL" stamped over it isn't a camo, it's
+    // a label on top of one - and the tile already names it underneath.
+    hideAbbr: true,
     blurb: `Win ${t.need} online ranked games.`,
     progress: (profile) => {
       const value = profile.onlineWins || 0;

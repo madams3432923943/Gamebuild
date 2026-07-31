@@ -420,6 +420,23 @@ function formatJoinTag(createdAt) {
  * those are private, and with only one sport live a per-sport list is just
  * one entry repeated. Total games still lives on the Profile screen itself
  * (your own stats, not something the banner broadcasts). */
+/** Creates-or-updates one absolutely-positioned mark on the home banner card,
+ * removing it when the equipped banner doesn't call for one. Idempotent
+ * because renderHomeHeader re-runs on every profile refresh. */
+function setCardMark(card, className, text) {
+  let el = card.querySelector(`.${className}`);
+  if (!text) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("span");
+    el.className = className;
+    card.appendChild(el);
+  }
+  el.textContent = text;
+}
+
 export function renderHomeHeader(refs, profile, rankInfo) {
   refs.username.textContent = profile.username || "Player";
 
@@ -430,15 +447,44 @@ export function renderHomeHeader(refs, profile, rankInfo) {
   // the layout never depends on having earned something.
   const franchise = profile.equippedBanner ? bannerById(profile.equippedBanner) : null;
   refs.card.classList.toggle("has-banner", !!franchise);
+
+  // Patterned banners (camo, the crew tiers, Founder) paint the card with the
+  // same CSS treatment their tile uses, rather than flattening to a two-color
+  // gradient. Equipping a camo and finding a plain fade on your profile is
+  // the reward not actually being worn.
+  for (const cls of [...refs.card.classList]) {
+    if (cls.startsWith("banner-art-")) refs.card.classList.remove(cls);
+  }
+
   if (franchise) {
     refs.card.style.setProperty("--banner-c1", franchise.colors[0]);
     refs.card.style.setProperty("--banner-c2", franchise.colors[1]);
-    refs.card.dataset.bannerAbbr = franchise.abbr;
+    refs.card.style.setProperty("--art-c1", franchise.colors[0]);
+    refs.card.style.setProperty("--art-c2", franchise.colors[1]);
+    if (franchise.art) {
+      refs.card.classList.add(`banner-art-${franchise.art}`);
+      refs.card.dataset.bannerArt = franchise.art;
+    } else {
+      delete refs.card.dataset.bannerArt;
+    }
+    if (franchise.hideAbbr) delete refs.card.dataset.bannerAbbr;
+    else refs.card.dataset.bannerAbbr = franchise.abbr;
   } else {
-    refs.card.style.removeProperty("--banner-c1");
-    refs.card.style.removeProperty("--banner-c2");
+    for (const prop of ["--banner-c1", "--banner-c2", "--art-c1", "--art-c2"]) {
+      refs.card.style.removeProperty(prop);
+    }
     delete refs.card.dataset.bannerAbbr;
+    delete refs.card.dataset.bannerArt;
   }
+
+  // Reused rather than recreated: this runs on every refreshHome(), and
+  // appending would stack a new star on the card each time.
+  setCardMark(refs.card, "pb-banner-emblem", franchise?.emblem);
+  setCardMark(refs.card, "pb-banner-label", franchise?.label);
+  // Lets the phone layout reserve room for the emblem, but only on the
+  // banners that actually have one - every other banner would just get a
+  // dead gutter down the right-hand side.
+  refs.card.classList.toggle("has-emblem", !!franchise?.emblem);
 
   const joinTag = formatJoinTag(profile.createdAt);
   refs.joined.textContent = joinTag || "";
@@ -641,7 +687,29 @@ export function bannerArt(franchise) {
   if (!franchise.art) {
     el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
   }
-  el.dataset.abbr = franchise.abbr;
+  // The ghosted corner abbreviation is the fallback for banners with no
+  // artwork of their own - it gives a flat two-color field something to say.
+  // A banner that HAS artwork opts out (`hideAbbr`), because stamping a
+  // three-letter code over a camo or a custom design is the label competing
+  // with the thing it labels. The tile prints the banner's name underneath
+  // either way, so nothing is lost by leaving it off.
+  if (!franchise.hideAbbr) el.dataset.abbr = franchise.abbr;
+
+  // A full-opacity mark that sits INSIDE the frame, unlike the abbreviation
+  // slot above, which is deliberately bled off the corner.
+  if (franchise.emblem) {
+    const emblem = document.createElement("span");
+    emblem.className = "banner-emblem";
+    emblem.textContent = franchise.emblem;
+    el.appendChild(emblem);
+  }
+
+  if (franchise.label) {
+    const label = document.createElement("span");
+    label.className = "banner-label";
+    label.textContent = franchise.label;
+    el.appendChild(label);
+  }
 
   // A placeholder sport marker until franchise banners get real art (city
   // skylines, etc.) - just enough so a banner reads as "this is the NFL one"

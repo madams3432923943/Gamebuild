@@ -1341,8 +1341,16 @@ table.box-table th, table.history-table th {
 }
 
 .player-banner.has-banner {
-  background: linear-gradient(180deg, var(--banner-c1) 0%, var(--banner-c2) 100%);
   border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Only banners with no artwork of their own fall back to the flat two-color
+   fade. A patterned one (camo, crew tier, Founder) keeps the banner-art-*
+   class it was given in renderHomeHeader - written as :not() rather than
+   letting the two rules fight, since .player-banner.has-banner outranks a
+   single .banner-art-* class and would silently win. */
+.player-banner.has-banner:not([data-banner-art]) {
+  background: linear-gradient(180deg, var(--banner-c1) 0%, var(--banner-c2) 100%);
 }
 
 .player-banner.has-banner::before {
@@ -1372,9 +1380,90 @@ table.box-table th, table.history-table th {
   z-index: 0;
 }
 
+/* A patterned banner is far busier behind text than the flat fade this card
+   used to have - tiger camo puts hard black-on-gold edges directly under the
+   username. This scrim is weighted to the left, where the name, join date and
+   stats all live, and thins out toward the right so the artwork still reads
+   and the emblem keeps its glow. */
+.player-banner.has-banner[data-banner-art]::after {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.74) 0%,
+      rgba(0, 0, 0, 0.6) 34%,
+      rgba(0, 0, 0, 0.3) 62%,
+      rgba(0, 0, 0, 0.24) 100%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.4) 100%);
+}
+
 .player-banner.has-banner > * {
   position: relative;
   z-index: 1;
+}
+
+/* The home card is a much bigger canvas than a tile, so these are sized in
+   rem rather than inheriting the tile's em scale - an emblem at 2.1em of the
+   card's font size would be a speck on it. Both sit above the card's ::after
+   wash so the star stays gold and the words stay legible. */
+/* Selectors deliberately carry `.player-banner.has-banner >` rather than the
+   bare class: the rule above sets `position: relative` on every direct child
+   at (0,2,0), which outranks a lone class and would drop these back into the
+   flex flow - the star then stretches to the full card width and shoves the
+   layout down instead of floating over it. `width: max-content` is belt and
+   braces for the same reason. */
+.player-banner.has-banner > .pb-banner-emblem {
+  position: absolute;
+  width: max-content;
+  right: 1.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 5rem;
+  line-height: 1;
+  color: var(--banner-c1, #f2c14e);
+  text-shadow: 0 0 0.28em rgba(242, 193, 78, 0.75), 0 3px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.player-banner.has-banner > .pb-banner-label {
+  position: absolute;
+  width: max-content;
+  right: 1.2rem;
+  bottom: 0.9rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 0.8em rgba(0, 0, 0, 0.75);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* On a phone the card is narrow enough that a 5rem star would crowd the
+   player's name, so it steps down and tucks into the top corner. */
+@media (max-width: 560px) {
+  .player-banner.has-banner > .pb-banner-emblem {
+    font-size: 3.2rem;
+    right: 1rem;
+    top: 1.5rem;
+    transform: none;
+  }
+
+  .player-banner.has-banner > .pb-banner-label {
+    font-size: 0.8rem;
+    right: 0.8rem;
+    bottom: 0.7rem;
+  }
+
+  /* The star sits over the top-right corner, which on a narrow card is where
+     a long username would otherwise run straight under it. */
+  .player-banner.has-emblem .pb-top {
+    padding-right: 3.6rem;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1696,6 +1785,117 @@ table.box-table th, table.history-table th {
 @keyframes diamond-sheen {
   0%, 100% { transform: translateX(-60%); opacity: 0.35; }
   50% { transform: translateX(60%); opacity: 0.8; }
+}
+
+/* ---- Friend-tier banners ----
+   Each tier gets real artwork instead of the ghosted requirement number the
+   default treatment would stamp in the corner. Same no-asset approach as the
+   camo ladder: --art-c1/--art-c2 come from the banner entry, so the palette
+   lives in one place. */
+
+/* Crew (5): five dots in a huddle. The 5/2 frame means a visual circle needs
+   its width and height percentages in that ratio - 6% x 15% both resolve to
+   the same number of pixels, so these read as round rather than as eggs. */
+.banner-art-crew-huddle {
+  background-color: var(--art-c2);
+  background-image:
+    radial-gradient(ellipse 6% 15% at 30% 32%, var(--art-c1) 0 72%, transparent 74%),
+    radial-gradient(ellipse 6% 15% at 46% 22%, var(--art-c1) 0 72%, transparent 74%),
+    radial-gradient(ellipse 6% 15% at 62% 32%, var(--art-c1) 0 72%, transparent 74%),
+    radial-gradient(ellipse 6% 15% at 56% 66%, var(--art-c1) 0 72%, transparent 74%),
+    radial-gradient(ellipse 6% 15% at 36% 66%, var(--art-c1) 0 72%, transparent 74%),
+    linear-gradient(180deg, var(--art-c2) 0%, #0d1a13 100%);
+}
+
+/* Roster (15): a lineup card - a spine down the left, ruled rows across. */
+.banner-art-crew-roster {
+  background-color: var(--art-c2);
+  background-image:
+    linear-gradient(90deg, var(--art-c1) 0 4%, transparent 4%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 4%, transparent 4% 18%),
+    linear-gradient(180deg, var(--art-c1) 0%, var(--art-c2) 100%);
+}
+
+/* Front Office (30): pinstripes and a gold sheen. The tier that stops being
+   about playing and starts being about running the thing. */
+.banner-art-crew-front-office {
+  background-color: var(--art-c2);
+  background-image:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 10px),
+    linear-gradient(115deg, transparent 34%, rgba(242, 193, 78, 0.4) 50%, transparent 66%),
+    linear-gradient(180deg, var(--art-c1) 0%, var(--art-c2) 100%);
+}
+
+/* Founder: a gold burst behind a star that stays inside the frame.
+   --burst-x follows the star, which sits on the left of a tile but on the
+   right of the wide profile card. Without it the burst lands under the
+   heaviest part of that card's readability scrim and the gold disappears. */
+.banner-art-founder {
+  --burst-x: 26%;
+  background-color: var(--art-c2);
+  background-image:
+    conic-gradient(
+      from 200deg at var(--burst-x) 50%,
+      rgba(242, 193, 78, 0.34) 0deg, transparent 55deg,
+      rgba(242, 193, 78, 0.24) 130deg, transparent 200deg,
+      rgba(242, 193, 78, 0.3) 285deg, transparent 360deg
+    ),
+    radial-gradient(ellipse 55% 95% at var(--burst-x) 50%, rgba(242, 193, 78, 0.45) 0%, transparent 68%),
+    linear-gradient(180deg, var(--art-c2) 0%, #0a0c11 100%);
+}
+
+.player-banner.banner-art-founder {
+  --burst-x: 78%;
+}
+
+/* Founder is the one banner whose artwork IS gold, so the standard scrim -
+   tuned for busy camo - would mute the thing that makes it special. Lighter
+   on the right, where the star and its glow live and no text sits. */
+.player-banner.has-banner.banner-art-founder::after {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.72) 0%,
+      rgba(0, 0, 0, 0.5) 34%,
+      rgba(0, 0, 0, 0.12) 66%,
+      rgba(0, 0, 0, 0.06) 100%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.34) 100%);
+}
+
+/* A mark that sits fully inside the banner, at full opacity - the opposite of
+   the abbreviation slot below, which is bled off the corner on purpose. Sized
+   and positioned in em so it holds its proportions everywhere a banner is
+   drawn (tile, matchup intro, profile card). */
+.banner-emblem {
+  position: absolute;
+  left: 0.55em;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 2.1em;
+  line-height: 1;
+  color: var(--art-c1);
+  text-shadow: 0 0 0.3em rgba(242, 193, 78, 0.9), 0 2px 4px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Readable corner text, not a watermark: solid white over a shadow so it
+   holds up against whatever the artwork is doing underneath. */
+.banner-label {
+  position: absolute;
+  right: 0.6em;
+  bottom: 0.45em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.8em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 0.6em rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .banner-art::before {
