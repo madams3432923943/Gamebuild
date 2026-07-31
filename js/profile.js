@@ -134,6 +134,44 @@ export function mostTripleDoubles(profile) {
   return best;
 }
 
+/** How many games profiles.history keeps. The Edge Function applies the same
+ * cap to online results (see applyMatchOutcome), so the two stay in step. */
+export const HISTORY_LIMIT = 50;
+
+/**
+ * Longest and current win streak, read off `history`.
+ *
+ * Computed rather than stored because history already carries what's needed
+ * and is written by BOTH sides - the client for practice games and the
+ * simulate-match Edge Function for online ones. A stored counter would have
+ * to be incremented in both places, and the Edge Function is out of this
+ * repo, so half of a player's games would silently miss it.
+ *
+ * The trade is that history is capped, so a streak older than the last
+ * HISTORY_LIMIT games is invisible. `complete` says which case you're in -
+ * under the cap, history holds every game a player has played and the answer
+ * is genuinely all-time - so the label can be honest instead of quietly
+ * overclaiming.
+ *
+ * history is newest-first, which doesn't matter for the longest run but does
+ * for the current one: that is the streak at the FRONT of the list.
+ */
+export function winStreaks(profile) {
+  const games = profile.history || [];
+  let longest = 0;
+  let run = 0;
+  for (const game of games) {
+    run = game.won ? run + 1 : 0;
+    if (run > longest) longest = run;
+  }
+  let current = 0;
+  for (const game of games) {
+    if (!game.won) break;
+    current += 1;
+  }
+  return { longest, current, complete: games.length < HISTORY_LIMIT, sampled: games.length };
+}
+
 export function mostMVPs(profile) {
   let best = null;
   for (const [name, count] of Object.entries(profile.mvpCounts)) {
@@ -284,7 +322,7 @@ export async function recordPracticeResult({
 
   const history = [{ date, mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
     0,
-    50
+    HISTORY_LIMIT
   );
 
   // Namespaced by sport: era ids are only unique within one (every sport

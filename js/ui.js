@@ -16,6 +16,7 @@ import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import {
   mostDraftedPlayer,
   mostTripleDoubles,
+  winStreaks,
   mostMVPs,
   STAT_LABELS,
   FEATURED_BADGE_SLOTS,
@@ -1054,6 +1055,21 @@ export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(D
   refs.mostTripleDoubles.innerHTML = tripleDoubles
     ? `<div class="performance-row"><span>Most Triple-Doubles — ${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x</span></div>`
     : `<div class="performance-row"><span>Most Triple-Doubles</span><span class="performance-line">—</span></div>`;
+
+  // Labelled by whether history is complete. Under the cap it holds every
+  // game the player has played, so "longest" is genuinely all-time; at the
+  // cap it can only speak for the games it still has, and says so rather than
+  // quietly overclaiming.
+  const streaks = winStreaks(profile);
+  const streakScope = streaks.complete ? "" : ` (last ${streaks.sampled})`;
+  const streakLine =
+    streaks.longest > 0
+      ? `${streaks.longest} game${streaks.longest === 1 ? "" : "s"}` +
+        (streaks.current > 1 ? ` — on ${streaks.current} now` : "")
+      : "—";
+  refs.longestWinStreak.innerHTML =
+    `<div class="performance-row"><span>Longest Win Streak${streakScope}</span>` +
+    `<span class="performance-line">${streakLine}</span></div>`;
 
   const mvps = mostMVPs(profile);
   refs.mostMvps.innerHTML = mvps

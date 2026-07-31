@@ -2371,6 +2371,7 @@ const profileRefs = {
   largestMargin: document.getElementById("largest-margin"),
   mostTripleDoubles: document.getElementById("most-triple-doubles"),
   mostMvps: document.getElementById("most-mvps"),
+  longestWinStreak: document.getElementById("longest-win-streak"),
   historyBody: document.getElementById("history-body"),
 };
 const profileEquippedBannerEl = document.getElementById("profile-equipped-banner");
