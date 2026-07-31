@@ -20,6 +20,7 @@ import {
   ONLINE_ROTATION_TIMER_SECONDS,
   MATCHUP_TIMER_SECONDS,
   ONLINE_QUEUE_TIMEOUT_SECONDS,
+  RESULT_WAIT_MS,
   ONLINE_QUEUE_POLL_MS,
 } from "./constants.js";
 import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID } from "./sports/index.js";
@@ -2212,12 +2213,31 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
     console.error("simulate-match call failed (may already be done by the other player):", e);
   }
 
+  // Wait for the result row rather than assuming our own simulate-match call
+  // produced it. Both clients race to trigger the simulation and the function
+  // is idempotent, so whichever loses the race sees its call fail and has to
+  // wait for the winner's write to land.
+  //
+  // This used to give up after 6s (12 x 500ms), which is inside the range a
+  // cold-started Edge Function legitimately takes: it boots a Deno isolate,
+  // pulls the whole ~2500-row player table, then simulates. A player whose
+  // game was completing perfectly well would be told it had failed. The
+  // window is now ~25s with a widening gap - cheap, because the loop exits
+  // the moment the row appears, and only a genuinely stuck simulation ever
+  // pays the full wait.
   let dbResult = await getMatchResult(matchId);
-  let tries = 0;
-  while (!dbResult && tries < 12) {
-    await sleep(500);
-    dbResult = await getMatchResult(matchId);
-    tries += 1;
+  let waited = 0;
+  let gap = 400;
+  while (!dbResult && waited < RESULT_WAIT_MS) {
+    // Says what it is waiting for. Silence here reads as a hung game, which
+    // is what "the online match froze" has usually meant.
+    if (waited > 3000) {
+      renderScoreboard(liveScoreboard, "You", o.oppUsername, [], REGULATION_PERIODS, 0, 0, "Still simulating…", true);
+    }
+    await sleep(gap);
+    waited += gap;
+    gap = Math.min(1500, Math.round(gap * 1.25));
+    dbResult = await getMatchResult(matchId).catch(() => null);
   }
 
   if (!dbResult) {

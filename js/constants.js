@@ -357,6 +357,13 @@ export const ONLINE_ROTATION_TIMER_SECONDS = 120;
 // dropdowns against a roster already on screen, not a budget to balance.
 export const MATCHUP_TIMER_SECONDS = 45;
 
+// How long a client waits for the server-written match result before telling
+// the player it couldn't load. Generous on purpose: a cold-started Edge
+// Function boots an isolate, pulls the whole player table and then simulates,
+// and reporting a failure for a game that is merely slow is worse than
+// waiting - the result is already safe on the server either way.
+export const RESULT_WAIT_MS = 25000;
+
 // How long a player waits in the online queue before the search gives up.
 //
 // An empty lobby is the ordinary case at this player count, and a spinner
