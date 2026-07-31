@@ -10,6 +10,13 @@
    and gradients below can share the one source of truth instead of hardcoding
    the brand color again in every rgba(). */
 :root {
+  /* The page's side gutter, in one place so anything wanting to sit flush
+     with the content edge can cancel exactly this much and no more. It used
+     to be hardcoded in both #app-root and .home-top-left's negative margin;
+     when the phone breakpoint narrowed the gutter and the outdent didn't
+     follow, the How to Play pill and the online counter hung 6px off the
+     left edge of the screen and got clipped. */
+  --page-gutter: 1.25rem;
   --bg: #0d1117;
   --panel: #161b23;
   --line: #2a323e;
@@ -153,7 +160,7 @@ button, input {
 #app-root {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
+  padding: 1.5rem var(--page-gutter) 3rem;
 }
 
 .screen.hidden {
@@ -1298,20 +1305,27 @@ table.box-table th, table.history-table th {
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
-  margin: 0 0 1rem -1.25rem;
+  /* Cancels the page gutter exactly, so these sit flush with the content
+     edge however wide that gutter currently is. */
+  margin: 0 0 1rem calc(var(--page-gutter) * -1);
 }
 
+/* White on the accent blue, not --accent-contrast. That variable is a very
+   dark navy meant for large solid-accent surfaces; against #2f6fe0 at this
+   size it lands around 3.6:1, under the 4.5:1 floor, and reads as smudged
+   rather than dark. White on the same blue is ~5.3:1. */
 .how-to-play-btn {
   background: var(--accent);
-  color: var(--accent-contrast);
+  color: #fff;
   border: none;
   border-radius: 999px;
-  padding: 0.45rem 1.1rem;
+  padding: 0.5rem 1.15rem;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   cursor: pointer;
 }
 
@@ -2654,13 +2668,23 @@ table.box-table th, table.history-table th {
 /* --- Online ticker -------------------------------------------------------
    Sits between the brand and the nav tabs. Hidden until the first successful
    count so a network failure shows nothing rather than a misleading "0". */
+/* --muted is tuned for secondary text sitting on a panel. This sits on the
+   dark header at 0.8rem, where it read as switched-off rather than quiet -
+   it's a liveness indicator, so it has to be legible at a glance. Full text
+   colour, a little more weight, and a faint chip behind it to separate it
+   from whatever the header gradient is doing underneath. */
 .online-ticker {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: var(--muted);
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .online-dot {
@@ -3108,8 +3132,19 @@ html, body {
 }
 
 @media (max-width: 700px) {
+  :root {
+    --page-gutter: 0.85rem;
+  }
+
   #app-root {
-    padding: 1rem 0.85rem 2.5rem;
+    padding: 1rem var(--page-gutter) 2.5rem;
+  }
+
+  /* No outdent on a phone. Cancelling the gutter here would put these hard
+     against the screen edge, which reads as broken next to the card and the
+     section headings below - so they line up with the content instead. */
+  .home-top-left {
+    margin-left: 0;
   }
 
   /* The nav is 5 items; below this width they no longer fit on one line at

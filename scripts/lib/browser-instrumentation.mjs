@@ -159,13 +159,39 @@ export const LAYOUT_AUDIT = `
   // those flags ~160 elements on a phone, all of them working as designed,
   // which would bury a real break. So an element counts as escaping only if
   // every ancestor up to the document is overflow:visible.
-  const contained = (el) => {
+  // Not all containment is equal, and treating it as such is how a real bug
+  // slipped through: the How to Play pill and the online counter hung 6px off
+  // the left edge of a phone screen and were being clipped, but an ancestor
+  // had overflow:hidden so the audit called them "contained" and stayed quiet.
+  //
+  //   overflow: auto/scroll  -> the content is reachable by scrolling. Fine.
+  //   overflow: hidden/clip  -> the content is gone. Only fine if it was
+  //                             meant to go, which decoration is and a
+  //                             control never is.
+  //
+  // So a clipped element is still reported when it is interactive or carries
+  // text, and ignored when it is a bare decorative shape - which is what the
+  // clipped court arcs are, and why they no longer drown out real findings.
+  const isMeaningful = (el) =>
+    /^(BUTTON|A|INPUT|SELECT|TEXTAREA|LABEL)$/.test(el.tagName) ||
+    (el.textContent || '').trim().length > 0;
+
+  const safelyContained = (el) => {
+    const r = el.getBoundingClientRect();
     for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
       const cs = getComputedStyle(p);
-      if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') return true;
+      const scrollable = /^(auto|scroll)$/.test(cs.overflowX) || /^(auto|scroll)$/.test(cs.overflowY);
+      const clips = cs.overflowX !== 'visible' || cs.overflowY !== 'visible';
+      if (!clips) continue;
+      if (scrollable) return true;
+      const pr = p.getBoundingClientRect();
+      const escapes = r.left < pr.left - 2 || r.right > pr.right + 2;
+      if (escapes && isMeaningful(el)) return false;
+      return true;
     }
     return false;
   };
+  const contained = safelyContained;
 
   const escaping = [];
   for (const el of document.querySelectorAll('.screen:not(.hidden) *')) {
