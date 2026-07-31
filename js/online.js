@@ -3,9 +3,10 @@
 // than realtime - see the comment on watchMatch() for why.
 
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { SLOTS, DEFAULT_SPORT, DEFAULT_ERA } from "./constants.js";
+import { SLOTS, DEFAULT_ERA } from "./constants.js";
+import { DEFAULT_SPORT_ID } from "./sports/index.js";
 
-export async function joinQueue(sport = DEFAULT_SPORT, era = DEFAULT_ERA) {
+export async function joinQueue(sport = DEFAULT_SPORT_ID, era = DEFAULT_ERA) {
   await requireSession();
   const supabase = await getSupabase();
   const { data, error } = await supabase.rpc("join_queue", { p_sport: sport, p_era: era });

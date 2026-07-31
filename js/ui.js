@@ -10,9 +10,8 @@ import {
   minutesRangeFor,
   orderedRosterSlots,
   isBenchSlot,
-  ERAS,
-  SPORTS,
 } from "./constants.js";
+import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID } from "./sports/index.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import {
   mostDraftedPlayer,
@@ -964,10 +963,13 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
  * cross-era percentile shown at the top of the profile; a real per-era
  * version (same idea, scoped to eraRecord's online_wins/online_losses
  * instead of the profile-wide total) is a follow-up, not built yet. */
-function renderEraRecords(container, profile) {
+function renderEraRecords(container, profile, sport) {
   container.innerHTML = "";
-  for (const era of ERAS) {
-    const rec = eraRecord(profile, era.id);
+  // The active sport's brackets, and its record keys. Era ids are only unique
+  // within a sport (every sport wants an "all"), so the key is namespaced -
+  // see eraRecordKey in js/sports/index.js.
+  for (const era of sport.eras) {
+    const rec = eraRecord(profile, eraRecordKey(sport.id, era.id));
     const row = document.createElement("div");
     row.className = "era-record-row";
     row.innerHTML =
@@ -979,7 +981,7 @@ function renderEraRecords(container, profile) {
   }
 }
 
-export function renderProfileScreen(refs, profile, rankInfo) {
+export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(DEFAULT_SPORT_ID)) {
   refs.usernameInput.value = profile.username || "";
   renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
 
@@ -991,7 +993,7 @@ export function renderProfileScreen(refs, profile, rankInfo) {
     profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses
   );
 
-  renderEraRecords(refs.eraRecords, profile);
+  renderEraRecords(refs.eraRecords, profile, sport);
 
   const top = mostDraftedPlayer(profile);
   refs.mostDrafted.innerHTML = top

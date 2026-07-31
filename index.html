@@ -81,29 +81,12 @@
         <div class="pb-stats" id="home-record"></div>
       </div>
 
+      <!-- Rendered from the sport registry (js/sports/), not written out
+           here: a sport's live/locked state is a property of the sport, and
+           hardcoding four tiles meant shipping NFL would need someone to
+           remember to come and edit this markup. -->
       <h2 class="section-heading">Choose your sport</h2>
-      <div class="sport-grid">
-        <button class="sport-tile active" data-sport="nba" type="button">
-          <span class="sport-icon">🏀</span>
-          <span class="sport-name">NBA</span>
-          <span class="sport-status">Ready to draft</span>
-        </button>
-        <button class="sport-tile locked" type="button" disabled>
-          <span class="sport-icon">🏈</span>
-          <span class="sport-name">NFL</span>
-          <span class="sport-status">Coming soon</span>
-        </button>
-        <button class="sport-tile locked" type="button" disabled>
-          <span class="sport-icon">🏒</span>
-          <span class="sport-name">NHL</span>
-          <span class="sport-status">Coming soon</span>
-        </button>
-        <button class="sport-tile locked" type="button" disabled>
-          <span class="sport-icon">⚽</span>
-          <span class="sport-name">Soccer</span>
-          <span class="sport-status">Coming soon</span>
-        </button>
-      </div>
+      <div class="sport-grid" id="sport-grid" role="radiogroup" aria-label="Sport"></div>
 
       <div class="card start-card">
         <h2>Start a Draft Battle</h2>

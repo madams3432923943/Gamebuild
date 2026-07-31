@@ -3,21 +3,14 @@
 //   - "bot": synchronous, client-only (DraftState from draft.js).
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
-import { PLAYERS } from "./data.js";
 import { buildRecap, buildGameScript } from "./recap.js";
 import { startPresence } from "./presence.js";
-import { DEFAULT_TACTIC, TACTICS, randomTacticChoices } from "./tactics.js";
-import { simulateGame, defaultMinutes, defaultMatchups, botMinutes } from "./engine.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
   SLOTS,
   STARTER_SLOTS,
   RANKED_SLOTS,
-  DEFAULT_SPORT,
-  ERAS,
   DEFAULT_ERA,
-  eraById,
-  playersInEra,
   QUARTER_REVEAL_DELAY_MS,
   QUARTER_TICK_MS,
   DRAFT_REVEAL_DELAY_MS,
@@ -29,6 +22,7 @@ import {
   ONLINE_QUEUE_TIMEOUT_SECONDS,
   ONLINE_QUEUE_POLL_MS,
 } from "./constants.js";
+import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID } from "./sports/index.js";
 import {
   loadProfile,
   loadRankInfo,
@@ -123,9 +117,45 @@ import {
 // datasetStats for LOCAL (bot/friend) games only - online games are
 // simulated server-side by the simulate-match Edge Function, using its own
 // copy of the same dataset/engine so a client can't fake a result.
-import { computeDatasetStats } from "./engine.js";
-const datasetStats = computeDatasetStats(PLAYERS);
-const TACTIC_IDS = TACTICS.map((t) => t.id);
+//
+// Per sport and computed on first use rather than once at module load: it is
+// a full pass over a couple of thousand players, the numbers only make sense
+// against the sport they came from, and computing every sport's up front
+// would mean a locked sport's missing dataset throwing during boot.
+const datasetStatsCache = new Map();
+function datasetStatsFor(sportId = getSport()) {
+  if (!datasetStatsCache.has(sportId)) {
+    const s = sportById(sportId);
+    datasetStatsCache.set(sportId, s.computeDatasetStats(s.players()));
+  }
+  return datasetStatsCache.get(sportId);
+}
+
+/** Computes the active sport's dataset statistics ahead of when a game needs
+ * them, while the browser is otherwise idle.
+ *
+ * Making this lazy (it used to run at module load) moved a full pass over
+ * ~2500 players out of boot - good - but straight into the first simulate()
+ * call, which happens under the live scoreboard animation. The verification
+ * harness caught it immediately: worst frame went from 66ms to 333ms. Warming
+ * on idle keeps both properties - boot stays cheap, and no locked sport's
+ * missing dataset is touched, but the work is already done before the
+ * scoreboard starts moving. */
+function warmDatasetStats(sportId = getSport()) {
+  if (datasetStatsCache.has(sportId) || !isLive(sportId)) return;
+  const run = () => {
+    try {
+      datasetStatsFor(sportId);
+    } catch (e) {
+      // A sport whose data isn't importable simply stays uncached; the real
+      // error belongs at the point of play, not in an idle warm-up.
+      console.error("Couldn't precompute dataset stats:", e);
+    }
+  };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 2000 });
+  else setTimeout(run, 0);
+}
+
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -539,6 +569,75 @@ function renderModeChoice() {
 // --- Era bracket -----------------------------------------------------------
 // The chosen bracket narrows the draft pool. It persists across visits because
 // somebody grinding Modern Ball shouldn't have to re-pick it every session.
+// --- Sport ----------------------------------------------------------------
+// The picker used to be four hardcoded tiles with no listener - decoration.
+// Sport is now real state: it persists like the era does, it decides which
+// era brackets are even on offer, and it is what matchmaking scopes on, so
+// two players can never be paired across sports.
+const SPORT_KEY = "bk_sport";
+const sportGridEl = document.getElementById("sport-grid");
+
+let selectedSport = readStoredSport();
+
+function readStoredSport() {
+  try {
+    const stored = localStorage.getItem(SPORT_KEY);
+    // A stored sport that has since been un-launched (or a stale id from an
+    // older build) must not strand someone on an unplayable screen.
+    return stored && isLive(stored) ? stored : DEFAULT_SPORT_ID;
+  } catch {
+    return DEFAULT_SPORT_ID;
+  }
+}
+
+function getSport() {
+  return selectedSport;
+}
+
+/** The active sport's definition - slots, eras, dataset, engine, labels.
+ * Everything downstream reads this rather than importing basketball. */
+function sport() {
+  return sportById(selectedSport);
+}
+
+function setSport(id) {
+  if (!isLive(id)) return;
+  selectedSport = id;
+  try {
+    localStorage.setItem(SPORT_KEY, selectedSport);
+  } catch {
+    // Storage refused (private mode) - the choice still applies this session.
+  }
+  // Era ids are only unique within a sport, so a bracket selected under the
+  // previous sport may not exist here. Re-resolving through the new sport
+  // snaps to its default rather than leaving a dangling id.
+  selectedEra = sport().eraById(selectedEra).id;
+  renderSportChoice();
+  renderEraChoice();
+  warmDatasetStats();
+}
+
+function renderSportChoice() {
+  sportGridEl.innerHTML = "";
+  for (const s of SPORTS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.sport = s.id;
+    btn.className = "sport-tile" + (s.id === selectedSport ? " active" : "") + (s.live ? "" : " locked");
+    btn.disabled = !s.live;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(s.id === selectedSport));
+    btn.innerHTML =
+      `<span class="sport-icon" aria-hidden="true">${s.icon}</span>` +
+      `<span class="sport-name"></span>` +
+      `<span class="sport-status"></span>`;
+    btn.querySelector(".sport-name").textContent = s.name;
+    btn.querySelector(".sport-status").textContent = s.status;
+    if (s.live) btn.addEventListener("click", () => setSport(s.id));
+    sportGridEl.appendChild(btn);
+  }
+}
+
 const ERA_KEY = "bk_era";
 const eraPickerEl = document.getElementById("era-picker");
 const eraHintEl = document.getElementById("era-hint");
@@ -548,9 +647,10 @@ let selectedEra = readStoredEra();
 function readStoredEra() {
   try {
     const stored = localStorage.getItem(ERA_KEY);
-    return stored && ERAS.some((e) => e.id === stored) ? stored : DEFAULT_ERA;
+    const eras = sport().eras;
+    return stored && eras.some((e) => e.id === stored) ? stored : sport().defaultEra;
   } catch {
-    return DEFAULT_ERA;
+    return sport().defaultEra;
   }
 }
 
@@ -559,7 +659,7 @@ function getEra() {
 }
 
 function setEra(id) {
-  selectedEra = eraById(id).id;
+  selectedEra = sport().eraById(id).id;
   try {
     localStorage.setItem(ERA_KEY, selectedEra);
   } catch {
@@ -573,7 +673,10 @@ function setEra(id) {
 // next, not for re-showing a record you can already see one tab over.
 function renderEraChoice() {
   eraPickerEl.innerHTML = "";
-  for (const era of ERAS) {
+  // The active sport's brackets, not a global list: basketball divides on
+  // decades and football divides on rule changes, so the chips have to come
+  // from whichever sport is selected.
+  for (const era of sport().eras) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "era-chip" + (era.id === selectedEra ? " active" : "");
@@ -585,10 +688,12 @@ function renderEraChoice() {
     btn.addEventListener("click", () => setEra(era.id));
     eraPickerEl.appendChild(btn);
   }
-  eraHintEl.textContent = eraById(selectedEra).blurb;
+  eraHintEl.textContent = sport().eraById(selectedEra).blurb;
 }
 
+renderSportChoice();
 renderEraChoice();
+warmDatasetStats();
 renderModeChoice();
 
 // --- Online ticker ---------------------------------------------------------
@@ -659,7 +764,7 @@ async function startOnlineSearch() {
 
   try {
     while (onlineSearchActive) {
-      const res = await joinQueue(DEFAULT_SPORT, getEra());
+      const res = await joinQueue(getSport(), getEra());
       if (res.status === "matched") {
         await enterOnlineMatch(res.match_id);
         return;
@@ -804,8 +909,11 @@ const btnConfirmMatchups = document.getElementById("btn-confirm-matchups");
 // a style before you know who you'll get. Every game offers 3 of the 10
 // styles at random, so selectedTactic defaults to whichever is first in that
 // game's offer rather than a fixed id that might not even be on offer.
-let offeredTactics = [TACTICS.find((t) => t.id === DEFAULT_TACTIC)];
-let selectedTactic = DEFAULT_TACTIC;
+// Seeded from the active sport rather than a basketball import, so a sport
+// with a different set of gamestyles (or none yet) doesn't inherit
+// basketball's as a default it never declared.
+let offeredTactics = [sport().tacticById(sport().defaultTactic)].filter(Boolean);
+let selectedTactic = sport().defaultTactic;
 let tacticTimerInterval = null;
 
 function cleanupTacticTimer() {
@@ -828,7 +936,7 @@ function renderTactics() {
 function startTacticPhase(onConfirm) {
   cleanupPickTimer();
   cleanupTacticTimer();
-  offeredTactics = randomTacticChoices(3);
+  offeredTactics = sport().randomTacticChoices(3);
   selectedTactic = offeredTactics[0].id;
   renderTactics();
 
@@ -889,7 +997,7 @@ function cleanupRotationTimer() {
 function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS) {
   cleanupPickTimer();
   cleanupRotationTimer();
-  rotationMinutes = defaultMinutes(roster);
+  rotationMinutes = sport().defaultMinutes(roster);
   // Confirm stays locked until the whole 240 is spent. Leaving minutes on the
   // table is never a real choice - it just fields a weaker team - so it's
   // blocked rather than warned about.
@@ -947,7 +1055,7 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
 
   const myStarters = STARTER_SLOTS.filter((slot) => myRoster[slot]);
   const oppStarters = STARTER_SLOTS.filter((slot) => oppRoster[slot]);
-  selectedMatchups = defaultMatchups(myRoster, oppRoster);
+  selectedMatchups = sport().defaultMatchups(myRoster, oppRoster);
 
   renderMatchupPicker(matchupGridEl, myRoster, oppRoster, myStarters, oppStarters, selectedMatchups, oppLabel);
 
@@ -1027,7 +1135,12 @@ function startDraft() {
   btnLeaveMatch.classList.add("hidden");
   applyRulesetToDraftUI();
   game.era = getEra();
-  game.draft = new DraftState(playersInEra(PLAYERS, game.era), recentSquadIds, slotsForRuleset(game.ruleset));
+  game.sport = getSport();
+  game.draft = new DraftState(
+    sport().playersInEra(sport().players(), game.era),
+    recentSquadIds,
+    slotsForRuleset(game.ruleset)
+  );
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.roundNumber = 0;
   poolSearch.value = "";
@@ -1119,7 +1232,7 @@ function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
-  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, PLAYERS, game.ruleset, draft.slots);
+  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, sport().players(), game.ruleset, draft.slots);
 }
 
 function onPoolPick(player) {
@@ -1519,7 +1632,7 @@ function renderOnlinePositionAndPool() {
     finalizeOnlinePick(o.pendingPlayer, slot);
   }, RANKED_SLOTS);
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
-  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, PLAYERS, game.ruleset, RANKED_SLOTS);
+  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, sport().players(), game.ruleset, RANKED_SLOTS);
 }
 
 function onOnlinePoolPick(player) {
@@ -1988,12 +2101,13 @@ function runLocalSimulation() {
   const draft = game.draft;
   // The bot commits to a plan too, chosen at random - a fixed opponent plan
   // would make one counter always correct and collapse the choice.
-  const botTactic = TACTIC_IDS[Math.floor(Math.random() * TACTIC_IDS.length)];
+  const tacticIds = sport().tactics.map((t) => t.id);
+  const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
   // Resolve both rotations up front so the box score can show the same
   // minutes the simulation actually used, rather than a second guess at them.
-  const minutesA = rotationMinutes || defaultMinutes(draft.rosterA);
-  const minutesB = botMinutes(draft.rosterB);
-  const result = simulateGame(draft.rosterA, draft.rosterB, datasetStats, {
+  const minutesA = rotationMinutes || sport().defaultMinutes(draft.rosterA);
+  const minutesB = sport().botMinutes(draft.rosterB);
+  const result = sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
     tacticA: selectedTactic,
     tacticB: botTactic,
     minutesA,
@@ -2014,6 +2128,7 @@ function runLocalSimulation() {
 
       recordPracticeResult({
         mode: "offline",
+        sport: game.sport || getSport(),
         era: game.era || DEFAULT_ERA,
         opponentLabel: "Bot",
         won: result.winner === "A",
@@ -2200,7 +2315,7 @@ async function openProfileScreen() {
     const profile = await loadProfile();
     currentProfile = profile;
     const rankInfo = await loadRankInfo(profile);
-    renderProfileScreen(profileRefs, profile, rankInfo);
+    renderProfileScreen(profileRefs, profile, rankInfo, sport());
     renderEquippedBanner(profileEquippedBannerEl, profile);
   } catch (e) {
     console.error("Failed to load profile:", e);
@@ -2673,7 +2788,7 @@ async function loadFriendsPanel() {
 // loadFriendsPanel()/openSquadsScreen() refresh afterward would undo.
 async function onChallengeFriend(friendId) {
   try {
-    const matchId = await challengeFriend(friendId, DEFAULT_SPORT, getEra());
+    const matchId = await challengeFriend(friendId, getSport(), getEra());
     await enterOnlineMatch(matchId);
   } catch (e) {
     setSquadStatus(e.message || "Couldn't start that challenge.", "error");

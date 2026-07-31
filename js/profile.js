@@ -5,6 +5,7 @@
 // can write online_wins/online_losses - see the protect_online_record
 // trigger in the schema).
 import { getSupabase, requireSession } from "./supabaseClient.js";
+import { eraRecordKey, DEFAULT_SPORT_ID } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
 
 // Percentile bands: top X% by online win rate lands in this tier. Relative
@@ -241,6 +242,7 @@ export async function recordDraftPicks(playerNames) {
 export async function recordPracticeResult({
   mode,
   era = "all",
+  sport = DEFAULT_SPORT_ID,
   won,
   opponentLabel,
   scoreFor,
@@ -285,7 +287,11 @@ export async function recordPracticeResult({
     50
   );
 
-  const eraRecords = bumpEraRecord(profile.eraRecords, era, "offline", won);
+  // Namespaced by sport: era ids are only unique within one (every sport
+  // wants an "all" bracket), so a bare id would add an NFL result straight
+  // onto the NBA ladder. NBA keeps the bare key, so existing records carry
+  // over untouched - see eraRecordKey.
+  const eraRecords = bumpEraRecord(profile.eraRecords, eraRecordKey(sport, era), "offline", won);
 
   // Highest-scoring game keeps a full box-score snapshot (roster names +
   // lines only, see snapshotRoster) so the profile screen can show it back

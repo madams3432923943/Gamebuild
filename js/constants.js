@@ -10,18 +10,11 @@
 // engine and player dataset (see js/engine.js's header comment) rather than
 // share NBA's - `live` here just gates whether that engine/dataset/draft
 // flow actually exists yet.
-export const SPORTS = [
-  { id: "nba", name: "NBA", icon: "🏀", live: true },
-  { id: "nfl", name: "NFL", icon: "🏈", live: false },
-  { id: "nhl", name: "NHL", icon: "🏒", live: false },
-  { id: "soccer", name: "Soccer", icon: "⚽", live: false },
-];
-
-// Online matchmaking/challenges need a sport to scope to. Hardcoded rather
-// than read from a selector because there isn't one yet - NBA is the only
-// sport with a real online draft flow. Swap this for real sport selection
-// once a second sport goes live.
-export const DEFAULT_SPORT = "nba";
+// SPORTS and DEFAULT_SPORT used to live here as a flat list plus a hardcoded
+// id. They are now js/sports/ - a sport is a module declaring its own slots,
+// eras, dataset, engine and gamestyles, because "which sports exist" and
+// "what does this sport do" are the same question and answering them in two
+// places is what made a second sport impossible to add.
 
 export const SLOTS = ["PG", "SG", "SF", "PF", "C", "6TH"];
 export const STARTER_SLOTS = ["PG", "SG", "SF", "PF", "C"];
