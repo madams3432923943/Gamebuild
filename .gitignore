@@ -1,2 +1,6 @@
 node_modules/
 dist/
+
+# Build-verification output
+verify-artifacts/
+verify-report.json

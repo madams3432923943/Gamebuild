@@ -129,6 +129,25 @@ node tools/build-data-from-csv.mjs   # regenerate js/data.js
 node tools/verify-data.mjs           # sanity-check any dataset
 ```
 
+## Verifying a build
+
+```
+npm install
+npm run verify
+```
+
+Two legs: engine parity (does the online Edge Function simulate the same game
+as the offline client?) and a real Chromium driving a real match end to end,
+measuring paint and frame timings and watching the console. Exits 0/1 and
+writes `verify-report.json` for CI. See `scripts/README.md` for what each check
+covers, how to run a real online match, and the current results.
+
+The `simulate-match` Edge Function carries its own copies of `engine.js`,
+`constants.js` and `tactics.js`. They now live in this repo under
+`supabase/functions/simulate-match/`, vendored exactly as deployed, so the
+parity check has something to diff against. **Re-vendor them whenever the
+function is redeployed**, or the check is comparing against a stale copy.
+
 ## Deployment
 
 GitHub Pages serves this repo's root from `main` directly — no build or
