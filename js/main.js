@@ -2270,7 +2270,15 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   // window is now ~25s with a widening gap - cheap, because the loop exits
   // the moment the row appears, and only a genuinely stuck simulation ever
   // pays the full wait.
-  let dbResult = await getMatchResult(matchId);
+  // Guarded like every attempt inside the loop below. Left bare, a single
+  // failure on the FIRST read skipped the whole patient wait and surfaced the
+  // raw database error to the player as "Couldn't play back the game
+  // (permission denied for table matches)" - a game that had in fact
+  // simulated fine and was sitting in the database.
+  let dbResult = await getMatchResult(matchId).catch((e) => {
+    console.error("First result read failed, falling back to the retry window:", e);
+    return null;
+  });
   let waited = 0;
   let gap = 400;
   while (!dbResult && waited < RESULT_WAIT_MS) {
