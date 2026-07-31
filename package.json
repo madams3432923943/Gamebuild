@@ -12,7 +12,8 @@
     "verify:online": "node scripts/verify-build.js --online",
     "verify:selftest": "node scripts/selftest/run-selftest.mjs",
     "verify:mobile": "node scripts/verify-build.js --mobile",
-    "verify:selftest:mobile": "node scripts/selftest/run-selftest.mjs --mobile"
+    "verify:selftest:mobile": "node scripts/selftest/run-selftest.mjs --mobile",
+    "verify:online-selftest": "node scripts/selftest/run-online-selftest.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2"

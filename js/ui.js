@@ -250,6 +250,23 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
   renderNote(container, "No player by that name in our database. Try another name or spelling.", "pool-none-note");
 }
 
+/**
+ * Agrees a verb with the subject it follows.
+ *
+ * Online play labels the local player "You" rather than their username - it
+ * reads better on a scoreboard than seeing your own name - but every line
+ * that pairs a label with a present-tense verb was written assuming a third
+ * person. That shipped "You wins, 138-132" on the final banner and "You takes
+ * the lead" in the play feed.
+ *
+ * Only present-tense verbs need this. The recap is written in the past tense
+ * throughout ("led", "trailed", "pulled away"), which is already correct for
+ * both, and is left alone.
+ */
+export function subjectVerb(label, thirdPerson, secondPerson) {
+  return label === "You" ? secondPerson : thirdPerson;
+}
+
 /** Countdown display for the per-pick timer. Switches to a "buzzer" warning
  * style in the final stretch so the pressure is visible, not just numeric. */
 export function renderPickTimer(container, secondsRemaining) {

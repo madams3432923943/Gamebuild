@@ -13,6 +13,7 @@ Exits 0 when everything passed or was skipped, 1 on any failure, and writes
 | `npm run verify:online` | Browser leg as a real online ranked match (needs two accounts). |
 | `npm run verify:mobile` | Browser leg on an emulated iPhone 13 (touch, mobile UA). |
 | `npm run verify:selftest` | Verifies the harness itself against a local server + stubbed backend. |
+| `npm run verify:online-selftest` | Two browsers playing a real online match against a local fake backend. |
 
 Useful flags: `--no-browser`, `--no-parity`, `--no-network`, `--headed`,
 `--device="Pixel 7"`, `--base-url=…`, `--json=…`.

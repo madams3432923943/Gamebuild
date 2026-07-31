@@ -86,6 +86,7 @@ import {
   renderRosterPanel,
   renderPool,
   renderPickTimer,
+  subjectVerb,
   renderFullBoxScore,
   renderScoreboard,
   renderProfileScreen,
@@ -2045,7 +2046,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
     if (leadChanged) {
-      pushPlayHeadline(playFeedEl, `${newLeader === "A" ? labelA : labelB} takes the lead in ${label}`, "lead-change");
+      const leaderLabel = newLeader === "A" ? labelA : labelB;
+      pushPlayHeadline(
+        playFeedEl,
+        `${leaderLabel} ${subjectVerb(leaderLabel, "takes", "take")} the lead in ${label}`,
+        "lead-change"
+      );
     }
 
     i += 1;
@@ -2062,7 +2068,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     pushPlayHeadline(playFeedEl, buildGameScript(periodsSoFar, labelA, labelB), "final");
 
     const winnerName = result.winner === "A" ? labelA : labelB;
-    finalBanner.textContent = `${winnerName} wins, ${result.teamScoreA}-${result.teamScoreB}${
+    finalBanner.textContent = `${winnerName} ${subjectVerb(winnerName, "wins", "win")}, ${result.teamScoreA}-${result.teamScoreB}${
       result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : ""
     }`;
     finalBanner.classList.remove("hidden");

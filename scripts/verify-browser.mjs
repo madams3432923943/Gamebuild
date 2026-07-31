@@ -318,6 +318,10 @@ export async function runBrowserChecks(opts = {}) {
     // hasTouch in particular changes which code paths and CSS apply. A phone
     // bug that a narrow desktop window cannot reproduce needs this.
     device = null,
+    // Per-context init script, by index. The online self-test uses it to give
+    // each browser a different identity against a shared fake backend, which
+    // is what lets matchmaking pair them with each other.
+    initScriptFor = null,
   } = opts;
 
   const checks = [];
@@ -375,6 +379,7 @@ export async function runBrowserChecks(opts = {}) {
         recordVideo: { dir: path.join(artifactDir, "video") },
       });
       await context.addInitScript(FRAME_SAMPLER);
+      if (initScriptFor) await context.addInitScript(initScriptFor(i));
       for (const route of routes) {
         await context.route(route.pattern, (r) =>
           r.fulfill({ status: 200, contentType: route.contentType || "text/javascript", body: route.body })
@@ -473,7 +478,7 @@ export async function runBrowserChecks(opts = {}) {
     );
 
     if (introPerf?.frameCount) {
-      checks.push(frameCheck("browser:anim-intro", "Matchup intro animation renders smoothly", introPerf));
+      checks.push(frameCheck("browser:anim-intro", "Matchup intro animation renders smoothly", introPerf, sessions.length));
     }
 
     // ---- draft ------------------------------------------------------------
@@ -535,7 +540,7 @@ export async function runBrowserChecks(opts = {}) {
     );
 
     if (simPerf?.frameCount) {
-      checks.push(frameCheck("browser:anim-scoreboard", "Live scoreboard animates without janking", simPerf));
+      checks.push(frameCheck("browser:anim-scoreboard", "Live scoreboard animates without janking", simPerf, sessions.length));
     }
 
     // ---- box score present ------------------------------------------------
@@ -736,9 +741,21 @@ function normalizeScore(text) {
   return nums.join("-");
 }
 
-function frameCheck(id, title, perf) {
+function frameCheck(id, title, perf, sessionCount = 1) {
   const ok = perf.worstMs <= BUDGET.worstFrameMs && perf.janky100 <= BUDGET.janky100Frames;
+  // A two-context run puts two Chromiums (and the harness) on one CPU, and
+  // the contention shows up as frames landing on every other vsync - a p50 of
+  // exactly 33.3ms against 16.7ms for the same code in a single context. That
+  // is the measurement environment, not the app, and reading it as jank would
+  // send someone optimising a problem players never see. Said out loud so the
+  // number isn't quietly mistaken for a finding.
+  const contention =
+    sessionCount > 1 && perf.p50Ms > 25
+      ? `Two browser contexts share one CPU in this run; a p50 near 33ms is that contention, not the app. ` +
+        `Compare against the single-context run for the app's real frame budget.`
+      : undefined;
   return check(id, title, ok ? PASS : WARN, {
+    detail: contention,
     durationMs: perf.durationMs,
     table: [
       ["metric", "value", "budget"],
