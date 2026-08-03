@@ -701,9 +701,66 @@ input[type="text"]:focus-visible {
   align-items: start;
 }
 
+/* Narrow screens reorder the draft board rather than restacking the markup.
+   The DOM order is roster-A, phases, pool, roster-B, which is right for the
+   desktop three-column layout but puts the search box under a ten-slot roster
+   panel on a phone - roughly 850px down, with a 30-second pick clock running.
+   `order` fixes the reading order without moving anything renderPool and
+   renderRosterPanel target by id.
+
+   Two columns, not one: the rosters sit side by side underneath so both teams
+   are on screen at once, which is the other thing that was lost at this
+   width. */
 @media (max-width: 860px) {
   .draft-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* The strategy phases replace the pool once drafting ends, so they take the
+     same slot at the top. */
+  .draft-body .tactic-phase {
+    order: 0;
+    grid-column: 1 / -1;
+  }
+
+  /* Directly under the squad banner: pick a name without scrolling. */
+  #draft-pool-panel {
+    order: 1;
+    grid-column: 1 / -1;
+  }
+
+  #roster-panel-a {
+    order: 2;
+  }
+
+  #roster-panel-b {
+    order: 3;
+  }
+
+  /* Half-width panels can't afford the desktop padding or a wrapping name. */
+  .draft-body .roster-panel {
+    padding: 0.7rem 0.6rem;
+    min-width: 0;
+  }
+
+  .draft-body .roster-slot {
+    padding: 0.4rem 0.15rem;
+    font-size: 0.8rem;
+    gap: 0.3rem;
+  }
+
+  .draft-body .slot-tag {
+    min-width: 2.1rem;
+    font-size: 0.66rem;
+  }
+
+  /* Truncate rather than wrap: a wrapped name makes its row twice as tall as
+     the others and the column stops scanning as a lineup. */
+  .draft-body .slot-filled {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -1206,6 +1263,23 @@ table.box-table th, table.history-table th {
 }
 
 .performance-row:last-child {
+  border-bottom: none;
+}
+
+/* Top Performances renders its first five records into one container and then
+   each remaining record into its own wrapper, so every one of those is
+   :last-child within its wrapper and lost its divider to the rule above - the
+   card ruled cleanly down to Most Blocks and then ran on as an undivided
+   block. These put the dividers back; only the genuinely final row goes
+   without. */
+#highest-scoring-game,
+#largest-margin .performance-row,
+#most-triple-doubles .performance-row,
+#most-mvps .performance-row {
+  border-bottom: 1px solid var(--line);
+}
+
+#longest-win-streak .performance-row {
   border-bottom: none;
 }
 
@@ -3195,6 +3269,77 @@ html, body {
     max-height: 55vh;
   }
 
+  /* ---- Draft chrome above the search box ----
+     Everything here is the run-up to picking, and at desktop sizes it ate the
+     entire first screenful: a 230px squad banner, then two rows of position
+     chips, then a turn banner, then a timer, each on its own line. Compacting
+     it is what actually gets the search box above the fold - the reordering
+     above only helps if there is room left when it gets there. */
+  .squad-banner {
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .squad-banner-team {
+    font-size: 1.15rem;
+    letter-spacing: 0.01em;
+  }
+
+  .squad-banner-decade {
+    font-size: 0.95rem;
+    margin-left: 0.4rem;
+  }
+
+  .position-selector {
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .position-btn {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.72rem;
+  }
+
+  /* Left stacked rather than paired into one row: they are sibling divs with
+     no shared wrapper, so pairing them means new markup, and the banner and
+     chip savings above already clear the space the search box needed. Both
+     just get tighter. */
+  .turn-banner {
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .pick-timer {
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+  }
+
+  /* The ruleset hint and the pool's own prompt both explain the 3-letter
+     minimum, and in uppercase the hint alone ran to three lines - together
+     they pushed the rosters most of a screen down. Dropping the caps (which
+     cost about 15% width for no extra meaning) and easing both sizes gets it
+     to two short lines with nothing removed: the "keep typing" feedback is
+     still real information once someone has started typing. */
+  .knowledge-hint {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.74rem;
+    margin-bottom: 0.45rem;
+  }
+
+  #pool-list .empty-note {
+    font-size: 0.78rem;
+    padding: 0.35rem 0;
+  }
+
+  /* Deliberately NOT shrunk below 16px: iOS Safari zooms the whole page when
+     a focused input's text is smaller than that, which would throw the board
+     off-screen the moment someone taps to type. */
+  #pool-search {
+    font-size: 1rem;
+  }
+
   /* Scoreboard digits at desktop size overflow their row on a narrow phone. */
   .scoreboard {
     padding: 1rem 0.6rem;
@@ -3244,6 +3389,68 @@ html, body {
 
   .matchup-vs {
     font-size: 2rem;
+  }
+
+  /* ---- Profile records ----
+     These are label-left / value-right rows. At this width a long label
+     ("Most Rebounds - Victor Wembanyama") and a mono value ("20 - 7/28/2026")
+     fight for the same line: the label wraps, the value wraps, and on the
+     worst rows they end up touching. Stacking them makes every row the same
+     shape regardless of how long the player's name is. */
+  .performance-row,
+  .record-link {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+  }
+
+  /* Never breaks mid-value - "20 -" on one line and the date on the next was
+     the worst of it. */
+  .performance-line {
+    white-space: nowrap;
+  }
+
+  /* Era rows wrapped differently for every era, because the name was a
+     flex item with min-width: 8rem competing with two nowrap splits - "All
+     Years" left Offline stranded on its own line while "Grandpa's Game" took
+     the whole first row. A grid gives every era the same shape: name across
+     the top, Online and Offline as two even columns beneath. */
+  .era-record-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    padding: 0.6rem 0.7rem;
+  }
+
+  .era-record-name {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  /* ---- Recent Games ----
+     Four mono columns at desktop size gave every cell two or three lines and
+     made each row ~150px tall. */
+  table.history-table {
+    font-size: 0.76rem;
+  }
+
+  table.history-table th,
+  table.history-table td {
+    padding: 0.4rem 0.35rem;
+  }
+
+  /* The score is the one thing that must never break across lines. */
+  table.history-table td.history-score {
+    white-space: nowrap;
+  }
+
+  /* Mode drops under the result rather than widening the column. */
+  .history-mode {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: var(--font-body);
   }
 }
 

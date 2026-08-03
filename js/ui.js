@@ -1085,7 +1085,17 @@ export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(D
     // before it was removed are still in saved history and should keep their
     // real label rather than being mislabelled as bot games.
     const modeTag = entry.mode === "online" ? "Online" : entry.mode === "local" ? "Local" : "Practice";
-    tr.innerHTML = `<td>${date}</td><td>${entry.won ? "Win" : "Loss"} vs ${entry.opponentLabel} (${modeTag})</td><td>${entry.scoreFor}-${entry.scoreAgainst}</td><td>${entry.mvpName}</td>`;
+    // Mode is its own element rather than "(Online)" inside the result text:
+    // on a phone that parenthetical was what pushed the result cell to three
+    // lines, and as a tag it can drop underneath instead of widening the
+    // column. Escaped because an opponent's username and an MVP name are
+    // both player-supplied.
+    tr.innerHTML =
+      `<td>${date}</td>` +
+      `<td>${entry.won ? "Win" : "Loss"} vs ${escapeHtml(entry.opponentLabel)}` +
+      `<span class="history-mode">${modeTag}</span></td>` +
+      `<td class="history-score">${entry.scoreFor}-${entry.scoreAgainst}</td>` +
+      `<td>${escapeHtml(entry.mvpName)}</td>`;
     refs.historyBody.appendChild(tr);
   }
 }
