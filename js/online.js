@@ -153,21 +153,41 @@ export async function fetchSquadPlayers(team, decade) {
   }));
 }
 
-/** @param forfeited true when the PICK CLOCK chose this player, not the
- * player themselves. Recorded server-side (match_picks.forfeited) because
- * that is where the simulation reads it from - the Edge Function charges a
- * real cost for a forfeited pick, and it can only charge what was stored. */
+/** PostgREST resolves an RPC by the exact set of argument NAMES it is given,
+ * so an unknown argument is not ignored - it fails to find the function at
+ * all, with PGRST202. */
+const NO_SUCH_FUNCTION = "PGRST202";
+
+/**
+ * @param forfeited true when the PICK CLOCK chose this player, not the player
+ * themselves. Recorded server-side (match_picks.forfeited) because that is
+ * where the simulation reads it from - the Edge Function charges a real cost
+ * for a forfeited pick, and it can only charge what was stored.
+ *
+ * Falls back to the five-argument call if the database hasn't had
+ * 20260803_01_forfeited_picks.sql applied yet. Deploying the site and
+ * migrating the database are two separate actions that cannot be made
+ * simultaneous, and the window between them must not be one where nobody can
+ * make a draft pick. The fallback loses the forfeit penalty for that window
+ * and nothing else; it disappears on its own once the migration lands.
+ */
 export async function submitPick(matchId, player, slot, forfeited = false) {
   const supabase = await getSupabase();
-  const { error } = await supabase.rpc("submit_pick", {
+  const args = {
     p_match_id: matchId,
     p_player_name: player.name,
     p_team: player.team,
     p_decade: player.decade,
     p_slot: slot,
-    p_forfeited: forfeited,
-  });
-  if (error) throw error;
+  };
+
+  const { error } = await supabase.rpc("submit_pick", { ...args, p_forfeited: forfeited });
+  if (!error) return;
+  if (error.code !== NO_SUCH_FUNCTION) throw error;
+
+  console.warn("submit_pick has no p_forfeited argument yet - apply db/migrations/20260803_01_forfeited_picks.sql.");
+  const retry = await supabase.rpc("submit_pick", args);
+  if (retry.error) throw retry.error;
 }
 
 export async function submitSkip(matchId) {
