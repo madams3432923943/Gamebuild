@@ -3,7 +3,11 @@
 //   - "bot": synchronous, client-only (DraftState from draft.js).
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
-import { buildRecap, buildGameScript } from "./recap.js";
+import { buildRecap, buildGameScript, buildWhyBreakdown } from "./recap.js";
+import { gradeDraft, rotationHint } from "./draftgrade.js";
+import { draftAnalysis } from "./engine.js";
+import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
+import { snapshotProgress, progressGains } from "./progress.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
@@ -22,6 +26,8 @@ import {
   ONLINE_QUEUE_TIMEOUT_SECONDS,
   RESULT_WAIT_MS,
   ONLINE_QUEUE_POLL_MS,
+  MIN_SEARCH_CHARS,
+  DRAFT_GRADE_HOLD_MS,
 } from "./constants.js";
 import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID } from "./sports/index.js";
 import {
@@ -33,8 +39,24 @@ import {
   setEquippedBanner,
   setFeaturedBadges,
   FEATURED_BADGE_SLOTS,
+  TIERS,
+  RANK_GAMES_FLOOR,
 } from "./profile.js";
-import { getSession, requireSession, signUp, signIn, signOut, USERNAME_PATTERN } from "./supabaseClient.js";
+import {
+  getSession,
+  requireSession,
+  signUp,
+  signIn,
+  signOut,
+  requestPasswordReset,
+  updatePassword,
+  updateEmail,
+  getAuthUser,
+  onPasswordRecovery,
+  isPlaceholderEmail,
+  USERNAME_PATTERN,
+  EMAIL_PATTERN,
+} from "./supabaseClient.js";
 import {
   myMembership,
   loadMySquad,
@@ -377,15 +399,24 @@ document.getElementById("btn-how-to-play").addEventListener("click", openHowToPl
 const navTabs = document.getElementById("nav-tabs");
 const authHeading = document.getElementById("auth-heading");
 const authSubheading = document.getElementById("auth-subheading");
+const inputAuthEmail = document.getElementById("input-auth-email");
+const inputAuthIdentifier = document.getElementById("input-auth-identifier");
 const inputAuthUsername = document.getElementById("input-auth-username");
 const inputAuthPassword = document.getElementById("input-auth-password");
+const fieldAuthEmail = document.getElementById("field-auth-email");
+const fieldAuthIdentifier = document.getElementById("field-auth-identifier");
+const fieldAuthUsername = document.getElementById("field-auth-username");
 const btnAuthSubmit = document.getElementById("btn-auth-submit");
 const btnAuthToggle = document.getElementById("btn-auth-toggle");
+const btnAuthForgot = document.getElementById("btn-auth-forgot");
+const authForgotRow = document.getElementById("auth-forgot-row");
 const authSwitchLabel = document.getElementById("auth-switch-label");
 const authStatusEl = document.getElementById("auth-status");
 const signedInAsEl = document.getElementById("signed-in-as");
 
-let authMode = "signin"; // "signin" | "signup"
+// "signin" | "signup" | "recover" - the third is the state a password-reset
+// link lands in, where the only thing on screen is a new password box.
+let authMode = "signin";
 
 function setAuthStatus(message, kind) {
   authStatusEl.textContent = message || "";
@@ -393,16 +424,38 @@ function setAuthStatus(message, kind) {
   authStatusEl.classList.toggle("auth-error", kind === "error");
 }
 
+/** One screen, three jobs. Which fields exist is the only difference between
+ * them, so they're driven from one table rather than three near-copies of the
+ * same markup. */
 function renderAuthMode() {
   const isSignup = authMode === "signup";
-  authHeading.textContent = isSignup ? "Create Account" : "Sign In";
-  authSubheading.textContent = isSignup
-    ? "Pick a username - it's what opponents see on the scoreboard."
-    : "Sign in to keep your record, badges, and rank.";
-  btnAuthSubmit.textContent = isSignup ? "Create Account" : "Sign In";
+  const isRecover = authMode === "recover";
+
+  fieldAuthEmail.hidden = !isSignup;
+  fieldAuthUsername.hidden = !isSignup;
+  fieldAuthIdentifier.hidden = isSignup || isRecover;
+  authForgotRow.hidden = isSignup || isRecover;
+  btnAuthToggle.parentElement.hidden = isRecover;
+
+  if (isRecover) {
+    authHeading.textContent = "Set a New Password";
+    authSubheading.textContent = "You're signed in from the reset link - choose a new password.";
+    btnAuthSubmit.textContent = "Save Password";
+  } else if (isSignup) {
+    authHeading.textContent = "Create Account";
+    authSubheading.textContent =
+      "Email is how you get back in if you forget your password. Your username is what opponents see.";
+    btnAuthSubmit.textContent = "Create Account";
+  } else {
+    authHeading.textContent = "Sign In";
+    authSubheading.textContent = "Sign in to keep your record, badges, and rank.";
+    btnAuthSubmit.textContent = "Sign In";
+  }
+
   btnAuthToggle.textContent = isSignup ? "Sign in instead" : "Create an account";
   authSwitchLabel.textContent = isSignup ? "Already have an account?" : "New here?";
-  inputAuthPassword.autocomplete = isSignup ? "new-password" : "current-password";
+  inputAuthPassword.placeholder = isRecover ? "New password, at least 6 characters" : "At least 6 characters";
+  inputAuthPassword.autocomplete = isSignup || isRecover ? "new-password" : "current-password";
   setAuthStatus("");
 }
 
@@ -411,11 +464,48 @@ btnAuthToggle.addEventListener("click", () => {
   renderAuthMode();
 });
 
-function showAuthScreen() {
+/** Mails a reset link. Resolving a legacy username here would send mail to
+ * the synthetic address that account was created with, which nobody can read
+ * - so that case is called out rather than silently "sent". */
+btnAuthForgot.addEventListener("click", async () => {
+  const identifier = inputAuthIdentifier.value.trim();
+  if (!identifier) {
+    setAuthStatus("Enter your email address first, then tap this.", "error");
+    return;
+  }
+  btnAuthForgot.disabled = true;
+  setAuthStatus("Sending a reset link…");
+  try {
+    const { placeholder } = await requestPasswordReset(identifier);
+    if (placeholder) {
+      setAuthStatus(
+        "That's an older username-only account, so there's no inbox to send to. Sign in with your password and add an email on the Profile tab.",
+        "error"
+      );
+    } else {
+      setAuthStatus("Reset link sent. Check your inbox, then come back here.");
+    }
+  } catch (e) {
+    setAuthStatus(e.message || "Couldn't send that. Try again.", "error");
+  } finally {
+    btnAuthForgot.disabled = false;
+  }
+});
+
+function showAuthScreen(mode = "signin") {
   navTabs.hidden = true;
+  authMode = mode;
   renderAuthMode();
   showScreen("auth");
 }
+
+// Opening a recovery link drops the player into the app already signed in on
+// a temporary session, which looks like an ordinary sign-in and isn't - they
+// came here to change a password. Catching the event is the only reliable way
+// to tell the difference.
+onPasswordRecovery(() => {
+  showAuthScreen("recover");
+}).catch((e) => console.error("Could not listen for password recovery:", e));
 
 const homeHeaderRefs = {
   card: document.getElementById("player-banner"),
@@ -452,38 +542,81 @@ async function refreshHome() {
 }
 
 btnAuthSubmit.addEventListener("click", async () => {
-  const username = inputAuthUsername.value.trim();
   const password = inputAuthPassword.value;
 
-  if (!username || !password) {
-    setAuthStatus("Username and password are both required.", "error");
-    return;
-  }
-  if (authMode === "signup" && !USERNAME_PATTERN.test(username)) {
-    setAuthStatus("Usernames are 3-20 characters: letters, numbers or underscores.", "error");
+  if (authMode === "recover") {
+    if (password.length < 6) {
+      setAuthStatus("Password must be at least 6 characters.", "error");
+      return;
+    }
+    btnAuthSubmit.disabled = true;
+    setAuthStatus("Saving your new password…");
+    try {
+      await updatePassword(password);
+      inputAuthPassword.value = "";
+      // The recovery session is a real session, so there is nothing left to
+      // do but let them in - asking them to sign in again with the password
+      // they just set would be busywork.
+      await enterApp();
+    } catch (e) {
+      setAuthStatus(e.message || "That didn't work. Try again.", "error");
+    } finally {
+      btnAuthSubmit.disabled = false;
+    }
     return;
   }
 
-  btnAuthSubmit.disabled = true;
-  setAuthStatus(authMode === "signup" ? "Creating your account…" : "Signing in…");
+  if (authMode === "signup") {
+    const email = inputAuthEmail.value.trim();
+    const username = inputAuthUsername.value.trim();
+    if (!email || !username || !password) {
+      setAuthStatus("Email, username and password are all required.", "error");
+      return;
+    }
+    if (!EMAIL_PATTERN.test(email)) {
+      setAuthStatus("That doesn't look like a valid email address.", "error");
+      return;
+    }
+    if (!USERNAME_PATTERN.test(username)) {
+      setAuthStatus("Usernames are 3-20 characters: letters, numbers or underscores.", "error");
+      return;
+    }
 
-  try {
-    if (authMode === "signup") {
-      const session = await signUp(username, password);
-      // No session means the project still has email confirmation enabled,
-      // which can't work for username accounts - there's no real inbox to
-      // confirm from. Say so plainly instead of leaving them stuck.
-      if (!session) {
-        setAuthStatus(
-          "Account made, but this project still has email confirmation turned on - turn it off in Supabase (Authentication > Sign In / Providers > Email) for username logins to work.",
-          "error"
-        );
+    btnAuthSubmit.disabled = true;
+    setAuthStatus("Creating your account…");
+    try {
+      const { session, needsConfirmation } = await signUp(email, username, password);
+      // No session means the project has email confirmation on. That is now a
+      // sensible configuration rather than a broken one - the address is real
+      // - so this is an instruction, not an error.
+      if (needsConfirmation || !session) {
+        authMode = "signin";
+        // After renderAuthMode, which clears the status box on its way in.
+        renderAuthMode();
+        inputAuthIdentifier.value = email;
+        setAuthStatus(`Account created. Check ${email} for the confirmation link, then sign in.`);
         return;
       }
       await setUsername(username);
-    } else {
-      await signIn(username, password);
+      inputAuthPassword.value = "";
+      await enterApp();
+    } catch (e) {
+      setAuthStatus(e.message || "That didn't work. Try again.", "error");
+    } finally {
+      btnAuthSubmit.disabled = false;
     }
+    return;
+  }
+
+  const identifier = inputAuthIdentifier.value.trim();
+  if (!identifier || !password) {
+    setAuthStatus("Email (or username) and password are both required.", "error");
+    return;
+  }
+  btnAuthSubmit.disabled = true;
+  setAuthStatus("Signing in…");
+  try {
+    await signIn(identifier, password);
     inputAuthPassword.value = "";
     await enterApp();
   } catch (e) {
@@ -493,7 +626,7 @@ btnAuthSubmit.addEventListener("click", async () => {
   }
 });
 
-for (const el of [inputAuthPassword, inputAuthUsername]) {
+for (const el of [inputAuthPassword, inputAuthUsername, inputAuthEmail, inputAuthIdentifier]) {
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter") btnAuthSubmit.click();
   });
@@ -852,6 +985,17 @@ const positionSelectorEl = document.getElementById("position-selector");
 const draftRoundLabel = document.getElementById("draft-round-label");
 const squadBannerTeam = document.getElementById("squad-banner-team");
 const squadBannerDecade = document.getElementById("squad-banner-decade");
+const squadBannerEraEl = document.getElementById("squad-banner-era");
+
+/** The era bracket in play, shown on the draft board itself. It was only ever
+ * visible on the home screen, which meant that by the time you were being
+ * asked to name a player from memory, the single most useful piece of context
+ * for doing that - which stretch of history this game is drawn from - was two
+ * screens behind you. */
+function renderDraftEra(eraId) {
+  const era = sport().eraById(eraId || getEra());
+  squadBannerEraEl.textContent = `${era.emoji} ${era.label}`;
+}
 const draftTurnBanner = document.getElementById("draft-turn-banner");
 const btnLeaveMatch = document.getElementById("btn-leave-match");
 
@@ -864,6 +1008,11 @@ const game = {
   roundNumber: 0,
   ruleset: "easy",
   online: null,
+  // Slots the pick CLOCK filled rather than the player, per side. The
+  // simulation charges a real cost for these (see FORFEIT_PLAYER_SCALE in
+  // constants.js), so a draft nobody turned up for can't beat one somebody
+  // actually made - which is exactly what it was doing before.
+  forfeits: { A: [], B: [] },
 };
 
 // ---- Bot draft flow ----
@@ -879,6 +1028,15 @@ function humanSides() {
 function botSides() {
   return ["B"];
 }
+/** Every slot this side is charged for at simulation time: the ones the pick
+ * clock filled, plus any it never filled at all. An unfilled slot matters
+ * because the 240-minute rotation budget is spread across whoever IS on the
+ * roster - so a nine-man team would otherwise get ten men's minutes for free. */
+function forfeitedSlotsFor(side, roster, slots) {
+  const missed = (slots || []).filter((slot) => !roster[slot]);
+  return [...new Set([...(game.forfeits[side] || []), ...missed])];
+}
+
 function rosterFor(side) {
   return side === "A" ? game.draft.rosterA : game.draft.rosterB;
 }
@@ -1096,7 +1254,7 @@ function applyRulesetToDraftUI() {
   poolSearch.placeholder = easy ? "Filter this squad…" : "Type a player's name from memory…";
   knowledgeHintEl.textContent = easy
     ? "Practice mode — full squad and stats shown, no clock."
-    : "No player list shown — draft on knowledge alone. Type 3+ letters to search.";
+    : `No player list — draft from memory. ${MIN_SEARCH_CHARS}+ letters to search.`;
   pickTimerEl.hidden = easy;
 }
 
@@ -1144,8 +1302,11 @@ function startDraft() {
     slotsForRuleset(game.ruleset)
   );
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
+  game.forfeits = { A: [], B: [] };
   game.roundNumber = 0;
   poolSearch.value = "";
+  hideDraftGrade();
+  captureProgressBaseline();
   showScreen("draft");
   advanceDraft();
 }
@@ -1214,6 +1375,7 @@ function renderDraftRound() {
   draftRoundLabel.textContent = `Round ${game.roundNumber}`;
   squadBannerTeam.textContent = draft.currentSquad.team;
   squadBannerDecade.textContent = draft.currentSquad.decade;
+  renderDraftEra(game.era);
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
   poolSearch.hidden = false;
 
@@ -1291,8 +1453,13 @@ function handleLocalTimeout() {
   const side = game.round.activeSide;
   const combo = worstEligiblePick(draft.currentSquad, rosterFor(side), draft.slots);
   if (combo) {
+    // Recorded before the pick lands, because from here on it is an ordinary
+    // roster entry - the only thing that distinguishes it is this list.
+    game.forfeits[side].push(combo.slot);
     finalizePick(combo.player, combo.slot);
   } else {
+    // Nothing was eligible, so nobody forfeited anything - the squad simply
+    // had no legal option. The empty slot is charged separately, below.
     skipLocalTurn();
   }
 }
@@ -1307,6 +1474,56 @@ function renderRoundReveal() {
 
   renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { revealSlots: pendingSlotsFor("A"), slots: draft.slots });
   renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { revealSlots: pendingSlotsFor("B"), slots: draft.slots });
+}
+
+// ---- Draft grade ----
+// Shown the moment both rosters are set, before a minute is simulated. The
+// grade is computed from the same roster metrics the engine is about to
+// charge you for (see js/draftgrade.js), so it is a prediction rather than a
+// decoration.
+
+const draftGradeEl = document.getElementById("draft-grade");
+const draftGradeLetterEl = document.getElementById("draft-grade-letter");
+const draftGradeHeadlineEl = document.getElementById("draft-grade-headline");
+const draftGradeReasonsEl = document.getElementById("draft-grade-reasons");
+
+function hideDraftGrade() {
+  draftGradeEl.classList.add("hidden");
+}
+
+/** @param opts.oppRoster adds the counterplay read when the opponent's roster
+ *   is already known - it always is by the time a draft finishes. */
+function showDraftGrade(roster, opts = {}) {
+  let grade;
+  try {
+    grade = gradeDraft(roster, datasetStatsFor(), opts);
+  } catch (e) {
+    // A grade is commentary. If it can't be computed for some roster shape,
+    // that must never be what stops a finished draft reaching the game.
+    console.error("Could not grade draft:", e);
+    hideDraftGrade();
+    return null;
+  }
+
+  draftGradeLetterEl.textContent = grade.letter;
+  draftGradeHeadlineEl.textContent = grade.headline;
+  draftGradeReasonsEl.innerHTML = "";
+
+  const reasons = [...grade.reasons];
+  const hint = rotationHint(roster);
+  if (hint) reasons.push(hint);
+  for (const reason of reasons) {
+    const li = document.createElement("li");
+    li.textContent = reason;
+    draftGradeReasonsEl.appendChild(li);
+  }
+
+  // Grade band drives the colour, so an A doesn't arrive in the same grey as
+  // a D - the letter should be readable across the room.
+  draftGradeEl.className = `draft-grade grade-${grade.letter[0].toLowerCase()}`;
+  replayAnimation(draftGradeEl, "grade-stamp");
+  if (grade.letter[0] === "A") confetti({ count: 40, durationMs: 2600 });
+  return grade;
 }
 
 function renderDraftComplete() {
@@ -1324,13 +1541,23 @@ function renderDraftComplete() {
 
   poolList.innerHTML = "";
 
+  showDraftGrade(draft.rosterA, {
+    oppRoster: draft.rosterB,
+    forfeits: forfeitedSlotsFor("A", draft.rosterA, draft.slots),
+  });
+
   // Quick Play stays the fast, no-strategy experience: straight to the sim.
   // Ranked Practice adds the two strict-ruleset phases - rotation, then
   // gamestyle - since it's meant to rehearse exactly what Online Ranked asks
   // for, using a bot opponent instead of a real one.
   if (game.ruleset !== "strict") {
     rotationMinutes = null;
-    runLocalSimulation();
+    // A beat to actually read the grade first. Without it Quick Play was the
+    // one mode that computed a grade and then replaced the screen before
+    // anyone could see it - the mode where the feedback matters MOST, since
+    // it's the one people are learning in.
+    draftTurnBanner.textContent = "Tipping off…";
+    setTimeout(runLocalSimulation, DRAFT_GRADE_HOLD_MS);
     return;
   }
 
@@ -1373,19 +1600,29 @@ function rankLabelFor(rankInfo) {
   return rankInfo && !rankInfo.provisional ? rankInfo.tier.name : "Unranked";
 }
 
-/** The ~7s "you've been matched" beat between finding an opponent and the
- * draft actually starting: both players' banners fly in from the edges with
- * a little overshoot, an impact flash lands as they settle, then a 3-2-1
- * countdown and a buzzer-red "GO!". Only for a genuinely fresh match
- * (enterOnlineMatch only calls this when there are no picks yet) -
- * reconnecting to a draft already in progress skips straight to it instead
- * of replaying the intro every time. */
+/** The "you've been matched" beat between finding an opponent and the draft
+ * actually starting.
+ *
+ * It runs about 9 seconds now, roughly two longer than it did, and the extra
+ * time is spent on presentation rather than on waiting: the screen fades up,
+ * each side's banner flies in with its own beat (yours first, then theirs -
+ * two banners landing simultaneously reads as a layout, one after the other
+ * reads as an introduction), the names and ranks type in behind them, VS
+ * lands with an impact flash and a shockwave, and only then does the
+ * countdown start. A rising whoosh carries the fly-in and the buzzer lands on
+ * "GO!".
+ *
+ * Only for a genuinely fresh match (enterOnlineMatch only calls this when
+ * there are no picks yet) - reconnecting to a draft already in progress skips
+ * straight to it instead of replaying the intro every time.
+ */
 async function playMatchupIntro(mySide, oppSide) {
   showScreen("matchupIntro");
-  matchupSideAEl.classList.remove("fly-in");
-  matchupSideBEl.classList.remove("fly-in");
-  matchupVsEl.classList.remove("vs-fade");
-  matchupIntroEl.classList.remove("impact-flash");
+  for (const el of [matchupSideAEl, matchupSideBEl]) {
+    el.classList.remove("fly-in", "settle");
+  }
+  matchupVsEl.classList.remove("vs-fade", "vs-land");
+  matchupIntroEl.classList.remove("impact-flash", "intro-lit");
   matchupCountdownEl.classList.add("hidden");
   matchupCountdownEl.classList.remove("pulse", "go");
   matchupCountdownEl.textContent = "";
@@ -1393,41 +1630,58 @@ async function playMatchupIntro(mySide, oppSide) {
   renderMatchupSide(matchupRefsA, mySide);
   renderMatchupSide(matchupRefsB, oppSide);
 
-  // Force layout before adding the class, so removing it above and adding
-  // it back here actually retriggers the transition instead of no-op'ing
+  // Force layout before adding the classes, so removing them above and adding
+  // them back here actually retriggers the transitions instead of no-op'ing
   // against the previous match's already-settled state.
   void matchupSideAEl.offsetWidth;
-  await sleep(50);
+  await sleep(120);
+  matchupIntroEl.classList.add("intro-lit");
+
+  // Staggered, not simultaneous: your banner arrives, then theirs, which is
+  // what makes it read as being introduced to an opponent.
+  playWhoosh();
   matchupSideAEl.classList.add("fly-in");
+  await sleep(520);
+  playWhoosh();
   matchupSideBEl.classList.add("fly-in");
 
-  // A beat after the banners land (the fly-in transition itself is 0.9s),
-  // a quick radial flash sells the "impact" of the two sides meeting.
-  await sleep(900);
-  matchupIntroEl.classList.add("impact-flash");
+  // A beat after the second banner lands (the fly-in transition is 0.9s), the
+  // radial flash and shockwave sell the impact of the two sides meeting.
+  await sleep(950);
+  matchupSideAEl.classList.add("settle");
+  matchupSideBEl.classList.add("settle");
+  matchupVsEl.classList.add("vs-land");
+  replayAnimation(matchupIntroEl, "impact-flash");
+  playPop(2);
 
-  await sleep(1300);
-  // The countdown and "VS" occupy the exact same dead-center spot by
-  // design - fading VS out is what keeps them from rendering on top of
-  // each other instead of the countdown looking like a glitch.
+  // Time to actually read who you're playing and what rank they are - the
+  // whole reason this screen exists, and previously the part it gave the
+  // least room to.
+  await sleep(2100);
+
+  // The countdown and "VS" occupy the exact same dead-center spot by design -
+  // fading VS out is what keeps them from rendering on top of each other
+  // instead of the countdown looking like a glitch.
   matchupVsEl.classList.add("vs-fade");
   matchupCountdownEl.classList.remove("hidden");
   for (const n of [3, 2, 1]) {
     matchupCountdownEl.textContent = String(n);
-    matchupCountdownEl.classList.remove("pulse");
-    void matchupCountdownEl.offsetWidth;
-    matchupCountdownEl.classList.add("pulse");
+    replayAnimation(matchupCountdownEl, "pulse");
+    playPop(3 - n);
     await sleep(1000);
   }
   // The payoff beat: bigger, and in the same buzzer-red the pick timer
-  // already uses for urgency, so it reads as "go" rather than just a
-  // fourth number in the same countdown color.
+  // already uses for urgency, so it reads as "go" rather than just a fourth
+  // number in the same countdown color.
   matchupCountdownEl.textContent = "GO!";
   matchupCountdownEl.classList.add("go");
-  await sleep(900);
+  playBuzzer();
+  await sleep(1100);
 }
 
 async function enterOnlineMatch(matchId) {
+  hideDraftGrade();
+  captureProgressBaseline();
   btnStartDraft.disabled = false;
   btnCancelSearch.classList.add("hidden");
   searchStatusEl.classList.add("hidden");
@@ -1638,6 +1892,7 @@ async function renderOnlineDraftRound(match) {
   draftRoundLabel.textContent = `Round ${match.round_number}` + (match.is_friendly ? " · Friendly Match (unranked)" : "");
   squadBannerTeam.textContent = match.current_squad_team;
   squadBannerDecade.textContent = match.current_squad_decade;
+  renderDraftEra(match.era);
   draftTurnBanner.textContent = "Your Pick";
   poolSearch.hidden = false;
   poolSearch.value = "";
@@ -1717,23 +1972,27 @@ async function handleOnlineTimeout() {
   if (!o || !o.currentSquad) return;
   const combo = worstEligiblePick(o.currentSquad, o.myRoster, RANKED_SLOTS);
   if (combo) {
-    await finalizeOnlinePick(combo.player, combo.slot);
+    await finalizeOnlinePick(combo.player, combo.slot, true);
   } else {
     await onlineSkip();
   }
 }
 
-async function finalizeOnlinePick(player, slot) {
+/** @param forfeited true when the pick clock chose this player. Sent through
+ * to the server, which is where the simulation reads it back from - the
+ * client never gets to declare what the penalty is, only that it applies. */
+async function finalizeOnlinePick(player, slot, forfeited = false) {
   cleanupPickTimer();
   const o = game.online;
   o.pendingPlayer = null;
+  if (forfeited) o.forfeits = [...(o.forfeits || []), slot];
   draftTurnBanner.textContent = "Locking in pick…";
   poolSearch.hidden = true;
   positionSelectorEl.innerHTML = "";
   poolList.innerHTML = "";
 
   try {
-    await submitPick(o.matchId, player, slot);
+    await submitPick(o.matchId, player, slot, forfeited);
     draftTurnBanner.textContent = "Waiting for opponent…";
   } catch (e) {
     draftTurnBanner.textContent = "That pick didn't go through (" + e.message + ") - refreshing round.";
@@ -1784,6 +2043,11 @@ async function beginOnlineStrategyPhase(match) {
 
   renderRosterPanel(rosterPanelA, o.myRoster, "You", false, { slots: RANKED_SLOTS });
   renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS });
+
+  showDraftGrade(o.myRoster, {
+    oppRoster: o.oppRoster,
+    forfeits: [...(o.forfeits || []), ...RANKED_SLOTS.filter((slot) => !o.myRoster[slot])],
+  });
 
   draftTurnBanner.textContent = "Set your rotation";
   rotationPhaseHintEl.textContent =
@@ -1893,10 +2157,120 @@ function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
 /** Plays the live quarter-by-quarter reveal and final box score for any
  * already-computed result (local simulateGame() output or a normalized
  * server result), then calls onComplete() once everything is on screen. */
-function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, onComplete }) {
+// ---- Reward toast ----
+// The payoff for playing. Badges, banners and rank are derived from profile
+// counters rather than granted by an event, so without a before/after diff a
+// badge earned in this game just sits on a tab nobody opened. See progress.js.
+
+const rewardToastEl = document.getElementById("reward-toast");
+const rewardToastIconEl = document.getElementById("reward-toast-icon");
+const rewardToastTitleEl = document.getElementById("reward-toast-title");
+const rewardToastDetailEl = document.getElementById("reward-toast-detail");
+const rewardToastMoreEl = document.getElementById("reward-toast-more");
+
+const REWARD_ICONS = { rank: "🏆", badge: "🎖️", banner: "🚩" };
+
+// The profile as it stood when this game started. Captured at draft time so a
+// game that takes ten minutes still diffs against the right baseline.
+let progressBefore = null;
+let rankBefore = null;
+
+/** Snapshots the profile before a game. Failures are swallowed on purpose -
+ * a missing baseline costs a celebration, and nothing else. */
+async function captureProgressBaseline() {
+  progressBefore = null;
+  rankBefore = null;
+  try {
+    const profile = await loadProfile();
+    progressBefore = snapshotProgress(profile, getSport());
+    rankBefore = await loadRankInfo(profile);
+  } catch (e) {
+    console.error("Couldn't snapshot progress before the game:", e);
+  }
+}
+
+/** Diffs against that baseline and celebrates whatever went up. */
+async function celebrateProgress() {
+  if (!progressBefore) return;
+  let gains = [];
+  try {
+    const profile = await loadProfile();
+    const after = snapshotProgress(profile, getSport());
+    const rankAfter = await loadRankInfo(profile);
+    gains = progressGains(progressBefore, after, { rankBefore, rankAfter });
+  } catch (e) {
+    console.error("Couldn't work out what improved:", e);
+    return;
+  }
+  if (gains.length === 0) return;
+
+  const [headline, ...rest] = gains;
+  rewardToastIconEl.textContent = REWARD_ICONS[headline.kind] || "⭐";
+  rewardToastTitleEl.textContent = headline.title;
+  rewardToastDetailEl.textContent = headline.detail || "";
+  rewardToastMoreEl.innerHTML = "";
+  for (const gain of rest.slice(0, 3)) {
+    const li = document.createElement("li");
+    li.textContent = gain.title;
+    rewardToastMoreEl.appendChild(li);
+  }
+
+  rewardToastEl.classList.remove("hidden");
+  replayAnimation(rewardToastEl, "reward-pop");
+  // A second burst, deliberately separate from the win confetti: this is a
+  // different thing being celebrated and it should read as one.
+  confetti({ count: 70, durationMs: 3400 });
+  playFanfare();
+}
+
+// ---- Post-game analysis panel ----
+
+const whyBreakdownEl = document.getElementById("why-breakdown");
+const whyTitleEl = document.getElementById("why-title");
+const whyReasonsEl = document.getElementById("why-reasons");
+const whyCoachingEl = document.getElementById("why-coaching");
+const whyCoachingListEl = document.getElementById("why-coaching-list");
+
+function renderWhyBreakdown(result, ctx) {
+  let breakdown;
+  try {
+    breakdown = buildWhyBreakdown(result, ctx);
+  } catch (e) {
+    // Analysis is commentary on a result that already exists - it must never
+    // be what keeps the result off the screen.
+    console.error("Could not build post-game analysis:", e);
+    whyBreakdownEl.classList.add("hidden");
+    return;
+  }
+
+  whyTitleEl.textContent = breakdown.title;
+  whyBreakdownEl.classList.toggle("why-won", breakdown.won);
+  whyBreakdownEl.classList.toggle("why-lost", !breakdown.won);
+
+  whyReasonsEl.innerHTML = "";
+  for (const reason of breakdown.reasons) {
+    const li = document.createElement("li");
+    li.textContent = reason;
+    whyReasonsEl.appendChild(li);
+  }
+
+  whyCoachingListEl.innerHTML = "";
+  for (const note of breakdown.coaching) {
+    const li = document.createElement("li");
+    li.textContent = note;
+    whyCoachingListEl.appendChild(li);
+  }
+  whyCoachingEl.hidden = breakdown.coaching.length === 0;
+
+  whyBreakdownEl.classList.remove("hidden");
+}
+
+function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, matchups, tactic, analysis, onComplete }) {
   finalBanner.classList.add("hidden");
   gameRecapEl.classList.add("hidden");
   mvpCallout.classList.add("hidden");
+  whyBreakdownEl.classList.add("hidden");
+  rewardToastEl.classList.add("hidden");
   fullBoxScore.classList.add("hidden");
   btnToProfile.classList.add("hidden");
   btnPlayAgain.classList.add("hidden");
@@ -2137,11 +2511,38 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     )} PTS / ${Math.round(mvp.line.reb)} REB / ${Math.round(mvp.line.ast)} AST`;
     mvpCallout.classList.remove("hidden");
 
+    // Why it went that way in terms you can act on, as opposed to the
+    // broadcast paragraph above: the numbers that decided it, and what your
+    // rotation, matchups and gamestyle actually did.
+    renderWhyBreakdown(result, {
+      rosterA,
+      rosterB,
+      minutesA,
+      minutesB,
+      matchupsA: matchups,
+      tacticA: tactic,
+      shotsA,
+      shotsB,
+      analysisA: analysis,
+    });
+
     renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB, minutesA, minutesB, true);
     fullBoxScore.classList.remove("hidden");
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
     btnGameHome.classList.remove("hidden");
+
+    // The payoff. A win gets the horn, the confetti and the fanfare; a loss
+    // gets the horn and a flat two-note fall, because losing shouldn't be
+    // louder than winning.
+    playBuzzer();
+    if (result.winner === "A") {
+      confetti({ count: 110, durationMs: 4200 });
+      window.setTimeout(playFanfare, 320);
+      replayAnimation(finalBanner, "win-flare");
+    } else {
+      window.setTimeout(playDefeat, 320);
+    }
 
     onComplete();
   }
@@ -2159,12 +2560,16 @@ function runLocalSimulation() {
   // minutes the simulation actually used, rather than a second guess at them.
   const minutesA = rotationMinutes || sport().defaultMinutes(draft.rosterA);
   const minutesB = sport().botMinutes(draft.rosterB);
+  const forfeitsA = forfeitedSlotsFor("A", draft.rosterA, draft.slots);
+  const forfeitsB = forfeitedSlotsFor("B", draft.rosterB, draft.slots);
   const result = sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
     tacticA: selectedTactic,
     tacticB: botTactic,
     minutesA,
     minutesB,
     matchupsA: selectedMatchups || undefined,
+    forfeitsA,
+    forfeitsB,
   });
 
   playOutResult({
@@ -2175,10 +2580,15 @@ function runLocalSimulation() {
     rosterB: draft.rosterB,
     minutesA,
     minutesB,
+    matchups: selectedMatchups || undefined,
+    tactic: selectedTactic,
+    // The engine already computed this on its way to the score, so the recap
+    // narrates the same numbers the simulation actually used.
+    analysis: result.analysis && result.analysis.a,
     onComplete: () => {
       const ownLines = draft.slots.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
 
-      recordPracticeResult({
+      const resultWritten = recordPracticeResult({
         mode: "offline",
         sport: game.sport || getSport(),
         era: game.era || DEFAULT_ERA,
@@ -2201,9 +2611,14 @@ function runLocalSimulation() {
         minutesB,
       }).catch((e) => console.error("Failed to record result:", e));
 
-      recordDraftPicks(draft.slots.map((slot) => draft.rosterA[slot].name)).catch((e) =>
+      const draftPicksWritten = recordDraftPicks(draft.slots.map((slot) => draft.rosterA[slot].name)).catch((e) =>
         console.error("Failed to record draft picks:", e)
       );
+
+      // After BOTH writes land. The diff has to read a profile that already
+      // includes this game, or it celebrates nothing now - and, because the
+      // baseline moves on, stays silent about it next game too.
+      Promise.allSettled([resultWritten, draftPicksWritten]).then(celebrateProgress);
     },
   });
 }
@@ -2333,15 +2748,34 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   const myRosterFinal = iAmA ? rosterA : rosterB;
   const oppRosterFinal = iAmA ? rosterB : rosterA;
 
+  // The server stores a box score, not the draft analysis behind it. Every
+  // term of that analysis is a pure function of the two rosters (see
+  // draftAnalysis in engine.js), so the client recomputes rather than the
+  // schema growing a column to carry commentary. The one thing it can't
+  // recompute is the opponent's forfeits, which is deliberate - that is a
+  // live read on how the other side is doing and the reveal rule withholds it.
+  let analysisA = null;
+  try {
+    analysisA = draftAnalysis(myRosterFinal, oppRosterFinal, datasetStatsFor(), o.forfeits || []);
+  } catch (e) {
+    console.error("Could not rebuild the draft analysis:", e);
+  }
+
   playOutResult({
     result,
     labelA: "You",
     labelB: o.oppUsername,
     rosterA: myRosterFinal,
     rosterB: oppRosterFinal,
+    minutesA: rotationMinutes || undefined,
+    matchups: selectedMatchups || undefined,
+    tactic: selectedTactic,
+    analysis: analysisA,
     onComplete: () => {
-      // online_wins/online_losses, personal_bests, draft_counts, and history
-      // were already written server-side by simulate-match.
+      // online_wins/online_losses, personal_bests, draft_counts, history and
+      // banner progress were all written server-side by simulate-match before
+      // this client ever saw the result, so the profile is already current.
+      celebrateProgress();
     },
   });
 }
@@ -2397,12 +2831,152 @@ async function openProfileScreen() {
     const rankInfo = await loadRankInfo(profile);
     renderProfileScreen(profileRefs, profile, rankInfo, sport());
     renderEquippedBanner(profileEquippedBannerEl, profile);
+    refreshProfileEmail();
   } catch (e) {
     console.error("Failed to load profile:", e);
   }
 }
 
 btnCustomizeBanner.addEventListener("click", () => openCustomizeBannerModal());
+
+// ---- Recovery email ----
+// Attaching one is the whole point of the account rework: an account with no
+// reachable address can't be recovered, and every account made before email
+// sign-up existed is in exactly that state.
+
+const inputProfileEmail = document.getElementById("input-profile-email");
+const profileEmailStatusEl = document.getElementById("profile-email-status");
+const btnSaveEmail = document.getElementById("btn-save-email");
+
+async function refreshProfileEmail() {
+  try {
+    const user = await getAuthUser();
+    const email = user && user.email;
+    if (!email || isPlaceholderEmail(email)) {
+      inputProfileEmail.value = "";
+      profileEmailStatusEl.textContent =
+        "No recovery email yet - add one so you can reset your password if you forget it.";
+      profileEmailStatusEl.classList.add("auth-error");
+    } else {
+      inputProfileEmail.value = email;
+      profileEmailStatusEl.textContent = "You can recover this account by email.";
+      profileEmailStatusEl.classList.remove("auth-error");
+    }
+  } catch (e) {
+    console.error("Failed to read account email:", e);
+  }
+}
+
+btnSaveEmail.addEventListener("click", async () => {
+  const email = inputProfileEmail.value.trim();
+  if (!EMAIL_PATTERN.test(email)) {
+    profileEmailStatusEl.textContent = "That doesn't look like a valid email address.";
+    profileEmailStatusEl.classList.add("auth-error");
+    return;
+  }
+  btnSaveEmail.disabled = true;
+  profileEmailStatusEl.classList.remove("auth-error");
+  profileEmailStatusEl.textContent = "Sending a confirmation link…";
+  try {
+    await updateEmail(email);
+    // Supabase only swaps the address over once the link in it is clicked, so
+    // this is not "saved" yet and shouldn't claim to be.
+    profileEmailStatusEl.textContent = `Confirm it from the link sent to ${email} and it becomes your recovery address.`;
+  } catch (e) {
+    profileEmailStatusEl.textContent = e.message || "Couldn't save that.";
+    profileEmailStatusEl.classList.add("auth-error");
+  } finally {
+    btnSaveEmail.disabled = false;
+  }
+});
+
+// ---- Rank ladder ----
+// Every tier in one place. Ranked is a percentile ladder (see loadRankInfo),
+// which is fair but invisible: without this a player can only ever see the
+// one rung they are standing on, and "AAU" means nothing if you can't see
+// what is above and below it.
+
+async function openRankLadder() {
+  const wrap = document.createElement("div");
+
+  const intro = document.createElement("p");
+  intro.className = "hint-text";
+  intro.textContent =
+    `Rank is your online win rate measured against everyone else's, not a win count - the top ${
+      100 - TIERS[TIERS.length - 1].minPercentile
+    }% of players are Legends however many games anyone has played. ` +
+    `Bot games never count. You need ${RANK_GAMES_FLOOR} online games before you're ranked at all.`;
+  wrap.appendChild(intro);
+
+  let rankInfo = null;
+  try {
+    rankInfo = await loadRankInfo(currentProfile || (await loadProfile()));
+  } catch (e) {
+    console.error("Failed to load rank info:", e);
+  }
+
+  if (rankInfo && rankInfo.provisional) {
+    const note = document.createElement("p");
+    note.className = "hint-text";
+    note.textContent = `${rankInfo.gamesNeeded} more online game${
+      rankInfo.gamesNeeded === 1 ? "" : "s"
+    } and you'll be placed on the ladder.`;
+    wrap.appendChild(note);
+  }
+
+  const list = document.createElement("ol");
+  list.className = "rank-ladder";
+  // Highest tier first: a ladder is read from the top, and the thing a player
+  // wants to see is what they are climbing toward.
+  [...TIERS].reverse().forEach((tier, i, all) => {
+    const row = document.createElement("li");
+    row.className = "rank-ladder-row";
+    if (rankInfo && !rankInfo.provisional && rankInfo.tier.name === tier.name) {
+      row.classList.add("current");
+    }
+    if (rankInfo && rankInfo.next && rankInfo.next.name === tier.name) {
+      row.classList.add("next");
+    }
+
+    const name = document.createElement("span");
+    name.className = "rank-ladder-name";
+    name.textContent = tier.name;
+
+    // The band this tier actually occupies, not "top N%" - the bands stack,
+    // so every tier's "top N%" would include everyone above it and the top
+    // three rungs would all read "top 2%".
+    const band = document.createElement("span");
+    band.className = "rank-ladder-band";
+    const above = all[i - 1];
+    const trim = (n) => String(Number(n.toFixed(1)));
+    band.textContent = above
+      ? `${trim(tier.minPercentile)}–${trim(above.minPercentile)} percentile`
+      : `${trim(tier.minPercentile)}+ percentile`;
+
+    row.append(name, band);
+    if (row.classList.contains("current")) {
+      const you = document.createElement("span");
+      you.className = "rank-ladder-you";
+      you.textContent = "YOU";
+      row.appendChild(you);
+    }
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+
+  const skill = document.createElement("p");
+  skill.className = "hint-text";
+  skill.textContent =
+    "Climbing it is about the draft, not the roll: build a roster with no hole to attack, " +
+    "counter what your opponent is building rather than mirroring it, back up every position " +
+    "so nobody plays 48 minutes - and never let the clock make a pick for you.";
+  wrap.appendChild(skill);
+
+  openModal("Rank Ladder", wrap);
+}
+
+document.getElementById("btn-rank-ladder").addEventListener("click", openRankLadder);
+document.getElementById("btn-rank-ladder-home").addEventListener("click", openRankLadder);
 
 /** "Customize Banner" from the Profile screen - the same sport-tabbed
  * banner grid Rewards > Banners shows, just reached from Profile too

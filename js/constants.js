@@ -303,6 +303,71 @@ export const COMPRESSION_KEY = "rawPpg"; // "rawPpg" | "impact"
 export const COMPRESSION_COEFFICIENT = 0.0035;
 export const COMPRESSION_FLOOR = 0.75;
 
+// ---- What the draft itself is worth ---------------------------------------
+//
+// Everything above this point models TALENT: who you drafted, how many
+// minutes they play, who guards whom. None of it models whether the roster
+// was *built* well, and that gap is what let a player who forfeited two
+// picks to the clock beat someone who made all ten. The three levers below
+// close it. All are deterministic functions of the two rosters, so the
+// offline client and the Edge Function still simulate the same game.
+
+// A pick nobody made. The clock already auto-drafts the worst eligible
+// player, and that was meant to be the penalty on its own - it isn't. The
+// worst man in a ten-man squad is still an NBA player, and once
+// TALENT_PARITY compresses the talent gap, the difference between "I chose
+// him" and "the clock chose him" reached the scoreboard as roughly a point.
+//
+// So a forfeited pick now costs twice. The player produces at
+// FORFEIT_PLAYER_SCALE - a body filling a slot, not part of a plan - and
+// the team takes a flat cohesion hit per forfeit on top, capped so a total
+// no-show is a heavy loss rather than an automatic 20-point one.
+export const FORFEIT_PLAYER_SCALE = 0.78;
+export const FORFEIT_TEAM_PENALTY = 0.035;
+export const FORFEIT_TEAM_PENALTY_MAX = 0.14;
+
+// How much roster CONSTRUCTION - covering every position, drafting players
+// who can cover more than one, and not leaving a category empty - moves the
+// scoreboard, as a plus-or-minus swing on team points. Deliberately smaller
+// than the talent terms: a well-built roster of weaker players should still
+// usually lose to a stacked one. It just shouldn't lose to a stacked one
+// that was assembled by a timer.
+export const CONSTRUCTION_SWING = 0.06;
+
+// Counterplay: how much drafting AGAINST the opponent's build pays.
+//
+// Rewarded on difference, not on strength - spacing only pays against a big
+// team and size only pays against a small one - so mirroring a good roster
+// is never the safe answer and the draft becomes a read on what they're
+// building rather than a race for the same players.
+export const COUNTER_K = 0.05;
+export const COUNTER_SCALE = 4;
+
+// How much the DEFENSIVE ASSIGNMENTS you set are worth, as a suppression of
+// the opponent's team points.
+//
+// The engine has always modelled assignments (resolveDefender feeds the
+// chosen defender into the scoring matchup), but almost none of it survived
+// to the scoreboard: applyTalentParity re-anchors each team's quarter to a
+// league-average total, so five points taken off their star were handed
+// straight back to the rest of their roster. Measured over 3,000 games,
+// moving your best defender onto their best scorer was worth a 52.7% win
+// rate - a coin flip, for the one screen that exists to be a decision.
+//
+// This is the same idea applied AFTER parity, where it can't be undone. It is
+// scored against the DEFAULT assignment rather than in absolute terms, so a
+// team of good defenders playing their natural matchups gets nothing extra
+// (that is talent, and talent is already modelled) and only the decision to
+// deviate - well or badly - moves anything.
+export const SCHEME_K = 0.06;
+// The raw scheme difference is small by construction - a matchup change is a
+// TRADE (your stopper moves onto their star, but somebody else inherits the
+// man he left), so the two halves partly cancel and a good swap nets about
+// 0.03 on the quality scale. SCHEME_SCALE maps that working range onto the
+// full 0-1 the swing is expressed over; without it SCHEME_K would be
+// multiplying a number three orders of magnitude too small to see.
+export const SCHEME_SCALE = 10;
+
 // Combined team-factor x matchup-factor scoring ceiling. This is the fix
 // for the 195-point blowout bug - a hard multiplier ceiling relative to a
 // team's own unmodified per-game-average baseline.
@@ -333,6 +398,13 @@ export const QUARTER_REVEAL_DELAY_MS = 4200;
 
 // How long the running score takes to climb to the new period's total.
 export const QUARTER_TICK_MS = 1500;
+
+// How long Quick Play holds on the finished draft grade before tipping off.
+// The strict modes don't need this - rotation and gamestyle come next and the
+// grade sits above them the whole time - but Quick Play goes straight to the
+// simulation, and computing a grade nobody gets to read is worse than not
+// computing one.
+export const DRAFT_GRADE_HOLD_MS = 3800;
 
 // How long a fully-resolved draft round holds on the "locked in" state
 // before both sides' picks flip-reveal simultaneously.

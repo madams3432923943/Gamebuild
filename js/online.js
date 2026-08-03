@@ -153,7 +153,11 @@ export async function fetchSquadPlayers(team, decade) {
   }));
 }
 
-export async function submitPick(matchId, player, slot) {
+/** @param forfeited true when the PICK CLOCK chose this player, not the
+ * player themselves. Recorded server-side (match_picks.forfeited) because
+ * that is where the simulation reads it from - the Edge Function charges a
+ * real cost for a forfeited pick, and it can only charge what was stored. */
+export async function submitPick(matchId, player, slot, forfeited = false) {
   const supabase = await getSupabase();
   const { error } = await supabase.rpc("submit_pick", {
     p_match_id: matchId,
@@ -161,6 +165,7 @@ export async function submitPick(matchId, player, slot) {
     p_team: player.team,
     p_decade: player.decade,
     p_slot: slot,
+    p_forfeited: forfeited,
   });
   if (error) throw error;
 }

@@ -37,7 +37,19 @@
         <h2 id="auth-heading">Sign In</h2>
         <p class="hint-text" id="auth-subheading">Sign in to keep your record, badges, and rank.</p>
 
-        <div class="field-row">
+        <!-- Email is the recovery channel and the only one there is: an
+             account you can't get back into is an account you've lost, which
+             is what username-only sign-up meant. Username stays, because it's
+             what opponents see - it just isn't the login secret any more. -->
+        <div class="field-row" id="field-auth-email">
+          <label for="input-auth-email">Email</label>
+          <input id="input-auth-email" type="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="field-row" id="field-auth-identifier">
+          <label for="input-auth-identifier">Email or username</label>
+          <input id="input-auth-identifier" type="text" placeholder="you@example.com" autocomplete="username" />
+        </div>
+        <div class="field-row" id="field-auth-username">
           <label for="input-auth-username">Username</label>
           <input id="input-auth-username" type="text" maxlength="20" placeholder="3-20 letters, numbers or _" autocomplete="username" />
         </div>
@@ -52,12 +64,16 @@
           <span id="auth-switch-label">New here?</span>
           <button id="btn-auth-toggle" class="link-btn" type="button">Create an account</button>
         </p>
+        <p class="hint-text auth-switch" id="auth-forgot-row">
+          <button id="btn-auth-forgot" class="link-btn" type="button">Forgot your password?</button>
+        </p>
       </div>
     </section>
 
     <section id="screen-home" class="screen hidden">
       <div class="home-top-left">
         <button id="btn-how-to-play" class="how-to-play-btn" type="button">📖 How to Play</button>
+        <button id="btn-rank-ladder-home" class="how-to-play-btn" type="button">🏆 Rank Ladder</button>
         <!-- Live count of players with the game open. Hidden until the first
              successful read so a failed fetch shows nothing rather than "0". -->
         <div class="online-ticker hidden" id="online-ticker" title="Players with Ball Knowledge open right now">
@@ -136,19 +152,47 @@
     </section>
 
     <section id="screen-draft" class="screen hidden">
-      <div id="draft-round-label" class="round-label"></div>
-      <button id="btn-leave-match" class="btn btn-secondary btn-small hidden" type="button">Leave Match</button>
-
+      <!-- One block, not five stacked rows.
+           WHAT ROUND / WHICH SQUAD / WHICH ERA / WHOSE PICK / HOW LONG LEFT is
+           a single piece of information - "here is what you are drafting from
+           and how long you have" - and it used to occupy most of a phone
+           screen as five separate full-width elements, pushing the search box
+           below the fold with a 30-second clock running. Gathered into one
+           banner it is three short lines, and the search box is the next thing
+           under it at every width. -->
       <div id="squad-banner" class="squad-banner">
-        <span id="squad-banner-team" class="squad-banner-team"></span>
-        <span id="squad-banner-decade" class="squad-banner-decade"></span>
+        <div class="squad-banner-top">
+          <span id="draft-round-label" class="round-label"></span>
+          <span id="squad-banner-era" class="squad-banner-era"></span>
+          <button id="btn-leave-match" class="btn btn-secondary btn-small hidden" type="button">Leave Match</button>
+        </div>
+        <div class="squad-banner-main">
+          <span id="squad-banner-team" class="squad-banner-team"></span>
+          <span id="squad-banner-decade" class="squad-banner-decade"></span>
+        </div>
+        <div class="squad-banner-status">
+          <span id="draft-turn-banner" class="turn-banner"></span>
+          <span id="pick-timer" class="pick-timer"></span>
+          <button id="btn-forfeit-pick" class="btn btn-secondary btn-small hidden" type="button">Forfeit Pick</button>
+        </div>
       </div>
 
+      <!-- A read-out of which slots are still open. Redundant with the two
+           roster panels below, and slot choice itself happens in a modal
+           (openSlotPicker), so a phone hides it rather than spending a row on
+           it - see the phone layout pass in style.css. -->
       <div class="position-selector" id="position-selector"></div>
 
-      <div id="draft-turn-banner" class="turn-banner"></div>
-      <div id="pick-timer" class="pick-timer"></div>
-      <button id="btn-forfeit-pick" class="btn btn-secondary btn-small hidden" type="button">Forfeit Pick</button>
+      <!-- The grade for the roster you just built, shown before a minute is
+           simulated. See js/draftgrade.js. -->
+      <div id="draft-grade" class="draft-grade hidden">
+        <div class="draft-grade-badge"><span id="draft-grade-letter"></span></div>
+        <div class="draft-grade-body">
+          <div class="draft-grade-title">Draft Grade</div>
+          <p class="draft-grade-headline" id="draft-grade-headline"></p>
+          <ul class="draft-grade-reasons" id="draft-grade-reasons"></ul>
+        </div>
+      </div>
 
       <div class="draft-body">
         <div class="roster-panel" id="roster-panel-a"></div>
@@ -205,6 +249,30 @@
       </div>
       <div id="mvp-callout" class="mvp-callout hidden"></div>
 
+      <!-- The coach's read, as opposed to the broadcast's: the handful of
+           numbers that decided it, and what your rotation, matchups and
+           gamestyle actually did. See buildWhyBreakdown() in js/recap.js. -->
+      <div id="why-breakdown" class="why-breakdown hidden">
+        <h3 class="why-title" id="why-title"></h3>
+        <ul class="why-reasons" id="why-reasons"></ul>
+        <div class="why-coaching" id="why-coaching" hidden>
+          <div class="why-coaching-title">What your coaching did</div>
+          <ul class="why-coaching-list" id="why-coaching-list"></ul>
+        </div>
+      </div>
+
+      <!-- What this game changed about YOU. Badges, banners and rank are all
+           derived from profile counters, so nothing ever announced itself -
+           see js/progress.js. -->
+      <div id="reward-toast" class="reward-toast hidden" role="status" aria-live="polite">
+        <div class="reward-toast-icon" id="reward-toast-icon">🏆</div>
+        <div class="reward-toast-body">
+          <div class="reward-toast-title" id="reward-toast-title"></div>
+          <div class="reward-toast-detail" id="reward-toast-detail"></div>
+          <ul class="reward-toast-more" id="reward-toast-more"></ul>
+        </div>
+      </div>
+
       <div id="full-box-score" class="hidden"></div>
 
       <div class="game-actions">
@@ -220,8 +288,20 @@
           <label for="input-profile-username">Your name</label>
           <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
         </div>
+        <!-- Accounts made before email sign-up existed have a synthetic
+             address nobody can read, so they can't be recovered. This is how
+             they become recoverable. -->
+        <div class="field-row" id="profile-email-row">
+          <label for="input-profile-email">Recovery email</label>
+          <input id="input-profile-email" type="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="profile-email-actions">
+          <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
+          <span id="profile-email-status" class="hint-text"></span>
+        </div>
         <div id="profile-tier-badge"></div>
         <div id="profile-tier-caption" class="player-stats"></div>
+        <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
         <div class="equipped-banner" id="profile-equipped-banner" hidden></div>
         <button type="button" id="btn-customize-banner" class="btn btn-secondary">Customize Banner</button>
       </div>
@@ -397,6 +477,12 @@
       <div id="modal-body" class="modal-body"></div>
     </div>
   </div>
+
+  <!-- Celebration layer. Sits above everything, ignores pointer events, and
+       is only ever filled for the length of one burst - a permanently mounted
+       canvas would keep a compositor layer alive on a phone for the 99% of
+       the time nothing is celebrating. See js/celebrate.js. -->
+  <div id="celebration-layer" class="celebration-layer" aria-hidden="true"></div>
 
   <script type="module" src="js/main.js"></script>
 </body>

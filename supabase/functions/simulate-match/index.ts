@@ -182,6 +182,29 @@ Deno.serve(async (req: Request) => {
   const rosterA = normalizeRoster(match.roster_a);
   const rosterB = normalizeRoster(match.roster_b);
 
+  // Which slots the pick CLOCK filled rather than the player. The simulation
+  // charges a real cost for these (FORFEIT_PLAYER_SCALE / FORFEIT_TEAM_PENALTY
+  // in constants.js) - without it, an opponent who timed out on two picks was
+  // still beating someone who made all ten. Read here rather than trusted from
+  // the client for the obvious reason: nobody gets to declare their own
+  // opponent's forfeits.
+  const { data: pickRows } = await admin
+    .from("match_picks")
+    .select("side, slot, forfeited, action")
+    .eq("match_id", matchId);
+  const forfeitedSlots = (side: string) =>
+    (pickRows ?? [])
+      .filter((p) => p.side === side && p.action === "pick" && p.forfeited && p.slot)
+      .map((p) => p.slot as string);
+  // A roster slot nobody ever filled counts too. It can only happen when a
+  // side had no legal pick and skipped, but a nine-man roster still gets the
+  // full 240-minute budget spread across it, so without this it would be a
+  // free pass rather than a cost.
+  const unfilled = (roster: Record<string, any>, other: Record<string, any>) =>
+    Object.keys(other).filter((slot) => !roster[slot]);
+  const forfeitsA = [...forfeitedSlots("A"), ...unfilled(rosterA, rosterB)];
+  const forfeitsB = [...forfeitedSlots("B"), ...unfilled(rosterB, rosterA)];
+
   // Each side's rotation/matchups/tactic, submitted via submit_strategy once
   // the draft was complete (see js/main.js's online strategy phase, which
   // runs the exact same startRotationPhase/startMatchupPhase/startTacticPhase
@@ -195,6 +218,8 @@ Deno.serve(async (req: Request) => {
     minutesB: match.rotation_b ?? undefined,
     matchupsA: match.matchups_a ?? undefined,
     matchupsB: match.matchups_b ?? undefined,
+    forfeitsA,
+    forfeitsB,
   });
 
   const { error: insertErr } = await admin.from("match_results").insert({

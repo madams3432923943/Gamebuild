@@ -56,6 +56,14 @@ import {
   COMPRESSION_KEY,
   COMPRESSION_COEFFICIENT,
   COMPRESSION_FLOOR,
+  FORFEIT_PLAYER_SCALE,
+  FORFEIT_TEAM_PENALTY,
+  FORFEIT_TEAM_PENALTY_MAX,
+  CONSTRUCTION_SWING,
+  COUNTER_K,
+  COUNTER_SCALE,
+  SCHEME_K,
+  SCHEME_SCALE,
   SCORING_CEILING,
   MAX_TEAM_SCORE,
   MAX_OT_PERIODS,
@@ -204,6 +212,244 @@ export function slotsByPosition(roster) {
   }
 
   return groups;
+}
+
+// ---- Roster construction, counterplay, and forfeited picks -----------------
+//
+// Everything above models talent. These model the DRAFT: whether a roster was
+// built well, whether it was built against the one it is facing, and whether
+// its owner actually made his picks. All three are pure functions of the
+// rosters, which is what lets the client and the Edge Function agree on the
+// same game (see scripts/verify-parity.mjs).
+
+/** A roster's shape, as ratios against a league-average player. 1.0 in a
+ * category means "an average roster's worth of it". Averaged per player
+ * rather than summed, so a 5-man Quick Play roster and a 10-man Ranked one
+ * are read on the same scale. */
+export function rosterProfile(roster, datasetStats) {
+  const players = rosterPlayers(roster);
+  const n = players.length || 1;
+  const avg = datasetStats.overall;
+  const mean = (key) => players.reduce((sum, p) => sum + p[key], 0) / n;
+  return {
+    scoring: ratingVsAvg(mean("ppg"), avg.ppg),
+    rebounding: ratingVsAvg(mean("rpg"), avg.rpg),
+    playmaking: ratingVsAvg(mean("apg"), avg.apg),
+    perimeter: ratingVsAvg(mean("spg"), avg.spg),
+    interior: ratingVsAvg(mean("bpg"), avg.bpg),
+    defense: ratingVsAvg((mean("spg") + mean("bpg")) / 2, (avg.spg + avg.bpg) / 2),
+    care: ratingVsAvg(avg.tov, mean("tov")), // inverted: fewer giveaways is better
+  };
+}
+
+/** The four things a good draft actually does, each 0-1.
+ *
+ *   coverage    - every position has a second body behind the starter. A
+ *                 position covered by one man runs him 48 minutes and
+ *                 fatigueFactor() charges him for it.
+ *   versatility - bench players who can play more than one spot, since
+ *                 slotsByPosition() places the least flexible first and a
+ *                 bench of five centres all pile onto C.
+ *   balance     - the WEAKEST of scoring / rebounding / playmaking / defense.
+ *                 A roster with no rebounding loses the glass however many
+ *                 points it has, which is why this reads the floor and not
+ *                 the average.
+ *   talent      - raw quality, reported for the draft grade but deliberately
+ *                 NOT fed into constructionFactor: the simulation already
+ *                 models talent in full, and counting it twice would just be
+ *                 a second way of saying "you drafted the best players".
+ *
+ * A roster with no bench (Quick Play's five) has no coverage or versatility
+ * decision to make, so those are dropped from its score rather than graded
+ * as failures.
+ */
+export function constructionMetrics(roster, datasetStats) {
+  const slots = activeSlots(roster);
+  const groups = slotsByPosition(roster);
+  const benchSlots = slots.filter((slot) => isBenchSlot(slot));
+  const hasBench = benchSlots.length > 0;
+
+  const backed = STARTER_SLOTS.filter((pos) => (groups[pos] || []).length >= 2).length;
+  const coverage = hasBench ? backed / STARTER_SLOTS.length : 0;
+
+  // pos.length runs 1-3 in this dataset; 1 (a specialist) scores 0 and 2+
+  // scores 1, so this reads "can he plug a second hole" rather than rewarding
+  // a third listing that slotsByPosition rarely gets to use.
+  const versatility = hasBench
+    ? benchSlots.reduce((sum, slot) => sum + clamp(roster[slot].pos.length - 1, 0, 1), 0) / benchSlots.length
+    : 0;
+
+  const profile = rosterProfile(roster, datasetStats);
+  const categories = {
+    scoring: profile.scoring,
+    rebounding: profile.rebounding,
+    playmaking: profile.playmaking,
+    defense: profile.defense,
+  };
+  const values = Object.values(categories);
+  const weakestKey = Object.keys(categories).reduce((a, b) => (categories[a] <= categories[b] ? a : b));
+  const strongestKey = Object.keys(categories).reduce((a, b) => (categories[a] >= categories[b] ? a : b));
+  // 0.75x an average roster in a category is a genuine hole; 1.25x is a real
+  // strength. Between them the score runs the full range.
+  const balance = clamp((categories[weakestKey] - 0.75) / 0.5, 0, 1);
+  const talent = clamp((values.reduce((s, v) => s + v, 0) / values.length - 0.8) / 0.6, 0, 1);
+
+  const score = hasBench
+    ? 0.34 * coverage + 0.16 * versatility + 0.5 * balance
+    : balance;
+
+  return {
+    coverage,
+    versatility,
+    balance,
+    talent,
+    score,
+    profile,
+    hasBench,
+    uncovered: hasBench ? STARTER_SLOTS.filter((pos) => (groups[pos] || []).length < 2) : [],
+    weakest: weakestKey,
+    strongest: strongestKey,
+  };
+}
+
+/** Construction as a multiplier on team points. A perfectly built roster is
+ * worth CONSTRUCTION_SWING over an averagely built one, and a shapeless one
+ * gives the same back. */
+export function constructionFactor(roster, datasetStats) {
+  const { score } = constructionMetrics(roster, datasetStats);
+  return 1 + CONSTRUCTION_SWING * 2 * (score - 0.5);
+}
+
+/** Where a roster sits on the size <-> spacing axis, centred on 0. Positive
+ * `size` is a team that lives inside; positive `space` is one that plays on
+ * the perimeter and moves the ball. */
+export function rosterTilt(roster, datasetStats) {
+  const p = rosterProfile(roster, datasetStats);
+  return {
+    size: (p.rebounding + p.interior) / 2 - 1,
+    space: (p.playmaking + p.perimeter) / 2 - 1,
+  };
+}
+
+/** What one build takes off the other. Spacing only pays against a team
+ * that is actually big, and size only pays against one that is actually
+ * small - so drafting the mirror image of a strong roster earns nothing,
+ * and reading what they're building is the play. */
+function counterEdge(mine, theirs) {
+  const spacing = Math.max(0, mine.space - theirs.space) * Math.max(0, theirs.size);
+  const muscle = Math.max(0, mine.size - theirs.size) * Math.max(0, theirs.space);
+  return spacing + muscle;
+}
+
+/** Counterplay as a multiplier on team points, antisymmetric by construction:
+ * whatever one side gains here the other loses. */
+export function counterFactor(roster, oppRoster, datasetStats) {
+  const mine = rosterTilt(roster, datasetStats);
+  const theirs = rosterTilt(oppRoster, datasetStats);
+  const edge = counterEdge(mine, theirs) - counterEdge(theirs, mine);
+  return 1 + COUNTER_K * clamp(edge * COUNTER_SCALE, -1, 1);
+}
+
+/** How well one side's defensive assignments are aimed, as a threat-weighted
+ * average of "is this defender better than average at stopping the man he was
+ * given". Positive is a well-aimed scheme.
+ *
+ * Weighted by THREAT (the attacker's expected points), because putting your
+ * stopper on their fifth option is not a good scheme however good the
+ * stopper is, and by COVERAGE (the share of the attacker's minutes the
+ * defender is actually on court for), because an assignment is worth what
+ * the defender's minutes make it worth - the same rule resolveDefender
+ * applies inside the quarter simulation.
+ */
+function schemeQuality(roster, matchups, oppRoster, minutes, oppMinutes, datasetStats) {
+  let weighted = 0;
+  let weight = 0;
+  for (const slot of Object.keys(matchups || {})) {
+    const defender = roster[slot];
+    const target = matchups[slot];
+    const attacker = oppRoster[target];
+    if (!defender || !attacker) continue;
+
+    const attackerMinutes = playerMinutes(target, oppMinutes);
+    const threat = attacker.ppg * (attackerMinutes / STARTER_MINUTES);
+    if (threat <= 0) continue;
+
+    const defPos = primaryPos(defender);
+    const raw =
+      (ratingVsAvg(defender.spg, posAvg(datasetStats, defPos, "spg")) +
+        ratingVsAvg(defender.bpg, posAvg(datasetStats, defPos, "bpg"))) /
+      2;
+    // Damped exactly as the in-quarter matchup damps it, for the same reason:
+    // blocks are rare and skewed, so a rim protector rates several times the
+    // positional average and an undamped scheme score would be decided
+    // entirely by whether you own one.
+    const quality = Math.pow(raw, DEFENDER_RATING_EXPONENT);
+    const cover = clamp(playerMinutes(slot, minutes) / Math.max(1, attackerMinutes), 0, 1);
+
+    weighted += threat * (quality - 1) * cover;
+    weight += threat;
+  }
+  return weight > 0 ? weighted / weight : 0;
+}
+
+/** The defensive scheme's effect on the OPPONENT'S points, measured against
+ * what the default "guard your own position" assignment would have produced.
+ *
+ * Scoring it as a difference from the default is what makes this a coaching
+ * term rather than a second talent term: leave the assignments alone and this
+ * is exactly 1, whoever you drafted. */
+export function schemeFactor(roster, matchups, oppRoster, minutes, oppMinutes, datasetStats) {
+  if (!matchups) return 1;
+  const chosen = schemeQuality(roster, matchups, oppRoster, minutes, oppMinutes, datasetStats);
+  const baseline = schemeQuality(
+    roster,
+    defaultMatchups(roster, oppRoster),
+    oppRoster,
+    minutes,
+    oppMinutes,
+    datasetStats
+  );
+  return 1 - SCHEME_K * clamp((chosen - baseline) * SCHEME_SCALE, -1, 1);
+}
+
+/** A copy of `roster` with every forfeited pick's production scaled down.
+ *
+ * Done by rewriting the players rather than by threading a penalty through
+ * simulateQuarter: the whole engine reads stats off the roster, so scaling
+ * them here applies the penalty to scoring, rebounding, the matchup a
+ * forfeited player loses AND the defence he fails to provide, all at once
+ * and in the right order. Names and positions are untouched, so the box
+ * score, the MVP pick and the recap still see the real player.
+ *
+ * Returns the roster unchanged when nothing was forfeited, so every mode
+ * that never forfeits is bit-for-bit unaffected.
+ */
+export function applyForfeitPenalty(roster, forfeitedSlots) {
+  const forfeited = (forfeitedSlots || []).filter((slot) => roster[slot]);
+  if (forfeited.length === 0) return roster;
+  const out = { ...roster };
+  for (const slot of forfeited) {
+    const p = roster[slot];
+    out[slot] = {
+      ...p,
+      ppg: p.ppg * FORFEIT_PLAYER_SCALE,
+      rpg: p.rpg * FORFEIT_PLAYER_SCALE,
+      apg: p.apg * FORFEIT_PLAYER_SCALE,
+      spg: p.spg * FORFEIT_PLAYER_SCALE,
+      bpg: p.bpg * FORFEIT_PLAYER_SCALE,
+      // Turnovers are the one stat where the penalty runs the other way: a
+      // player nobody planned around coughs it up MORE, not less.
+      tov: p.tov / FORFEIT_PLAYER_SCALE,
+    };
+  }
+  return out;
+}
+
+/** The team-wide cohesion hit for forfeiting picks, as a points multiplier. */
+export function forfeitTeamFactor(forfeitedSlots) {
+  const n = (forfeitedSlots || []).length;
+  if (n === 0) return 1;
+  return 1 - Math.min(FORFEIT_TEAM_PENALTY_MAX, n * FORFEIT_TEAM_PENALTY);
 }
 
 /** The rotation a roster gets when nobody set one.
@@ -601,19 +847,21 @@ function rosterBaselinePoints(roster, minutesMap) {
 
 /** Runs quarters (or OT periods) and accumulates per-slot totals. lengthScale
  * of 1 = a full quarter; used at < 1 for shorter OT periods. Slots are
- * derived from rosterA (both sides always share the same roster shape in
- * every mode today), so a 5-slot Quick Play roster never gets a "6TH" key
- * anywhere downstream. */
+ * derived per side, not from rosterA: the two sides normally share a roster
+ * shape, but a draft where somebody had no legal pick (skipLocalTurn /
+ * submit_skip) leaves that side a slot short, and reading rosterA's keys for
+ * both then indexed rosterB at a slot it doesn't have and threw partway
+ * through the simulation. A 5-slot Quick Play roster still never gets a
+ * "6TH" key anywhere downstream, which is what deriving them at all is for. */
 function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, modsA, modsB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB) {
-  const slots = activeSlots(rosterA);
+  const slotsA = activeSlots(rosterA);
+  const slotsB = activeSlots(rosterB);
   const vMin = (teamVariance && teamVariance.min) ?? TEAM_QUARTER_VARIANCE_MIN;
   const vMax = (teamVariance && teamVariance.max) ?? TEAM_QUARTER_VARIANCE_MAX;
   const totalsA = {};
   const totalsB = {};
-  for (const slot of slots) {
-    totalsA[slot] = emptyLine();
-    totalsB[slot] = emptyLine();
-  }
+  for (const slot of slotsA) totalsA[slot] = emptyLine();
+  for (const slot of slotsB) totalsB[slot] = emptyLine();
   const quarterBoxScores = [];
 
   for (let i = 0; i < periods; i++) {
@@ -643,10 +891,12 @@ function runPeriods(rosterA, rosterB, datasetStats, periods, lengthScale = 1, mo
 
     const scaledA = {};
     const scaledB = {};
-    for (const slot of slots) {
+    for (const slot of slotsA) {
       scaledA[slot] = scaleLine(linesA[slot], lengthScale);
-      scaledB[slot] = scaleLine(linesB[slot], lengthScale);
       addLine(totalsA[slot], scaledA[slot]);
+    }
+    for (const slot of slotsB) {
+      scaledB[slot] = scaleLine(linesB[slot], lengthScale);
       addLine(totalsB[slot], scaledB[slot]);
     }
     quarterBoxScores.push({ a: scaledA, b: scaledB });
@@ -732,10 +982,21 @@ function clutchModsFor(mods, clutchMods) {
  * @param {object} opts - { tacticA, tacticB, minutesA, minutesB }: tactic ids
  *   chosen before tip-off, and optional slot -> minutes maps from the
  *   rotation phase (a mode that doesn't expose rotation choice omits these
- *   and gets today's fixed starter/6th-man split).
- * @returns box score, quarter breakdown, final score, and MVP
+ *   and gets today's fixed starter/6th-man split). `forfeitsA`/`forfeitsB`
+ *   are the slots each side let the clock fill; omitting them (every mode
+ *   without a pick timer) leaves the simulation exactly as it was.
+ * @returns box score, quarter breakdown, final score, MVP, and the draft
+ *   analysis (construction/counterplay/forfeits) behind the result
  */
-export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
+export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
+  // Forfeited picks are penalised by rewriting the roster BEFORE anything
+  // reads a stat off it, so the discount reaches offense, defense and the
+  // matchups a missing pick was supposed to win, not just the box score.
+  const forfeitsA = opts.forfeitsA || [];
+  const forfeitsB = opts.forfeitsB || [];
+  const rosterA = applyForfeitPenalty(rawRosterA, forfeitsA);
+  const rosterB = applyForfeitPenalty(rawRosterB, forfeitsB);
+
   const modsA = tacticMods(opts.tacticA);
   const modsB = tacticMods(opts.tacticB);
   const clutchA = clutchModsFor(modsA, tacticClutchMods(opts.tacticA));
@@ -772,13 +1033,30 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
     matchupsB
   );
   const q4 = runPeriods(rosterA, rosterB, datasetStats, 1, 1, clutchA, clutchB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB);
-  for (const slot of Object.keys(totalsA)) {
-    addLine(totalsA[slot], q4.totalsA[slot]);
-    addLine(totalsB[slot], q4.totalsB[slot]);
-  }
+  for (const slot of Object.keys(totalsA)) addLine(totalsA[slot], q4.totalsA[slot]);
+  for (const slot of Object.keys(totalsB)) addLine(totalsB[slot], q4.totalsB[slot]);
   quarterBoxScores.push(...q4.quarterBoxScores);
 
   applyTurnoverSwing(totalsA, totalsB);
+
+  // What the DRAFT was worth, on top of what the players were worth. Applied
+  // to the rolled-up totals for the same reason the turnover swing is: these
+  // are properties of a whole roster over a whole game, not of a quarter.
+  const analysis = {
+    a: draftAnalysis(rawRosterA, rawRosterB, datasetStats, forfeitsA),
+    b: draftAnalysis(rawRosterB, rawRosterA, datasetStats, forfeitsB),
+  };
+  applyPointsMultiplier(totalsA, analysis.a.factor);
+  applyPointsMultiplier(totalsB, analysis.b.factor);
+
+  // And what the COACHING was worth. A side's defensive scheme suppresses the
+  // OTHER side's points, which is why these are crossed over - and why they
+  // can't live inside draftAnalysis, which only knows about rosters.
+  analysis.a.scheme = schemeFactor(rosterA, matchupsA, rosterB, minutesA, minutesB, datasetStats);
+  analysis.b.scheme = schemeFactor(rosterB, matchupsB, rosterA, minutesB, minutesA, datasetStats);
+  applyPointsMultiplier(totalsB, analysis.a.scheme);
+  applyPointsMultiplier(totalsA, analysis.b.scheme);
+
   applyUsageCompression(totalsA, rosterA, datasetStats);
   applyUsageCompression(totalsB, rosterB, datasetStats);
   applyScoringCeiling(totalsA, rosterA, minutesA);
@@ -792,10 +1070,8 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
     // OT is already crunch time - it plays out under the same clutch mods as
     // the 4th quarter, not the base ones.
     const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB);
-    for (const slot of Object.keys(totalsA)) {
-      addLine(totalsA[slot], ot.totalsA[slot]);
-      addLine(totalsB[slot], ot.totalsB[slot]);
-    }
+    for (const slot of Object.keys(totalsA)) addLine(totalsA[slot], ot.totalsA[slot]);
+    for (const slot of Object.keys(totalsB)) addLine(totalsB[slot], ot.totalsB[slot]);
     quarterBoxScores.push(...ot.quarterBoxScores.map((q) => ({ ...q, overtime: true })));
     otPeriods += 1;
   }
@@ -805,10 +1081,8 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
 
   const boxA = {};
   const boxB = {};
-  for (const slot of Object.keys(totalsA)) {
-    boxA[slot] = roundLine(totalsA[slot]);
-    boxB[slot] = roundLine(totalsB[slot]);
-  }
+  for (const slot of Object.keys(totalsA)) boxA[slot] = roundLine(totalsA[slot]);
+  for (const slot of Object.keys(totalsB)) boxB[slot] = roundLine(totalsB[slot]);
 
   // The per-period lines were captured before the game-level adjustments
   // above, which only ever touched the totals - so until now the periods and
@@ -831,6 +1105,29 @@ export function simulateGame(rosterA, rosterB, datasetStats, opts = {}) {
     overtimePeriods: otPeriods,
     winner: teamScoreA === teamScoreB ? (rosterCombinedImpact(rosterA) >= rosterCombinedImpact(rosterB) ? "A" : "B") : teamScoreA > teamScoreB ? "A" : "B",
     mvp,
+    analysis,
+  };
+}
+
+/** Everything the draft itself contributed to one side's result, as one
+ * object the recap can narrate and one `factor` the simulation applies.
+ *
+ * Exported because the online path needs it too: the Edge Function stores a
+ * box score, not this, so the client recomputes it from the two rosters -
+ * which it can, because every term here is a pure function of them. */
+export function draftAnalysis(roster, oppRoster, datasetStats, forfeitedSlots = []) {
+  const metrics = constructionMetrics(roster, datasetStats);
+  const construction = constructionFactor(roster, datasetStats);
+  const counter = counterFactor(roster, oppRoster, datasetStats);
+  const forfeitTeam = forfeitTeamFactor(forfeitedSlots);
+  return {
+    metrics,
+    tilt: rosterTilt(roster, datasetStats),
+    forfeits: [...forfeitedSlots],
+    construction,
+    counter,
+    forfeitTeam,
+    factor: construction * counter * forfeitTeam,
   };
 }
 

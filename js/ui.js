@@ -223,11 +223,13 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
   const result = resolveTypedInput(filterText, squad, allPlayers);
 
   if (result.tier === "too-short") {
-    const text =
-      filterText.trim().length === 0
-        ? `Type a player's name from memory (${MIN_SEARCH_CHARS}+ letters) to search this squad.`
-        : `Keep typing — ${MIN_SEARCH_CHARS}+ letters needed to search.`;
-    renderNote(container, text);
+    // Nothing typed yet says nothing: the ruleset hint directly above the box
+    // already explains that you type a name and that it takes three letters,
+    // and printing the same instruction twice cost four lines of a phone
+    // screen right where the board needs them. Once someone HAS started
+    // typing, "keep going" is real feedback and is worth a line.
+    if (filterText.trim().length === 0) return;
+    renderNote(container, `Keep typing — ${MIN_SEARCH_CHARS}+ letters needed to search.`);
     return;
   }
 

@@ -277,8 +277,10 @@ async function signIn(page, { username, password }, log) {
 
   await page.locator("#screen-auth:not(.hidden)").waitFor({ state: "visible", timeout: 30000 });
 
-  // The screen opens in "Sign In"; creating an account is behind the toggle.
-  await page.locator("#input-auth-username").fill(username);
+  // The screen opens in "Sign In", which asks for one identifier - an email
+  // address, or a legacy username, resolved by signIn() in supabaseClient.js.
+  // Creating an account (email + username + password) is behind the toggle.
+  await page.locator("#input-auth-identifier").fill(username);
   await page.locator("#input-auth-password").fill(password);
   await page.locator("#btn-auth-submit").click();
 

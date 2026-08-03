@@ -11,9 +11,10 @@
 // Everything here is derived from the box scores both modes already produce,
 // so it works identically for practice and ranked with no extra data.
 
-import { orderedRosterSlots, isBenchSlot } from "./constants.js";
+import { orderedRosterSlots, isBenchSlot, basePosition, FATIGUE_MINUTES, STARTER_MINUTES } from "./constants.js";
 import { gameScore } from "./engine.js";
 import { shootingNote } from "./shooting.js";
+import { tacticById } from "./tactics.js";
 
 /** Per-quarter team point totals for one side, from the period-by-period
  * box scores the engine already produces. This is what lets the recap talk
@@ -380,4 +381,279 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, sho
   if (shooting) sentences.push(shooting);
 
   return { headline, detail: sentences.join(" ") };
+}
+
+// ---------------------------------------------------------------------------
+// Post-game analysis: why the game was won or lost, as a list rather than a
+// paragraph.
+//
+// The narrative recap above is the broadcast voice - it's about the game. This
+// is the coach's voice, and it's about YOU: the four or five numbers that
+// actually decided it, and what your rotation, matchups and gamestyle did
+// once the ball went up. A player who can see that Crash the Glass won them
+// the rebounding battle will spend the next draft thinking about rebounding,
+// which is the entire point.
+// ---------------------------------------------------------------------------
+
+/** Bench production for one side. Bench slots are open (see constants.js), so
+ * this is derived from the roster's own slot names rather than a fixed list. */
+function benchPoints(box, roster) {
+  return rosterSlots(roster)
+    .filter((slot) => isBenchSlot(slot) || slot === "6TH")
+    .reduce((sum, slot) => sum + ((box[slot] && box[slot].pts) || 0), 0);
+}
+
+/** Scoring from the front court - the closest this dataset gets to points in
+ * the paint, since there's no shot-location split to read. Named honestly in
+ * the output for that reason. */
+function frontcourtPoints(box, roster) {
+  return rosterSlots(roster)
+    .filter((slot) => {
+      const player = roster[slot];
+      const pos = basePosition(slot) || (player && player.pos && player.pos[0]);
+      return pos === "PF" || pos === "C";
+    })
+    .reduce((sum, slot) => sum + ((box[slot] && box[slot].pts) || 0), 0);
+}
+
+/** Team three-point percentage from the shot splits, or null when the roster
+ * predates the line (every 1960s/70s squad) and nobody attempted one. */
+function threePointPct(shots) {
+  if (!shots) return null;
+  let made = 0;
+  let attempted = 0;
+  for (const slot of Object.keys(shots)) {
+    const line = shots[slot];
+    if (!line) continue;
+    made += line.tpm || 0;
+    attempted += line.tpa || 0;
+  }
+  if (attempted < 8) return null;
+  return { pct: made / attempted, made, attempted };
+}
+
+/** A player's expected points for the minutes he actually played, which is
+ * what "held him to 19" has to be measured against - 19 is a quiet night for
+ * a 28-point scorer and a huge one for a backup. */
+function expectedPoints(player, slot, minutes) {
+  const played = minutes && Number.isFinite(minutes[slot]) ? minutes[slot] : STARTER_MINUTES;
+  return player.ppg * (played / STARTER_MINUTES);
+}
+
+// What each gamestyle promised, and the box-score column that proves it kept
+// the promise. Keyed by the same ids js/tactics.js defines; a style with no
+// entry simply produces no line rather than a made-up one.
+const TACTIC_PROOF = {
+  "crash-the-glass": { stat: "reb", won: "Crash the Glass won you the rebounding battle", lost: "Crash the Glass didn't land - you still lost the glass" },
+  "lockdown-defense": { stat: "against", won: "Lockdown Defense held them under their number", lost: "Lockdown Defense gave up too much anyway" },
+  "defensive-pressure": { stat: "forced", won: "Defensive Pressure forced them into giveaways", lost: "Defensive Pressure didn't force the turnovers it needed" },
+  "ball-movement": { stat: "ast", won: "Ball Movement had the ball humming", lost: "Ball Movement never got going" },
+  "run-and-gun": { stat: "pts", won: "Run & Gun created the extra transition looks", lost: "Run & Gun traded defense for points you didn't get" },
+  "small-ball": { stat: "stl", won: "Small Ball switched everything and got into passing lanes", lost: "Small Ball cost you the glass without the steals to pay for it" },
+  "spread-perimeter": { stat: "pts", won: "Spreading the perimeter opened the floor up", lost: "Spreading the perimeter cost you the offensive glass for nothing" },
+  "paint-dominance": { stat: "reb", won: "Paint Dominance owned the interior", lost: "Paint Dominance never established anything inside" },
+  "isolation-heavy": { stat: "clutch", won: "Isolation Heavy's clutch scoring showed up in the 4th", lost: "Isolation Heavy went cold when it mattered" },
+  balanced: { stat: null, won: "Balanced kept you in it everywhere", lost: "Balanced left you without an edge anywhere" },
+};
+
+/** What the coaching decisions actually did. Every line is checked against
+ * the finished box score - nothing here says a choice worked unless it did. */
+function coachingNotes({ box, oppBox, roster, oppRoster, minutes, oppMinutes, matchups, tacticId, totals, oppTotals, quarterBoxScores, key, skipBench }) {
+  const notes = [];
+
+  // 1. Defensive assignments. Only the starters are assignable, and only a
+  // clearly suppressed or clearly exploded matchup is worth a sentence.
+  if (matchups) {
+    const graded = [];
+    for (const slot of Object.keys(matchups)) {
+      const target = matchups[slot];
+      const defender = roster[slot];
+      const attacker = oppRoster[target];
+      const line = oppBox[target];
+      if (!defender || !attacker || !line) continue;
+      const expected = expectedPoints(attacker, target, oppMinutes);
+      if (expected < 8) continue; // nothing to hold him to
+      graded.push({ slot, defender, attacker, pts: line.pts, ratio: line.pts / expected });
+    }
+    graded.sort((a, b) => a.ratio - b.ratio);
+    const best = graded[0];
+    const worst = graded[graded.length - 1];
+    if (best && best.ratio <= 0.78) {
+      notes.push(`Your ${best.slot} held ${best.attacker.name} to ${Math.round(best.pts)} points.`);
+    }
+    if (worst && worst.ratio >= 1.3 && worst !== best) {
+      notes.push(`${worst.attacker.name} went for ${Math.round(worst.pts)} against your ${worst.slot} - wrong man on him.`);
+    }
+  }
+
+  // 2. Rotation. Fatigue is real in this engine (see fatigueFactor), so a
+  // heavy-minutes starter who faded in the 4th is a rotation lesson, and a
+  // bench that outscored theirs is the payoff for drafting depth.
+  if (minutes) {
+    const tired = rosterSlots(roster)
+      .filter((slot) => Number.isFinite(minutes[slot]) && minutes[slot] > FATIGUE_MINUTES)
+      .sort((a, b) => minutes[b] - minutes[a]);
+    if (tired.length > 0 && quarterBoxScores && quarterBoxScores.length >= 4) {
+      const slot = tired[0];
+      const early = [0, 1, 2].reduce((sum, i) => {
+        const q = quarterBoxScores[i];
+        return sum + ((q && q[key] && q[key][slot] && q[key][slot].pts) || 0);
+      }, 0) / 3;
+      const q4 = (quarterBoxScores[3][key] && quarterBoxScores[3][key][slot] && quarterBoxScores[3][key][slot].pts) || 0;
+      if (early > 0 && q4 < early * 0.65) {
+        notes.push(
+          `${roster[slot].name} played ${minutes[slot]} minutes and had nothing left in the 4th - a deeper rotation buys that back.`
+        );
+      } else {
+        notes.push(`${roster[slot].name} carried ${minutes[slot]} minutes and held up.`);
+      }
+    }
+    // The bench margin is one of the headline reasons above whenever it was
+    // decisive, and saying it twice on one screen reads as padding.
+    const myBench = skipBench ? 0 : benchPoints(box, roster);
+    const theirBench = skipBench ? 0 : benchPoints(oppBox, oppRoster);
+    if (myBench - theirBench >= 8) {
+      notes.push(`Your bench outscored theirs by ${Math.round(myBench - theirBench)} - depth paid.`);
+    } else if (theirBench - myBench >= 8) {
+      notes.push(`Their bench outscored yours by ${Math.round(theirBench - myBench)} - your second unit gave the game back.`);
+    }
+  }
+
+  // 3. Gamestyle, checked against the column it promised to move.
+  const proof = tacticId ? TACTIC_PROOF[tacticId] : null;
+  if (proof) {
+    let kept;
+    switch (proof.stat) {
+      case "reb": kept = totals.reb > oppTotals.reb; break;
+      case "ast": kept = totals.ast > oppTotals.ast; break;
+      case "stl": kept = totals.stl > oppTotals.stl; break;
+      case "pts": kept = totals.pts > oppTotals.pts; break;
+      case "against": kept = oppTotals.pts < totals.pts; break;
+      case "forced": kept = oppTotals.tov > totals.tov; break;
+      case "clutch": {
+        const q4 = quarterBoxScores && quarterBoxScores[3];
+        const mine4 = q4 ? Object.values(q4[key] || {}).reduce((s, l) => s + (l.pts || 0), 0) : 0;
+        const theirs4 = q4 ? Object.values(q4[key === "a" ? "b" : "a"] || {}).reduce((s, l) => s + (l.pts || 0), 0) : 0;
+        kept = mine4 > theirs4;
+        break;
+      }
+      default: kept = totals.pts > oppTotals.pts;
+    }
+    notes.push(`${kept ? proof.won : proof.lost}.`);
+  }
+
+  return notes;
+}
+
+/**
+ * The "why you won / why you lost" panel.
+ *
+ * @param result simulateGame output (or the normalized server result)
+ * @param ctx {rosterA, rosterB, minutesA, minutesB, matchupsA, tacticA,
+ *   shotsA, shotsB, analysisA} - everything the client has in BOTH modes.
+ *   Anything missing simply produces fewer lines rather than a wrong one.
+ * @returns {{won: boolean, title: string, reasons: string[], coaching: string[]}}
+ */
+export function buildWhyBreakdown(result, ctx = {}) {
+  const won = result.winner === "A";
+  const mine = teamTotals(result.boxA);
+  const theirs = teamTotals(result.boxB);
+  const rosterA = ctx.rosterA || {};
+  const rosterB = ctx.rosterB || {};
+
+  const reasons = [];
+  const push = (text) => reasons.push(text);
+
+  // Rebounding, the single most legible edge in this engine.
+  const rebDiff = Math.round(mine.reb - theirs.reb);
+  if (won && rebDiff >= 5) push(`+${rebDiff} rebounds`);
+  else if (!won && rebDiff <= -5) push(`Lost the glass by ${Math.abs(rebDiff)}`);
+
+  // Bench, which is what the five open bench slots are there to reward.
+  const benchDiff = Math.round(benchPoints(result.boxA, rosterA) - benchPoints(result.boxB, rosterB));
+  let benchCalledOut = false;
+  if (won && benchDiff >= 6) {
+    push(`+${benchDiff} bench points`);
+    benchCalledOut = true;
+  } else if (!won && benchDiff <= -6) {
+    push(`Bench gave up a ${Math.abs(benchDiff)}-point swing`);
+    benchCalledOut = true;
+  }
+
+  // Turnovers - the one column where fewer is better.
+  const myTov = Math.round(mine.tov);
+  const tovDiff = Math.round(theirs.tov - mine.tov);
+  if (won && tovDiff >= 4) push(`Forced ${tovDiff} more turnovers than you gave up`);
+  else if (!won && tovDiff <= -4) push(`${myTov} turnovers`);
+
+  // Their shooting night, when the data supports naming one.
+  const theirThrees = threePointPct(ctx.shotsB);
+  const myThrees = threePointPct(ctx.shotsA);
+  if (won && theirThrees && theirThrees.pct <= 0.3) {
+    push(`Opponent shot ${Math.round(theirThrees.pct * 100)}% from three`);
+  } else if (!won && myThrees && myThrees.pct <= 0.3) {
+    push(`You shot ${Math.round(myThrees.pct * 100)}% from three (${myThrees.made}/${myThrees.attempted})`);
+  }
+
+  // Front-court scoring - the closest honest proxy for points in the paint.
+  const fcDiff = Math.round(frontcourtPoints(result.boxA, rosterA) - frontcourtPoints(result.boxB, rosterB));
+  if (won && fcDiff >= 10) push(`Won the front court by ${fcDiff}`);
+  else if (!won && fcDiff <= -10) push(`Beaten in the front court by ${Math.abs(fcDiff)}`);
+
+  // Your best player's night, measured against his own average rather than
+  // against his team-mates.
+  const slots = rosterSlots(rosterA).filter((slot) => result.boxA[slot]);
+  if (slots.length > 0) {
+    const star = slots.reduce((a, b) => (rosterA[a].ppg >= rosterA[b].ppg ? a : b));
+    const expected = expectedPoints(rosterA[star], star, ctx.minutesA);
+    const actual = result.boxA[star].pts;
+    if (won && expected > 0 && actual >= expected * 1.3) {
+      push(`${rosterA[star].name} went off for ${Math.round(actual)}`);
+    } else if (!won && expected > 8 && actual <= expected * 0.6) {
+      push(`${rosterA[star].name} was shut down (${Math.round(actual)} points)`);
+    }
+  }
+
+  // The draft itself. These come last because they're the deepest cause -
+  // the ones you fix a whole game earlier, at the draft board.
+  const analysis = ctx.analysisA;
+  if (analysis) {
+    if (analysis.forfeits.length > 0) {
+      push(
+        `${analysis.forfeits.length} forfeited pick${analysis.forfeits.length === 1 ? "" : "s"} - the clock drafted for you`
+      );
+    }
+    if (analysis.counter >= 1.02) push("Your build attacked theirs - they had no answer for it");
+    else if (analysis.counter <= 0.98) push("They drafted the counter to your build");
+    if (analysis.construction >= 1.03) push("Balanced roster with no hole to attack");
+    else if (analysis.construction <= 0.97) push("Roster had a hole they could aim at");
+  }
+
+  if (reasons.length === 0) {
+    push(won ? "You were simply the better team on the night" : "Nothing went badly wrong - they were just better");
+  }
+
+  const coaching = coachingNotes({
+    skipBench: benchCalledOut,
+    box: result.boxA,
+    oppBox: result.boxB,
+    roster: rosterA,
+    oppRoster: rosterB,
+    minutes: ctx.minutesA,
+    oppMinutes: ctx.minutesB,
+    matchups: ctx.matchupsA,
+    tacticId: ctx.tacticA,
+    totals: mine,
+    oppTotals: theirs,
+    quarterBoxScores: result.quarterBoxScores,
+    key: "a",
+  });
+
+  return {
+    won,
+    title: won ? "Why You Won" : "Why You Lost",
+    reasons: reasons.slice(0, 5),
+    coaching: coaching.slice(0, 4),
+    tacticName: ctx.tacticA ? tacticById(ctx.tacticA).name : null,
+  };
 }
