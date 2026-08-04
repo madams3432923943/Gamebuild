@@ -1,0 +1,49 @@
+# Deploys the simulate-match Edge Function whenever it changes on main.
+#
+# The function is the other half of the app: GitHub Pages serves the client
+# from this repo automatically, but the server that actually simulates online
+# matches had to be pushed by hand. That gap is where bugs went to hide - the
+# forfeit penalty, per-era records and the whole ELO system all sat written but
+# undeployed, so the live site ran client code against a server that had never
+# heard of it. "Make client code tolerate a server that hasn't caught up yet"
+# (CLAUDE.md) is still good advice, but it should be covering a few minutes of
+# deploy lag, not weeks.
+#
+# Runs only when supabase/functions/** changes, so an ordinary front-end push
+# doesn't redeploy a function that didn't move.
+name: Deploy Edge Function
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/deploy-edge-function.yml"
+  # Lets you deploy on demand from the Actions tab without pushing anything -
+  # useful the first time, when the function is already behind main.
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Parity is checked against the files in this same checkout, so a commit
+      # that changed the client engine without copying it across fails HERE
+      # rather than by quietly diverging in production. This is the one moment
+      # both halves are guaranteed to be looking at the same tree.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run verify:parity -- --no-network
+
+      - name: Deploy simulate-match
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy simulate-match --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}
