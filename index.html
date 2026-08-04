@@ -106,7 +106,12 @@
            own How to Play, and the row itself is the way into playing it.
            Rendered from the registry so a new sport appears here the day it
            ships, carrying all three without anyone editing this markup. -->
-      <h2 class="section-heading">Choose your sport</h2>
+      <div class="section-head">
+        <h2 class="section-heading">Choose your sport</h2>
+        <!-- The all-sports ladder belongs to no sport on the list below, so it
+             sits beside the heading rather than on any one card. -->
+        <button type="button" id="btn-overall-ladder" class="sport-card-action">🏅 Overall Rank</button>
+      </div>
       <div class="sport-cards" id="home-sport-cards"></div>
     </section>
 

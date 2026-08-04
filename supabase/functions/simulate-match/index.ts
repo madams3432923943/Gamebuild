@@ -114,6 +114,17 @@ function bumpEraRecord(records: Record<string, any>, eraKey: string, won: boolea
 const ownLinesFor = (roster: Record<string, any>, box: Record<string, any>) =>
   Object.keys(roster).map((slot) => ({ playerName: roster[slot].name, line: box[slot] }));
 
+/** Strips a roster to what a stored box score needs to re-render later - the
+ * server's copy of snapshotRoster() in js/profile.js. Keeping pos and the
+ * per-game stat fields out is what keeps this a couple of KB per record. */
+function snapshotRoster(roster: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [slot, player] of Object.entries(roster || {})) {
+    if (player) out[slot] = { name: player.name, team: player.team, decade: player.decade };
+  }
+  return out;
+}
+
 /** friendly (challenge-a-friend) matches always skip online_wins/
  * online_losses - "for fun" means not rank-affecting, and it closes off
  * the obvious two-friends-feed-each-other-wins abuse a ranked version of
@@ -132,25 +143,62 @@ async function applyMatchOutcome(
   friendly: boolean,
   sport: string,
   era: string,
-  nextSportRatings: Record<string, any> | null
+  nextSportRatings: Record<string, any> | null,
+  snapshot: Record<string, any> | null
 ) {
   if (!profile) return;
 
   const date = new Date().toISOString();
+
+  // Personal bests and draft counts are namespaced by sport, matching
+  // statsKey() in js/sports/index.js: bare key for basketball so every row
+  // already in the database keeps working, prefixed for everything after. The
+  // two rules are deliberate copies and must stay in step.
+  const key = (k: string) => (sport === "nba" ? k : `${sport}:${k}`);
+
+  // Each best carries the box score of the game it was set in, so the profile
+  // can open it - the same snapshot the client writes for practice games (see
+  // recordPracticeResult), or online records would be the only unclickable
+  // ones on the card.
+  const game = snapshot ? { date, mode: friendly ? "friendly" : "online", era, opponentLabel, scoreFor, scoreAgainst, ...snapshot } : null;
+
   const personalBests: Record<string, any> = { ...(profile.personal_bests || {}) };
-  for (const key of STAT_LABELS) {
+  for (const statKey of STAT_LABELS) {
     for (const { playerName, line } of ownLines) {
-      const value = line[key];
-      const current = personalBests[key];
+      const value = line[statKey];
+      const current = personalBests[key(statKey)];
       if (!current || value > current.value) {
-        personalBests[key] = { value, playerName, date };
+        personalBests[key(statKey)] = { value, playerName, date, game };
       }
     }
   }
 
   const draftCounts: Record<string, number> = { ...(profile.draft_counts || {}) };
   for (const { playerName } of ownLines) {
-    draftCounts[playerName] = (draftCounts[playerName] || 0) + 1;
+    draftCounts[key(playerName)] = (draftCounts[key(playerName)] || 0) + 1;
+  }
+
+  // Both game records are keyed by sport. A stored value carrying `value` at
+  // the top level is the old single-sport shape and can only be basketball -
+  // same back-compat rule as gameRecordFor() in js/profile.js.
+  const recordFor = (stored: Record<string, any> | null, sportId: string) =>
+    !stored ? null : stored.value !== undefined ? (sportId === "nba" ? stored : null) : stored[sportId] || null;
+  const putRecord = (stored: Record<string, any> | null, sportId: string, entry: Record<string, any>) => ({
+    ...(stored && stored.value !== undefined ? { nba: stored } : stored || {}),
+    [sportId]: entry,
+  });
+
+  let highestScoringGame = profile.highest_scoring_game;
+  const bestScoring = recordFor(highestScoringGame, sport);
+  if (game && (!bestScoring || scoreFor > bestScoring.value)) {
+    highestScoringGame = putRecord(highestScoringGame, sport, { value: scoreFor, ...game });
+  }
+
+  let largestMarginGame = profile.largest_margin_game;
+  const bestMargin = recordFor(largestMarginGame, sport);
+  const margin = scoreFor - scoreAgainst;
+  if (won && game && (!bestMargin || margin > bestMargin.value)) {
+    largestMarginGame = putRecord(largestMarginGame, sport, { value: margin, ...game });
   }
 
   const history = [
@@ -158,7 +206,13 @@ async function applyMatchOutcome(
     ...(profile.history || []),
   ].slice(0, 50);
 
-  const update: Record<string, unknown> = { personal_bests: personalBests, draft_counts: draftCounts, history };
+  const update: Record<string, unknown> = {
+    personal_bests: personalBests,
+    draft_counts: draftCounts,
+    history,
+    highest_scoring_game: highestScoringGame,
+    largest_margin_game: largestMarginGame,
+  };
   if (!friendly) {
     update.online_wins = profile.online_wins + (won ? 1 : 0);
     update.online_losses = profile.online_losses + (won ? 0 : 1);
@@ -324,7 +378,17 @@ Deno.serve(async (req: Request) => {
     match.is_friendly,
     sportId,
     eraId,
-    exchange?.a ?? null
+    exchange?.a ?? null,
+    {
+      labelA: usernameOf(match.player_a),
+      labelB: usernameOf(match.player_b),
+      rosterA: snapshotRoster(rosterA),
+      rosterB: snapshotRoster(rosterB),
+      boxA: result.boxA,
+      boxB: result.boxB,
+      minutesA: match.rotation_a ?? null,
+      minutesB: match.rotation_b ?? null,
+    }
   );
   await applyMatchOutcome(
     admin,
@@ -339,7 +403,19 @@ Deno.serve(async (req: Request) => {
     match.is_friendly,
     sportId,
     eraId,
-    exchange?.b ?? null
+    exchange?.b ?? null,
+    // Sides swapped: each player's snapshot puts THEM on side A, so the stored
+    // box score reads the same way round as the game they played.
+    {
+      labelA: usernameOf(match.player_b),
+      labelB: usernameOf(match.player_a),
+      rosterA: snapshotRoster(rosterB),
+      rosterB: snapshotRoster(rosterA),
+      boxA: result.boxB,
+      boxB: result.boxA,
+      minutesA: match.rotation_b ?? null,
+      minutesB: match.rotation_a ?? null,
+    }
   );
 
   return json({ status: "complete", winner: result.winner, scoreA: result.teamScoreA, scoreB: result.teamScoreB });

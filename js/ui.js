@@ -14,6 +14,7 @@ import {
   winStreaks,
   mostMVPs,
   personalBestsFor,
+  gameRecordFor,
   FEATURED_BADGE_SLOTS,
   eraRecord,
 } from "./profile.js";
@@ -1012,19 +1013,46 @@ function renderEraRecords(container, profile, sport) {
 }
 
 /**
+ * One Top Performances row.
+ *
+ * A row becomes a button when the record carries the box score of the game it
+ * was set in, and stays a plain div when it doesn't - which is every record
+ * written before snapshots existed, and every empty placeholder. That is the
+ * honest split: a row only looks clickable when there is something behind it.
+ */
+function performanceRow(label, value, game = null, onOpenGame = null) {
+  const clickable = !!(game && game.boxA && game.boxB && onOpenGame);
+  const row = document.createElement(clickable ? "button" : "div");
+  row.className = "performance-row" + (clickable ? " record-link" : "");
+  if (clickable) {
+    row.type = "button";
+    row.addEventListener("click", () => onOpenGame(game));
+  }
+  row.innerHTML = `<span></span><span class="performance-line"></span>`;
+  // innerHTML for the label because callers pass pre-escaped markup for the
+  // player-name half; the value is always ours and goes in as text.
+  row.firstChild.innerHTML = label;
+  row.lastChild.textContent = value;
+  return row;
+}
+
+/**
  * @param rankInfo the player's GENERAL, all-sports standing - the one on their
  *   banner. It sits at the top of the screen because it is the headline.
  * @param sport which sport's career stats to show. Everything below the subtab
  *   row is scoped to it, including `sportRankInfo` - that sport's own ELO
  *   standing on its own ladder, which is a different number from `rankInfo`
  *   and is the whole point of ratings being per-sport.
+ * @param onOpenGame called with a stored game snapshot when a record row is
+ *   clicked. Rows without a snapshot are not clickable at all.
  */
 export function renderProfileScreen(
   refs,
   profile,
   rankInfo,
   sport = sportById(DEFAULT_SPORT_ID),
-  sportRankInfo = null
+  sportRankInfo = null,
+  onOpenGame = null
 ) {
   refs.usernameInput.value = profile.username || "";
   renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
@@ -1079,40 +1107,50 @@ export function renderProfileScreen(
   } else {
     for (const key of bestKeys) {
       const best = bests[key];
-      const row = document.createElement("div");
-      row.className = "performance-row";
-      if (best) {
-        const date = new Date(best.date).toLocaleDateString();
-        row.innerHTML = `<span>Most ${statLabels[key]} — ${escapeHtml(best.playerName)}</span><span class="performance-line">${r(best.value)} — ${date}</span>`;
-      } else {
-        row.innerHTML = `<span>Most ${statLabels[key]}</span><span class="performance-line">—</span>`;
-      }
-      refs.topPerformances.appendChild(row);
+      const label = `Most ${statLabels[key]}`;
+      refs.topPerformances.appendChild(
+        best
+          ? performanceRow(
+              `${label} — ${escapeHtml(best.playerName)}`,
+              `${r(best.value)} — ${new Date(best.date).toLocaleDateString()}`,
+              best.game,
+              onOpenGame
+            )
+          : performanceRow(label, "—")
+      );
     }
   }
 
-  const scoringGame = profile.highestScoringGame;
-  refs.highestScoringGame.disabled = !scoringGame;
-  refs.highestScoringGame.innerHTML = scoringGame
-    ? `<span>Highest Scoring Game — vs ${scoringGame.opponentLabel}</span>` +
-      `<span class="performance-line">${scoringGame.scoreFor} — ${new Date(scoringGame.date).toLocaleDateString()}</span>`
-    : `<span>Highest Scoring Game</span><span class="performance-line">—</span>`;
+  // Both game records are keyed by sport now, so the football tab cannot show
+  // your best basketball night. gameRecordFor also reads the old flat shape.
+  const scoringGame = gameRecordFor(profile.highestScoringGame, sport.id);
+  refs.highestScoringGame.replaceWith(
+    (refs.highestScoringGame = performanceRow(
+      scoringGame ? `Highest Scoring Game — vs ${escapeHtml(scoringGame.opponentLabel)}` : "Highest Scoring Game",
+      scoringGame ? `${scoringGame.scoreFor} — ${new Date(scoringGame.date).toLocaleDateString()}` : "—",
+      scoringGame,
+      onOpenGame
+    ))
+  );
 
-  const marginGame = profile.largestMarginGame;
-  refs.largestMargin.innerHTML = marginGame
-    ? `<div class="performance-row"><span>Biggest Win — vs ${marginGame.opponentLabel}</span>` +
-      `<span class="performance-line">${marginGame.value}-point win — ${new Date(marginGame.date).toLocaleDateString()}</span></div>`
-    : `<div class="performance-row"><span>Biggest Win</span><span class="performance-line">—</span></div>`;
+  const marginGame = gameRecordFor(profile.largestMarginGame, sport.id);
+  refs.largestMargin.innerHTML = "";
+  refs.largestMargin.appendChild(
+    performanceRow(
+      marginGame ? `Biggest Win — vs ${escapeHtml(marginGame.opponentLabel)}` : "Biggest Win",
+      marginGame
+        ? `${marginGame.value}-point win — ${new Date(marginGame.date).toLocaleDateString()}`
+        : "—",
+      marginGame,
+      onOpenGame
+    )
+  );
 
   const tripleDoubles = mostTripleDoubles(profile, sport.id);
   refs.mostTripleDoubles.innerHTML = tripleDoubles
-    ? `<div class="performance-row"><span>Most Triple-Doubles — ${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x</span></div>`
+    ? `<div class="performance-row"><span>Most Triple-Doubles — ${escapeHtml(tripleDoubles.name)}</span><span class="performance-line">${tripleDoubles.count}x</span></div>`
     : `<div class="performance-row"><span>Most Triple-Doubles</span><span class="performance-line">—</span></div>`;
 
-  // Labelled by whether history is complete. Under the cap it holds every
-  // game the player has played, so "longest" is genuinely all-time; at the
-  // cap it can only speak for the games it still has, and says so rather than
-  // quietly overclaiming.
   const streaks = winStreaks(profile);
   const streakScope = streaks.complete ? "" : ` (last ${streaks.sampled})`;
   const streakLine =

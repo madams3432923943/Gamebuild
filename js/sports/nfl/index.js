@@ -131,20 +131,30 @@ export const NFL = {
   // forget. See db/migrations for the schema.
   table: "nfl_players",
   statKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
-  lineKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
+  // Kept in step with statLabels below: these are the columns a football box
+  // score will carry, and the profile's records are read straight off them.
+  lineKeys: ["pass_yds", "pass_tds", "rush_yds", "rush_tds", "rec_yds", "rec_tds", "ints", "fumbles", "fgs"],
 
   // Placeholders, and honestly so: no NFL game has been simulated, so every
   // one of these reads as a dash on the profile. They are declared now because
   // the profile screen builds its Top Performances list from this - without it
-  // the NFL subtab would have nothing to draw at all, and "no games yet" is a
-  // more useful thing to show than an empty panel. The set will be revisited
-  // when the engine exists and settles what a football box score contains.
+  // the NFL subtab would have nothing to draw at all, and showing what WILL be
+  // tracked is more useful than an empty panel.
+  //
+  // Both sides of the ball, because football records that only covered offence
+  // would leave half a roster with nothing to chase. Keyed to match what a
+  // football box score will carry (lineKeys above), so when the engine lands
+  // these start filling in rather than needing renaming.
   statLabels: {
     pass_yds: "Passing Yards",
+    pass_tds: "Passing TDs",
     rush_yds: "Rushing Yards",
+    rush_tds: "Rushing TDs",
     rec_yds: "Receiving Yards",
-    tds: "Touchdowns",
-    turnovers: "Takeaways",
+    rec_tds: "Receiving TDs",
+    ints: "Interceptions",
+    fumbles: "Fumbles Recovered",
+    fgs: "Field Goals",
   },
 
   // ---- Not built yet ------------------------------------------------------

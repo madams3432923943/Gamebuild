@@ -2920,7 +2920,7 @@ async function renderProfileFor(profile) {
     // haven't played enough" rather than "this doesn't exist yet".
     statsSport.live ? loadRankInfo(profile, statsSport.id, population) : Promise.resolve(null),
   ]);
-  renderProfileScreen(profileRefs, profile, overall, statsSport, sportRank);
+  renderProfileScreen(profileRefs, profile, overall, statsSport, sportRank, openStoredGame);
   renderBadgeSportTabs(profileStatsTabsEl, profileStatsSportId, (id) => {
     profileStatsSportId = id;
     if (currentProfile) renderProfileFor(currentProfile).catch((e) => console.error(e));
@@ -3032,34 +3032,8 @@ function renderLadder(tiers, rankInfo) {
   return list;
 }
 
-/** A titled ladder section, with the one line of context that ladder needs. */
-function ladderSection(heading, blurb, tiers, rankInfo) {
-  const section = document.createElement("div");
-  section.className = "howto-section";
-
-  const h = document.createElement("h4");
-  h.textContent = heading;
-  section.appendChild(h);
-
-  const note = document.createElement("p");
-  note.className = "hint-text";
-  note.textContent =
-    rankInfo && rankInfo.provisional
-      ? `${blurb} ${rankInfo.gamesNeeded} more online game${
-          rankInfo.gamesNeeded === 1 ? "" : "s"
-        } and you'll be placed on it.`
-      : blurb;
-  section.appendChild(note);
-
-  section.appendChild(renderLadder(tiers, rankInfo));
-  return section;
-}
-
-/** @param sportId which sport's ladder to show alongside the all-sports one.
- * Defaults to the profile screen's subtab, which is the other entry point. */
-async function openRankLadder(sportId = profileStatsSportId) {
-  const wrap = document.createElement("div");
-
+/** The shared preamble both ladders need: what a rating is and how you get one. */
+function ladderIntro() {
   const intro = document.createElement("p");
   intro.className = "hint-text";
   intro.textContent =
@@ -3067,57 +3041,94 @@ async function openRankLadder(sportId = profileStatsSportId) {
     `so beating someone above you pays more than beating someone below. Everyone starts at ` +
     `${START_RATING}. Rank is where that rating stands against everyone else's, not a win count. ` +
     `Bot games never count, and you need ${RANK_GAMES_FLOOR} online games before you're ranked at all.`;
-  wrap.appendChild(intro);
+  return intro;
+}
+
+const LADDER_TIP =
+  "Climbing it is about the draft, not the roll: build a roster with no hole to attack, " +
+  "counter what your opponent is building rather than mirroring it, back up every position " +
+  "so nobody has to play the whole game - and never let the clock make a pick for you.";
+
+/** ONE sport's ladder, opened from that sport's own card.
+ *
+ * Deliberately just the one: this modal is reached by pressing Rank on the NBA
+ * card, and answering with two ladders makes the player find theirs. The
+ * all-sports ladder has its own button beside the section heading. */
+async function openRankLadder(sportId = profileStatsSportId) {
+  const s = sportById(sportId);
+  const tiers = s.tiers || [];
+  const wrap = document.createElement("div");
+  wrap.appendChild(ladderIntro());
+
+  if (!tiers.length) {
+    const none = document.createElement("p");
+    none.className = "hint-text";
+    none.textContent = `${s.name} doesn't have a rank ladder yet.`;
+    wrap.appendChild(none);
+    openModal(`${s.name} Rank Ladder`, wrap);
+    return;
+  }
+
+  let info = null;
+  if (s.live) {
+    const profile = currentProfile || (await loadProfile().catch(() => null));
+    if (profile) info = await loadRankInfo(profile, s.id).catch(() => null);
+  }
+
+  const note = document.createElement("p");
+  note.className = "hint-text";
+  note.textContent = !s.live
+    ? `${s.name} isn't playable yet, so nobody is on this ladder.`
+    : info && info.provisional
+      ? `Your ${s.name} rating only - a result in another sport never moves it. ${
+          info.gamesNeeded
+        } more online game${info.gamesNeeded === 1 ? "" : "s"} and you'll be placed on it.`
+      : `Your ${s.name} rating only - a result in another sport never moves it.`;
+  wrap.appendChild(note);
+
+  wrap.appendChild(renderLadder(tiers, info));
+
+  const tip = document.createElement("p");
+  tip.className = "hint-text";
+  tip.textContent = LADDER_TIP;
+  wrap.appendChild(tip);
+
+  openModal(`${s.name} Rank Ladder`, wrap);
+}
+
+/** The all-sports ladder - the rank a player's banner carries. Its own button
+ * beside the sport list, because it belongs to no sport on that list. */
+async function openOverallLadder() {
+  const wrap = document.createElement("div");
+  wrap.appendChild(ladderIntro());
 
   const profile = currentProfile || (await loadProfile().catch(() => null));
-  const statsSport = sportById(sportId);
+  const info = profile ? await loadOverallRankInfo(profile).catch(() => null) : null;
 
-  let overall = null;
-  let sportRank = null;
-  if (profile) {
-    try {
-      [overall, sportRank] = await Promise.all([
-        loadOverallRankInfo(profile),
-        statsSport.live ? loadRankInfo(profile, statsSport.id) : Promise.resolve(null),
-      ]);
-    } catch (e) {
-      console.error("Failed to load rank info:", e);
-    }
-  }
+  const note = document.createElement("p");
+  note.className = "hint-text";
+  const blurb =
+    "Your rating across every sport you play, weighted by how much you play each, so a sport " +
+    "you have two games in cannot swing a rank built over a hundred.";
+  note.textContent =
+    info && info.provisional
+      ? `${blurb} ${info.gamesNeeded} more online game${
+          info.gamesNeeded === 1 ? "" : "s"
+        } and you'll be placed on it.`
+      : blurb;
+  wrap.appendChild(note);
 
-  wrap.appendChild(
-    ladderSection(
-      "All Sports",
-      "The rank on your banner. Your rating across every sport you play, weighted by how much you play each, so a sport you have two games in cannot swing a rank built over a hundred.",
-      GENERAL_TIERS,
-      overall
-    )
-  );
+  wrap.appendChild(renderLadder(GENERAL_TIERS, info));
 
-  const sportTiers = statsSport.tiers || [];
-  if (sportTiers.length) {
-    wrap.appendChild(
-      ladderSection(
-        `${statsSport.name}`,
-        statsSport.live
-          ? `Your ${statsSport.name} rating only. A result in one sport never moves your rank in another.`
-          : `${statsSport.name} isn't playable yet, so nobody is on this ladder.`,
-        sportTiers,
-        sportRank
-      )
-    );
-  }
+  const tip = document.createElement("p");
+  tip.className = "hint-text";
+  tip.textContent = LADDER_TIP;
+  wrap.appendChild(tip);
 
-  const skill = document.createElement("p");
-  skill.className = "hint-text";
-  skill.textContent =
-    "Climbing it is about the draft, not the roll: build a roster with no hole to attack, " +
-    "counter what your opponent is building rather than mirroring it, back up every position " +
-    "so nobody has to play the whole game - and never let the clock make a pick for you.";
-  wrap.appendChild(skill);
-
-  openModal("Rank Ladder", wrap);
+  openModal("Overall Rank Ladder", wrap);
 }
+
+document.getElementById("btn-overall-ladder").addEventListener("click", openOverallLadder);
 
 // The profile's ladder button follows that screen's sport subtab. The home
 // screen's app-wide one is gone: each sport card opens its own.
@@ -3169,9 +3180,14 @@ async function onEquipBannerFromProfile(franchiseId) {
   renderEquippedBanner(profileEquippedBannerEl, profile);
 }
 
-profileRefs.highestScoringGame.addEventListener("click", () => {
-  const game = currentProfile?.highestScoringGame;
-  if (!game) return;
+/** Opens the box score a stored record was set in.
+ *
+ * Every Top Performances row that carries a snapshot routes here, rather than
+ * the one hardcoded Highest Scoring Game listener this replaces - "most points
+ * by one of my players" is exactly as worth looking at as "most points by my
+ * team", and it was only the latter that was clickable. */
+function openStoredGame(game) {
+  if (!game || !game.boxA || !game.boxB) return;
   const wrap = document.createElement("div");
   renderFullBoxScore(
     wrap,
@@ -3188,7 +3204,7 @@ profileRefs.highestScoringGame.addEventListener("click", () => {
     true
   );
   openModal(`${game.scoreFor}-${game.scoreAgainst} vs ${game.opponentLabel}`, wrap);
-});
+}
 
 const unlockablesTabsEl = document.getElementById("unlockables-tabs");
 const unlockablesBadgesEl = document.getElementById("unlockables-badges");

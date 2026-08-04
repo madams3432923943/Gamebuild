@@ -166,6 +166,28 @@ export function personalBestsFor(profile, sportId = DEFAULT_SPORT_ID) {
   return Object.fromEntries(scopedEntries(profile.personalBests, sportId));
 }
 
+/**
+ * One sport's entry out of highest_scoring_game / largest_margin_game.
+ *
+ * Both columns used to hold a single game object, from when there was one
+ * sport - which meant the NFL tab would proudly show you your best BASKETBALL
+ * game. They are keyed by sport now. A stored value carrying `value` at the
+ * top level is the old flat shape and can only be basketball, so it still
+ * reads correctly and needs no backfill.
+ */
+export function gameRecordFor(stored, sportId = DEFAULT_SPORT_ID) {
+  if (!stored) return null;
+  if (stored.value !== undefined) return sportId === DEFAULT_SPORT_ID ? stored : null;
+  return stored[sportId] || null;
+}
+
+/** Returns a NEW per-sport record object with one sport's entry replaced,
+ * migrating the old flat shape onto basketball's key on the way past. */
+function putGameRecord(stored, sportId, game) {
+  const base = stored && stored.value !== undefined ? { [DEFAULT_SPORT_ID]: stored } : { ...(stored || {}) };
+  return { ...base, [sportId]: game };
+}
+
 /** How many games profiles.history keeps. The Edge Function applies the same
  * cap to online results (see applyMatchOutcome), so the two stay in step. */
 export const HISTORY_LIMIT = 50;
@@ -337,6 +359,31 @@ export async function recordPracticeResult({
   // Every career-stat map is namespaced by sport from here on (statsKey), so
   // a football record can never be compared against a basketball one. NBA
   // keeps the bare key, which is what makes this need no backfill.
+  // Every personal best carries the box score of the game it happened in, so
+  // the profile can open it. A bare number tells you a player once scored 61;
+  // the snapshot lets you go and look at the night he did it, which is the
+  // part worth keeping. snapshotRoster strips it to names and lines, so this
+  // stays a couple of KB rather than a full roster per stat.
+  const gameSnapshot =
+    rosterA && rosterB && boxA && boxB
+      ? {
+          date,
+          mode,
+          era,
+          opponentLabel,
+          scoreFor,
+          scoreAgainst,
+          labelA,
+          labelB,
+          rosterA: snapshotRoster(rosterA),
+          rosterB: snapshotRoster(rosterB),
+          boxA,
+          boxB,
+          minutesA,
+          minutesB,
+        }
+      : null;
+
   const personalBests = { ...profile.personalBests };
   for (const statKey of statKeysFor(sport)) {
     const key = statsKey(sport, statKey);
@@ -344,7 +391,7 @@ export async function recordPracticeResult({
       const value = line[statKey];
       const current = personalBests[key];
       if (!current || value > current.value) {
-        personalBests[key] = { value, playerName, date };
+        personalBests[key] = { value, playerName, date, game: gameSnapshot };
       }
     }
   }
@@ -374,33 +421,26 @@ export async function recordPracticeResult({
   // lines only, see snapshotRoster) so the profile screen can show it back
   // later - every other record here is a bare number, but "click to see the
   // box score" needs the actual box score to click into.
+  // Both game records are keyed by sport now - your best basketball night has
+  // no business showing up under football.
   let highestScoringGame = profile.highestScoringGame;
-  if (rosterA && rosterB && boxA && boxB && (!highestScoringGame || scoreFor > highestScoringGame.value)) {
-    highestScoringGame = {
-      value: scoreFor,
-      date,
-      mode,
-      era,
-      opponentLabel,
-      scoreFor,
-      scoreAgainst,
-      labelA,
-      labelB,
-      rosterA: snapshotRoster(rosterA),
-      rosterB: snapshotRoster(rosterB),
-      boxA,
-      boxB,
-      minutesA,
-      minutesB,
-    };
+  const bestScoring = gameRecordFor(highestScoringGame, sport);
+  if (gameSnapshot && (!bestScoring || scoreFor > bestScoring.value)) {
+    highestScoringGame = putGameRecord(highestScoringGame, sport, { value: scoreFor, ...gameSnapshot });
   }
 
   // Margin of victory only makes sense for wins - a loss has no "victory" to
   // measure the margin of.
   let largestMarginGame = profile.largestMarginGame;
   const margin = scoreFor - scoreAgainst;
-  if (won && (!largestMarginGame || margin > largestMarginGame.value)) {
-    largestMarginGame = { value: margin, date, mode, era, opponentLabel, scoreFor, scoreAgainst };
+  const bestMargin = gameRecordFor(largestMarginGame, sport);
+  if (won && (!bestMargin || margin > bestMargin.value)) {
+    // Carries the snapshot too, so "Biggest Win" opens its box score like
+    // everything else on the card rather than being the one dead row.
+    largestMarginGame = putGameRecord(largestMarginGame, sport, {
+      value: margin,
+      ...(gameSnapshot || { date, mode, era, opponentLabel, scoreFor, scoreAgainst }),
+    });
   }
 
   const tripleDoubleCounts = { ...profile.tripleDoubleCounts };

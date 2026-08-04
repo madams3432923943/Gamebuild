@@ -358,6 +358,16 @@ input[type="text"]:focus-visible {
   margin-bottom: 1.25rem;
 }
 
+/* Section heading with an action beside it. The heading keeps its accent
+   underline, so the row aligns on the baseline rather than on the box. */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 /* The home screen's sport list. Each card is the way into that sport, and
    carries its rank and its two reference buttons. A list rather than the tile
    grid this replaced: a tile can hold a name and a status, and these have to
