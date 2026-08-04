@@ -3,9 +3,9 @@
 //   - "bot": synchronous, client-only (DraftState from draft.js).
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
-import { buildRecap, buildGameScript, buildWhyBreakdown } from "./recap.js";
-import { gradeDraft, rotationHint } from "./draftgrade.js";
-import { draftAnalysis } from "./engine.js";
+import { buildRecap, buildGameScript, buildWhyBreakdown } from "./sports/nba/recap.js";
+import { gradeDraft, rotationHint } from "./sports/nba/draftgrade.js";
+import { draftAnalysis } from "./sports/nba/engine.js";
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
@@ -13,24 +13,8 @@ import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
-import {
-  SLOTS,
-  STARTER_SLOTS,
-  RANKED_SLOTS,
-  DEFAULT_ERA,
-  QUARTER_REVEAL_DELAY_MS,
-  QUARTER_TICK_MS,
-  DRAFT_REVEAL_DELAY_MS,
-  PICK_TIMER_SECONDS,
-  TACTIC_TIMER_SECONDS,
-  ROTATION_TIMER_SECONDS,
-  ONLINE_ROTATION_TIMER_SECONDS,
-  MATCHUP_TIMER_SECONDS,
-  ONLINE_QUEUE_TIMEOUT_SECONDS,
-  RESULT_WAIT_MS,
-  ONLINE_QUEUE_POLL_MS,
-  MIN_SEARCH_CHARS,
-} from "./constants.js";
+import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, RANKED_SLOTS, DEFAULT_ERA } from "./sports/nba/constants.js";
 import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID } from "./sports/index.js";
 import {
   loadProfile,

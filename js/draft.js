@@ -1,8 +1,9 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { SLOTS, STARTER_SLOTS, BOT_POOL_SIZE, MIN_SEARCH_CHARS, basePosition, isBenchSlot } from "./constants.js";
-import { impact } from "./engine.js";
+import { BOT_POOL_SIZE, MIN_SEARCH_CHARS } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, basePosition, isBenchSlot } from "./sports/nba/constants.js";
+import { impact } from "./sports/nba/engine.js";
 
 export { basePosition };
 

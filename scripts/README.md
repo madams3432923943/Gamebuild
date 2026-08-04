@@ -23,7 +23,7 @@ Useful flags: `--no-browser`, `--no-parity`, `--no-network`, `--headed`,
 
 ### 1. Engine parity - is the online game the same game as the offline one?
 
-The offline game is simulated by `js/engine.js` in the browser. The online game
+The offline game is simulated by `js/sports/nba/engine.js` in the browser. The online game
 is simulated by the `simulate-match` Edge Function, which carries **its own
 copy** of `engine.js`, `constants.js` and `tactics.js`. Two copies of a
 simulation drift silently, and nothing in the repo was watching them - the Edge

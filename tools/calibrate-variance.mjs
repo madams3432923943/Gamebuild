@@ -2,7 +2,8 @@
 // roster win roughly as often as intended, instead of sweeping every quarter.
 //
 // Run: node tools/calibrate-variance.mjs
-// Paste the solved range into TEAM_QUARTER_VARIANCE_MIN/MAX in js/constants.js.
+// Paste the solved range into TEAM_QUARTER_VARIANCE_MIN/MAX in
+// js/sports/nba/constants.js.
 //
 // Why this term exists at all: every other random roll in the engine is
 // per-player and independent, so across a roster the noise cancels - team
@@ -11,9 +12,9 @@
 // swept all four in 88.8% of games. Widening the per-player range cannot fix
 // that; only a factor every player on a team SHARES survives the averaging.
 import { PLAYERS } from "../data/nba-players.js";
-import { computeDatasetStats, simulateGame, impact } from "../js/engine.js";
+import { computeDatasetStats, simulateGame, impact } from "../js/sports/nba/engine.js";
 import { DraftState } from "../js/draft.js";
-import { RANKED_SLOTS } from "../js/constants.js";
+import { RANKED_SLOTS } from "../js/sports/nba/constants.js";
 
 const stats = computeDatasetStats(PLAYERS);
 

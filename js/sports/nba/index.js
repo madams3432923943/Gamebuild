@@ -17,10 +17,10 @@ import {
   BENCH_SLOTS,
   eraById,
   playersInEra,
-} from "../constants.js";
-import { PLAYERS } from "../../data/nba-players.js";
-import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "../engine.js";
-import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "../tactics.js";
+} from "./constants.js";
+import { PLAYERS } from "../../../data/nba-players.js";
+import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
+import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
 
 export const NBA = {
   id: "nba",

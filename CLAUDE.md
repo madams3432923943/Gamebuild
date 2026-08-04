@@ -6,7 +6,7 @@ directly. Serve the root over HTTP (`python3 -m http.server 8000`); opening
 
 ## Rules that bite
 
-- **Engine parity.** `js/engine.js`, `js/constants.js` and `js/tactics.js` are
+- **Engine parity.** `js/sports/nba/`'s `engine.js`, `constants.js` and `tactics.js` are
   vendored into `supabase/functions/simulate-match/`. Change one, copy it across,
   or online games diverge from offline ones. `npm run verify:parity` checks this.
 - **Balance is solved, not picked.** Gamestyle `pts` mods, `TALENT_PARITY` and the

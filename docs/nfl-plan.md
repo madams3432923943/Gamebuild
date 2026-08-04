@@ -33,7 +33,7 @@ defensive line's combined sacks and a secondary's combined interceptions are
 genuinely what those units did.
 
 **It matches how football actually resolves.** Basketball is man-on-man, which
-is why `js/engine.js` models five defenders guarding five attackers. Football
+is why `js/sports/nba/engine.js` models five defenders guarding five attackers. Football
 is unit-on-unit: pass rush against pass protection, secondary against
 receivers, front seven against the run. If the draft slots *are* the matchup
 terms, the simulation has no translation layer to write.
@@ -122,7 +122,7 @@ literally a term the simulation evaluated.
 They fall out of the drive model rather than being simulated directly:
 attribute a drive's passing yards to the QB and distribute them across
 receivers by target share, rushing yards to the RB, and so on. Same trick
-`js/shooting.js` already uses — the sim decides the total, the split model
+`js/sports/nba/shooting.js` already uses — the sim decides the total, the split model
 decides where it came from, and the two always reconcile.
 
 ### Fatigue and depth
@@ -188,7 +188,7 @@ so an NFL "all" cannot corrupt the NBA one — that groundwork is done.
 
 ## 4. Strategies
 
-Same governing rule as `js/tactics.js`, which is the file to copy the *shape*
+Same governing rule as `js/sports/nba/tactics.js`, which is the file to copy the *shape*
 of, not the contents: **a style must be a real choice, not a power gain**, and
 its net effect is solved by simulation rather than hand-picked. Fifteen again,
 in three families so the three-card offer stays varied:
@@ -229,7 +229,7 @@ forfeit penalty, and the *structure* of the draft grade and post-game analysis.
 **`js/draft.js` is coupled to basketball in three places** and each is a small,
 contained fix:
 
-- it imports `impact()` from `js/engine.js` to score bot picks → the sport
+- it imports `impact()` from `js/sports/nba/engine.js` to score bot picks → the sport
   should supply `rate(player)`
 - it groups squads by `p.decade` → NFL rows carry `era`
 - `decadeWeight()` balances how often each decade comes up → becomes a

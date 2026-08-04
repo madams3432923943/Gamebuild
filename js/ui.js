@@ -1,16 +1,8 @@
 // Rendering helpers. Pure-ish functions: given data + a container element
 // (and callbacks), they redraw that container's contents.
 
-import {
-  SLOTS,
-  STARTER_SLOTS,
-  MIN_SEARCH_CHARS,
-  basePosition,
-  ROTATION_BUDGET,
-  minutesRangeFor,
-  orderedRosterSlots,
-  isBenchSlot,
-} from "./constants.js";
+import { MIN_SEARCH_CHARS } from "./constants.js";
+import { SLOTS, STARTER_SLOTS, basePosition, ROTATION_BUDGET, minutesRangeFor, orderedRosterSlots, isBenchSlot } from "./sports/nba/constants.js";
 import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID } from "./sports/index.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import {
@@ -38,7 +30,7 @@ import {
   generalBannerProgress,
   DEFAULT_BANNER_ID,
 } from "./banners.js";
-import { shotLine, formatShotLine } from "./shooting.js";
+import { shotLine, formatShotLine } from "./sports/nba/shooting.js";
 import { squadTierForRep } from "./squads.js";
 
 /** Display name for a roster slot. Derived rather than looked up in a fixed

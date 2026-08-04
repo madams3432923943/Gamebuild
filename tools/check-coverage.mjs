@@ -7,7 +7,7 @@
 // Wizards are the Washington Bullets. banners.js aliases these onto one
 // franchise, so trophies still combine across a rename.
 import { PLAYERS } from "../data/nba-players.js";
-import { STARTER_SLOTS, RANKED_SLOTS, isBenchSlot } from "../js/constants.js";
+import { STARTER_SLOTS, RANKED_SLOTS, isBenchSlot } from "../js/sports/nba/constants.js";
 
 // team -> decades. Pre-1990 squads only need 10 players; the pool is thinner
 // that far back and a 10-man squad still fills a full ranked roster.

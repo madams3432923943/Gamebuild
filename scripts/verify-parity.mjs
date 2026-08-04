@@ -44,10 +44,43 @@ import { withSeededRandom, seedFrom } from "./lib/seeded-rng.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 
-const CLIENT_DIR = path.join(ROOT, "js");
+// Per sport, not per repo. Each sport keeps its engine, constants and
+// gamestyles in js/sports/<id>/, and the Edge Function vendors a copy under
+// supabase/functions/simulate-match/sports/<id>/. A sport is checked only if
+// BOTH exist - which today means basketball, and will mean NFL the day it has
+// an engine, with no change needed here.
+const clientDir = (sportId) => path.join(ROOT, "js", "sports", sportId);
+const edgeDir = (sportId) =>
+  path.join(ROOT, "supabase", "functions", "simulate-match", "sports", sportId);
 // The dataset lives outside js/ - it is data, not app code (see CLAUDE.md).
-const DATA_FILE = path.join(ROOT, "data", "nba-players.js");
-const EDGE_DIR = path.join(ROOT, "supabase", "functions", "simulate-match");
+const dataFile = (sportId) => path.join(ROOT, "data", `${sportId}-players.js`);
+
+/** Sports with both a client engine and a vendored server copy. */
+async function parityPairs() {
+  const { readdir, access } = await import("node:fs/promises");
+  const entries = await readdir(path.join(ROOT, "js", "sports"), { withFileTypes: true });
+  const found = [];
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    try {
+      await access(path.join(clientDir(e.name), "engine.js"));
+      await access(path.join(edgeDir(e.name), "engine.js"));
+      found.push(e.name);
+    } catch {
+      // A sport under construction has no vendored engine yet. Not a failure -
+      // there is simply nothing to compare, and saying so beats inventing a
+      // check that always passes.
+    }
+  }
+  return found;
+}
+
+// Basketball remains the only sport with a server engine, so these keep the
+// old single-sport call sites working while the checks below are threaded
+// through parityPairs(). They are the DEFAULT sport's paths, not "the" paths.
+const CLIENT_DIR = clientDir("nba");
+const DATA_FILE = dataFile("nba");
+const EDGE_DIR = edgeDir("nba");
 
 // Matches the client's own tolerance language. Box scores are whole numbers,
 // so on a ~100-point total a single point is already 1% - meaning any
@@ -350,7 +383,7 @@ async function checkEngineSource() {
   const diff = firstDifference(nc, ne);
   return check("parity:engine-source", "Engine source identical (comments normalized)", FAIL, {
     detail:
-      `js/engine.js and the deployed Edge Function's engine.js differ in code, not just comments.\n` +
+      `js/sports/nba/engine.js and the deployed Edge Function's engine.js differ in code, not just comments.\n` +
       `First divergence at normalized offset ${diff.offset}:\n` +
       `  client: …${diff.client}…\n` +
       `  edge:   …${diff.edge}…`,
@@ -456,7 +489,8 @@ async function checkBoxScores() {
  */
 async function checkDataset({ timeoutMs = 30000 } = {}) {
   const started = Date.now();
-  const clientSrc = await readFile(path.join(CLIENT_DIR, "supabaseClient.js"), "utf8");
+  // Shared app code, not a sport's - it lives at js/, not js/sports/<id>/.
+  const clientSrc = await readFile(path.join(ROOT, "js", "supabaseClient.js"), "utf8");
   const url = clientSrc.match(/SUPABASE_URL\s*=\s*"([^"]+)"/)?.[1];
   const key = clientSrc.match(/SUPABASE_PUBLISHABLE_KEY\s*=\s*"([^"]+)"/)?.[1];
   if (!url || !key) {

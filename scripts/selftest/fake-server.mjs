@@ -18,7 +18,7 @@
 // It deliberately reimplements the RULES (the round-reveal rule, when a round
 // advances, when a match becomes ready to simulate) rather than stubbing them
 // out, because those rules are exactly what breaks. It runs the REAL
-// js/engine.js for the simulation, the same way the Edge Function runs its
+// js/sports/nba/engine.js for the simulation, the same way the Edge Function runs its
 // own copy, so a result here is a genuine result.
 //
 // It is not a substitute for a real online run against production - it cannot

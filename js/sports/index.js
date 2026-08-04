@@ -13,7 +13,7 @@
 // broken today it is marked, because each one is a place a second sport will
 // break.
 
-import NBA from "./nba.js";
+import NBA from "./nba/index.js";
 import NFL from "./nfl.js";
 import NHL from "./nhl.js";
 import SOCCER from "./soccer.js";

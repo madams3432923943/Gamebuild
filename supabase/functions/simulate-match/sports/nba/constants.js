@@ -7,7 +7,7 @@
 // place a sport gets registered, so the home screen tiles, badge/banner
 // subtabs, and online play's sport scoping all agree on the same list
 // instead of drifting copies. Each live sport is expected to bring its own
-// engine and player dataset (see js/engine.js's header comment) rather than
+// engine and player dataset (see js/sports/nba/engine.js's header comment) rather than
 // share NBA's - `live` here just gates whether that engine/dataset/draft
 // flow actually exists yet.
 export const SPORTS = [
@@ -67,10 +67,6 @@ export function orderSlots(slots) {
 export function orderedRosterSlots(roster) {
   return orderSlots(Object.keys(roster).filter((slot) => roster[slot]));
 }
-
-// Minutes available at each position across a full game (5 on the floor for
-// 48 minutes = 240 total, split per position).
-export const POSITION_MINUTES = 48;
 
 // A team's whole minutes budget for a game: five players on the floor for
 // 48 minutes. Minutes are allocated per PLAYER against this single pool
@@ -391,57 +387,3 @@ export const MAX_TEAM_SCORE = 190;
 export const MAX_OT_PERIODS = 4;
 // Overtime periods are shorter than a full quarter (5 real minutes vs 12).
 export const OT_LENGTH_SCALE = 5 / 12;
-
-// Bot draft skill: chance the bot takes the objectively best (player, slot)
-// combo available each round rather than a random legal one. Kept well
-// under 1 so the bot drafts unevenly like a real (beatable) opponent
-// instead of playing a solved game. Calibrated via simulation: at 0.45 an
-// average/random drafter's win rate drops to ~14% (from ~21% at 0.35)
-// while a knowledgeable drafter still wins ~90% of the time - too generous
-// to a knowledgeable player, which is what "the bot loses every time" was
-// actually describing. Bumped to 0.6 to cut into that without turning the
-// draft into a solved game the bot can't lose - paired with botMinutes()
-// (engine.js) so the bot also stops wasting its better draft with a flat,
-// unweighted rotation.
-export const BOT_SKILL = 0.6;
-
-// How long the live scoreboard lingers on each quarter before advancing,
-// so a game reads as "played out" rather than dumped on screen at once.
-// Time a finished period holds on screen before the next tips off. Generous
-// on purpose: the score also counts up over QUARTER_TICK_MS inside this
-// window, so the gap is filled with motion rather than dead air.
-export const QUARTER_REVEAL_DELAY_MS = 4200;
-
-// How long the running score takes to climb to the new period's total.
-export const QUARTER_TICK_MS = 1500;
-
-// How long a fully-resolved draft round holds on the "locked in" state
-// before both sides' picks flip-reveal simultaneously.
-export const DRAFT_REVEAL_DELAY_MS = 700;
-
-// How long a player has to make each pick before the game auto-picks the
-// worst eligible option for them (or auto-skips if none are eligible).
-export const PICK_TIMER_SECONDS = 30;
-
-// How long a player has to commit to a game plan once both rosters are set.
-// Longer than a pick timer on purpose: this is one decision made with full
-// information about the team you just built, so it deserves a real beat.
-export const TACTIC_TIMER_SECONDS = 45;
-
-// How long a player has to set their rotation (minutes per player) in Ranked
-// Practice, before the gamestyle pick. Offline value; Online Ranked uses its
-// own longer duration (2 minutes) since it also has to wait on an opponent.
-export const ROTATION_TIMER_SECONDS = 60;
-
-// How long to set defensive matchups. Shorter than the rotation: it's five
-// dropdowns against a roster already on screen, not a budget to balance.
-export const MATCHUP_TIMER_SECONDS = 45;
-
-// The real-basketball baseline a rotation's minutes are measured against: 5
-// players on court at all times over a 48-minute game.
-export const ROTATION_MINUTES_BUDGET = 240;
-
-// Minimum characters typed before the draft search reveals any matches -
-// with only 10 players per squad, revealing results after 1 character
-// would let someone brute-force the roster letter by letter.
-export const MIN_SEARCH_CHARS = 3;

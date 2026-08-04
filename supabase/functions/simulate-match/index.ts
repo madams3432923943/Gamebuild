@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { computeDatasetStats, simulateGame } from "./engine.js";
+import { computeDatasetStats } from "./sports/nba/engine.js";
+import { engineFor } from "./sports/index.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -175,7 +176,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "match is not ready to simulate", status: match.status }, 409);
   }
 
-  const { data: playerRows, error: playersErr } = await admin.from("players").select("*");
+  // Which engine and which player table, from the match's own sport rather
+  // than from a hardcoded assumption that everything is basketball.
+  const sportEngine = engineFor(match.sport);
+  if (!sportEngine) {
+    return json({ error: `no server engine for sport '${match.sport}'` }, 501);
+  }
+
+  const { data: playerRows, error: playersErr } = await admin.from(sportEngine.table).select("*");
   if (playersErr || !playerRows) return json({ error: "failed to load player dataset" }, 500);
 
   const datasetStats = computeDatasetStats(playerRows.map(normalizePlayerRow));
@@ -211,7 +219,7 @@ Deno.serve(async (req: Request) => {
   // sequence offline Ranked Practice does). Undefined falls back inside
   // simulateGame to the same defaults offline uses when a mode skips a
   // phase, so an older/partial match can't crash a simulation.
-  const result = simulateGame(rosterA, rosterB, datasetStats, {
+  const result = sportEngine.simulate(rosterA, rosterB, datasetStats, {
     tacticA: match.tactic_a ?? undefined,
     tacticB: match.tactic_b ?? undefined,
     minutesA: match.rotation_a ?? undefined,

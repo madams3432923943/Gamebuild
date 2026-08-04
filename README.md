@@ -152,7 +152,7 @@ effect. Re-measured over 2,000 games:
 | Better-*built* roster wins (talent held equal) | 47.2% | 61.7% |
 | Mean quarter margin | 6.0 | 6.5 |
 
-Every number above is tunable in `js/constants.js` and re-measurable from
+Every number above is tunable in `js/sports/nba/constants.js` and re-measurable from
 `tools/calibrate-variance.mjs`.
 
 ### Why `TALENT_PARITY` was not re-solved
@@ -175,7 +175,7 @@ change, but read its parity figure as one input rather than an instruction.
 
 Every finished roster is graded before a minute is simulated - a letter, a
 sentence ("B+ because your defense is elite but your shooting held you back"),
-and the specific things to fix. See `js/draftgrade.js`.
+and the specific things to fix. See `js/sports/nba/draftgrade.js`.
 
 The grade is computed from the same `constructionMetrics` the simulation is
 about to charge you for, so it is a prediction rather than a decoration: if the
@@ -198,7 +198,7 @@ asserted:
 
 Every line is checked against the finished box score before it is printed - a
 gamestyle only gets credit for the column it promised to move. Points in the
-paint come from the real shot splits (two-point makes, via `js/shooting.js`)
+paint come from the real shot splits (two-point makes, via `js/sports/nba/shooting.js`)
 rather than from guessing that PF/C scoring happened inside.
 
 Three things the notes asked for are deliberately absent, because the dataset
@@ -234,7 +234,7 @@ which turns the same draft into a different knowledge test:
 | Unc Status | 1990s-2000s | 58 |
 | Modern Ball | 2010s-2020s | 60 |
 
-Brackets are defined once in `js/constants.js` (`ERAS`) and applied by
+Brackets are defined once in `js/sports/nba/constants.js` (`ERAS`) and applied by
 filtering the pool handed to `DraftState`, so nothing downstream needs to know
 an era exists. Each bracket keeps its own record in `profiles.era_records`,
 since knowing the 2010s is a different skill from knowing the 1970s.

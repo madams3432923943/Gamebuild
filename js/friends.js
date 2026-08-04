@@ -4,7 +4,7 @@
 // reasoning as squads.js - who's friends with whom, and who challenged whom,
 // shouldn't be forgeable by a client that just knows another player's id.
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { DEFAULT_ERA } from "./constants.js";
+import { DEFAULT_ERA } from "./sports/nba/constants.js";
 import { DEFAULT_SPORT_ID } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
 

@@ -6,15 +6,15 @@
 // knob to solve for while the other stats give a style its character.
 //
 // Run: node tools/calibrate-gamestyles.mjs
-// Paste the FINAL MODS block into js/tactics.js when the spread looks good.
+// Paste the FINAL MODS block into js/sports/nba/tactics.js when the spread looks good.
 import { PLAYERS } from "../data/nba-players.js";
-import { computeDatasetStats, simulateGame } from "../js/engine.js";
+import { computeDatasetStats, simulateGame } from "../js/sports/nba/engine.js";
 import { DraftState } from "../js/draft.js";
-import { RANKED_SLOTS } from "../js/constants.js";
+import { RANKED_SLOTS } from "../js/sports/nba/constants.js";
 
 const stats = computeDatasetStats(PLAYERS);
 
-// Identity stats fixed (as authored in js/tactics.js); pts is solved for.
+// Identity stats fixed (as authored in js/sports/nba/tactics.js); pts is solved for.
 // Isolation Heavy's clutchMods.pts is part of its identity (a real, fixed
 // 4th-quarter/OT bonus) and is NOT solved - only base pts is, same lever as
 // every other style, so two knobs never fight each other for the same
@@ -63,7 +63,7 @@ function rosterPair() {
 // Patch tactics module resolution the same way the original script did:
 // simulateGame looks tactics up by id through the shared TACTICS array, so
 // we mutate that array's entries in place rather than re-importing.
-const tacticsMod = await import("../js/tactics.js");
+const tacticsMod = await import("../js/sports/nba/tactics.js");
 function setMods(current) {
   for (const t of tacticsMod.TACTICS) {
     t.mods = current[t.id].mods;

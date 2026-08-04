@@ -3,7 +3,7 @@
 // than realtime - see the comment on watchMatch() for why.
 
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { SLOTS, DEFAULT_ERA } from "./constants.js";
+import { SLOTS, DEFAULT_ERA } from "./sports/nba/constants.js";
 import { DEFAULT_SPORT_ID } from "./sports/index.js";
 
 export async function joinQueue(sport = DEFAULT_SPORT_ID, era = DEFAULT_ERA) {
