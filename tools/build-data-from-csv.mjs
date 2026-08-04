@@ -1,4 +1,4 @@
-// Converts Basketball Reference per-season CSVs into js/data.js.
+// Converts Basketball Reference per-season CSVs into data/nba-players.js.
 //
 // Run: node tools/build-data-from-csv.mjs
 // See tools/README.md for where to get the CSVs.
@@ -13,7 +13,7 @@ import { fileURLToPath } from "url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SEASON_DIR = join(here, "seasons");
-const OUT = join(here, "..", "js", "data.js");
+const OUT = join(here, "..", "data", "nba-players.js");
 
 // How many players per team-decade squad to keep, ranked by games played then
 // minutes-ish production. Matches what the game expects.

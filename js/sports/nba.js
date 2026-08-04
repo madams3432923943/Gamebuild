@@ -18,7 +18,7 @@ import {
   eraById,
   playersInEra,
 } from "../constants.js";
-import { PLAYERS } from "../data.js";
+import { PLAYERS } from "../../data/nba-players.js";
 import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "../engine.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "../tactics.js";
 

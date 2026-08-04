@@ -12,9 +12,12 @@ directly. Serve the root over HTTP (`python3 -m http.server 8000`); opening
 - **Balance is solved, not picked.** Gamestyle `pts` mods, `TALENT_PARITY` and the
   quarter-variance range come from `tools/calibrate-*.mjs`. Re-run after any engine
   or gamestyle change, variance first, then gamestyles.
-- **Generated files.** `js/data.js` is generated from `tools/seasons/*.csv`;
-  `db/seed/players.json` is generated from `data.js`. Neither input is committed —
-  see `tools/README.md`. Don't hand-edit `data.js`.
+- **`data/` is data, not code — don't read or search it.** `data/nba-players.js` is
+  2,542 generated rows (516 KB). Open it only when changing gameplay or the
+  simulation and you actually need a player's numbers; never while writing app
+  code. It's generated from `tools/seasons/*.csv` (not committed), and
+  `db/seed/players.json` is generated from it (also not committed). Never
+  hand-edit any of the three — see `tools/README.md`.
 - **Roster shapes vary by mode** (5 / 6 / 10 slots). Derive slots from the roster,
   never assume a shape.
 - **`db/` is documentation, not a migration runner** — write the file, then apply it

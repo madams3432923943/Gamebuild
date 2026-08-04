@@ -28,7 +28,7 @@
 //                   player-by-player and quarter-by-quarter.
 //
 // And a fifth axis that is NOT about code at all: the two engines are fed
-// different DATASETS. The client computes datasetStats from js/data.js; the
+// different DATASETS. The client computes datasetStats from data/nba-players.js; the
 // Edge Function computes it from the `players` table. datasetStats feeds
 // posAvg(), which normalizes every matchup in the simulation - so identical
 // code over a drifted dataset still produces different box scores. That check
@@ -45,6 +45,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 
 const CLIENT_DIR = path.join(ROOT, "js");
+// The dataset lives outside js/ - it is data, not app code (see CLAUDE.md).
+const DATA_FILE = path.join(ROOT, "data", "nba-players.js");
 const EDGE_DIR = path.join(ROOT, "supabase", "functions", "simulate-match");
 
 // Matches the client's own tolerance language. Box scores are whole numbers,
@@ -361,7 +363,7 @@ async function checkBoxScores() {
   const [clientEngine, edgeEngine, data, tacticsMod] = await Promise.all([
     import(pathToUrl(path.join(CLIENT_DIR, "engine.js"))),
     import(pathToUrl(path.join(EDGE_DIR, "engine.js"))),
-    import(pathToUrl(path.join(CLIENT_DIR, "data.js"))),
+    import(pathToUrl(DATA_FILE)),
     import(pathToUrl(path.join(CLIENT_DIR, "tactics.js"))),
   ]);
 
@@ -443,11 +445,11 @@ async function checkBoxScores() {
 }
 
 /**
- * The client normalizes matchups against js/data.js; the Edge Function
+ * The client normalizes matchups against data/nba-players.js; the Edge Function
  * normalizes them against the `players` table. Identical engine code over
  * two different datasets is still two different games, and nothing in the
  * repo currently keeps those two in step - db/seed/players.json is a
- * separate artifact from js/data.js.
+ * separate artifact from data/nba-players.js.
  *
  * Uses the publishable (anon) key already shipped in js/supabaseClient.js -
  * `players` is public, readable data, so no secret is needed or used.
@@ -476,7 +478,7 @@ async function checkDataset({ timeoutMs = 30000 } = {}) {
     });
   }
 
-  const { PLAYERS } = await import(pathToUrl(path.join(CLIENT_DIR, "data.js")));
+  const { PLAYERS } = await import(pathToUrl(DATA_FILE));
   const engine = await import(pathToUrl(path.join(CLIENT_DIR, "engine.js")));
 
   const norm = (p) => ({
@@ -514,7 +516,7 @@ async function checkDataset({ timeoutMs = 30000 } = {}) {
   const localStats = engine.computeDatasetStats(PLAYERS);
   const remoteStats = engine.computeDatasetStats(rows.map((p) => ({ ...p, pos: p.pos, ...numericFields(p) })));
 
-  const statRows = [["stat", "js/data.js", "players table", "Δ%"]];
+  const statRows = [["stat", "data/nba-players.js", "players table", "Δ%"]];
   let worstStat = 0;
   for (const k of ["ppg", "rpg", "apg", "spg", "bpg", "tov", "ts"]) {
     const lv = localStats.overall[k];
@@ -537,8 +539,8 @@ async function checkDataset({ timeoutMs = 30000 } = {}) {
   }
 
   const detail = [
-    `js/data.js has ${PLAYERS.length} players; the \`players\` table has ${rows.length}.`,
-    onlyLocal.length ? `${onlyLocal.length} only in js/data.js (e.g. ${onlyLocal.slice(0, 3).join("; ")})` : null,
+    `data/nba-players.js has ${PLAYERS.length} players; the \`players\` table has ${rows.length}.`,
+    onlyLocal.length ? `${onlyLocal.length} only in data/nba-players.js (e.g. ${onlyLocal.slice(0, 3).join("; ")})` : null,
     onlyRemote.length ? `${onlyRemote.length} only in the table (e.g. ${onlyRemote.slice(0, 3).join("; ")})` : null,
     valueDiffs.length
       ? `${valueDiffs.length} field value(s) differ, e.g. ` +

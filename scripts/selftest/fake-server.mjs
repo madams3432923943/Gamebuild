@@ -33,7 +33,7 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "js", "data.js")}`).href);
+const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "data", "nba-players.js")}`).href);
 const { computeDatasetStats, simulateGame } = await import(
   new URL(`file://${path.join(ROOT, "js", "engine.js")}`).href
 );

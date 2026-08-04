@@ -1,6 +1,6 @@
 // Simulation engine: quarter-by-quarter positional matchup model.
 //
-// A "roster" maps slot -> player record (see js/data.js for the shape). Slot
+// A "roster" maps slot -> player record (see data/nba-players.js for the shape). Slot
 // sets vary by mode and nothing here may assume one:
 //   Quick Play      { PG, SG, SF, PF, C }
 //   Ranked          { PG..C, BENCH1..BENCH5 }  - bench spots are open, and

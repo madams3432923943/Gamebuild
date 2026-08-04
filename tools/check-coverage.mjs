@@ -1,4 +1,4 @@
-// Checks js/data.js against the squad grid the game is meant to cover.
+// Checks data/nba-players.js against the squad grid the game is meant to cover.
 //
 // Run: node tools/check-coverage.mjs
 //
@@ -6,7 +6,7 @@
 // played that decade, so the 1980s Nets are the New Jersey Nets and the 1970s
 // Wizards are the Washington Bullets. banners.js aliases these onto one
 // franchise, so trophies still combine across a rename.
-import { PLAYERS } from "../js/data.js";
+import { PLAYERS } from "../data/nba-players.js";
 import { STARTER_SLOTS, RANKED_SLOTS, isBenchSlot } from "../js/constants.js";
 
 // team -> decades. Pre-1990 squads only need 10 players; the pool is thinner

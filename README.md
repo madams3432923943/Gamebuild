@@ -56,11 +56,14 @@ Then open http://localhost:8000.
 ```
 index.html        markup + import map; loads js/main.js
 css/style.css     all styling
+data/
+  nba-players.js  the player dataset - GENERATED, and deliberately outside js/
+                  so a search of the app code never has to wade through 2,542
+                  rows of statistics
 js/
   main.js         app controller: wires state, engine, and DOM together
   engine.js       simulation (quarter-by-quarter positional matchups)
   draft.js        draft mechanics, squad rolling, typed-name search, bot picks
-  data.js         player dataset (team + decade squads) - generated
   tactics.js      the 10 gamestyles and their stat modifiers
   recap.js        post-game narrative, plus the "why you won/lost" breakdown
   draftgrade.js   grades a finished roster on how it was BUILT
@@ -212,11 +215,11 @@ Signed-out visitors count too, so the key is a per-browser id, not a user id.
 
 ## Data
 
-`js/data.js` is generated, not hand-edited. See `tools/README.md` for importing
+`data/nba-players.js` is generated, not hand-edited. See `tools/README.md` for importing
 real per-game statistics from Basketball Reference CSV exports:
 
 ```
-node tools/build-data-from-csv.mjs   # regenerate js/data.js
+node tools/build-data-from-csv.mjs   # regenerate data/nba-players.js
 node tools/verify-data.mjs           # sanity-check any dataset
 node tools/export-players-json.mjs   # then re-seed the server (db/README.md)
 ```

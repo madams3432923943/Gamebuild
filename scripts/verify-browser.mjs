@@ -106,7 +106,7 @@ function isIgnorableConsole(text) {
  * name is typed, so the harness has to know the names - it cannot read them
  * off the screen, by design. */
 async function loadSquadIndex() {
-  const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "js", "data.js")}`).href);
+  const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "data", "nba-players.js")}`).href);
   const index = new Map();
   for (const p of PLAYERS) {
     const key = `${p.team}|${p.decade}`;
