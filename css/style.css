@@ -8,7 +8,15 @@
 
    --accent-rgb carries the accent as raw channels so the translucent glows
    and gradients below can share the one source of truth instead of hardcoding
-   the brand color again in every rgba(). */
+   the brand color again in every rgba().
+
+   The four --accent* tokens are the ONE thing that changes per sport:
+   basketball leather orange, football field blue. js/sports/<id>/index.js owns
+   the values and applyTheme() in js/main.js writes them onto the root element
+   when the sport changes. The values here are the default sport's, so the
+   first paint is already the right color rather than flashing blue and
+   correcting itself. Anything wanting to follow the sport must go through
+   var(--accent*) - a hardcoded hex is a color that stays basketball forever. */
 :root {
   /* The page's side gutter, in one place so anything wanting to sit flush
      with the content edge can cancel exactly this much and no more. It used
@@ -20,10 +28,10 @@
   --bg: #0d1117;
   --panel: #161b23;
   --line: #2a323e;
-  --accent: #2f6fe0;
-  --accent-bright: #62a0ff;
-  --accent-rgb: 47, 111, 224;
-  --accent-contrast: #06101f;
+  --accent: #d9741f;
+  --accent-bright: #ff9d4d;
+  --accent-rgb: 217, 116, 31;
+  --accent-contrast: #1d0c01;
   --scoreboard: #ffd166;
   --buzzer: #e8433d;
   --text: #eef2f8;
@@ -1467,13 +1475,15 @@ table.box-table th, table.history-table th {
   margin: 0 0 1rem calc(var(--page-gutter) * -1);
 }
 
-/* White on the accent blue, not --accent-contrast. That variable is a very
-   dark navy meant for large solid-accent surfaces; against #2f6fe0 at this
-   size it lands around 3.6:1, under the 4.5:1 floor, and reads as smudged
-   rather than dark. White on the same blue is ~5.3:1. */
+/* This used to hardcode white, because --accent-contrast's dark navy landed
+   under 4.5:1 on the old blue. With the accent now varying per sport neither
+   choice is safe to hardcode: white reads at 3.3:1 on basketball orange and
+   dark reads at 4.1:1 on football blue, so each sport carries whichever one
+   clears the floor against its own accent (see the theme block in
+   js/sports/<id>/index.js). */
 .how-to-play-btn {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border: none;
   border-radius: 999px;
   padding: 0.5rem 1.15rem;

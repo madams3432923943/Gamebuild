@@ -34,6 +34,48 @@ import {
   ROTATION_BUDGET,
 } from "./constants.js";
 
+const TIERS = [
+  { name: "YMCA", minPercentile: 0 },
+  { name: "Middle School", minPercentile: 5 },
+  { name: "High School", minPercentile: 10 },
+  { name: "AAU", minPercentile: 16 },
+  { name: "Community College", minPercentile: 22 },
+  { name: "Div 3", minPercentile: 28 },
+  { name: "Div 2", minPercentile: 35 },
+  { name: "Div 1", minPercentile: 42 },
+  { name: "College Starter", minPercentile: 49 },
+  { name: "Conference Champ", minPercentile: 56 },
+  { name: "March Madness", minPercentile: 62 },
+  { name: "Sweet Sixteen", minPercentile: 68 },
+  { name: "Final Four", minPercentile: 73 },
+  { name: "National Champion", minPercentile: 78 },
+  { name: "NBA Draftee", minPercentile: 82 },
+  { name: "Rookie of the Year", minPercentile: 85.5 },
+  { name: "NBA All-Star", minPercentile: 88.5 },
+  { name: "NBA All-Pro", minPercentile: 91 },
+  { name: "NBA MVP", minPercentile: 93.5 },
+  { name: "NBA Champion", minPercentile: 96 },
+  { name: "Hall of Fame", minPercentile: 98 },
+  { name: "Legend", minPercentile: 99.5 },
+];
+
+// Online games (wins+losses) needed before a percentile rank is shown -
+// standard placement-match floor, so a 1-0 record can't claim "100th
+// percentile" off a single lucky game, and so nobody with too small a
+// sample distorts what everyone else is being measured against.
+
+// How the game is explained, in basketball's own terms. Moved out of main.js
+// because "five starters plus five bench spots" and "240 minutes" describe
+// this sport and no other.
+const HOW_TO_PLAY = [
+  ["The draft", "Every round rolls one team-and-decade squad - say Chicago Bulls 1990s - and both sides draft from that same squad. You are picking against the same options your opponent has, so it comes down to who knows the roster better."],
+  ["Naming players", "Under ranked rules there is no visible list: you type a name from memory. Spelling is forgiving, so remembering the player matters more than spelling him. Quick Play shows the whole squad with stats instead."],
+  ["Your roster", "Five starters, position-locked, plus five bench spots that take anyone. Bench players cover whichever position needs them, so someone who plays two positions is worth more than a specialist."],
+  ["Rotation", "240 minutes to spread across ten players, 10 to 40 each, and starters must play more than the bench. Push someone past 34 and he tires and gives production back, so loading your best five is a trade rather than a free win."],
+  ["Gamestyle", "Once both rosters are set you pick one of three gamestyles offered at random. Each one boosts something and pays for it elsewhere; none is simply strongest."],
+  ["Modes", "Quick Play is a relaxed five-a-side against the bot. Ranked Practice is the full ranked experience against the bot. Ranked is against a real opponent and is the only mode that moves your record."],
+];
+
 export const NBA = {
   id: "nba",
   name: "NBA",
@@ -45,6 +87,18 @@ export const NBA = {
   live: true,
 
   status: "Ready to draft",
+
+  // Basketball leather. The whole app themes off these four custom properties
+  // (121 uses of var(--accent*) in style.css), so a sport's identity is four
+  // values rather than a stylesheet of its own. accentContrast is the text
+  // color for a solid-accent fill, and has to clear 4.5:1 against `accent` -
+  // near-black does on orange, white would not.
+  theme: {
+    accent: "#d9741f",
+    accentBright: "#ff9d4d",
+    accentRgb: "217, 116, 31",
+    accentContrast: "#1d0c01",
+  },
 
   // ---- Vocabulary ---------------------------------------------------------
   // The draft screen says "squad" and "decade" because that is what a
@@ -125,6 +179,12 @@ export const NBA = {
   // same role, completely different maths.
   shotLine,
   formatShotLine,
+
+  // ---- Progression and explanation ----------------------------------------
+  // The rank ladder traces a basketball career, so it belongs to basketball.
+  // The percentile maths that places you on it stays shared in js/profile.js.
+  tiers: TIERS,
+  howToPlay: HOW_TO_PLAY,
 
   // ---- Gamestyles ---------------------------------------------------------
   tactics: TACTICS,

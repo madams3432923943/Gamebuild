@@ -44,6 +44,14 @@ export function pendingSport({ id, name, icon, status = "Coming soon", labels = 
     statKeys: [],
     lineKeys: [],
 
+    // No rank ladder, no rules text and no palette: a pending sport can't be
+    // selected (isSelectable() in ./index.js), so it never gets to theme the
+    // app or open either of those modals. Declared empty rather than left off
+    // so the shape still matches a real sport's.
+    theme: null,
+    tiers: [],
+    howToPlay: [],
+
     players: notReady(name, "player data"),
     playersInEra: notReady(name, "era brackets"),
     computeDatasetStats: notReady(name, "dataset statistics"),

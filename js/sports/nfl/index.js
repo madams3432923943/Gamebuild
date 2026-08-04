@@ -20,6 +20,53 @@
 // So NFL gets its own simulate(), and this registry is what lets the two
 // coexist instead of one being bent into the other's shape.
 
+// The football career, rung by rung - the counterpart to basketball's ladder
+// in js/sports/nba/index.js, and deliberately built on the SAME percentile
+// bands. A rank means the same thing in both sports (top X% of the player
+// base by win rate); only what it is called changes, because "NBA MVP" says
+// nothing to a football player and "Heisman" says nothing to a basketball one.
+//
+// Same shape to the arc, too: it starts where everyone actually starts, runs
+// through the levels a real career passes, and narrows hard at the top. Bands
+// widen at the bottom and tighten above the 80th percentile on purpose - most
+// people never leave youth football, and "Hall of Fame" should mean it.
+const TIERS = [
+  { name: "Pop Warner", minPercentile: 0 },
+  { name: "Middle School", minPercentile: 5 },
+  { name: "JV", minPercentile: 10 },
+  { name: "Varsity", minPercentile: 16 },
+  { name: "All-District", minPercentile: 22 },
+  { name: "All-State", minPercentile: 28 },
+  { name: "Juco", minPercentile: 35 },
+  { name: "FCS", minPercentile: 42 },
+  { name: "FBS Starter", minPercentile: 49 },
+  { name: "Power Conference", minPercentile: 56 },
+  { name: "All-Conference", minPercentile: 62 },
+  { name: "Bowl Game", minPercentile: 68 },
+  { name: "All-American", minPercentile: 73 },
+  { name: "Heisman Finalist", minPercentile: 78 },
+  { name: "NFL Draftee", minPercentile: 82 },
+  { name: "Rookie of the Year", minPercentile: 85.5 },
+  { name: "Pro Bowler", minPercentile: 88.5 },
+  { name: "All-Pro", minPercentile: 91 },
+  { name: "NFL MVP", minPercentile: 93.5 },
+  { name: "Super Bowl Champion", minPercentile: 96 },
+  { name: "Hall of Fame", minPercentile: 98 },
+  { name: "Legend", minPercentile: 99.5 },
+];
+
+// Written against the roster shape in docs/nfl-plan.md rather than the
+// placeholder slots below, because this is what the game will be and a
+// How to Play that describes a lineup nobody drafts is worse than none.
+const HOW_TO_PLAY = [
+  ["The draft", "Every round rolls one team-and-era roster - say the 1985 Chicago Bears - and both sides draft from it. Same options, same board: it comes down to who knows the team better."],
+  ["Units, not just players", "Offense is drafted man by man - quarterback, running back, receivers, tight end. Defense is drafted in UNITS: a team's defensive line, its linebackers, its corners, its safeties. Nobody remembers the '85 Bears' third safety; everyone remembers that defense."],
+  ["Naming them", "Under ranked rules there is no visible list - you type from memory. For a unit you name the team, not eleven players."],
+  ["Your roster", "Eleven picks: five offensive skill players, the offensive line, four defensive units, and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
+  ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something - a heavy pass rush concedes the run, air raid concedes the clock - and none is simply strongest."],
+  ["Modes", "Quick Play is a relaxed short-roster game against the bot. Ranked Practice is the full experience against the bot. Ranked is a real opponent and the only mode that moves your record."],
+];
+
 export const NFL = {
   id: "nfl",
   name: "NFL",
@@ -33,6 +80,20 @@ export const NFL = {
   // `live`, which everything that touches an engine still reads.
   preview: true,
   status: "In development",
+
+  // Football blue - the app's original palette, kept here because it suits
+  // this sport. Every sport declares its own; see the NBA module for the four
+  // custom properties these map onto.
+  //
+  // accentContrast is white rather than the dark navy the rest of the app used
+  // to pair with this blue: as text on a solid accent fill the navy comes in
+  // at 4.1:1, under the 4.5:1 floor, and white clears it at 4.7:1.
+  theme: {
+    accent: "#2f6fe0",
+    accentBright: "#62a0ff",
+    accentRgb: "47, 111, 224",
+    accentContrast: "#ffffff",
+  },
 
   labels: {
     squad: "roster",
@@ -131,6 +192,12 @@ export const NFL = {
   },
   shotLine: () => null,
   formatShotLine: () => "",
+
+  // The ladder and the explanation are real even though the game is not -
+  // they are the two screens you can look at today, and there is nothing
+  // stopping them being finished.
+  tiers: TIERS,
+  howToPlay: HOW_TO_PLAY,
 
   tactics: [],
   defaultTactic: null,

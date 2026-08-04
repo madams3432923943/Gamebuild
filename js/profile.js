@@ -5,7 +5,7 @@
 // can write online_wins/online_losses - see the protect_online_record
 // trigger in the schema).
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { eraRecordKey, DEFAULT_SPORT_ID } from "./sports/index.js";
+import { eraRecordKey, DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
 
 // Percentile bands: top X% by online win rate lands in this tier. Relative
@@ -19,35 +19,6 @@ import { DEFAULT_BANNER_ID } from "./banners.js";
 // the top on purpose - most of a real playing population never leaves
 // rec-league ball, while "hit an NBA MVP-tier win rate" should mean it,
 // not something half the player base reaches.
-export const TIERS = [
-  { name: "YMCA", minPercentile: 0 },
-  { name: "Middle School", minPercentile: 5 },
-  { name: "High School", minPercentile: 10 },
-  { name: "AAU", minPercentile: 16 },
-  { name: "Community College", minPercentile: 22 },
-  { name: "Div 3", minPercentile: 28 },
-  { name: "Div 2", minPercentile: 35 },
-  { name: "Div 1", minPercentile: 42 },
-  { name: "College Starter", minPercentile: 49 },
-  { name: "Conference Champ", minPercentile: 56 },
-  { name: "March Madness", minPercentile: 62 },
-  { name: "Sweet Sixteen", minPercentile: 68 },
-  { name: "Final Four", minPercentile: 73 },
-  { name: "National Champion", minPercentile: 78 },
-  { name: "NBA Draftee", minPercentile: 82 },
-  { name: "Rookie of the Year", minPercentile: 85.5 },
-  { name: "NBA All-Star", minPercentile: 88.5 },
-  { name: "NBA All-Pro", minPercentile: 91 },
-  { name: "NBA MVP", minPercentile: 93.5 },
-  { name: "NBA Champion", minPercentile: 96 },
-  { name: "Hall of Fame", minPercentile: 98 },
-  { name: "Legend", minPercentile: 99.5 },
-];
-
-// Online games (wins+losses) needed before a percentile rank is shown -
-// standard placement-match floor, so a 1-0 record can't claim "100th
-// percentile" off a single lucky game, and so nobody with too small a
-// sample distorts what everyone else is being measured against.
 export const RANK_GAMES_FLOOR = 5;
 
 // One personal-best record per counting stat, each: {value, playerName, date}.
@@ -55,14 +26,23 @@ export const FEATURED_BADGE_SLOTS = 3;
 
 export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
 
+/** The active sport's ladder. Where a player stands is sport-agnostic maths -
+ * a percentile against everyone else's win rate - but what that percentile is
+ * CALLED is not: "NBA MVP" means nothing in football. Each sport declares its
+ * own `tiers`, and the arithmetic below is shared. */
+function tiers() {
+  return activeSport().tiers || [];
+}
+
 export function tierForPercentile(percentile) {
-  let tier = TIERS[0];
-  for (const t of TIERS) if (percentile >= t.minPercentile) tier = t;
+  const list = tiers();
+  let tier = list[0];
+  for (const t of list) if (percentile >= t.minPercentile) tier = t;
   return tier;
 }
 
 export function nextTierAbove(percentile) {
-  return TIERS.find((t) => t.minPercentile > percentile) || null;
+  return tiers().find((t) => t.minPercentile > percentile) || null;
 }
 
 /**

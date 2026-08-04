@@ -25,7 +25,6 @@ import {
   setEquippedBanner,
   setFeaturedBadges,
   FEATURED_BADGE_SLOTS,
-  TIERS,
   RANK_GAMES_FLOOR,
 } from "./profile.js";
 import {
@@ -249,18 +248,12 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
   openModal("Where does he play?", wrap, onCancel);
 }
 
-const HOW_TO_PLAY = [
-  ["The draft", "Every round rolls one team-and-decade squad - say Chicago Bulls 1990s - and both sides draft from that same squad. You are picking against the same options your opponent has, so it comes down to who knows the roster better."],
-  ["Naming players", "Under ranked rules there is no visible list: you type a name from memory. Spelling is forgiving, so remembering the player matters more than spelling him. Quick Play shows the whole squad with stats instead."],
-  ["Your roster", "Five starters, position-locked, plus five bench spots that take anyone. Bench players cover whichever position needs them, so someone who plays two positions is worth more than a specialist."],
-  ["Rotation", "240 minutes to spread across ten players, 10 to 40 each, and starters must play more than the bench. Push someone past 34 and he tires and gives production back, so loading your best five is a trade rather than a free win."],
-  ["Gamestyle", "Once both rosters are set you pick one of three gamestyles offered at random. Each one boosts something and pays for it elsewhere; none is simply strongest."],
-  ["Modes", "Quick Play is a relaxed five-a-side against the bot. Ranked Practice is the full ranked experience against the bot. Ranked is against a real opponent and is the only mode that moves your record."],
-];
-
+// The rules differ per sport - basketball drafts ten individuals, football
+// drafts units - so the text belongs beside the engine that enforces it. See
+// each sport module's `howToPlay`.
 function openHowToPlay() {
   const wrap = document.createElement("div");
-  for (const [heading, body] of HOW_TO_PLAY) {
+  for (const [heading, body] of sport().howToPlay || []) {
     const section = document.createElement("div");
     section.className = "howto-section";
     const h = document.createElement("h4");
@@ -271,7 +264,7 @@ function openHowToPlay() {
     section.appendChild(p);
     wrap.appendChild(section);
   }
-  openModal("How to Play", wrap);
+  openModal(`How to Play: ${sport().name}`, wrap);
 }
 
 document.getElementById("btn-how-to-play").addEventListener("click", openHowToPlay);
@@ -654,8 +647,30 @@ function sport() {
   return activeSport();
 }
 
+/** Repaint the app in the active sport's colors.
+ *
+ * The four --accent* tokens in css/style.css are the only thing that differs
+ * between sports, and everything that wants to follow the sport reads them
+ * (button outlines, focus rings, the live-score glow, the tab underline).
+ * Writing them onto the root element re-themes all of it in one assignment -
+ * a sport that adds no theme simply keeps the stylesheet's defaults. */
+function applyTheme(s) {
+  const t = s.theme;
+  if (!t) return;
+  const root = document.documentElement.style;
+  root.setProperty("--accent", t.accent);
+  root.setProperty("--accent-bright", t.accentBright);
+  root.setProperty("--accent-rgb", t.accentRgb);
+  root.setProperty("--accent-contrast", t.accentContrast);
+  // Phone browsers paint the address bar with this, so leaving it behind is
+  // the one place the old sport's color survives the switch.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", t.accent);
+}
+
 function setSport(id) {
   if (!setActiveSport(id)) return;
+  applyTheme(sport());
   // Era ids are only unique within a sport, so a bracket selected under the
   // previous sport may not exist here. Re-resolving through the new sport
   // snaps to its default rather than leaving a dangling id.
@@ -749,6 +764,10 @@ function renderEraChoice() {
   eraHintEl.textContent = sport().eraById(selectedEra).blurb;
 }
 
+// The active sport is restored from storage, so a player who left in NFL
+// comes back to it - and has to come back to its colors too, not the
+// stylesheet's default sport.
+applyTheme(sport());
 renderSportChoice();
 renderEraChoice();
 warmDatasetStats();
@@ -2847,16 +2866,34 @@ btnSaveEmail.addEventListener("click", async () => {
 // which is fair but invisible: without this a player can only ever see the
 // one rung they are standing on, and "AAU" means nothing if you can't see
 // what is above and below it.
+//
+// The rungs are the sport's own - a basketball player climbs to Hall of Fame
+// through AAU and the G League, a football one through JV and the combine -
+// but they sit on identical percentile bands, so the two ladders are the same
+// ladder wearing different names and a rank means the same thing in both.
 
 async function openRankLadder() {
+  const tiers = sport().tiers || [];
   const wrap = document.createElement("div");
+
+  // A sport can reach the picker before its ladder is written (NFL spent a
+  // build in exactly that state), and an empty ladder would otherwise read
+  // the top rung off the end of the array.
+  if (!tiers.length) {
+    const none = document.createElement("p");
+    none.className = "hint-text";
+    none.textContent = `${sport().name} doesn't have a rank ladder yet.`;
+    wrap.appendChild(none);
+    openModal(`${sport().name} Rank Ladder`, wrap);
+    return;
+  }
 
   const intro = document.createElement("p");
   intro.className = "hint-text";
   intro.textContent =
     `Rank is your online win rate measured against everyone else's, not a win count - the top ${
-      100 - TIERS[TIERS.length - 1].minPercentile
-    }% of players are Legends however many games anyone has played. ` +
+      100 - tiers[tiers.length - 1].minPercentile
+    }% of ${sport().name} players are ${tiers[tiers.length - 1].name}s however many games anyone has played. ` +
     `Bot games never count. You need ${RANK_GAMES_FLOOR} online games before you're ranked at all.`;
   wrap.appendChild(intro);
 
@@ -2880,7 +2917,7 @@ async function openRankLadder() {
   list.className = "rank-ladder";
   // Highest tier first: a ladder is read from the top, and the thing a player
   // wants to see is what they are climbing toward.
-  [...TIERS].reverse().forEach((tier, i, all) => {
+  [...tiers].reverse().forEach((tier, i, all) => {
     const row = document.createElement("li");
     row.className = "rank-ladder-row";
     if (rankInfo && !rankInfo.provisional && rankInfo.tier.name === tier.name) {
@@ -2921,10 +2958,10 @@ async function openRankLadder() {
   skill.textContent =
     "Climbing it is about the draft, not the roll: build a roster with no hole to attack, " +
     "counter what your opponent is building rather than mirroring it, back up every position " +
-    "so nobody plays 48 minutes - and never let the clock make a pick for you.";
+    "so nobody has to play the whole game - and never let the clock make a pick for you.";
   wrap.appendChild(skill);
 
-  openModal("Rank Ladder", wrap);
+  openModal(`${sport().name} Rank Ladder`, wrap);
 }
 
 document.getElementById("btn-rank-ladder").addEventListener("click", openRankLadder);

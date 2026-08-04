@@ -3,9 +3,9 @@
 // notch rather than a one-time unlock that goes dead.
 //
 // Every badge is a pure predicate over the normalized profile object from
-// profile.js - no per-badge state is persisted, exactly like the TIERS
-// system. That means the catalog can be re-tuned or extended freely without
-// a migration or any risk of stranding someone's saved progress.
+// profile.js - no per-badge state is persisted, exactly like the rank ladder
+// (each sport's `tiers`). That means the catalog can be re-tuned or extended
+// freely without a migration or any risk of stranding someone's saved progress.
 //
 // Badges are scoped by sport so the tab can grow with NFL/NHL/soccer later.
 
