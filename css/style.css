@@ -358,6 +358,46 @@ input[type="text"]:focus-visible {
   margin-bottom: 1.25rem;
 }
 
+/* Your standing in each sport, on the sport-neutral hub. A list rather than
+   the tile grid the Play screen uses, because these are not choices - nothing
+   here is clickable, it is what your all-sports rank is made of. */
+.sport-standings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.sport-standing {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.sport-standing-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.sport-standing-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+/* Pushed to the trailing edge so the ratings line up down the right, which is
+   what makes them comparable at a glance. */
+.sport-standing-detail {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
 @media (max-width: 700px) {
   .sport-grid {
     grid-template-columns: repeat(2, 1fr);

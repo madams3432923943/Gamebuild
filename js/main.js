@@ -27,6 +27,7 @@ import {
   setFeaturedBadges,
   FEATURED_BADGE_SLOTS,
   RANK_GAMES_FLOOR,
+  allSportRatings,
 } from "./profile.js";
 import { GENERAL_TIERS } from "./ranks.js";
 import { START_RATING } from "./rating.js";
@@ -431,16 +432,62 @@ async function reconcileUsername() {
   }
 }
 
+const homeStandingsEl = document.getElementById("home-sport-standings");
+
+/** One row per playable sport: your rank and rating in it.
+ *
+ * The hub deliberately has no sport selected, so this is how a player sees
+ * that their ranks really are separate - the banner above shows one number
+ * across everything, and this shows what that number is made of. A sport you
+ * have never played says so rather than showing a starting rating as though
+ * you had earned it. */
+async function renderHomeStandings(profile, population = null) {
+  homeStandingsEl.innerHTML = "";
+  const playable = SPORTS.filter((s) => isSelectable(s.id));
+  // One read of the ratings table for every row. Letting each loadRankInfo
+  // fetch its own would scan `profiles` once per sport, and that cost grows
+  // with the sport list rather than staying flat.
+  const rows = population || (await allSportRatings().catch(() => []));
+  const standings = await Promise.all(
+    playable.map((s) => (s.live ? loadRankInfo(profile, s.id, rows).catch(() => null) : Promise.resolve(null)))
+  );
+
+  playable.forEach((s, i) => {
+    const info = standings[i];
+    const row = document.createElement("div");
+    row.className = "sport-standing";
+
+    let detail;
+    if (!s.live) detail = s.status || "In development";
+    else if (!info || info.provisional) {
+      const need = info ? info.gamesNeeded : RANK_GAMES_FLOOR;
+      detail = `Unranked — ${need} more online ${need === 1 ? "game" : "games"}`;
+    } else detail = `${info.tier.name} — ${info.rating}`;
+
+    row.innerHTML =
+      `<span class="sport-standing-icon">${s.icon}</span>` +
+      `<span class="sport-standing-name"></span>` +
+      `<span class="sport-standing-detail"></span>`;
+    row.querySelector(".sport-standing-name").textContent = s.name;
+    row.querySelector(".sport-standing-detail").textContent = detail;
+    homeStandingsEl.appendChild(row);
+  });
+}
+
 /** Re-reads the profile and repaints the home header. Called on entry and
  * after anything that can change the record (a finished game, a rename). */
 async function refreshHome() {
   try {
     const profile = await loadProfile();
     game.nameA = profile.username || "Player";
-    // The banner is sport-neutral, so it carries the all-sports rank.
-    const rankInfo = await loadOverallRankInfo(profile);
+    // The banner is sport-neutral, so it carries the all-sports rank. The
+    // ratings table is read once here and handed to both, since the banner and
+    // the standings below it are ranking against the same field.
+    const population = await allSportRatings().catch(() => []);
+    const rankInfo = await loadOverallRankInfo(profile, population);
     renderHomeHeader(homeHeaderRefs, profile, rankInfo);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
+    await renderHomeStandings(profile, population);
   } catch (e) {
     console.error("Failed to load profile:", e);
     game.nameA = "Player";
@@ -915,6 +962,17 @@ document.getElementById("nav-play").addEventListener("click", () => {
     showScreen("home");
     refreshHome();
   });
+});
+// Home is the hub and carries no sport; the sport picker, mode and era all
+// live one step in, on the Play screen. Going back returns to the hub rather
+// than to whatever screen preceded it, because the hub is the only thing
+// "back" can mean from here.
+document.getElementById("btn-go-play").addEventListener("click", () => {
+  showScreen("play");
+});
+document.getElementById("btn-play-back").addEventListener("click", () => {
+  showScreen("home");
+  refreshHome();
 });
 document.getElementById("nav-profile").addEventListener("click", () => {
   goToTab("profile", openProfileScreen);
@@ -2829,12 +2887,13 @@ async function openProfileScreen() {
  * that one sport's ELO on that sport's own ladder. */
 async function renderProfileFor(profile) {
   const statsSport = sportById(profileStatsSportId);
+  const population = await allSportRatings().catch(() => []);
   const [overall, sportRank] = await Promise.all([
-    loadOverallRankInfo(profile),
+    loadOverallRankInfo(profile, population),
     // A sport nobody can play yet has no rank to hold, and asking for one
     // would report every player as provisional in it - which reads as "you
     // haven't played enough" rather than "this doesn't exist yet".
-    isSelectable(statsSport.id) && statsSport.live ? loadRankInfo(profile, statsSport.id) : Promise.resolve(null),
+    statsSport.live ? loadRankInfo(profile, statsSport.id, population) : Promise.resolve(null),
   ]);
   renderProfileScreen(profileRefs, profile, overall, statsSport, sportRank);
   renderBadgeSportTabs(profileStatsTabsEl, profileStatsSportId, (id) => {

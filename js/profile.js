@@ -48,7 +48,7 @@ export function nextTierAbove(percentile) {
  * Both ladders need the whole table, so they share one fetch: asking twice on
  * a screen that shows a sport rank and an overall rank side by side would
  * double the round trip for the same rows. */
-async function allSportRatings() {
+export async function allSportRatings() {
   const supabase = await getSupabase();
   const { data, error } = await supabase.from("profiles").select("sport_ratings");
   if (error) throw error;

@@ -12,6 +12,8 @@ export function sleep(ms) {
 const screens = {
   auth: document.getElementById("screen-auth"),
   home: document.getElementById("screen-home"),
+  // The hub is sport-neutral; choosing a sport and a mode happens here.
+  play: document.getElementById("screen-play"),
   matchupIntro: document.getElementById("screen-matchup-intro"),
   draft: document.getElementById("screen-draft"),
   game: document.getElementById("screen-game"),
