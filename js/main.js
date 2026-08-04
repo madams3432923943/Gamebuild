@@ -8,6 +8,10 @@ import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis } from "./engine.js";
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
+import { game, strategy } from "./state.js";
+import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
+import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
+import { countFriends } from "./friends.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
@@ -57,36 +61,6 @@ import {
   USERNAME_PATTERN,
   EMAIL_PATTERN,
 } from "./supabaseClient.js";
-import {
-  myMembership,
-  loadMySquad,
-  listPublicSquads,
-  watchSquadChat,
-  sendSquadMessage,
-  createSquad,
-  joinPublicSquad,
-  joinSquadByCode,
-  leaveSquad,
-  kickMember,
-  setMemberRole,
-  transferLeadership,
-  regenerateInviteCode,
-  updateSquadSettings,
-  disbandSquad,
-  squadRankInfo,
-} from "./squads.js";
-import {
-  sendFriendRequest,
-  acceptFriendRequest,
-  declineFriendRequest,
-  removeFriend,
-  challengeFriend,
-  listFriendsLeaderboard,
-  listIncomingRequests,
-  listOutgoingRequests,
-  listPendingChallenges,
-  countFriends,
-} from "./friends.js";
 import {
   joinQueue,
   leaveQueue,
@@ -181,47 +155,13 @@ function warmDatasetStats(sportId = getSport()) {
 }
 
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-const screens = {
-  auth: document.getElementById("screen-auth"),
-  home: document.getElementById("screen-home"),
-  matchupIntro: document.getElementById("screen-matchup-intro"),
-  draft: document.getElementById("screen-draft"),
-  game: document.getElementById("screen-game"),
-  profile: document.getElementById("screen-profile"),
-  badges: document.getElementById("screen-badges"),
-  squads: document.getElementById("screen-squads"),
-};
-
-const NAV_TABS = ["play", "profile", "badges", "squads"];
-
-function showScreen(name) {
-  for (const key of Object.keys(screens)) {
-    screens[key].classList.toggle("hidden", key !== name);
-  }
-}
-
-function setActiveNav(which) {
-  for (const tab of NAV_TABS) {
-    document.getElementById(`nav-${tab}`).classList.toggle("active", tab === which);
-  }
-}
-
+/** Stops the online match poller. Lives here rather than in shell.js because
+ * it is about a match in progress, not about app chrome - shell.js knows
+ * nothing about basketball. */
 function cleanupOnlineWatcher() {
   if (game.online && game.online.stopWatcher) {
     game.online.stopWatcher();
     game.online.stopWatcher = null;
-  }
-}
-
-let squadChatStop = null;
-function cleanupSquadChatWatcher() {
-  if (squadChatStop) {
-    squadChatStop();
-    squadChatStop = null;
   }
 }
 
@@ -280,44 +220,6 @@ btnForfeitPick.addEventListener("click", () => {
   const handler = currentPickTimeoutHandler;
   cleanupPickTimer();
   if (handler) handler();
-});
-
-// ---- Modal ----
-// One shell for the draft's position picker and How to Play. Kept generic
-// (title + body node + optional cancel handler) so both callers share the
-// same open/close, backdrop-click and Escape behaviour instead of each
-// growing its own slightly different version.
-
-const modalBackdrop = document.getElementById("modal-backdrop");
-const modalTitleEl = document.getElementById("modal-title");
-const modalBodyEl = document.getElementById("modal-body");
-const modalCloseBtn = document.getElementById("modal-close");
-let onModalDismiss = null;
-
-function openModal(title, bodyNode, onDismiss) {
-  modalTitleEl.textContent = title;
-  modalBodyEl.innerHTML = "";
-  modalBodyEl.appendChild(bodyNode);
-  onModalDismiss = onDismiss || null;
-  modalBackdrop.classList.remove("hidden");
-}
-
-function closeModal({ dismissed = false } = {}) {
-  modalBackdrop.classList.add("hidden");
-  modalBodyEl.innerHTML = "";
-  const cb = onModalDismiss;
-  onModalDismiss = null;
-  // A dismissal has to be distinguishable from a choice: abandoning the
-  // position picker must put the pending player back, not silently drop him.
-  if (dismissed && cb) cb();
-}
-
-modalCloseBtn.addEventListener("click", () => closeModal({ dismissed: true }));
-modalBackdrop.addEventListener("click", (e) => {
-  if (e.target === modalBackdrop) closeModal({ dismissed: true });
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !modalBackdrop.classList.contains("hidden")) closeModal({ dismissed: true });
 });
 
 /** Position picker: which open slot should this player fill? */
@@ -999,22 +901,6 @@ function renderDraftEra(eraId) {
 const draftTurnBanner = document.getElementById("draft-turn-banner");
 const btnLeaveMatch = document.getElementById("btn-leave-match");
 
-const game = {
-  mode: "bot",
-  nameA: "Player 1",
-  nameB: "Bot",
-  draft: null,
-  round: { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} },
-  roundNumber: 0,
-  ruleset: "easy",
-  online: null,
-  // Slots the pick CLOCK filled rather than the player, per side. The
-  // simulation charges a real cost for these (see FORFEIT_PLAYER_SCALE in
-  // constants.js), so a draft nobody turned up for can't beat one somebody
-  // actually made - which is exactly what it was doing before.
-  forfeits: { A: [], B: [] },
-};
-
 // ---- Bot draft flow ----
 // Side A is always the human here and side B is always the bot. These stay
 // as functions (rather than inlined constants) because the round loop in
@@ -1067,13 +953,13 @@ const btnConfirmMatchups = document.getElementById("btn-confirm-matchups");
 // The game plan is chosen AFTER the draft, as a final timed round: you should
 // be picking how to play the team you actually ended up with, not guessing at
 // a style before you know who you'll get. Every game offers 3 of the 10
-// styles at random, so selectedTactic defaults to whichever is first in that
+// styles at random, so strategy.tactic defaults to whichever is first in that
 // game's offer rather than a fixed id that might not even be on offer.
 // Seeded from the active sport rather than a basketball import, so a sport
 // with a different set of gamestyles (or none yet) doesn't inherit
 // basketball's as a default it never declared.
-let offeredTactics = [sport().tacticById(sport().defaultTactic)].filter(Boolean);
-let selectedTactic = sport().defaultTactic;
+strategy.offeredTactics = [sport().tacticById(sport().defaultTactic)].filter(Boolean);
+strategy.tactic = sport().defaultTactic;
 let tacticTimerInterval = null;
 
 function cleanupTacticTimer() {
@@ -1084,8 +970,8 @@ function cleanupTacticTimer() {
 }
 
 function renderTactics() {
-  renderTacticPicker(tacticGridEl, offeredTactics, selectedTactic, (id) => {
-    selectedTactic = id;
+  renderTacticPicker(tacticGridEl, strategy.offeredTactics, strategy.tactic, (id) => {
+    strategy.tactic = id;
     renderTactics();
   });
 }
@@ -1096,8 +982,8 @@ function renderTactics() {
 function startTacticPhase(onConfirm) {
   cleanupPickTimer();
   cleanupTacticTimer();
-  offeredTactics = sport().randomTacticChoices(3);
-  selectedTactic = offeredTactics[0].id;
+  strategy.offeredTactics = sport().randomTacticChoices(3);
+  strategy.tactic = strategy.offeredTactics[0].id;
   renderTactics();
 
   draftPoolPanel.classList.add("hidden");
@@ -1132,9 +1018,8 @@ function startTacticPhase(onConfirm) {
 // Rotation phase: minutes-per-player, shared by Offline Ranked Practice (6
 // slots) and (later) Online Ranked. Only shown under the "strict" ruleset -
 // Quick Play stays a no-strategy, no-clock, just-play-it experience. A
-// rotationMinutes of null means "use the engine's default fixed split," so
+// strategy.rotationMinutes of null means "use the engine's default fixed split," so
 // every mode that never enters this phase behaves exactly as before.
-let rotationMinutes = null;
 let rotationTimerInterval = null;
 
 function cleanupRotationTimer() {
@@ -1157,11 +1042,11 @@ function cleanupRotationTimer() {
 function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS) {
   cleanupPickTimer();
   cleanupRotationTimer();
-  rotationMinutes = sport().defaultMinutes(roster);
+  strategy.rotationMinutes = sport().defaultMinutes(roster);
   // Confirm stays locked until the whole 240 is spent. Leaving minutes on the
   // table is never a real choice - it just fields a weaker team - so it's
   // blocked rather than warned about.
-  renderRotationPicker(rotationGridEl, roster, rotationMinutes, rotationTotalEl, slots, (valid) => {
+  renderRotationPicker(rotationGridEl, roster, strategy.rotationMinutes, rotationTotalEl, slots, (valid) => {
     btnConfirmRotation.disabled = !valid;
   });
 
@@ -1195,7 +1080,6 @@ function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TI
 
 // Who guards whom. Null outside ranked practice, in which case the engine
 // falls back to everyone guarding their own position.
-let selectedMatchups = null;
 let matchupTimerInterval = null;
 
 function cleanupMatchupTimer() {
@@ -1215,9 +1099,9 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
 
   const myStarters = STARTER_SLOTS.filter((slot) => myRoster[slot]);
   const oppStarters = STARTER_SLOTS.filter((slot) => oppRoster[slot]);
-  selectedMatchups = sport().defaultMatchups(myRoster, oppRoster);
+  strategy.matchups = sport().defaultMatchups(myRoster, oppRoster);
 
-  renderMatchupPicker(matchupGridEl, myRoster, oppRoster, myStarters, oppStarters, selectedMatchups, oppLabel);
+  renderMatchupPicker(matchupGridEl, myRoster, oppRoster, myStarters, oppStarters, strategy.matchups, oppLabel);
 
   draftPoolPanel.classList.add("hidden");
   matchupPhaseEl.classList.remove("hidden");
@@ -1289,8 +1173,8 @@ function startDraft() {
   tacticPhaseEl.classList.add("hidden");
   rotationPhaseEl.classList.add("hidden");
   matchupPhaseEl.classList.add("hidden");
-  rotationMinutes = null;
-  selectedMatchups = null;
+  strategy.rotationMinutes = null;
+  strategy.matchups = null;
   draftPoolPanel.classList.remove("hidden");
   btnLeaveMatch.classList.add("hidden");
   applyRulesetToDraftUI();
@@ -1551,7 +1435,7 @@ function renderDraftComplete() {
   // gamestyle - since it's meant to rehearse exactly what Online Ranked asks
   // for, using a bot opponent instead of a real one.
   if (game.ruleset !== "strict") {
-    rotationMinutes = null;
+    strategy.rotationMinutes = null;
     // A beat to actually read the grade first. Without it Quick Play was the
     // one mode that computed a grade and then replaced the screen before
     // anyone could see it - the mode where the feedback matters MOST, since
@@ -2064,7 +1948,7 @@ async function beginOnlineStrategyPhase(match) {
       startTacticPhase(async () => {
         draftTurnBanner.textContent = "Submitting your game plan…";
         try {
-          await submitStrategy(o.matchId, rotationMinutes, selectedMatchups, selectedTactic);
+          await submitStrategy(o.matchId, strategy.rotationMinutes, strategy.matchups, strategy.tactic);
           draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
           awaitSimulationStart();
         } catch (e) {
@@ -2558,16 +2442,16 @@ function runLocalSimulation() {
   const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
   // Resolve both rotations up front so the box score can show the same
   // minutes the simulation actually used, rather than a second guess at them.
-  const minutesA = rotationMinutes || sport().defaultMinutes(draft.rosterA);
+  const minutesA = strategy.rotationMinutes || sport().defaultMinutes(draft.rosterA);
   const minutesB = sport().botMinutes(draft.rosterB);
   const forfeitsA = forfeitedSlotsFor("A", draft.rosterA, draft.slots);
   const forfeitsB = forfeitedSlotsFor("B", draft.rosterB, draft.slots);
   const result = sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
-    tacticA: selectedTactic,
+    tacticA: strategy.tactic,
     tacticB: botTactic,
     minutesA,
     minutesB,
-    matchupsA: selectedMatchups || undefined,
+    matchupsA: strategy.matchups || undefined,
     forfeitsA,
     forfeitsB,
   });
@@ -2580,8 +2464,8 @@ function runLocalSimulation() {
     rosterB: draft.rosterB,
     minutesA,
     minutesB,
-    matchups: selectedMatchups || undefined,
-    tactic: selectedTactic,
+    matchups: strategy.matchups || undefined,
+    tactic: strategy.tactic,
     // The engine already computed this on its way to the score, so the recap
     // narrates the same numbers the simulation actually used.
     analysis: result.analysis && result.analysis.a,
@@ -2767,9 +2651,9 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
     labelB: o.oppUsername,
     rosterA: myRosterFinal,
     rosterB: oppRosterFinal,
-    minutesA: rotationMinutes || undefined,
-    matchups: selectedMatchups || undefined,
-    tactic: selectedTactic,
+    minutesA: strategy.rotationMinutes || undefined,
+    matchups: strategy.matchups || undefined,
+    tactic: strategy.tactic,
     analysis: analysisA,
     onComplete: () => {
       // online_wins/online_losses, personal_bests, draft_counts, history and
@@ -3130,492 +3014,6 @@ async function onEquipBanner(franchiseId) {
   await openBadgesScreen();
 }
 
-// ---- Squads screen ----
-// Four subtabs sharing one screen: Friends (add/accept, leaderboard,
-// challenges), Home (browse/create when squad-less, or squad info + roster
-// once in one), Chat (squad chat, needs a squad), Tournaments (placeholder).
-
-const squadsTabsEl = document.getElementById("squads-tabs");
-const squadsPanelFriendsEl = document.getElementById("squads-panel-friends");
-const squadsPanelHomeEl = document.getElementById("squads-panel-home");
-const squadsPanelChatEl = document.getElementById("squads-panel-chat");
-const squadsPanelTournamentsEl = document.getElementById("squads-panel-tournaments");
-
-const squadsBrowseEl = document.getElementById("squads-browse");
-const squadsDetailEl = document.getElementById("squads-detail");
-const squadStatusEl = document.getElementById("squad-status");
-const squadSearchInput = document.getElementById("input-squad-search");
-const squadsListEl = document.getElementById("squads-list");
-const squadHeaderEl = document.getElementById("squad-header");
-const squadRosterEl = document.getElementById("squad-roster");
-const squadChatNoneEl = document.getElementById("squad-chat-none");
-const squadChatActiveEl = document.getElementById("squad-chat-active");
-const squadChatMessagesEl = document.getElementById("squad-chat-messages");
-const squadChatInput = document.getElementById("input-squad-chat");
-
-const friendUsernameInput = document.getElementById("input-friend-username");
-const friendChallengesListEl = document.getElementById("friend-challenges-list");
-const friendRequestsListEl = document.getElementById("friend-requests-list");
-const friendsLeaderboardEl = document.getElementById("friends-leaderboard");
-
-// Which of the four subtabs is showing, kept across visits like every other
-// subtab pattern in this app.
-let activeSquadsTab = "home";
-
-// Cache of the last-loaded squad detail, so toggling the settings editor is
-// a pure re-render (no round trip) - only actual mutations refetch. Cleared
-// whenever the player leaves the squads tab or their squad changes.
-let squadDetailData = null;
-let squadEditing = false;
-
-function setSquadStatus(message, kind) {
-  squadStatusEl.textContent = message || "";
-  squadStatusEl.classList.toggle("hidden", !message);
-  squadStatusEl.classList.toggle("auth-error", kind === "error");
-}
-
-/** Runs a squads.js mutation, shows its error message inline (these are
- * already player-facing text - see the `raise exception` strings in the
- * squads_*_rpcs migrations) instead of throwing, and refreshes the screen
- * on success. Used by every button that changes squad/roster state. */
-async function runSquadAction(fn) {
-  try {
-    await fn();
-    setSquadStatus("");
-  } catch (e) {
-    setSquadStatus(e.message || "Something went wrong.", "error");
-    return;
-  }
-  await openSquadsScreen();
-}
-
-/** Same shape as runSquadAction, for friends.js mutations - kept separate
- * because it refreshes only the Friends panel, not the whole screen. */
-async function runFriendAction(fn) {
-  try {
-    await fn();
-    setSquadStatus("");
-  } catch (e) {
-    setSquadStatus(e.message || "Something went wrong.", "error");
-    return;
-  }
-  await loadFriendsPanel();
-}
-
-let squadSearchDebounce = null;
-squadSearchInput.addEventListener("input", () => {
-  clearTimeout(squadSearchDebounce);
-  squadSearchDebounce = setTimeout(() => refreshSquadBrowseList(squadSearchInput.value), 300);
-});
-
-async function refreshSquadBrowseList(search = "") {
-  try {
-    const squads = await listPublicSquads(search);
-    renderSquadBrowseList(squadsListEl, squads, (squadId) => runSquadAction(() => joinPublicSquad(squadId)));
-  } catch (e) {
-    console.error("Failed to load squads:", e);
-    setSquadStatus("Couldn't load squads right now.", "error");
-  }
-}
-
-async function openSquadsScreen() {
-  showScreen("squads");
-  cleanupSquadChatWatcher();
-  renderSquadsTopTabs(squadsTabsEl, activeSquadsTab, (tab) => {
-    activeSquadsTab = tab;
-    openSquadsScreen();
-  });
-  setSquadStatus("");
-
-  squadsPanelFriendsEl.classList.toggle("hidden", activeSquadsTab !== "friends");
-  squadsPanelHomeEl.classList.toggle("hidden", activeSquadsTab !== "home");
-  squadsPanelChatEl.classList.toggle("hidden", activeSquadsTab !== "chat");
-  squadsPanelTournamentsEl.classList.toggle("hidden", activeSquadsTab !== "tournaments");
-
-  if (activeSquadsTab === "friends") {
-    await loadFriendsPanel();
-    return;
-  }
-  if (activeSquadsTab === "tournaments") {
-    return;
-  }
-
-  // Home and Chat both hinge on squad membership.
-  squadDetailData = null;
-  squadEditing = false;
-  try {
-    const membership = await myMembership();
-    if (!membership) {
-      if (activeSquadsTab === "home") {
-        squadsBrowseEl.classList.remove("hidden");
-        squadsDetailEl.classList.add("hidden");
-        await refreshSquadBrowseList(squadSearchInput.value);
-      } else {
-        squadChatNoneEl.classList.remove("hidden");
-        squadChatActiveEl.classList.add("hidden");
-      }
-      return;
-    }
-    if (activeSquadsTab === "home") {
-      squadsBrowseEl.classList.add("hidden");
-      squadsDetailEl.classList.remove("hidden");
-      // Needed before the roster renders, so Add Friend is hidden on people
-      // you're already connected to rather than appearing then vanishing.
-      await refreshKnownFriendIds();
-    } else {
-      squadChatNoneEl.classList.add("hidden");
-      squadChatActiveEl.classList.remove("hidden");
-    }
-    await loadSquadDetail();
-  } catch (e) {
-    console.error("Failed to load squad membership:", e);
-    setSquadStatus("Couldn't load your squad right now.", "error");
-  }
-}
-
-/** Fetches the caller's squad + roster + rank, then renders whichever of
- * Home/Chat is actually active - the other tab's content stays stale until
- * it's opened, and the chat poller only ever runs while Chat is on screen. */
-async function loadSquadDetail() {
-  const detail = await loadMySquad();
-  if (!detail) {
-    // Left/kicked between the membership check and here - just re-enter.
-    await openSquadsScreen();
-    return;
-  }
-  const rankInfo = squadRankInfo(detail.squad);
-  const session = await getSession();
-  squadDetailData = { ...detail, rankInfo, myUserId: session.user.id };
-
-  if (activeSquadsTab === "home") {
-    renderSquadDetailFromCache();
-  } else if (activeSquadsTab === "chat") {
-    cleanupSquadChatWatcher();
-    squadChatStop = watchSquadChat(detail.squad.id, (messages) => {
-      renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId);
-    });
-  }
-}
-
-/** Re-renders the header + roster from the cached detail - no network call.
- * Used after toggling the settings editor, which is pure UI state. */
-function renderSquadDetailFromCache() {
-  if (!squadDetailData) return;
-  const { squad, myRole, roster, inviteCode, rankInfo, myUserId } = squadDetailData;
-  renderSquadHeader(
-    squadHeaderEl,
-    { squad, myRole, memberCount: roster.length, rankInfo, inviteCode, editing: squadEditing },
-    {
-      onToggleEdit: () => {
-        squadEditing = !squadEditing;
-        renderSquadDetailFromCache();
-      },
-      onRegenerateCode: () => runSquadAction(() => regenerateInviteCode()),
-      onDisband: () => {
-        if (!window.confirm(`Disband ${squad.name}? This removes every member and can't be undone.`)) return;
-        runSquadAction(() => disbandSquad());
-      },
-      // Don't optimistically close the editor here - runSquadAction only
-      // re-renders (via a full openSquadsScreen(), which naturally resets
-      // squadEditing) on success. On failure it leaves the form exactly as
-      // the player left it, with their typed changes intact, so flipping
-      // squadEditing here first would desync in-memory state from what's
-      // still on screen if the save fails.
-      onSaveSettings: ({ emoji, motto, visibility }) => {
-        runSquadAction(() => updateSquadSettings({ emoji, motto, visibility }));
-      },
-    }
-  );
-
-  renderSquadRoster(
-    squadRosterEl,
-    roster,
-    myUserId,
-    myRole,
-    {
-      onSetRole: (userId, role) => runSquadAction(() => setMemberRole(userId, role)),
-      onTransfer: (userId) => {
-        if (!window.confirm("Make this player the new leader? You'll become a co-leader.")) return;
-        runSquadAction(() => transferLeadership(userId));
-      },
-      onKick: (userId) => {
-        if (!window.confirm("Remove this player from the squad?")) return;
-        runSquadAction(() => kickMember(userId));
-      },
-      onAddFriend: (username) => addFriendFromSquad(username),
-    },
-    squadKnownFriendIds
-  );
-}
-
-/** Ids we already have a friendship row with (accepted OR pending, either
- * direction) - the squad roster hides its Add Friend button for these, so it
- * never offers a request the server would reject as a duplicate. Refreshed
- * whenever the squad screen loads; an empty set just means every button
- * shows, which is the safe direction to fail in. */
-let squadKnownFriendIds = new Set();
-
-async function refreshKnownFriendIds() {
-  try {
-    const [leaderboard, incoming, outgoing] = await Promise.all([
-      listFriendsLeaderboard(),
-      listIncomingRequests(),
-      listOutgoingRequests(),
-    ]);
-    squadKnownFriendIds = new Set([
-      ...leaderboard.map((e) => e.userId),
-      ...incoming.map((r) => r.requesterId),
-      ...outgoing.map((r) => r.addresseeId),
-    ]);
-  } catch (e) {
-    console.error("Couldn't load existing friendships:", e);
-    squadKnownFriendIds = new Set();
-  }
-}
-
-async function addFriendFromSquad(username) {
-  try {
-    await sendFriendRequest(username);
-  } catch (e) {
-    window.alert(`Couldn't send that friend request: ${e.message}`);
-    return;
-  }
-  await refreshKnownFriendIds();
-  renderSquadDetailFromCache();
-}
-
-document.getElementById("btn-leave-squad").addEventListener("click", () => {
-  const label = squadDetailData ? squadDetailData.squad.name : "your squad";
-  if (!window.confirm(`Leave ${label}?`)) return;
-  runSquadAction(() => leaveSquad());
-});
-
-document.getElementById("btn-squad-chat-send").addEventListener("click", sendSquadChatFromInput);
-squadChatInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendSquadChatFromInput();
-});
-async function sendSquadChatFromInput() {
-  const body = squadChatInput.value.trim();
-  if (!body || !squadDetailData) return;
-  squadChatInput.value = "";
-  try {
-    await sendSquadMessage(squadDetailData.squad.id, body);
-  } catch (e) {
-    console.error("Failed to send squad chat:", e);
-    setSquadStatus(e.message || "Couldn't send that message.", "error");
-  }
-}
-
-// ---- Friends panel ----
-
-async function loadFriendsPanel() {
-  try {
-    const [challenges, incoming, outgoing, leaderboard] = await Promise.all([
-      listPendingChallenges(),
-      listIncomingRequests(),
-      listOutgoingRequests(),
-      listFriendsLeaderboard(),
-    ]);
-    renderFriendChallenges(friendChallengesListEl, challenges, onJoinChallenge);
-    renderFriendRequests(friendRequestsListEl, incoming, outgoing, {
-      onAccept: (id) => runFriendAction(() => acceptFriendRequest(id)),
-      onDecline: (id) => runFriendAction(() => declineFriendRequest(id)),
-      // Cancelling a request you sent uses the same RPC as declining one you
-      // received - decline_friend_request checks both directions.
-      onCancel: (id) => runFriendAction(() => declineFriendRequest(id)),
-    });
-    renderFriendsLeaderboard(friendsLeaderboardEl, leaderboard, {
-      onChallenge: onChallengeFriend,
-      onRemove: (friendId) => {
-        if (!window.confirm("Remove this friend?")) return;
-        runFriendAction(() => removeFriend(friendId));
-      },
-    });
-  } catch (e) {
-    console.error("Failed to load friends:", e);
-    setSquadStatus("Couldn't load friends right now.", "error");
-  }
-}
-
-// Deliberately NOT routed through runFriendAction: success here means
-// leaving the squads screen entirely for the draft screen, which a
-// loadFriendsPanel()/openSquadsScreen() refresh afterward would undo.
-async function onChallengeFriend(friendId) {
-  try {
-    const matchId = await challengeFriend(friendId, getSport(), getEra());
-    await enterOnlineMatch(matchId);
-  } catch (e) {
-    setSquadStatus(e.message || "Couldn't start that challenge.", "error");
-  }
-}
-
-async function onJoinChallenge(matchId) {
-  try {
-    await enterOnlineMatch(matchId);
-  } catch (e) {
-    setSquadStatus(e.message || "Couldn't open that match.", "error");
-  }
-}
-
-document.getElementById("btn-send-friend-request").addEventListener("click", async () => {
-  const username = friendUsernameInput.value.trim();
-  if (!username) return;
-  try {
-    await sendFriendRequest(username);
-    friendUsernameInput.value = "";
-    setSquadStatus("");
-  } catch (e) {
-    setSquadStatus(e.message || "Couldn't send that request.", "error");
-    return;
-  }
-  await loadFriendsPanel();
-});
-
-document.getElementById("btn-join-by-code").addEventListener("click", () => {
-  const wrap = document.createElement("div");
-
-  const field = document.createElement("div");
-  field.className = "field-row";
-  field.innerHTML = `<label for="input-join-code">Invite code</label>`;
-  const codeInput = document.createElement("input");
-  codeInput.id = "input-join-code";
-  codeInput.type = "text";
-  codeInput.maxLength = 6;
-  codeInput.placeholder = "e.g. BDF870";
-  field.appendChild(codeInput);
-  wrap.appendChild(field);
-
-  const errorEl = document.createElement("div");
-  errorEl.className = "auth-status hidden";
-  wrap.appendChild(errorEl);
-
-  const joinBtn = document.createElement("button");
-  joinBtn.type = "button";
-  joinBtn.className = "btn btn-primary btn-block";
-  joinBtn.textContent = "Join Squad";
-  joinBtn.addEventListener("click", async () => {
-    const code = codeInput.value.trim();
-    if (!code) return;
-    try {
-      await joinSquadByCode(code);
-    } catch (e) {
-      errorEl.textContent = e.message || "That code didn't work.";
-      errorEl.classList.remove("hidden");
-      errorEl.classList.add("auth-error");
-      return;
-    }
-    closeModal();
-    await openSquadsScreen();
-  });
-  wrap.appendChild(joinBtn);
-
-  openModal("Join by Invite Code", wrap);
-});
-
-document.getElementById("btn-create-squad").addEventListener("click", () => {
-  const wrap = document.createElement("div");
-  let chosenEmoji = "🏀";
-
-  const nameField = document.createElement("div");
-  nameField.className = "field-row";
-  nameField.innerHTML = `<label for="input-squad-name">Name</label>`;
-  const nameInput = document.createElement("input");
-  nameInput.id = "input-squad-name";
-  nameInput.type = "text";
-  nameInput.maxLength = 30;
-  nameInput.placeholder = "3-30 characters";
-  nameField.appendChild(nameInput);
-  wrap.appendChild(nameField);
-
-  const tagField = document.createElement("div");
-  tagField.className = "field-row";
-  tagField.innerHTML = `<label for="input-squad-tag">Tag</label>`;
-  const tagInput = document.createElement("input");
-  tagInput.id = "input-squad-tag";
-  tagInput.type = "text";
-  tagInput.maxLength = 5;
-  tagInput.placeholder = "2-5 letters/numbers";
-  tagField.appendChild(tagInput);
-  wrap.appendChild(tagField);
-
-  const emojiLabel = document.createElement("div");
-  emojiLabel.className = "field-row";
-  emojiLabel.innerHTML = `<label>Crest</label>`;
-  wrap.appendChild(emojiLabel);
-  const emojiPalette = document.createElement("div");
-  emojiPalette.className = "squad-emoji-palette";
-  wrap.appendChild(emojiPalette);
-  const paintCreatePalette = () => {
-    renderSquadEmojiPalette(emojiPalette, chosenEmoji, (emoji) => {
-      chosenEmoji = emoji;
-      paintCreatePalette();
-    });
-  };
-  paintCreatePalette();
-
-  const mottoField = document.createElement("div");
-  mottoField.className = "field-row";
-  mottoField.innerHTML = `<label for="input-squad-motto">Motto (optional)</label>`;
-  const mottoInput = document.createElement("textarea");
-  mottoInput.id = "input-squad-motto";
-  mottoInput.maxLength = 120;
-  mottoInput.rows = 2;
-  mottoField.appendChild(mottoInput);
-  wrap.appendChild(mottoField);
-
-  const visField = document.createElement("div");
-  visField.className = "field-row";
-  visField.innerHTML = `<label for="input-squad-visibility">Visibility</label>`;
-  const visSelect = document.createElement("select");
-  visSelect.id = "input-squad-visibility";
-  visSelect.innerHTML = `<option value="public">Public - anyone can join</option><option value="private">Private - invite code only</option>`;
-  visField.appendChild(visSelect);
-  wrap.appendChild(visField);
-
-  const errorEl = document.createElement("div");
-  errorEl.className = "auth-status hidden";
-  wrap.appendChild(errorEl);
-
-  const createBtn = document.createElement("button");
-  createBtn.type = "button";
-  createBtn.className = "btn btn-primary btn-block";
-  createBtn.textContent = "Create Squad";
-  const showCreateError = (message) => {
-    errorEl.textContent = message;
-    errorEl.classList.remove("hidden");
-    errorEl.classList.add("auth-error");
-  };
-
-  createBtn.addEventListener("click", async () => {
-    const name = nameInput.value.trim();
-    const tag = tagInput.value.trim();
-    if (!name || !tag) return;
-    // Client-side checks matching the squads table's own constraints, so a
-    // bad tag surfaces a readable message here instead of a raw Postgres
-    // check-constraint error from the RPC (which only catches name/tag
-    // uniqueness itself, not format - see create_squad in the migrations).
-    if (name.length < 3 || name.length > 30) {
-      showCreateError("Name must be 3-30 characters.");
-      return;
-    }
-    if (!/^[A-Za-z0-9]{2,5}$/.test(tag)) {
-      showCreateError("Tag must be 2-5 letters or numbers, no spaces or symbols.");
-      return;
-    }
-    try {
-      await createSquad({ name, tag, emoji: chosenEmoji, motto: mottoInput.value.trim(), visibility: visSelect.value });
-    } catch (e) {
-      showCreateError(e.message || "Couldn't create that squad.");
-      return;
-    }
-    closeModal();
-    await openSquadsScreen();
-  });
-  wrap.appendChild(createBtn);
-
-  openModal("Create a Squad", wrap);
-});
-
 profileRefs.usernameInput.addEventListener("change", async () => {
   const name = profileRefs.usernameInput.value.trim();
   if (!name) return;
@@ -3628,6 +3026,11 @@ profileRefs.usernameInput.addEventListener("change", async () => {
   game.nameA = name;
   signedInAsEl.textContent = name;
 });
+
+// Squads reaches back into the game only to join a challenge, and needs to
+// know which sport is selected. Handed over here rather than imported, since
+// main.js already imports squads and the reverse would be a cycle.
+initSquadsScreen({ joinMatch: enterOnlineMatch, getSport });
 
 // ---- Bootstrap ----
 // Runs last so every const above it is initialized. Gates the app on an
