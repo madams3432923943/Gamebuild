@@ -35,13 +35,6 @@ export function sportById(id) {
   return BY_ID.get(id) || BY_ID.get(DEFAULT_SPORT_ID);
 }
 
-/** Sports a player can actually enter. The UI still RENDERS the locked ones -
- * seeing what's coming is the point of the picker - but nothing playable is
- * reachable through them. */
-export function liveSports() {
-  return SPORTS.filter((s) => s.live);
-}
-
 export function isLive(id) {
   return !!BY_ID.get(id)?.live;
 }

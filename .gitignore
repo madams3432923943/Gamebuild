@@ -4,3 +4,15 @@ dist/
 # Build-verification output
 verify-artifacts/
 verify-report.json
+
+# Raw Basketball Reference season exports - the INPUT to
+# tools/build-data-from-csv.mjs, never read at runtime. 3.4 MB of CSV that
+# every repo-wide search had to wade through; re-download only when the
+# dataset actually needs regenerating (see tools/README.md).
+tools/seasons/
+
+# Generated from js/data.js by tools/export-players-json.mjs, and only needed
+# transiently while seeding the server's players table. Committing it meant
+# carrying a second 500 KB copy of a dataset already in the repo - and two
+# copies of the same data are two things that can disagree.
+db/seed/players.json

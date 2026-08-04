@@ -1,8 +1,13 @@
 # Importing real player data
 
-The player data in `js/data.js` is currently model-recalled: approximate, and
-honest about it. This directory converts authoritative CSVs into the same
-shape so the game can run on real numbers instead.
+`js/data.js` is generated, not hand-edited. This directory converts
+authoritative per-season CSVs into it.
+
+**The CSVs are not committed.** They are 3.4 MB of build input that nothing
+reads at runtime, and carrying them made every repo-wide search slower for no
+benefit (see `.gitignore`). Download them into `tools/seasons/` when you
+actually need to regenerate the dataset - which is rare, and the instructions
+below are the whole job.
 
 ## What to download
 
@@ -41,6 +46,19 @@ filename (`NBA_1997.csv` -> 1996-97 -> the 1990s).
     node tools/build-data-from-csv.mjs
 
 Writes `js/data.js`. Run `node tools/verify-data.mjs` afterward.
+
+## Getting a new dataset onto the server
+
+The client reads `js/data.js`; the online simulation reads the server's
+`players` table, and `scripts/verify-parity.mjs` checks the two agree. To push
+a regenerated dataset to the server:
+
+    node tools/export-players-json.mjs   # writes db/seed/players.json
+
+That file is gitignored (it is a second copy of data.js), but the seeding
+migration fetches it over HTTP rather than inlining 2,542 INSERTs - so it has
+to be committed and pushed just long enough for the migration to read it, then
+removed again. See `db/README.md`.
 
 ## What it handles
 

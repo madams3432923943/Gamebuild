@@ -67,15 +67,6 @@ function benchStandout(roster) {
   return { slot: best, player: roster[best], overSlot: worstStarter, overPlayer: roster[worstStarter] };
 }
 
-/** Plain-English name for the shape a roster took, used in the grade blurb
- * and by the counterplay hint. */
-export function buildStyleLabel(tilt) {
-  if (tilt.size > 0.12 && tilt.size > tilt.space) return "a big, interior team";
-  if (tilt.space > 0.12 && tilt.space > tilt.size) return "a perimeter, ball-movement team";
-  if (tilt.size < -0.12 && tilt.space < -0.12) return "a thin roster on both ends";
-  return "a balanced roster";
-}
-
 /**
  * Grades a finished roster.
  *

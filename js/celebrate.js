@@ -81,12 +81,6 @@ function ctx() {
   return audioCtx;
 }
 
-/** Turns every sound off for the session. Nothing calls this yet - it exists
- * so a mute control has something to call when one lands. */
-export function setMuted(value) {
-  muted = !!value;
-}
-
 /** One synthesised tone. `type` picks the timbre, and the envelope is a
  * plain attack/decay because anything more elaborate is inaudible under a
  * 200ms blip. */
@@ -138,38 +132,6 @@ export function playPop(step = 0) {
 /** A rising whoosh, for the matchmaking banners flying in. */
 export function playWhoosh() {
   tone({ freq: 140, sweepTo: 900, durationMs: 480, type: "sawtooth", gain: 0.05 });
-}
-
-/**
- * Animates a number up to its final value, calling `render` with each step.
- * The point is that a rating RISING is legible in a way a rating that has
- * already risen is not - the movement is the reward.
- */
-export function countUp(from, to, { durationMs = 900, render, onDone, sound = false } = {}) {
-  if (typeof render !== "function") return;
-  if (reducedMotion() || from === to) {
-    render(to);
-    if (onDone) onDone();
-    return;
-  }
-  const started = performance.now();
-  let lastShown = from;
-  function frame(now) {
-    const t = Math.min(1, (now - started) / durationMs);
-    const eased = 1 - Math.pow(1 - t, 3);
-    const value = Math.round(from + (to - from) * eased);
-    if (value !== lastShown) {
-      lastShown = value;
-      render(value);
-      if (sound && Math.random() < 0.25) playPop();
-    }
-    if (t < 1) requestAnimationFrame(frame);
-    else {
-      render(to);
-      if (onDone) onDone();
-    }
-  }
-  requestAnimationFrame(frame);
 }
 
 /** Retriggers a CSS animation class on an element. Removing then re-adding a

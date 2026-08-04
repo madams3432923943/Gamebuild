@@ -165,13 +165,6 @@ for (const f of FRANCHISES) {
   for (const alias of f.aliases) TEAM_TO_FRANCHISE.set(alias, f.id);
 }
 
-/** Franchise id for a squad's team string, or null if it isn't one we know.
- * Returning null rather than guessing keeps a renamed team from silently
- * building progress toward the wrong banner. */
-export function franchiseIdForTeam(teamName) {
-  return TEAM_TO_FRANCHISE.get(teamName) || null;
-}
-
 export function franchiseById(id) {
   return FRANCHISES.find((f) => f.id === id) || null;
 }

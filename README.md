@@ -218,7 +218,13 @@ real per-game statistics from Basketball Reference CSV exports:
 ```
 node tools/build-data-from-csv.mjs   # regenerate js/data.js
 node tools/verify-data.mjs           # sanity-check any dataset
+node tools/export-players-json.mjs   # then re-seed the server (db/README.md)
 ```
+
+Neither the source CSVs (`tools/seasons/`) nor the server seed export
+(`db/seed/players.json`) is committed. They were 3.9 MB of build input and
+duplicated dataset that nothing reads at runtime, and both regenerate from the
+commands above.
 
 ## Verifying a build
 
