@@ -5,113 +5,165 @@
 // can write online_wins/online_losses - see the protect_online_record
 // trigger in the schema).
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { eraRecordKey, DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
+import { eraRecordKey, statsKey, DEFAULT_SPORT_ID, activeSport, activeSportId, sportById } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
+import { GENERAL_TIERS, tierAt, tierAbove } from "./ranks.js";
+import { ratingFor, overallRating, percentileOf, RANK_GAMES_FLOOR } from "./rating.js";
 
-// Percentile bands: top X% by online win rate lands in this tier. Relative
-// to the player base rather than a fixed win count, so the ladder
-// self-adjusts as more people play instead of everyone eventually maxing
-// out the top tier at some fixed win count - see loadRankInfo() below.
-//
-// The ladder itself traces a basketball career: grassroots -> college ->
-// the NBA, ending in the same handful of legacy-defining tiers real
-// basketball culture already uses. Bands widen at the bottom and narrow at
-// the top on purpose - most of a real playing population never leaves
-// rec-league ball, while "hit an NBA MVP-tier win rate" should mean it,
-// not something half the player base reaches.
-export const RANK_GAMES_FLOOR = 5;
+// Re-exported so callers that only care about the games floor don't have to
+// know it is really a property of the rating system.
+export { RANK_GAMES_FLOOR };
 
 // One personal-best record per counting stat, each: {value, playerName, date}.
 export const FEATURED_BADGE_SLOTS = 3;
 
-export const STAT_LABELS = { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" };
+/** The stat keys one sport keeps a personal best in. Moved to the sport
+ * modules - "Points" is not a football record - so this just asks. */
+function statKeysFor(sportId) {
+  return Object.keys(sportById(sportId).statLabels || {});
+}
 
 /** The active sport's ladder. Where a player stands is sport-agnostic maths -
- * a percentile against everyone else's win rate - but what that percentile is
+ * a percentile against everyone else's rating - but what that percentile is
  * CALLED is not: "NBA MVP" means nothing in football. Each sport declares its
- * own `tiers`, and the arithmetic below is shared. */
+ * own `tiers`, and the arithmetic (js/ranks.js) is shared. */
 function tiers() {
   return activeSport().tiers || [];
 }
 
 export function tierForPercentile(percentile) {
-  const list = tiers();
-  let tier = list[0];
-  for (const t of list) if (percentile >= t.minPercentile) tier = t;
-  return tier;
+  return tierAt(tiers(), percentile);
 }
 
 export function nextTierAbove(percentile) {
-  return tiers().find((t) => t.minPercentile > percentile) || null;
+  return tierAbove(tiers(), percentile);
 }
 
-/**
- * Where a player's online win rate stands relative to everyone else's -
- * comparative, not an absolute win-count ladder, so this has to look at the
- * whole player base rather than just one profile. Bot games are practice,
- * not rank, since they're not a fair, verified bar to measure anyone
- * against - only online (vs. human) results count here.
+/** Every profile's ratings, for working out where one player stands.
  *
  * `profiles` is publicly readable (the "profiles are publicly readable" RLS
- * policy), so this reads win/loss counts directly rather than needing a
- * dedicated RPC - the same reasoning presence.js's heartbeat function
- * doesn't apply here, since win/loss counts aren't sensitive the way a raw
- * browser-id list would be.
+ * policy), so this reads the ratings directly rather than needing a dedicated
+ * RPC - a rating is a leaderboard number, not something sensitive.
  *
- * Returns { provisional: true, gamesPlayed, gamesNeeded } below the games
- * floor, or { provisional: false, tier, next, percentile, rank,
- * totalQualifying, winRate, gamesPlayed } once ranked.
- */
-export async function loadRankInfo(profile) {
-  const gamesPlayed = profile.onlineWins + profile.onlineLosses;
-  if (gamesPlayed < RANK_GAMES_FLOOR) {
-    return { provisional: true, gamesPlayed, gamesNeeded: RANK_GAMES_FLOOR - gamesPlayed };
-  }
-
+ * Both ladders need the whole table, so they share one fetch: asking twice on
+ * a screen that shows a sport rank and an overall rank side by side would
+ * double the round trip for the same rows. */
+async function allSportRatings() {
   const supabase = await getSupabase();
-  const { data, error } = await supabase.from("profiles").select("online_wins, online_losses");
+  const { data, error } = await supabase.from("profiles").select("sport_ratings");
   if (error) throw error;
+  return data.map((row) => row.sport_ratings || {});
+}
 
-  const winRate = profile.onlineWins / gamesPlayed;
-  let below = 0;
-  let above = 0;
-  let qualifying = 0;
-  for (const row of data) {
-    const played = (row.online_wins || 0) + (row.online_losses || 0);
-    if (played < RANK_GAMES_FLOOR) continue;
-    qualifying += 1;
-    const rate = row.online_wins / played;
-    if (rate < winRate) below += 1;
-    else if (rate > winRate) above += 1;
-  }
-
-  const percentile = qualifying > 0 ? (100 * below) / qualifying : 100;
+/** Shared shape for both ladders, so the UI renders either the same way. */
+function standing(rating, population, gamesPlayed, ladder) {
+  const { percentile, rank, total } = percentileOf(rating, population);
   return {
     provisional: false,
-    tier: tierForPercentile(percentile),
-    next: nextTierAbove(percentile),
+    rating,
+    tier: tierAt(ladder, percentile),
+    next: tierAbove(ladder, percentile),
     percentile,
-    rank: above + 1,
-    totalQualifying: qualifying,
-    winRate,
+    rank,
+    totalQualifying: total,
     gamesPlayed,
   };
 }
 
-export function mostDraftedPlayer(profile) {
+/**
+ * Where a player stands in ONE sport.
+ *
+ * Ratings are per-sport and always have been separate numbers - knowing the
+ * 1996 Bulls says nothing about knowing the 1985 Bears, so a football result
+ * has no business moving a basketball rank. Bot games are practice, not rank:
+ * only online results against a human ever reach sport_ratings, and only the
+ * Edge Function can write them (the protect_sport_ratings trigger).
+ *
+ * Returns { provisional: true, gamesPlayed, gamesNeeded } below the games
+ * floor, or a full standing once rated.
+ *
+ * @param sportId defaults to the sport currently selected, so the profile
+ *   screen follows the subtab the player is looking at.
+ */
+export async function loadRankInfo(profile, sportId = activeSportId(), population = null) {
+  const entry = ratingFor(profile.sportRatings, sportId);
+  if (entry.games < RANK_GAMES_FLOOR) {
+    return { provisional: true, gamesPlayed: entry.games, gamesNeeded: RANK_GAMES_FLOOR - entry.games };
+  }
+
+  const rows = population || (await allSportRatings());
+  // Only players rated in THIS sport are the field. Someone with 200 football
+  // games and no basketball ones is not a basketball player you can be ranked
+  // above, and counting them would inflate everyone's basketball percentile.
+  const field = rows
+    .map((r) => ratingFor(r, sportId))
+    .filter((e) => e.games >= RANK_GAMES_FLOOR)
+    .map((e) => e.rating);
+
+  return standing(entry.rating, field, entry.games, sportById(sportId).tiers || []);
+}
+
+/**
+ * Where a player stands across everything - the rank on their banner.
+ *
+ * The rating is the games-weighted mean of their per-sport ratings
+ * (overallRating in js/rating.js), and the ladder is the sport-neutral one, so
+ * this reads the same to a basketball player and a football one.
+ *
+ * The field is everyone with a rated game in ANY sport, which is the right
+ * comparison for a rank that claims to span all of them.
+ */
+export async function loadOverallRankInfo(profile, population = null) {
+  const own = overallRating(profile.sportRatings);
+  if (!own || own.games < RANK_GAMES_FLOOR) {
+    const played = own?.games || 0;
+    return { provisional: true, gamesPlayed: played, gamesNeeded: RANK_GAMES_FLOOR - played };
+  }
+
+  const rows = population || (await allSportRatings());
+  const field = rows
+    .map((r) => overallRating(r))
+    .filter((o) => o && o.games >= RANK_GAMES_FLOOR)
+    .map((o) => o.rating);
+
+  return standing(own.rating, field, own.games, GENERAL_TIERS);
+}
+
+/**
+ * The entries of a career-stat map that belong to one sport, with the sport
+ * prefix stripped back off.
+ *
+ * The maps are keyed through statsKey(): bare for basketball, `nfl:`-prefixed
+ * for anything else (see js/sports/index.js for why). Reading them therefore
+ * has to filter, or the NBA tab would count football players and the NFL tab
+ * would show basketball ones.
+ */
+function scopedEntries(map, sportId) {
+  const prefix = `${sportId}:`;
+  return Object.entries(map || {})
+    .filter(([key]) => (sportId === DEFAULT_SPORT_ID ? !key.includes(":") : key.startsWith(prefix)))
+    .map(([key, value]) => [sportId === DEFAULT_SPORT_ID ? key : key.slice(prefix.length), value]);
+}
+
+function highestCount(map, sportId) {
   let best = null;
-  for (const [name, count] of Object.entries(profile.draftCounts)) {
+  for (const [name, count] of scopedEntries(map, sportId)) {
     if (!best || count > best.count) best = { name, count };
   }
   return best;
 }
 
-export function mostTripleDoubles(profile) {
-  let best = null;
-  for (const [name, count] of Object.entries(profile.tripleDoubleCounts)) {
-    if (!best || count > best.count) best = { name, count };
-  }
-  return best;
+export function mostDraftedPlayer(profile, sportId = DEFAULT_SPORT_ID) {
+  return highestCount(profile.draftCounts, sportId);
+}
+
+export function mostTripleDoubles(profile, sportId = DEFAULT_SPORT_ID) {
+  return highestCount(profile.tripleDoubleCounts, sportId);
+}
+
+/** One sport's personal bests, keyed by bare stat name. */
+export function personalBestsFor(profile, sportId = DEFAULT_SPORT_ID) {
+  return Object.fromEntries(scopedEntries(profile.personalBests, sportId));
 }
 
 /** How many games profiles.history keeps. The Edge Function applies the same
@@ -152,12 +204,8 @@ export function winStreaks(profile) {
   return { longest, current, complete: games.length < HISTORY_LIMIT, sampled: games.length };
 }
 
-export function mostMVPs(profile) {
-  let best = null;
-  for (const [name, count] of Object.entries(profile.mvpCounts)) {
-    if (!best || count > best.count) best = { name, count };
-  }
-  return best;
+export function mostMVPs(profile, sportId = DEFAULT_SPORT_ID) {
+  return highestCount(profile.mvpCounts, sportId);
 }
 
 // Double-digit in any 3 of the 5 box-score categories - the general
@@ -202,6 +250,9 @@ function normalize(row) {
     largestMarginGame: row.largest_margin_game || null,
     tripleDoubleCounts: row.triple_double_counts || {},
     mvpCounts: row.mvp_counts || {},
+    // { nba: { rating, wins, losses, games, peak }, nfl: {...} } - one ELO per
+    // sport, written only by simulate-match (protect_sport_ratings).
+    sportRatings: row.sport_ratings || {},
   };
 }
 
@@ -224,10 +275,13 @@ export async function setUsername(name) {
  * for the "most drafted player" profile stat. Only for bot games -
  * online games get this recorded server-side by simulate-match, since a
  * client can't be trusted to self-report a competitive result. */
-export async function recordDraftPicks(playerNames) {
+export async function recordDraftPicks(playerNames, sport = DEFAULT_SPORT_ID) {
   const profile = await loadProfile();
   const draftCounts = { ...profile.draftCounts };
-  for (const name of playerNames) draftCounts[name] = (draftCounts[name] || 0) + 1;
+  for (const name of playerNames) {
+    const key = statsKey(sport, name);
+    draftCounts[key] = (draftCounts[key] || 0) + 1;
+  }
   const session = await requireSession();
   const supabase = await getSupabase();
   const { error } = await supabase.from("profiles").update({ draft_counts: draftCounts }).eq("id", session.user.id);
@@ -280,13 +334,17 @@ export async function recordPracticeResult({
   const profile = await loadProfile();
   const date = new Date().toISOString();
 
+  // Every career-stat map is namespaced by sport from here on (statsKey), so
+  // a football record can never be compared against a basketball one. NBA
+  // keeps the bare key, which is what makes this need no backfill.
   const personalBests = { ...profile.personalBests };
-  for (const statKey of Object.keys(STAT_LABELS)) {
+  for (const statKey of statKeysFor(sport)) {
+    const key = statsKey(sport, statKey);
     for (const { playerName, line } of ownLines) {
       const value = line[statKey];
-      const current = personalBests[statKey];
+      const current = personalBests[key];
       if (!current || value > current.value) {
-        personalBests[statKey] = { value, playerName, date };
+        personalBests[key] = { value, playerName, date };
       }
     }
   }
@@ -295,9 +353,10 @@ export async function recordPracticeResult({
   // ever holds a single-game high, and history is capped at 50 entries, so
   // neither can answer "how many assists have my players racked up ever".
   const careerTotals = { ...profile.careerTotals };
-  for (const statKey of Object.keys(STAT_LABELS)) {
+  for (const statKey of statKeysFor(sport)) {
+    const key = statsKey(sport, statKey);
     const gameTotal = ownLines.reduce((sum, { line }) => sum + (line[statKey] || 0), 0);
-    careerTotals[statKey] = (careerTotals[statKey] || 0) + gameTotal;
+    careerTotals[key] = (careerTotals[key] || 0) + gameTotal;
   }
 
   const history = [{ date, mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
@@ -346,14 +405,19 @@ export async function recordPracticeResult({
 
   const tripleDoubleCounts = { ...profile.tripleDoubleCounts };
   for (const { playerName, line } of ownLines) {
-    if (isTripleDouble(line)) tripleDoubleCounts[playerName] = (tripleDoubleCounts[playerName] || 0) + 1;
+    if (!isTripleDouble(line)) continue;
+    const key = statsKey(sport, playerName);
+    tripleDoubleCounts[key] = (tripleDoubleCounts[key] || 0) + 1;
   }
 
   // pickMvp() (engine.js) picks the best performer from EITHER roster, not
   // just the user's own - only count it here when it's actually one of the
   // user's drafted players, or the bot's best game would count as "yours".
   const mvpCounts = { ...profile.mvpCounts };
-  if (mvpName && mvpIsOwnTeam) mvpCounts[mvpName] = (mvpCounts[mvpName] || 0) + 1;
+  if (mvpName && mvpIsOwnTeam) {
+    const key = statsKey(sport, mvpName);
+    mvpCounts[key] = (mvpCounts[key] || 0) + 1;
+  }
 
   const session = await requireSession();
   const supabase = await getSupabase();

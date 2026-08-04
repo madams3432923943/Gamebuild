@@ -11,7 +11,6 @@
 
 import { BADGES, badgeProgress, badgesForSport } from "./badges.js";
 import { franchisesForSport, bannerProgress } from "./banners.js";
-import { tierForPercentile } from "./profile.js";
 
 /** Everything worth noticing a change in, flattened so two snapshots can be
  * compared without either knowing how the other was produced. */
@@ -58,9 +57,12 @@ export function progressGains(before, after, { rankBefore, rankAfter } = {}) {
   const tierBefore = rankBefore && !rankBefore.provisional ? rankBefore.tier.name : null;
   const tierAfter = rankAfter && !rankAfter.provisional ? rankAfter.tier.name : null;
   if (tierAfter && tierAfter !== tierBefore) {
-    const climbed =
-      !tierBefore ||
-      tierForPercentile(rankAfter.percentile).minPercentile > tierForPercentile(rankBefore.percentile).minPercentile;
+    // Read off the tiers the two standings already carry rather than looking
+    // them up again: a lookup goes through the ACTIVE sport's ladder, and
+    // these two standings belong to whichever sport was just played. The
+    // moment those differ, a rank-up in one sport would be measured against
+    // another sport's bands.
+    const climbed = !tierBefore || rankAfter.tier.minPercentile > rankBefore.tier.minPercentile;
     if (climbed) {
       gains.push({
         kind: "rank",

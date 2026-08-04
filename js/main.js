@@ -19,6 +19,7 @@ import { SPORTS, sportById, isLive, isSelectable, DEFAULT_SPORT_ID, activeSport,
 import {
   loadProfile,
   loadRankInfo,
+  loadOverallRankInfo,
   recordPracticeResult,
   recordDraftPicks,
   setUsername,
@@ -27,6 +28,8 @@ import {
   FEATURED_BADGE_SLOTS,
   RANK_GAMES_FLOOR,
 } from "./profile.js";
+import { GENERAL_TIERS } from "./ranks.js";
+import { START_RATING } from "./rating.js";
 import {
   getSession,
   requireSession,
@@ -434,7 +437,8 @@ async function refreshHome() {
   try {
     const profile = await loadProfile();
     game.nameA = profile.username || "Player";
-    const rankInfo = await loadRankInfo(profile);
+    // The banner is sport-neutral, so it carries the all-sports rank.
+    const rankInfo = await loadOverallRankInfo(profile);
     renderHomeHeader(homeHeaderRefs, profile, rankInfo);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
   } catch (e) {
@@ -1668,7 +1672,7 @@ async function enterOnlineMatch(matchId) {
   if (picks.length === 0) {
     const [myRankInfo, oppRankInfo] = await Promise.all([
       loadRankInfo(myProfile),
-      loadRankInfo({ onlineWins: oppSummary.onlineWins, onlineLosses: oppSummary.onlineLosses }),
+      loadRankInfo({ sportRatings: oppSummary.sportRatings }),
     ]);
     await playMatchupIntro(
       { username: myProfile.username || "You", tierLabel: rankLabelFor(myRankInfo), bannerId: myProfile.equippedBanner },
@@ -2583,7 +2587,10 @@ function runLocalSimulation() {
         minutesB,
       }).catch((e) => console.error("Failed to record result:", e));
 
-      const draftPicksWritten = recordDraftPicks(draft.slots.map((slot) => draft.rosterA[slot].name)).catch((e) =>
+      const draftPicksWritten = recordDraftPicks(
+        draft.slots.map((slot) => draft.rosterA[slot].name),
+        getSport()
+      ).catch((e) =>
         console.error("Failed to record draft picks:", e)
       );
 
@@ -2786,7 +2793,15 @@ const profileRefs = {
   mostMvps: document.getElementById("most-mvps"),
   longestWinStreak: document.getElementById("longest-win-streak"),
   historyBody: document.getElementById("history-body"),
+  sportRankHeading: document.getElementById("profile-sport-rank-heading"),
+  sportRank: document.getElementById("profile-sport-rank"),
 };
+const profileStatsTabsEl = document.getElementById("profile-stats-sport-tabs");
+
+// Which sport's career stats the profile is showing. Starts on whatever sport
+// is selected, but is its own state afterwards: looking at your football
+// records shouldn't switch the app - and re-theme it - out from under you.
+let profileStatsSportId = activeSportId();
 const profileEquippedBannerEl = document.getElementById("profile-equipped-banner");
 const btnCustomizeBanner = document.getElementById("btn-customize-banner");
 
@@ -2799,13 +2814,33 @@ async function openProfileScreen() {
   try {
     const profile = await loadProfile();
     currentProfile = profile;
-    const rankInfo = await loadRankInfo(profile);
-    renderProfileScreen(profileRefs, profile, rankInfo, sport());
+    await renderProfileFor(profile);
     renderEquippedBanner(profileEquippedBannerEl, profile);
     refreshProfileEmail();
   } catch (e) {
     console.error("Failed to load profile:", e);
   }
+}
+
+/** Paints the profile for whichever sport subtab is selected.
+ *
+ * Two ranks are on this screen and they are different numbers: the headline is
+ * the all-sports standing (the one on the banner), and under the subtabs is
+ * that one sport's ELO on that sport's own ladder. */
+async function renderProfileFor(profile) {
+  const statsSport = sportById(profileStatsSportId);
+  const [overall, sportRank] = await Promise.all([
+    loadOverallRankInfo(profile),
+    // A sport nobody can play yet has no rank to hold, and asking for one
+    // would report every player as provisional in it - which reads as "you
+    // haven't played enough" rather than "this doesn't exist yet".
+    isSelectable(statsSport.id) && statsSport.live ? loadRankInfo(profile, statsSport.id) : Promise.resolve(null),
+  ]);
+  renderProfileScreen(profileRefs, profile, overall, statsSport, sportRank);
+  renderBadgeSportTabs(profileStatsTabsEl, profileStatsSportId, (id) => {
+    profileStatsSportId = id;
+    if (currentProfile) renderProfileFor(currentProfile).catch((e) => console.error(e));
+  });
 }
 
 btnCustomizeBanner.addEventListener("click", () => openCustomizeBannerModal());
@@ -2862,70 +2897,29 @@ btnSaveEmail.addEventListener("click", async () => {
 });
 
 // ---- Rank ladder ----
-// Every tier in one place. Ranked is a percentile ladder (see loadRankInfo),
-// which is fair but invisible: without this a player can only ever see the
-// one rung they are standing on, and "AAU" means nothing if you can't see
-// what is above and below it.
+// Ranked is a percentile ladder (see loadRankInfo), which is fair but
+// invisible: without this a player can only ever see the one rung they are
+// standing on, and "AAU" means nothing if you can't see what is above and
+// below it.
 //
-// The rungs are the sport's own - a basketball player climbs to Hall of Fame
-// through AAU and the G League, a football one through JV and the combine -
-// but they sit on identical percentile bands, so the two ladders are the same
-// ladder wearing different names and a rank means the same thing in both.
+// There are two ladders to show, because there are two ranks. The all-sports
+// one is written in general sporting terms (js/ranks.js) and is what a
+// player's banner carries. Under it sits the ladder for the sport being
+// looked at, in that sport's own language - a basketball player climbs
+// through AAU and the G League, a football one through JV and the combine.
+// Both stand on the same percentile bands, so a rung means the same thing
+// wherever it appears.
 
-async function openRankLadder() {
-  const tiers = sport().tiers || [];
-  const wrap = document.createElement("div");
-
-  // A sport can reach the picker before its ladder is written (NFL spent a
-  // build in exactly that state), and an empty ladder would otherwise read
-  // the top rung off the end of the array.
-  if (!tiers.length) {
-    const none = document.createElement("p");
-    none.className = "hint-text";
-    none.textContent = `${sport().name} doesn't have a rank ladder yet.`;
-    wrap.appendChild(none);
-    openModal(`${sport().name} Rank Ladder`, wrap);
-    return;
-  }
-
-  const intro = document.createElement("p");
-  intro.className = "hint-text";
-  intro.textContent =
-    `Rank is your online win rate measured against everyone else's, not a win count - the top ${
-      100 - tiers[tiers.length - 1].minPercentile
-    }% of ${sport().name} players are ${tiers[tiers.length - 1].name}s however many games anyone has played. ` +
-    `Bot games never count. You need ${RANK_GAMES_FLOOR} online games before you're ranked at all.`;
-  wrap.appendChild(intro);
-
-  let rankInfo = null;
-  try {
-    rankInfo = await loadRankInfo(currentProfile || (await loadProfile()));
-  } catch (e) {
-    console.error("Failed to load rank info:", e);
-  }
-
-  if (rankInfo && rankInfo.provisional) {
-    const note = document.createElement("p");
-    note.className = "hint-text";
-    note.textContent = `${rankInfo.gamesNeeded} more online game${
-      rankInfo.gamesNeeded === 1 ? "" : "s"
-    } and you'll be placed on the ladder.`;
-    wrap.appendChild(note);
-  }
-
+/** One ladder, rendered highest rung first - a ladder is read from the top,
+ * and what a player wants to see is what they are climbing toward. */
+function renderLadder(tiers, rankInfo) {
   const list = document.createElement("ol");
   list.className = "rank-ladder";
-  // Highest tier first: a ladder is read from the top, and the thing a player
-  // wants to see is what they are climbing toward.
   [...tiers].reverse().forEach((tier, i, all) => {
     const row = document.createElement("li");
     row.className = "rank-ladder-row";
-    if (rankInfo && !rankInfo.provisional && rankInfo.tier.name === tier.name) {
-      row.classList.add("current");
-    }
-    if (rankInfo && rankInfo.next && rankInfo.next.name === tier.name) {
-      row.classList.add("next");
-    }
+    if (rankInfo && !rankInfo.provisional && rankInfo.tier.name === tier.name) row.classList.add("current");
+    if (rankInfo && rankInfo.next && rankInfo.next.name === tier.name) row.classList.add("next");
 
     const name = document.createElement("span");
     name.className = "rank-ladder-name";
@@ -2939,7 +2933,7 @@ async function openRankLadder() {
     const above = all[i - 1];
     const trim = (n) => String(Number(n.toFixed(1)));
     band.textContent = above
-      ? `${trim(tier.minPercentile)}–${trim(above.minPercentile)} percentile`
+      ? `${trim(tier.minPercentile)}\u2013${trim(above.minPercentile)} percentile`
       : `${trim(tier.minPercentile)}+ percentile`;
 
     row.append(name, band);
@@ -2951,7 +2945,82 @@ async function openRankLadder() {
     }
     list.appendChild(row);
   });
-  wrap.appendChild(list);
+  return list;
+}
+
+/** A titled ladder section, with the one line of context that ladder needs. */
+function ladderSection(heading, blurb, tiers, rankInfo) {
+  const section = document.createElement("div");
+  section.className = "howto-section";
+
+  const h = document.createElement("h4");
+  h.textContent = heading;
+  section.appendChild(h);
+
+  const note = document.createElement("p");
+  note.className = "hint-text";
+  note.textContent =
+    rankInfo && rankInfo.provisional
+      ? `${blurb} ${rankInfo.gamesNeeded} more online game${
+          rankInfo.gamesNeeded === 1 ? "" : "s"
+        } and you'll be placed on it.`
+      : blurb;
+  section.appendChild(note);
+
+  section.appendChild(renderLadder(tiers, rankInfo));
+  return section;
+}
+
+async function openRankLadder() {
+  const wrap = document.createElement("div");
+
+  const intro = document.createElement("p");
+  intro.className = "hint-text";
+  intro.textContent =
+    `Your rating is an ELO: you gain what a win was worth against that particular opponent, ` +
+    `so beating someone above you pays more than beating someone below. Everyone starts at ` +
+    `${START_RATING}. Rank is where that rating stands against everyone else's, not a win count. ` +
+    `Bot games never count, and you need ${RANK_GAMES_FLOOR} online games before you're ranked at all.`;
+  wrap.appendChild(intro);
+
+  const profile = currentProfile || (await loadProfile().catch(() => null));
+  const statsSport = sportById(profileStatsSportId);
+
+  let overall = null;
+  let sportRank = null;
+  if (profile) {
+    try {
+      [overall, sportRank] = await Promise.all([
+        loadOverallRankInfo(profile),
+        statsSport.live ? loadRankInfo(profile, statsSport.id) : Promise.resolve(null),
+      ]);
+    } catch (e) {
+      console.error("Failed to load rank info:", e);
+    }
+  }
+
+  wrap.appendChild(
+    ladderSection(
+      "All Sports",
+      "The rank on your banner. Your rating across every sport you play, weighted by how much you play each, so a sport you have two games in cannot swing a rank built over a hundred.",
+      GENERAL_TIERS,
+      overall
+    )
+  );
+
+  const sportTiers = statsSport.tiers || [];
+  if (sportTiers.length) {
+    wrap.appendChild(
+      ladderSection(
+        `${statsSport.name}`,
+        statsSport.live
+          ? `Your ${statsSport.name} rating only. A result in one sport never moves your rank in another.`
+          : `${statsSport.name} isn't playable yet, so nobody is on this ladder.`,
+        sportTiers,
+        sportRank
+      )
+    );
+  }
 
   const skill = document.createElement("p");
   skill.className = "hint-text";
@@ -2961,7 +3030,7 @@ async function openRankLadder() {
     "so nobody has to play the whole game - and never let the clock make a pick for you.";
   wrap.appendChild(skill);
 
-  openModal(`${sport().name} Rank Ladder`, wrap);
+  openModal("Rank Ladder", wrap);
 }
 
 document.getElementById("btn-rank-ladder").addEventListener("click", openRankLadder);

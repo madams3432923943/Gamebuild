@@ -13,7 +13,7 @@ import {
   mostTripleDoubles,
   winStreaks,
   mostMVPs,
-  STAT_LABELS,
+  personalBestsFor,
   FEATURED_BADGE_SLOTS,
   eraRecord,
 } from "./profile.js";
@@ -409,10 +409,17 @@ export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
   track.appendChild(fill);
   badgeContainer.appendChild(track);
 
-  const standing = `Top ${Math.max(1, Math.round(100 - percentile))}% online (#${rank} of ${totalQualifying})`;
+  // The rating leads, because it is the thing that actually moved: a player
+  // who won and gained 18 points wants to see the 18, and the percentile only
+  // changes when someone else's rating does.
+  const ratingPart = rankInfo.rating === undefined ? "" : `${rankInfo.rating} rating — `;
+  const standing = `${ratingPart}top ${Math.max(1, Math.round(100 - percentile))}% (#${rank} of ${totalQualifying})`;
+  // The top rung is named by whichever ladder this is - the sport ladders end
+  // in Legend, the all-sports one in GOAT - so it is read off the tier rather
+  // than written in here.
   captionContainer.textContent = next
     ? `${standing} — climb into the top ${Math.round(100 - next.minPercentile)}% to reach ${next.name}.`
-    : `${standing} — you've reached the top tier, Legend.`;
+    : `${standing} — you've reached the top tier, ${tier.name}.`;
 }
 
 /** "Est. MM/YYYY" - a join-date plate in the style of a franchise banner's
@@ -505,12 +512,21 @@ export function renderHomeHeader(refs, profile, rankInfo) {
 
   renderFeaturedBadges(refs.featured, profile);
 
+  // The banner carries the GENERAL rank - the one on js/ranks.js's sport-
+  // neutral ladder, off a rating averaged across every sport played. A banner
+  // is the thing other players see in the matchup intro, and it should say
+  // what kind of player you are rather than what kind of basketball player,
+  // now that a second sport exists. Per-sport ranks live on the profile
+  // screen, under that sport's own subtab.
   const rankName = rankInfo.provisional ? "Provisional" : rankInfo.tier.name;
   refs.record.innerHTML = "";
   const parts = [
     { label: "Rep", value: `${profile.onlineWins}-${profile.onlineLosses}` },
     { label: "Rank", value: rankName },
   ];
+  // The rating itself, only once it means something. Showing "500" to someone
+  // with two games would present the starting number as an achievement.
+  if (!rankInfo.provisional) parts.push({ label: "Rating", value: String(rankInfo.rating) });
   for (const part of parts) {
     const stat = document.createElement("div");
     stat.className = "pb-stat";
@@ -995,9 +1011,44 @@ function renderEraRecords(container, profile, sport) {
   }
 }
 
-export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(DEFAULT_SPORT_ID)) {
+/**
+ * @param rankInfo the player's GENERAL, all-sports standing - the one on their
+ *   banner. It sits at the top of the screen because it is the headline.
+ * @param sport which sport's career stats to show. Everything below the subtab
+ *   row is scoped to it, including `sportRankInfo` - that sport's own ELO
+ *   standing on its own ladder, which is a different number from `rankInfo`
+ *   and is the whole point of ratings being per-sport.
+ */
+export function renderProfileScreen(
+  refs,
+  profile,
+  rankInfo,
+  sport = sportById(DEFAULT_SPORT_ID),
+  sportRankInfo = null
+) {
   refs.usernameInput.value = profile.username || "";
   renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
+
+  if (refs.sportRankHeading) refs.sportRankHeading.textContent = `${sport.name} Rank`;
+  if (refs.sportRank) {
+    refs.sportRank.innerHTML = "";
+    if (!sportRankInfo) {
+      refs.sportRank.innerHTML = `<div class="empty-note">${sport.name} isn't playable yet, so there's no rank to earn here.</div>`;
+    } else if (sportRankInfo.provisional) {
+      const g = sportRankInfo.gamesNeeded;
+      refs.sportRank.innerHTML =
+        `<div class="empty-note">${g} more online ${g === 1 ? "game" : "games"} in ${sport.name} to get a ${sport.name} rank.</div>`;
+    } else {
+      const badge = document.createElement("span");
+      badge.className = "tier-badge";
+      badge.textContent = sportRankInfo.tier.name;
+      const line = document.createElement("div");
+      line.className = "performance-line";
+      line.textContent =
+        `${sportRankInfo.rating} rating — #${sportRankInfo.rank} of ${sportRankInfo.totalQualifying} in ${sport.name}`;
+      refs.sportRank.append(badge, line);
+    }
+  }
 
   refs.onlineRecord.textContent = `${profile.onlineWins}-${profile.onlineLosses}`;
   refs.offlineRecord.textContent = `${profile.offlineWins}-${profile.offlineLosses}`;
@@ -1009,26 +1060,32 @@ export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(D
 
   renderEraRecords(refs.eraRecords, profile, sport);
 
-  const top = mostDraftedPlayer(profile);
+  const top = mostDraftedPlayer(profile, sport.id);
   refs.mostDrafted.innerHTML = top
-    ? `<div class="performance-row"><span>${top.name}</span><span class="performance-line">${top.count}x drafted</span></div>`
-    : `<div class="empty-note">Play a draft to start tracking this.</div>`;
+    ? `<div class="performance-row"><span>${escapeHtml(top.name)}</span><span class="performance-line">${top.count}x drafted</span></div>`
+    : `<div class="empty-note">Play a ${sport.name} draft to start tracking this.</div>`;
 
+  // Labels come from the sport, so the NFL tab lists passing yards rather than
+  // rebounds. A sport nobody has played yet still draws every row as a dash -
+  // showing what WILL be tracked is more useful than an empty card.
   refs.topPerformances.innerHTML = "";
-  const bestKeys = Object.keys(STAT_LABELS);
-  const anyBests = bestKeys.some((k) => profile.personalBests[k]);
-  if (!anyBests) {
-    refs.topPerformances.innerHTML = `<div class="empty-note">No games played yet.</div>`;
+  const statLabels = sport.statLabels || {};
+  const bests = personalBestsFor(profile, sport.id);
+  const bestKeys = Object.keys(statLabels);
+  if (!bestKeys.length) {
+    refs.topPerformances.innerHTML = `<div class="empty-note">No stats tracked for ${sport.name} yet.</div>`;
+  } else if (!bestKeys.some((k) => bests[k])) {
+    refs.topPerformances.innerHTML = `<div class="empty-note">No ${sport.name} games played yet.</div>`;
   } else {
     for (const key of bestKeys) {
-      const best = profile.personalBests[key];
+      const best = bests[key];
       const row = document.createElement("div");
       row.className = "performance-row";
       if (best) {
         const date = new Date(best.date).toLocaleDateString();
-        row.innerHTML = `<span>Most ${STAT_LABELS[key]} — ${best.playerName}</span><span class="performance-line">${r(best.value)} — ${date}</span>`;
+        row.innerHTML = `<span>Most ${statLabels[key]} — ${escapeHtml(best.playerName)}</span><span class="performance-line">${r(best.value)} — ${date}</span>`;
       } else {
-        row.innerHTML = `<span>Most ${STAT_LABELS[key]}</span><span class="performance-line">—</span>`;
+        row.innerHTML = `<span>Most ${statLabels[key]}</span><span class="performance-line">—</span>`;
       }
       refs.topPerformances.appendChild(row);
     }
@@ -1047,7 +1104,7 @@ export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(D
       `<span class="performance-line">${marginGame.value}-point win — ${new Date(marginGame.date).toLocaleDateString()}</span></div>`
     : `<div class="performance-row"><span>Biggest Win</span><span class="performance-line">—</span></div>`;
 
-  const tripleDoubles = mostTripleDoubles(profile);
+  const tripleDoubles = mostTripleDoubles(profile, sport.id);
   refs.mostTripleDoubles.innerHTML = tripleDoubles
     ? `<div class="performance-row"><span>Most Triple-Doubles — ${tripleDoubles.name}</span><span class="performance-line">${tripleDoubles.count}x</span></div>`
     : `<div class="performance-row"><span>Most Triple-Doubles</span><span class="performance-line">—</span></div>`;
@@ -1067,7 +1124,7 @@ export function renderProfileScreen(refs, profile, rankInfo, sport = sportById(D
     `<div class="performance-row"><span>Longest Win Streak${streakScope}</span>` +
     `<span class="performance-line">${streakLine}</span></div>`;
 
-  const mvps = mostMVPs(profile);
+  const mvps = mostMVPs(profile, sport.id);
   refs.mostMvps.innerHTML = mvps
     ? `<div class="performance-row"><span>Most MVPs — ${mvps.name}</span><span class="performance-line">${mvps.count}x</span></div>`
     : `<div class="performance-row"><span>Most MVPs</span><span class="performance-line">—</span></div>`;

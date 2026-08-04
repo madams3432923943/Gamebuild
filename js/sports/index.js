@@ -116,3 +116,17 @@ export function setActiveSport(id) {
 export function eraRecordKey(sportId, eraId) {
   return sportId === "nba" ? eraId : `${sportId}:${eraId}`;
 }
+
+/**
+ * Namespaces a career-stat key by sport, on exactly the rule eraRecordKey uses.
+ *
+ * profiles.personal_bests is keyed by bare stat name (`pts`, `reb`) and
+ * draft_counts by bare player name. Both collide the moment a second sport
+ * writes to them: a passing-yards record would sort against a points record,
+ * and Most Drafted would rank Jordan against Brady in one list. Prefixing
+ * everything but the default sport keeps every row already in the database
+ * valid and readable as basketball, so this needs no backfill.
+ */
+export function statsKey(sportId, key) {
+  return sportId === DEFAULT_SPORT_ID ? key : `${sportId}:${key}`;
+}

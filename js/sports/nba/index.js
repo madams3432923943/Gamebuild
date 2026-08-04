@@ -144,6 +144,12 @@ export const NBA = {
   statKeys: ["ppg", "rpg", "apg", "spg", "bpg", "tov"],
   lineKeys: ["pts", "reb", "ast", "stl", "blk", "tov"],
 
+  // The box-score categories the profile keeps a personal best in, and what to
+  // call them. Lived in js/profile.js as a basketball-only constant, which is
+  // why the profile screen had nothing to show a second sport - "Most Points"
+  // is not a football record.
+  statLabels: { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" },
+
   // ---- Simulation ---------------------------------------------------------
   computeDatasetStats,
   simulate: simulateGame,

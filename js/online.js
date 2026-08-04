@@ -234,17 +234,20 @@ export async function getOpponentSummary(userId) {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("username, online_wins, online_losses, equipped_banner")
+    .select("username, online_wins, online_losses, equipped_banner, sport_ratings")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
-    return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null };
+    return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null, sportRatings: {} };
   }
   return {
     username: data.username || "Opponent",
     onlineWins: data.online_wins || 0,
     onlineLosses: data.online_losses || 0,
     equippedBanner: data.equipped_banner || null,
+    // Their ELO in each sport, so the matchup intro can show the rank they
+    // actually hold in the sport being played rather than a global win rate.
+    sportRatings: data.sport_ratings || {},
   };
 }
 

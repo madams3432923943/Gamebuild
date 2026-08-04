@@ -391,6 +391,35 @@ async function checkEngineSource() {
   });
 }
 
+/** The rating module is app-wide, not per-sport, so it sits beside the
+ * function rather than under sports/ - but it is vendored for exactly the same
+ * reason an engine is. The client tells a player what a game was worth and the
+ * server decides it; if the two drift, the number that flashes after a match
+ * is not the number that got stored. */
+async function checkRatingSource() {
+  const started = Date.now();
+  const [client, edge] = await Promise.all([
+    readFile(path.join(ROOT, "js", "rating.js"), "utf8"),
+    readFile(path.join(ROOT, "supabase", "functions", "simulate-match", "rating.js"), "utf8"),
+  ]);
+  const nc = normalizeSource(client);
+  const ne = normalizeSource(edge);
+  const durationMs = Date.now() - started;
+
+  if (nc === ne) {
+    return check("parity:rating-source", "Rating source identical (comments normalized)", PASS, { durationMs });
+  }
+  const diff = firstDifference(nc, ne);
+  return check("parity:rating-source", "Rating source identical (comments normalized)", FAIL, {
+    detail:
+      `js/rating.js and the Edge Function's vendored rating.js differ in code, not just comments.\n` +
+      `First divergence at normalized offset ${diff.offset}:\n` +
+      `  client: …${diff.client}…\n` +
+      `  edge:   …${diff.edge}…`,
+    durationMs,
+  });
+}
+
 async function checkBoxScores() {
   const started = Date.now();
   const [clientEngine, edgeEngine, data, tacticsMod] = await Promise.all([
@@ -645,6 +674,7 @@ function pathToUrl(p) {
 export async function runParityChecks({ network = true } = {}) {
   const checks = [];
   checks.push(await checkEngineSource());
+  checks.push(await checkRatingSource());
   checks.push(await checkConstants());
   checks.push(await checkTactics());
   checks.push(await checkBoxScores());

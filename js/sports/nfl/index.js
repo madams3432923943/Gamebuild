@@ -133,6 +133,20 @@ export const NFL = {
   statKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
   lineKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
 
+  // Placeholders, and honestly so: no NFL game has been simulated, so every
+  // one of these reads as a dash on the profile. They are declared now because
+  // the profile screen builds its Top Performances list from this - without it
+  // the NFL subtab would have nothing to draw at all, and "no games yet" is a
+  // more useful thing to show than an empty panel. The set will be revisited
+  // when the engine exists and settles what a football box score contains.
+  statLabels: {
+    pass_yds: "Passing Yards",
+    rush_yds: "Rushing Yards",
+    rec_yds: "Receiving Yards",
+    tds: "Touchdowns",
+    turnovers: "Takeaways",
+  },
+
   // ---- Not built yet ------------------------------------------------------
   // Each of these throws rather than returning something plausible. A stub
   // that quietly returns an empty roster or a 0-0 result would let a

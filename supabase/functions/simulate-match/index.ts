@@ -2,6 +2,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { computeDatasetStats } from "./sports/nba/engine.js";
 import { engineFor } from "./sports/index.ts";
+// Vendored verbatim from js/rating.js - the client shows what a game was worth
+// and the server decides it, so the two have to agree exactly. `npm run
+// verify:parity` diffs them.
+import { applyRatingExchange } from "./rating.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -118,6 +122,7 @@ const ownLinesFor = (roster: Record<string, any>, box: Record<string, any>) =>
 async function applyMatchOutcome(
   admin: ReturnType<typeof createClient>,
   userId: string,
+  profile: Record<string, any> | null,
   opponentLabel: string,
   won: boolean,
   scoreFor: number,
@@ -126,10 +131,10 @@ async function applyMatchOutcome(
   ownLines: { playerName: string; line: Record<string, number> }[],
   friendly: boolean,
   sport: string,
-  era: string
+  era: string,
+  nextSportRatings: Record<string, any> | null
 ) {
-  const { data: profile, error } = await admin.from("profiles").select("*").eq("id", userId).single();
-  if (error || !profile) return;
+  if (!profile) return;
 
   const date = new Date().toISOString();
   const personalBests: Record<string, any> = { ...(profile.personal_bests || {}) };
@@ -163,6 +168,11 @@ async function applyMatchOutcome(
     // matches are excluded for the same reason they skip the top-level
     // record: "for fun" means not rank-affecting.
     update.era_records = bumpEraRecord(profile.era_records, eraRecordKey(sport, era), won);
+    // The ELO exchange for this game, computed once for BOTH players before
+    // either was written (see the call site) - rating each side against the
+    // other's already-updated number would stop the exchange being zero-sum.
+    // Null only for a friendly, which is the same reason it skips the record.
+    if (nextSportRatings) update.sport_ratings = nextSportRatings;
   }
 
   await admin.from("profiles").update(update).eq("id", userId);
@@ -283,9 +293,28 @@ Deno.serve(async (req: Request) => {
     .in("id", [match.player_a, match.player_b]);
   const usernameOf = (id: string) => profileRows?.find((p) => p.id === id)?.username || "Opponent";
 
+  const sportId = match.sport ?? "nba";
+  const eraId = match.era ?? "all";
+
+  // Both profiles are read BEFORE either is written, because the ELO exchange
+  // needs both ratings as they stood at kickoff. Reading inside each player's
+  // update (which is what this used to do) would rate the second player
+  // against the winner's already-raised number and quietly hand out more
+  // points than it took away.
+  const [{ data: profileA }, { data: profileB }] = await Promise.all([
+    admin.from("profiles").select("*").eq("id", match.player_a).single(),
+    admin.from("profiles").select("*").eq("id", match.player_b).single(),
+  ]);
+
+  const exchange =
+    match.is_friendly || !profileA || !profileB
+      ? null
+      : applyRatingExchange(profileA.sport_ratings, profileB.sport_ratings, sportId, result.winner === "A");
+
   await applyMatchOutcome(
     admin,
     match.player_a,
+    profileA,
     usernameOf(match.player_b),
     result.winner === "A",
     result.teamScoreA,
@@ -293,12 +322,14 @@ Deno.serve(async (req: Request) => {
     result.mvp.player.name,
     ownLinesFor(rosterA, result.boxA),
     match.is_friendly,
-    match.sport ?? "nba",
-    match.era ?? "all"
+    sportId,
+    eraId,
+    exchange?.a ?? null
   );
   await applyMatchOutcome(
     admin,
     match.player_b,
+    profileB,
     usernameOf(match.player_a),
     result.winner === "B",
     result.teamScoreB,
@@ -306,8 +337,9 @@ Deno.serve(async (req: Request) => {
     result.mvp.player.name,
     ownLinesFor(rosterB, result.boxB),
     match.is_friendly,
-    match.sport ?? "nba",
-    match.era ?? "all"
+    sportId,
+    eraId,
+    exchange?.b ?? null
   );
 
   return json({ status: "complete", winner: result.winner, scoreA: result.teamScoreA, scoreB: result.teamScoreB });
