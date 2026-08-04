@@ -1,7 +1,9 @@
 // Pre-game gamestyles. Chosen after the draft, once you know the roster
-// you're actually working with. Ten permanent styles; each game offers 3 at
+// you're actually working with. Fifteen permanent styles; each game offers 3 at
 // random so the choice is never the same menu twice, and no single style can
-// become "the meta" for the whole field.
+// become "the meta" for the whole field. Fifteen rather than ten so the
+// three-card menu repeats far less often - with ten, the same trio came round
+// noticeably within a session.
 //
 // The one rule these are designed around: a style must be a real choice, not
 // a power gain. If one option were simply strongest, ranked would stop
@@ -50,9 +52,15 @@
 // placeholder data and scoringEfficiencyFactor (engine.js) started letting
 // real shooting efficiency affect scoring - a real engine-behavior change,
 // exactly the case this file's own instructions call for a re-run on.
-// Verified over the full 10x9 field (150 games per matchup): 46.8-53.9%,
-// spread 7.0 - re-run the script and paste in new mods whenever a style's
-// identity stats or the engine's balance change.
+// Re-solved again for the fifteen-style catalog, after Zone Defense brought a
+// real engine effect with it (applyZoneDefense suppresses the OPPONENT'S
+// front-court scoring) and after the draft-construction, counterplay and
+// defensive-scheme terms started reaching the scoreboard - all of them things
+// a style's pts is now solved against.
+// Verified over the full 15x14 field (150 games per matchup): 47.4-52.8%,
+// spread 5.4 - tighter than the ten-style field it replaces. Re-run the script
+// and paste in new mods whenever a style's identity stats or the engine's
+// balance change.
 export const TACTICS = [
   {
     id: "balanced",
@@ -66,49 +74,49 @@ export const TACTICS = [
     name: "Run & Gun",
     icon: "🏃",
     blurb: "+2 Pace, +2 Transition Offense. Bleeds halfcourt offense and defense to get there.",
-    mods: { pts: 1.0302, reb: 0.92, ast: 1.08, stl: 0.82, blk: 0.82, tov: 1.3 },
+    mods: { pts: 1.0406, reb: 0.92, ast: 1.08, stl: 0.82, blk: 0.82, tov: 1.3 },
   },
   {
     id: "spread-perimeter",
     name: "Spread the Perimeter",
     icon: "🎯",
     blurb: "+2 3PT Shooting, +1 Spacing (flavor only). Costs offensive rebounding and interior scoring.",
-    mods: { pts: 1.0019, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
+    mods: { pts: 1.0063, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
   },
   {
     id: "lockdown-defense",
     name: "Lockdown Defense",
     icon: "🔒",
     blurb: "+2 Perimeter Defense, +2 Interior Defense. Slower pace, less offensive efficiency.",
-    mods: { pts: 0.9411, reb: 0.97, ast: 0.9, stl: 1.35, blk: 1.35, tov: 0.85 },
+    mods: { pts: 0.9378, reb: 0.97, ast: 0.9, stl: 1.35, blk: 1.35, tov: 0.85 },
   },
   {
     id: "crash-the-glass",
     name: "Crash the Glass",
     icon: "💪",
     blurb: "+2 Offensive Rebounding, +2 Defensive Rebounding. Weak in transition D, worse from three.",
-    mods: { pts: 1.0085, reb: 1.4, ast: 0.85, stl: 0.88, blk: 1.05, tov: 0.95 },
+    mods: { pts: 1.0041, reb: 1.4, ast: 0.85, stl: 0.88, blk: 1.05, tov: 0.95 },
   },
   {
     id: "paint-dominance",
     name: "Paint Dominance",
     icon: "🏀",
     blurb: "+2 Interior Scoring, +2 Free Throw Rate. Trades away three-point shooting and pace.",
-    mods: { pts: 1.0003, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
+    mods: { pts: 1.0076, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
   },
   {
     id: "ball-movement",
     name: "Ball Movement",
     icon: "🔀",
     blurb: "+2 Passing, +2 Offensive IQ. Everybody touches it, but isolation scoring and boards suffer.",
-    mods: { pts: 1.0125, reb: 0.9, ast: 1.35, stl: 0.95, blk: 0.9, tov: 0.85 },
+    mods: { pts: 1.0199, reb: 0.9, ast: 1.35, stl: 0.95, blk: 0.9, tov: 0.85 },
   },
   {
     id: "isolation-heavy",
     name: "Isolation Heavy",
     icon: "🌟",
     blurb: "+2 Shot Creation, +2 Clutch Scoring (real 4th-quarter/OT bonus). Passing and chemistry (flavor) take the hit.",
-    mods: { pts: 0.9847, reb: 0.9, ast: 0.7, stl: 0.92, blk: 0.9, tov: 1.05 },
+    mods: { pts: 0.9788, reb: 0.9, ast: 0.7, stl: 0.92, blk: 0.9, tov: 1.05 },
     clutchMods: { pts: 1.15 },
   },
   {
@@ -116,14 +124,59 @@ export const TACTICS = [
     name: "Small Ball",
     icon: "⚡",
     blurb: "+2 3PT Shooting, +2 Switching Defense (steals). Gives up rebounding and interior defense hard.",
-    mods: { pts: 1.0385, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 },
+    mods: { pts: 1.036, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 },
   },
   {
     id: "defensive-pressure",
     name: "Defensive Pressure",
     icon: "🕸️",
     blurb: "+2 Steals, +2 Forced Turnovers. Foul discipline (flavor) and defensive rebounding pay for it.",
-    mods: { pts: 0.9667, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 },
+    mods: { pts: 0.9728, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 },
+  },
+
+  // ---- Second wave ---------------------------------------------------------
+  // Five more, taking the catalog to fifteen. Same rule as the first ten: a
+  // style is a real choice, not a power gain, so every one of these pays for
+  // what it boosts and its `pts` is solved by simulation rather than picked.
+  {
+    id: "zone-defense",
+    name: "Zone Defense",
+    icon: "🛡️",
+    blurb: "+2 Interior Defense, +2 Help Rotations. Packs the paint - and gives up the perimeter to do it.",
+    mods: { pts: 0.9831, reb: 1.08, ast: 0.95, stl: 0.82, blk: 1.3, tov: 0.95 },
+    // The one style with an effect outside the six stats: it suppresses the
+    // OPPONENT'S front-court scoring directly. Without this, "packs the paint"
+    // would be a sentence with nothing behind it - the blk boost alone raises
+    // your own block count and barely touches where they score from.
+    opponentPaint: 0.88,
+  },
+  {
+    id: "full-court-press",
+    name: "Full-Court Press",
+    icon: "🥵",
+    blurb: "+3 Forced Turnovers, +1 Pace. Costs you the glass, and your own handle goes with it.",
+    mods: { pts: 0.9776, reb: 0.85, ast: 1.02, stl: 1.45, blk: 0.9, tov: 1.25 },
+  },
+  {
+    id: "post-up-heavy",
+    name: "Post-Up Heavy",
+    icon: "🐘",
+    blurb: "+2 Interior Scoring, +2 Offensive Rebounding. No pace, no ball movement, no threes.",
+    mods: { pts: 1.0093, reb: 1.28, ast: 0.72, stl: 0.9, blk: 1.05, tov: 0.95 },
+  },
+  {
+    id: "switch-everything",
+    name: "Switch Everything",
+    icon: "🔁",
+    blurb: "+2 Perimeter Defense, +1 Versatility. Every switch is a mismatch on the glass.",
+    mods: { pts: 0.9852, reb: 0.78, ast: 1.02, stl: 1.28, blk: 0.85, tov: 0.95 },
+  },
+  {
+    id: "grind-it-out",
+    name: "Grind It Out",
+    icon: "🐢",
+    blurb: "+3 Ball Security, +1 Defense. Almost no turnovers - and almost no ceiling either.",
+    mods: { pts: 0.9913, reb: 1.05, ast: 0.88, stl: 1.05, blk: 1.05, tov: 0.6 },
   },
 ];
 
@@ -144,6 +197,18 @@ export function tacticMods(id) {
  * identity is specifically about crunch time. */
 export function tacticClutchMods(id) {
   return tacticById(id).clutchMods || null;
+}
+
+/** How much this style suppresses the OPPONENT'S front-court scoring, as a
+ * multiplier at or below 1. Only Zone Defense has one - every other style
+ * returns 1 and is completely unaffected by the code path that reads this.
+ *
+ * It exists because "packs the paint" has no expression in six stats that are
+ * all about the team holding the ball. Boosting a zone's own blk raises its
+ * block count and barely moves where the other team scores from, which is the
+ * thing the style actually promises. */
+export function tacticOpponentPaint(id) {
+  return tacticById(id).opponentPaint ?? 1;
 }
 
 /** Picks n distinct styles at random to offer for one game. Every game re-

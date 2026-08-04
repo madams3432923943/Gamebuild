@@ -31,7 +31,6 @@ import {
   RESULT_WAIT_MS,
   ONLINE_QUEUE_POLL_MS,
   MIN_SEARCH_CHARS,
-  DRAFT_GRADE_HOLD_MS,
 } from "./constants.js";
 import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID } from "./sports/index.js";
 import {
@@ -979,7 +978,12 @@ function renderTactics() {
 /** Final round: both rosters are set, 45 seconds to commit to a plan. Running
  * out doesn't punish you - it locks in whatever is highlighted - because the
  * timer exists to keep a match moving, not to tax indecision. */
-function startTacticPhase(onConfirm) {
+/** @param opts.timed false runs the phase with no clock at all - Quick Play's
+ * whole identity is "no clock", and giving it a 45-second gamestyle timer
+ * would be the one place that mode suddenly rushed you. Every other mode
+ * keeps the timer, since a ranked opponent is waiting on the other side of
+ * this decision. */
+function startTacticPhase(onConfirm, { timed = true } = {}) {
   cleanupPickTimer();
   cleanupTacticTimer();
   strategy.offeredTactics = sport().randomTacticChoices(3);
@@ -988,19 +992,21 @@ function startTacticPhase(onConfirm) {
 
   draftPoolPanel.classList.add("hidden");
   tacticPhaseEl.classList.remove("hidden");
-  pickTimerEl.hidden = false;
+  pickTimerEl.hidden = !timed;
 
   let remaining = TACTIC_TIMER_SECONDS;
-  renderPickTimer(pickTimerEl, remaining);
-  tacticTimerInterval = setInterval(() => {
-    remaining -= 1;
-    if (remaining <= 0) {
-      cleanupTacticTimer();
-      confirm();
-      return;
-    }
+  if (timed) {
     renderPickTimer(pickTimerEl, remaining);
-  }, 1000);
+    tacticTimerInterval = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        cleanupTacticTimer();
+        confirm();
+        return;
+      }
+      renderPickTimer(pickTimerEl, remaining);
+    }, 1000);
+  }
 
   function confirm() {
     cleanupTacticTimer();
@@ -1445,13 +1451,18 @@ function renderDraftComplete() {
   // gamestyle - since it's meant to rehearse exactly what Online Ranked asks
   // for, using a bot opponent instead of a real one.
   if (game.ruleset !== "strict") {
+    // Quick Play drafts five players and no bench, so there is no rotation to
+    // set and nobody to switch onto anybody - those two phases would be
+    // screens with one legal answer. The gamestyle is a real choice at any
+    // roster size, though, and it is the first thing a new player should meet:
+    // Quick Play is where people learn what the game is, and hiding a third of
+    // the game behind Ranked Practice made gamestyles a thing you discovered
+    // late or not at all.
     strategy.rotationMinutes = null;
-    // A beat to actually read the grade first. Without it Quick Play was the
-    // one mode that computed a grade and then replaced the screen before
-    // anyone could see it - the mode where the feedback matters MOST, since
-    // it's the one people are learning in.
-    draftTurnBanner.textContent = "Tipping off…";
-    setTimeout(runLocalSimulation, DRAFT_GRADE_HOLD_MS);
+    strategy.matchups = null;
+    draftTurnBanner.textContent = "Pick your game plan";
+    tacticPhaseHintEl.textContent = "Choose how this team plays - no clock, take your time.";
+    startTacticPhase(runLocalSimulation, { timed: false });
     return;
   }
 

@@ -399,13 +399,6 @@ export const QUARTER_REVEAL_DELAY_MS = 4200;
 // How long the running score takes to climb to the new period's total.
 export const QUARTER_TICK_MS = 1500;
 
-// How long Quick Play holds on the finished draft grade before tipping off.
-// The strict modes don't need this - rotation and gamestyle come next and the
-// grade sits above them the whole time - but Quick Play goes straight to the
-// simulation, and computing a grade nobody gets to read is worse than not
-// computing one.
-export const DRAFT_GRADE_HOLD_MS = 3800;
-
 // How long a resolved round's picks stay on screen before the next squad is
 // rolled and the board is rebuilt.
 //

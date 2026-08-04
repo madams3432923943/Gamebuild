@@ -33,6 +33,20 @@ const base = {
   },
   "small-ball": { mods: { pts: 1, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 } },
   "defensive-pressure": { mods: { pts: 1, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 } },
+
+  // The second wave. Zone Defense also carries `opponentPaint`, which is a
+  // real engine effect (it suppresses the OTHER side's front-court scoring -
+  // see applyZoneDefense in engine.js) and is part of its identity, so like
+  // Isolation Heavy's clutch bonus it is held fixed while pts is solved.
+  // Leaving it out here would solve pts against a zone that doesn't zone.
+  "zone-defense": {
+    mods: { pts: 1, reb: 1.08, ast: 0.95, stl: 0.82, blk: 1.3, tov: 0.95 },
+    opponentPaint: 0.88,
+  },
+  "full-court-press": { mods: { pts: 1, reb: 0.85, ast: 1.02, stl: 1.45, blk: 0.9, tov: 1.25 } },
+  "post-up-heavy": { mods: { pts: 1, reb: 1.28, ast: 0.72, stl: 0.9, blk: 1.05, tov: 0.95 } },
+  "switch-everything": { mods: { pts: 1, reb: 0.78, ast: 1.02, stl: 1.28, blk: 0.85, tov: 0.95 } },
+  "grind-it-out": { mods: { pts: 1, reb: 1.05, ast: 0.88, stl: 1.05, blk: 1.05, tov: 0.6 } },
 };
 const ids = Object.keys(base);
 
@@ -54,6 +68,8 @@ function setMods(current) {
   for (const t of tacticsMod.TACTICS) {
     t.mods = current[t.id].mods;
     t.clutchMods = current[t.id].clutchMods || null;
+    // Held fixed, not solved - see the note on the base table above.
+    t.opponentPaint = current[t.id].opponentPaint;
   }
 }
 

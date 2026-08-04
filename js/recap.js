@@ -403,10 +403,28 @@ function benchPoints(box, roster) {
     .reduce((sum, slot) => sum + ((box[slot] && box[slot].pts) || 0), 0);
 }
 
-/** Scoring from the front court - the closest this dataset gets to points in
- * the paint, since there's no shot-location split to read. Named honestly in
- * the output for that reason. */
-function frontcourtPoints(box, roster) {
+/** Points scored inside the arc.
+ *
+ * This used to be "points by anyone listed at PF or C", which is a guess about
+ * WHO rather than a measurement of WHERE - it counted a stretch four's threes
+ * as interior scoring and missed every drive by a guard. The shot splits
+ * js/shooting.js already derives for the box score carry the real answer:
+ * two-point makes are `fgm - tpm`, so twos are worth exactly that times two.
+ *
+ * Falls back to the old positional read only when there are no splits at all,
+ * which is the 1960s/70s squads whose data predates recorded attempts. */
+function twoPointPoints(box, roster, shots) {
+  if (shots) {
+    let total = 0;
+    let sawAny = false;
+    for (const slot of rosterSlots(roster)) {
+      const line = shots[slot];
+      if (!line) continue;
+      sawAny = true;
+      total += Math.max(0, (line.fgm || 0) - (line.tpm || 0)) * 2;
+    }
+    if (sawAny) return total;
+  }
   return rosterSlots(roster)
     .filter((slot) => {
       const player = roster[slot];
@@ -454,11 +472,16 @@ const TACTIC_PROOF = {
   "paint-dominance": { stat: "reb", won: "Paint Dominance owned the interior", lost: "Paint Dominance never established anything inside" },
   "isolation-heavy": { stat: "clutch", won: "Isolation Heavy's clutch scoring showed up in the 4th", lost: "Isolation Heavy went cold when it mattered" },
   balanced: { stat: null, won: "Balanced kept you in it everywhere", lost: "Balanced left you without an edge anywhere" },
+  "zone-defense": { stat: "paint", won: "Zone defense reduced their paint scoring", lost: "The zone got picked apart from outside" },
+  "full-court-press": { stat: "forced", won: "The full-court press turned them over", lost: "The press got beaten and cost you the glass" },
+  "post-up-heavy": { stat: "paint", won: "Posting up owned the interior", lost: "The post-up game never got going" },
+  "switch-everything": { stat: "stl", won: "Switching everything smothered the perimeter", lost: "Switching left you mismatched and outrebounded" },
+  "grind-it-out": { stat: "care", won: "Grinding it out kept the ball out of their hands", lost: "Grinding it out capped your scoring without stopping theirs" },
 };
 
 /** What the coaching decisions actually did. Every line is checked against
  * the finished box score - nothing here says a choice worked unless it did. */
-function coachingNotes({ box, oppBox, roster, oppRoster, minutes, oppMinutes, matchups, tacticId, totals, oppTotals, quarterBoxScores, key, skipBench }) {
+function coachingNotes({ box, oppBox, roster, oppRoster, minutes, oppMinutes, matchups, tacticId, totals, oppTotals, quarterBoxScores, key, skipBench, paintFor, paintAgainst }) {
   const notes = [];
 
   // 1. Defensive assignments. Only the starters are assignable, and only a
@@ -530,6 +553,10 @@ function coachingNotes({ box, oppBox, roster, oppRoster, minutes, oppMinutes, ma
       case "pts": kept = totals.pts > oppTotals.pts; break;
       case "against": kept = oppTotals.pts < totals.pts; break;
       case "forced": kept = oppTotals.tov > totals.tov; break;
+      // Zone and Post-Up both promise something about the interior, so both
+      // are judged on it - the difference is which side's paint they move.
+      case "paint": kept = paintFor > paintAgainst; break;
+      case "care": kept = totals.tov < oppTotals.tov; break;
       case "clutch": {
         const q4 = quarterBoxScores && quarterBoxScores[3];
         const mine4 = q4 ? Object.values(q4[key] || {}).reduce((s, l) => s + (l.pts || 0), 0) : 0;
@@ -595,10 +622,12 @@ export function buildWhyBreakdown(result, ctx = {}) {
     push(`You shot ${Math.round(myThrees.pct * 100)}% from three (${myThrees.made}/${myThrees.attempted})`);
   }
 
-  // Front-court scoring - the closest honest proxy for points in the paint.
-  const fcDiff = Math.round(frontcourtPoints(result.boxA, rosterA) - frontcourtPoints(result.boxB, rosterB));
-  if (won && fcDiff >= 10) push(`Won the front court by ${fcDiff}`);
-  else if (!won && fcDiff <= -10) push(`Beaten in the front court by ${Math.abs(fcDiff)}`);
+  // Scoring inside the arc, from the real shot splits.
+  const twosDiff = Math.round(
+    twoPointPoints(result.boxA, rosterA, ctx.shotsA) - twoPointPoints(result.boxB, rosterB, ctx.shotsB)
+  );
+  if (won && twosDiff >= 10) push(`Won points in the paint by ${twosDiff}`);
+  else if (!won && twosDiff <= -10) push(`Lost points in the paint by ${Math.abs(twosDiff)}`);
 
   // Your best player's night, measured against his own average rather than
   // against his team-mates.
@@ -635,6 +664,8 @@ export function buildWhyBreakdown(result, ctx = {}) {
 
   const coaching = coachingNotes({
     skipBench: benchCalledOut,
+    paintFor: twoPointPoints(result.boxA, rosterA, ctx.shotsA),
+    paintAgainst: twoPointPoints(result.boxB, rosterB, ctx.shotsB),
     box: result.boxA,
     oppBox: result.boxB,
     roster: rosterA,

@@ -69,7 +69,7 @@ import {
   MAX_OT_PERIODS,
   OT_LENGTH_SCALE,
 } from "./constants.js";
-import { tacticMods, tacticClutchMods } from "./tactics.js";
+import { tacticMods, tacticClutchMods, tacticOpponentPaint } from "./tactics.js";
 
 const STAT_KEYS = ["ppg", "rpg", "apg", "spg", "bpg", "tov"];
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -1037,6 +1037,12 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
   for (const slot of Object.keys(totalsB)) addLine(totalsB[slot], q4.totalsB[slot]);
   quarterBoxScores.push(...q4.quarterBoxScores);
 
+  // Zone defence reaches across to the other side's front court, so it runs
+  // before the draft/coaching multipliers rather than being folded into them -
+  // it changes WHO scored, and those scale whatever total it leaves behind.
+  applyZoneDefense(totalsB, rosterB, opts.tacticA);
+  applyZoneDefense(totalsA, rosterA, opts.tacticB);
+
   applyTurnoverSwing(totalsA, totalsB);
 
   // What the DRAFT was worth, on top of what the players were worth. Applied
@@ -1129,6 +1135,55 @@ export function draftAnalysis(roster, oppRoster, datasetStats, forfeitedSlots = 
     forfeitTeam,
     factor: construction * counter * forfeitTeam,
   };
+}
+
+/** Zone defence: pull down the OPPONENT'S front-court scoring.
+ *
+ * Every other gamestyle expresses itself through the six stats of the team
+ * holding the ball, which is enough for "we rebound more" or "we force
+ * turnovers" but cannot say "they can't score inside on us". Boosting a zone's
+ * own blk raises its block column and barely moves where the other team scores
+ * from - the exact thing the style promises.
+ *
+ * So this reaches across, and only across: it scales the opponent's PF/C
+ * scoring and hands the difference back to their guards rather than deleting
+ * it, because a zone concedes the perimeter to take away the paint. A team
+ * that shoots well from outside beats it; a team built around a post-up
+ * centre does not. Net points are roughly preserved - what changes is who
+ * scores them, and against which roster that works.
+ *
+ * A no-op (multiplier 1) for all fourteen other styles.
+ */
+function applyZoneDefense(oppTotals, oppRoster, tacticId) {
+  const paint = tacticOpponentPaint(tacticId);
+  if (paint >= 1) return;
+
+  const slots = activeSlots(oppRoster);
+  const isBig = (slot) => {
+    const pos = basePosition(slot) || oppRoster[slot].pos[0];
+    return pos === "PF" || pos === "C";
+  };
+  const bigs = slots.filter(isBig);
+  const smalls = slots.filter((slot) => !isBig(slot));
+  if (bigs.length === 0 || smalls.length === 0) return;
+
+  let taken = 0;
+  for (const slot of bigs) {
+    const lost = oppTotals[slot].pts * (1 - paint);
+    oppTotals[slot].pts -= lost;
+    taken += lost;
+  }
+
+  // Kicked back out to the perimeter, in proportion to who was already
+  // scoring there - a zone gives up open looks, it doesn't create them evenly.
+  const perimeterPts = smalls.reduce((sum, slot) => sum + oppTotals[slot].pts, 0);
+  if (perimeterPts <= 0) return;
+  // Less comes back than went in: the paint is worth more than the shots a
+  // zone concedes, which is why anyone plays one.
+  const returned = taken * 0.72;
+  for (const slot of smalls) {
+    oppTotals[slot].pts += returned * (oppTotals[slot].pts / perimeterPts);
+  }
 }
 
 function applyTurnoverSwing(totalsA, totalsB) {

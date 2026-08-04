@@ -13,7 +13,7 @@ score, because a result you can't explain teaches you nothing about your draft.
 
 | Mode | Opponent | Roster | Rules |
 | --- | --- | --- | --- |
-| Quick Play - Learn Stats | Bot | 5 (PG/SG/SF/PF/C) | Whole squad and stats shown, no clock |
+| Quick Play - Learn Stats | Bot | 5 (PG/SG/SF/PF/C) | Whole squad and stats shown, no clock, gamestyle pick |
 | Ranked Practice | Bot | 10 (5 starters + 5 bench) | Type from memory, no stats, pick clock, then rotation + gamestyle |
 | Ranked | Real opponent | 10 (5 starters + 5 bench) | Ranked rules, counts toward your record |
 
@@ -34,7 +34,11 @@ identical starters, a bench covering all five positions beats a bench of five
 centers about 79% of the time.
 
 After the draft you set the rotation (sliders, coupled so each position
-always totals its 48) and pick one of three randomly offered gamestyles.
+always totals its 48), choose defensive assignments, and pick one of three
+randomly offered gamestyles - drawn from fifteen, so the same trio rarely comes
+round twice in a session. Quick Play gets the gamestyle too (untimed, since
+that mode has no clock by design); it skips rotation and matchups, which have
+one legal answer on a five-man roster with no bench.
 
 ## Running it
 
@@ -64,7 +68,10 @@ js/
   main.js         app controller: wires state, engine, and DOM together
   engine.js       simulation (quarter-by-quarter positional matchups)
   draft.js        draft mechanics, squad rolling, typed-name search, bot picks
-  tactics.js      the 10 gamestyles and their stat modifiers
+  state.js        shared mutable state (the match, the post-draft choices)
+  shell.js        screens, nav and the one modal - app chrome, no basketball
+  screens/        one module per screen (squads/friends so far)
+  tactics.js      the 15 gamestyles and their stat modifiers
   recap.js        post-game narrative, plus the "why you won/lost" breakdown
   draftgrade.js   grades a finished roster on how it was BUILT
   progress.js     diffs your profile before/after a game, so gains announce themselves
@@ -98,7 +105,7 @@ quarter. Together they set how often the better roster actually wins — about
 then re-run the gamestyle calibration, since gamestyles are balanced against
 whatever those two produce.
 
-Current spread across the full 10x9 field: **47.3%-52.4%**.
+Current spread across the full 15x14 field: **47.4%-52.8%** (spread 5.4).
 
 ## What the draft itself is worth
 
@@ -148,6 +155,22 @@ effect. Re-measured over 2,000 games:
 Every number above is tunable in `js/constants.js` and re-measurable from
 `tools/calibrate-variance.mjs`.
 
+### Why `TALENT_PARITY` was not re-solved
+
+`tools/calibrate-variance.mjs` now wants to drop parity from 0.84 to about
+0.65, and that output is deliberately **not** pasted in. The tool solves for
+one target - "the stronger roster, measured by `impact()`, wins 75% of games" -
+and `impact()` is a sum of raw stats. It cannot see roster construction,
+counterplay, defensive scheme or forfeited picks, which are precisely the
+things this pass made matter. Re-solving against it would suppress talent to
+make room for terms it is not measuring, which is the opposite of the intent.
+
+The secondary targets confirm it. At the current values, mean quarter margin is
+6.5 (target ~7) and quarter sweeps are 28.6% (target ~27) - both close. Every
+candidate the solver offered lands further from those: ±26% spread gives a 5.6
+margin and 22% sweeps, ±34% gives 7.1 and 18%. Re-run the tool after any engine
+change, but read its parity figure as one input rather than an instruction.
+
 ## Draft grades
 
 Every finished roster is graded before a minute is simulated - a letter, a
@@ -171,7 +194,18 @@ asserted:
 
 > Your SG held Kobe Bryant to 19 points.
 > Karl Malone carried 38 minutes and had nothing left in the 4th - a deeper rotation buys that back.
-> Crash the Glass won you the rebounding battle.
+> Zone defense reduced their paint scoring.
+
+Every line is checked against the finished box score before it is printed - a
+gamestyle only gets credit for the column it promised to move. Points in the
+paint come from the real shot splits (two-point makes, via `js/shooting.js`)
+rather than from guessing that PF/C scoring happened inside.
+
+Three things the notes asked for are deliberately absent, because the dataset
+has no fouls, no shot locations and no offensive/defensive rebound split:
+"star player in foul trouble" is not modelled at all, and rebounding is
+reported as one combined number. Inventing those stats would make the analysis
+read better and mean less.
 
 ## Accounts
 
