@@ -406,7 +406,33 @@ async function enterApp() {
   navTabs.hidden = false;
   setActiveNav("play");
   showScreen("home");
+  await reconcileUsername();
   await refreshHome();
+}
+
+/** Writes the username from the signup metadata onto the profile if the row
+ * still carries the placeholder.
+ *
+ * The database trigger now reads that metadata itself
+ * (20260804_01_username_from_signup_metadata.sql), so this is not the primary
+ * fix - it is for accounts created BEFORE that landed, and for any path where
+ * signUp returns no session and so never reaches setUsername(). Both end with
+ * a player called "Player" who never chose that.
+ *
+ * Deliberately only overwrites the placeholder: someone who has since renamed
+ * themselves must not have an old signup value put back. */
+async function reconcileUsername() {
+  try {
+    const user = await getAuthUser();
+    const intended = user?.user_metadata?.username;
+    if (!intended || !USERNAME_PATTERN.test(intended)) return;
+    const profile = await loadProfile();
+    if (profile.username && profile.username !== "Player") return;
+    await setUsername(intended);
+  } catch (e) {
+    // A cosmetic repair. It must never be the reason somebody can't get in.
+    console.error("Could not reconcile the username:", e);
+  }
 }
 
 /** Re-reads the profile and repaints the home header. Called on entry and
@@ -2136,21 +2162,43 @@ function renderWhyBreakdown(result, ctx) {
   whyBreakdownEl.classList.remove("hidden");
 }
 
-function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, matchups, tactic, analysis, onComplete }) {
-  finalBanner.classList.add("hidden");
-  gameRecapEl.classList.add("hidden");
-  mvpCallout.classList.add("hidden");
-  whyBreakdownEl.classList.add("hidden");
-  rewardToastEl.classList.add("hidden");
-  fullBoxScore.classList.add("hidden");
-  btnToProfile.classList.add("hidden");
-  btnPlayAgain.classList.add("hidden");
-  btnGameHome.classList.add("hidden");
+/** Clears everything the game screen can show, so nothing from the last game
+ * survives into the next one.
+ *
+ * This exists because there used to be TWO of these lists - one here and one
+ * in runOnlineSimulationFlow - and they disagreed. The online path hid five
+ * elements and left the recap, the analysis panel, the reward toast and the
+ * play feed alone, then awaited the server for several seconds. The result of
+ * the PREVIOUS game sat on screen for that whole wait, which read as the game
+ * flashing its own ending before it had been played.
+ *
+ * One list cannot drift from itself, which is the actual fix. Anything added
+ * to the game screen from here on gets cleared by adding it once, here.
+ */
+function resetGameScreen() {
+  for (const el of [
+    finalBanner,
+    gameRecapEl,
+    mvpCallout,
+    whyBreakdownEl,
+    rewardToastEl,
+    fullBoxScore,
+    btnToProfile,
+    btnPlayAgain,
+    btnGameHome,
+  ]) {
+    el.classList.add("hidden");
+  }
+  clearPlayFeed(playFeedEl);
   // These flash/glow classes live directly on the container elements, not on
   // content renderScoreboard rebuilds each tick - so a leftover class from a
   // previous game would otherwise survive into this one.
   liveScoreboard.classList.remove("period-flash", "lead-flash");
   courtStageEl.classList.remove("final-flash");
+}
+
+function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, matchups, tactic, analysis, onComplete }) {
+  resetGameScreen();
   showScreen("game");
 
   const deltaA = computeDisplayPeriodScores(result.quarterBoxScores, result.teamScoreA, "a");
@@ -2168,7 +2216,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   for (const slot of Object.keys(rosterA)) liveTotals.a[slot] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
   for (const slot of Object.keys(rosterB)) liveTotals.b[slot] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
 
-  clearPlayFeed(playFeedEl);
   // One box score for the whole game: the same table fills in live as periods
   // are revealed, then gains shooting splits at the final buzzer. Showing a
   // reduced live table alongside a separate full one meant two box scores on
@@ -2530,12 +2577,11 @@ function normalizeServerResult(dbResult, iAmA, serverWinner) {
 async function runOnlineSimulationFlow(matchId, serverWinner) {
   const o = game.online;
   btnLeaveMatch.classList.add("hidden");
+  // Clear BEFORE showing the screen, not after: everything below this awaits
+  // the server for seconds, and whatever is on the game screen is visible for
+  // all of it.
+  resetGameScreen();
   showScreen("game");
-  finalBanner.classList.add("hidden");
-  mvpCallout.classList.add("hidden");
-  fullBoxScore.classList.add("hidden");
-  btnToProfile.classList.add("hidden");
-  btnPlayAgain.classList.add("hidden");
   renderScoreboard(liveScoreboard, "You", o.oppUsername, [], REGULATION_PERIODS, 0, 0, "Simulating…", true);
 
   try {

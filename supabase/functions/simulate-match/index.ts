@@ -85,6 +85,28 @@ function normalizeRoster(roster: Record<string, any>) {
   return out;
 }
 
+/** Namespaces an era id by sport - the server's copy of eraRecordKey() in
+ * js/sports/index.js, and it must stay identical to it.
+ *
+ * Era ids are only unique WITHIN a sport (every sport reasonably wants an
+ * "all" bracket), so without this an NFL "all" record would be added straight
+ * onto the NBA one. Existing NBA rows are keyed by the bare era id, so those
+ * keep working and only new sports carry a prefix. */
+function eraRecordKey(sportId: string, eraId: string) {
+  return sportId === "nba" ? eraId : `${sportId}:${eraId}`;
+}
+
+/** Returns a NEW era_records object with one counter incremented - the server's
+ * copy of bumpEraRecord() in js/profile.js, differing only in that it always
+ * writes the ONLINE counters. The client writes the offline ones, and neither
+ * should ever write the other's. */
+function bumpEraRecord(records: Record<string, any>, eraKey: string, won: boolean) {
+  const empty = { online_wins: 0, online_losses: 0, offline_wins: 0, offline_losses: 0 };
+  const current = { ...empty, ...((records || {})[eraKey] || {}) };
+  const key = won ? "online_wins" : "online_losses";
+  return { ...(records || {}), [eraKey]: { ...current, [key]: (current[key] || 0) + 1 } };
+}
+
 const ownLinesFor = (roster: Record<string, any>, box: Record<string, any>) =>
   Object.keys(roster).map((slot) => ({ playerName: roster[slot].name, line: box[slot] }));
 
@@ -102,7 +124,9 @@ async function applyMatchOutcome(
   scoreAgainst: number,
   mvpName: string,
   ownLines: { playerName: string; line: Record<string, number> }[],
-  friendly: boolean
+  friendly: boolean,
+  sport: string,
+  era: string
 ) {
   const { data: profile, error } = await admin.from("profiles").select("*").eq("id", userId).single();
   if (error || !profile) return;
@@ -133,6 +157,12 @@ async function applyMatchOutcome(
   if (!friendly) {
     update.online_wins = profile.online_wins + (won ? 1 : 0);
     update.online_losses = profile.online_losses + (won ? 0 : 1);
+    // Per-era record. This was documented in js/profile.js as already
+    // happening here and never actually did, so every player's Records by Era
+    // read 0-0 no matter how many ranked games they had played. Friendly
+    // matches are excluded for the same reason they skip the top-level
+    // record: "for fun" means not rank-affecting.
+    update.era_records = bumpEraRecord(profile.era_records, eraRecordKey(sport, era), won);
   }
 
   await admin.from("profiles").update(update).eq("id", userId);
@@ -262,7 +292,9 @@ Deno.serve(async (req: Request) => {
     result.teamScoreB,
     result.mvp.player.name,
     ownLinesFor(rosterA, result.boxA),
-    match.is_friendly
+    match.is_friendly,
+    match.sport ?? "nba",
+    match.era ?? "all"
   );
   await applyMatchOutcome(
     admin,
@@ -273,7 +305,9 @@ Deno.serve(async (req: Request) => {
     result.teamScoreA,
     result.mvp.player.name,
     ownLinesFor(rosterB, result.boxB),
-    match.is_friendly
+    match.is_friendly,
+    match.sport ?? "nba",
+    match.era ?? "all"
   );
 
   return json({ status: "complete", winner: result.winner, scoreA: result.teamScoreA, scoreB: result.teamScoreB });

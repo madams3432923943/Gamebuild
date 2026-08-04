@@ -408,10 +408,17 @@ export function eraRecord(profile, eraId) {
   return { ...EMPTY_ERA_RECORD, ...(profile.eraRecords?.[eraId] || {}) };
 }
 
-/** Returns a NEW era_records object with one counter incremented. Online
- * results are written server-side by simulate-match for the same reason the
- * top-level online record is: a client that can grant itself rank isn't
- * ranking anything. */
+/** Returns a NEW era_records object with one counter incremented.
+ *
+ * This writes the OFFLINE counters only; the online ones are written by
+ * simulate-match, for the same reason the top-level online record is - a
+ * client that can grant itself rank isn't ranking anything.
+ *
+ * That was true of the comment here long before it was true of the code: the
+ * Edge Function never touched era_records, so every player's Records by Era
+ * read 0-0 no matter how many ranked games they had played. Fixed in
+ * applyMatchOutcome; the two bump functions are deliberate copies and must
+ * stay in step. */
 function bumpEraRecord(records, eraId, kind, won) {
   const current = { ...EMPTY_ERA_RECORD, ...((records || {})[eraId] || {}) };
   const key = `${kind}_${won ? "wins" : "losses"}`;
