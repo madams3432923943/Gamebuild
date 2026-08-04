@@ -358,44 +358,173 @@ input[type="text"]:focus-visible {
   margin-bottom: 1.25rem;
 }
 
-/* Your standing in each sport, on the sport-neutral hub. A list rather than
-   the tile grid the Play screen uses, because these are not choices - nothing
-   here is clickable, it is what your all-sports rank is made of. */
-.sport-standings {
+/* The home screen's sport list. Each card is the way into that sport, and
+   carries its rank and its two reference buttons. A list rather than the tile
+   grid this replaced: a tile can hold a name and a status, and these have to
+   hold a rank, a rating and two buttons without becoming unreadable at 360px.
+
+   --card-accent is the sport's own colour, set per card in JS. The hub itself
+   is sport-neutral, but the cards are not: colour is how you recognise a sport
+   before you read the word, and a row of identical grey cards throws that
+   away. */
+.sport-cards {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
   margin-bottom: 1.25rem;
 }
 
-.sport-standing {
+.sport-card {
+  --card-accent: var(--accent);
+  /* Row on a wide screen so it reads "NBA — rank — Rank — How to Play" across
+     one line; the phone rule below stacks the buttons under the name, where a
+     four-across row would leave each one too narrow to tap. */
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.85rem;
+  flex-wrap: wrap;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  /* The sport's colour as a full-height edge rather than a tint: it reads at a
+     glance in a vertical list, where a background wash would fight the banner
+     above it. */
+  border-left: 4px solid var(--card-accent);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.sport-standing-icon {
-  font-size: 1.15rem;
+.sport-card:hover:not(.locked) {
+  border-color: var(--card-accent);
+}
+
+/* Locked sports stay legible rather than being dimmed into unreadability -
+   they are advertising what is coming, which only works if you can read it. */
+.sport-card.locked {
+  opacity: 0.55;
+  --card-accent: var(--line);
+}
+
+.sport-card-open {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex: 1 1 15rem;
+  padding: 0.9rem 1rem;
+  background: none;
+  border: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sport-card-open:disabled {
+  cursor: default;
+}
+
+.sport-card-icon {
+  font-size: 1.7rem;
   line-height: 1;
 }
 
-.sport-standing-name {
-  font-family: var(--font-display);
-  font-weight: 700;
+.sport-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  /* min-width:0 is what lets a long rank line ellipsize instead of forcing the
+     whole row wider than the screen. */
+  min-width: 0;
 }
 
-/* Pushed to the trailing edge so the ratings line up down the right, which is
-   what makes them comparable at a glance. */
-.sport-standing-detail {
-  margin-left: auto;
+.sport-card-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.sport-card-rank {
   color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  text-align: right;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sport-card-go {
+  margin-left: auto;
+  color: var(--card-accent);
+  font-size: 1.1rem;
+}
+
+.sport-card.locked .sport-card-go {
+  color: var(--muted);
+}
+
+/* The two reference buttons sit under the card's own button, not inside it:
+   nesting a button in a button is invalid, and a click on How to Play must not
+   also change sport and walk you into the Play screen. */
+.sport-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1rem;
+}
+
+.sport-card-action {
+  padding: 0.45rem 0.9rem;
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sport-card-action:hover {
+  border-color: var(--card-accent);
+  color: var(--card-accent);
+}
+
+/* On a phone the row becomes a stack: the buttons drop under the name and go
+   full width, because two pills sharing a 360px row alongside an icon and a
+   rank line are too narrow to hit reliably. */
+@media (max-width: 700px) {
+  .sport-card-open {
+    flex: 1 1 100%;
+  }
+
+  .sport-card-actions {
+    flex: 1 1 100%;
+    padding: 0 1rem 0.85rem;
+  }
+
+  .sport-card-action {
+    flex: 1;
+  }
+}
+
+/* Play screen header: back out, and which sport you are in - the sport was
+   chosen on the previous screen, so this is the only thing that says so. */
+.play-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.play-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.play-title-icon {
+  font-size: 1.4rem;
 }
 
 @media (max-width: 700px) {

@@ -76,9 +76,10 @@
 
     <section id="screen-home" class="screen hidden">
       <div class="home-top-left">
-        <button id="btn-how-to-play" class="how-to-play-btn" type="button">📖 How to Play</button>
-        <button id="btn-rank-ladder-home" class="how-to-play-btn" type="button">🏆 Rank Ladder</button>
-        <!-- Live count of players with the game open. Hidden until the first
+        <!-- How to Play and the rank ladder used to sit here, app-wide. They
+             are per-sport now and live on each sport's own row, because with
+             two sports there is no such thing as "the" rules or "the" ladder.
+             Live count of players with the game open. Hidden until the first
              successful read so a failed fetch shows nothing rather than "0". -->
         <div class="online-ticker hidden" id="online-ticker" title="Players with Ball Knowledge open right now">
           <span class="online-dot" aria-hidden="true"></span>
@@ -101,27 +102,25 @@
         <div class="pb-stats" id="home-record"></div>
       </div>
 
-      <!-- Where you stand in each sport, sport-neutral because this screen
-           is: the banner above carries the all-sports rank and this says what
-           it is made of. Rendered from the registry so a new sport appears
-           here the day it ships. -->
-      <h2 class="section-heading">Your sports</h2>
-      <div class="sport-standings" id="home-sport-standings"></div>
-
-      <button id="btn-go-play" class="btn btn-primary btn-block">Play</button>
+      <!-- One row per sport: where you stand in it, its own rank ladder, its
+           own How to Play, and the row itself is the way into playing it.
+           Rendered from the registry so a new sport appears here the day it
+           ships, carrying all three without anyone editing this markup. -->
+      <h2 class="section-heading">Choose your sport</h2>
+      <div class="sport-cards" id="home-sport-cards"></div>
     </section>
 
     <!-- Choosing a sport lives here rather than on the home screen: home is a
          hub with no sport selected, and picking one here is what themes the
          app and scopes the draft. -->
     <section id="screen-play" class="screen hidden">
-      <button type="button" id="btn-play-back" class="btn btn-secondary btn-small">&larr; Home</button>
-      <!-- Rendered from the sport registry (js/sports/), not written out
-           here: a sport's live/locked state is a property of the sport, and
-           hardcoding four tiles meant shipping NFL would need someone to
-           remember to come and edit this markup. -->
-      <h2 class="section-heading">Choose your sport</h2>
-      <div class="sport-grid" id="sport-grid" role="radiogroup" aria-label="Sport"></div>
+      <div class="play-head">
+        <button type="button" id="btn-play-back" class="btn btn-secondary btn-small">&larr; Home</button>
+        <div class="play-title">
+          <span class="play-title-icon" id="play-sport-icon" aria-hidden="true"></span>
+          <span id="play-sport-name"></span>
+        </div>
+      </div>
 
       <div class="card start-card">
         <h2>Start a Draft Battle</h2>

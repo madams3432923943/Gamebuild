@@ -255,9 +255,10 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
 // The rules differ per sport - basketball drafts ten individuals, football
 // drafts units - so the text belongs beside the engine that enforces it. See
 // each sport module's `howToPlay`.
-function openHowToPlay() {
+function openHowToPlay(sportId = activeSportId()) {
+  const s = sportById(sportId);
   const wrap = document.createElement("div");
-  for (const [heading, body] of sport().howToPlay || []) {
+  for (const [heading, body] of s.howToPlay || []) {
     const section = document.createElement("div");
     section.className = "howto-section";
     const h = document.createElement("h4");
@@ -268,10 +269,8 @@ function openHowToPlay() {
     section.appendChild(p);
     wrap.appendChild(section);
   }
-  openModal(`How to Play: ${sport().name}`, wrap);
+  openModal(`How to Play: ${s.name}`, wrap);
 }
-
-document.getElementById("btn-how-to-play").addEventListener("click", openHowToPlay);
 
 // ---- Auth screen ----
 // The whole app sits behind this: no anonymous play, so a player's record,
@@ -432,46 +431,95 @@ async function reconcileUsername() {
   }
 }
 
-const homeStandingsEl = document.getElementById("home-sport-standings");
+const homeSportCardsEl = document.getElementById("home-sport-cards");
 
-/** One row per playable sport: your rank and rating in it.
+/** The home screen's sport list: one card per sport, and the only way in.
  *
- * The hub deliberately has no sport selected, so this is how a player sees
- * that their ranks really are separate - the banner above shows one number
- * across everything, and this shows what that number is made of. A sport you
- * have never played says so rather than showing a starting rating as though
- * you had earned it. */
-async function renderHomeStandings(profile, population = null) {
-  homeStandingsEl.innerHTML = "";
-  const playable = SPORTS.filter((s) => isSelectable(s.id));
-  // One read of the ratings table for every row. Letting each loadRankInfo
+ * Each card carries the three things that are per-sport and used to be
+ * app-wide - where you stand in it, its rank ladder, its rules - and the card
+ * body itself is the button that takes you into playing it. That is the whole
+ * shape of the screen: pick a sport, or read about one.
+ *
+ * The ladder and How to Play buttons sit INSIDE the card but are not part of
+ * the card's own button, because a click on "How to Play" must not also change
+ * sport and walk you into the Play screen. */
+async function renderHomeSportCards(profile, population = null) {
+  homeSportCardsEl.innerHTML = "";
+  // One read of the ratings table for every card. Letting each loadRankInfo
   // fetch its own would scan `profiles` once per sport, and that cost grows
   // with the sport list rather than staying flat.
   const rows = population || (await allSportRatings().catch(() => []));
   const standings = await Promise.all(
-    playable.map((s) => (s.live ? loadRankInfo(profile, s.id, rows).catch(() => null) : Promise.resolve(null)))
+    SPORTS.map((s) => (s.live ? loadRankInfo(profile, s.id, rows).catch(() => null) : Promise.resolve(null)))
   );
 
-  playable.forEach((s, i) => {
+  SPORTS.forEach((s, i) => {
     const info = standings[i];
-    const row = document.createElement("div");
-    row.className = "sport-standing";
+    const selectable = isSelectable(s.id);
 
-    let detail;
-    if (!s.live) detail = s.status || "In development";
+    const card = document.createElement("div");
+    // Three states, not two: playable, previewable (selectable but not
+    // playable) and locked. A preview card opens so its screens can be seen
+    // and built; what it can't do is start a game.
+    card.className = "sport-card" + (s.live ? "" : selectable ? " preview" : " locked");
+    // Its own accent, even though this screen is sport-neutral: the colour is
+    // how you recognise the sport before reading the word, and a row of
+    // identical grey cards would throw that away.
+    if (s.theme) card.style.setProperty("--card-accent", s.theme.accent);
+
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "sport-card-open";
+    open.disabled = !selectable;
+    open.innerHTML =
+      `<span class="sport-card-icon" aria-hidden="true"></span>` +
+      `<span class="sport-card-text">` +
+      `<span class="sport-card-name"></span>` +
+      `<span class="sport-card-rank"></span>` +
+      `</span>` +
+      `<span class="sport-card-go" aria-hidden="true">${selectable ? "▸" : "🔒"}</span>`;
+    open.querySelector(".sport-card-icon").textContent = s.icon;
+    open.querySelector(".sport-card-name").textContent = s.name;
+
+    let rankText;
+    if (!s.live) rankText = s.status || "Coming soon";
     else if (!info || info.provisional) {
       const need = info ? info.gamesNeeded : RANK_GAMES_FLOOR;
-      detail = `Unranked — ${need} more online ${need === 1 ? "game" : "games"}`;
-    } else detail = `${info.tier.name} — ${info.rating}`;
+      rankText = `Unranked — ${need} more online ${need === 1 ? "game" : "games"}`;
+    } else rankText = `${info.tier.name} — ${info.rating}`;
+    open.querySelector(".sport-card-rank").textContent = rankText;
 
-    row.innerHTML =
-      `<span class="sport-standing-icon">${s.icon}</span>` +
-      `<span class="sport-standing-name"></span>` +
-      `<span class="sport-standing-detail"></span>`;
-    row.querySelector(".sport-standing-name").textContent = s.name;
-    row.querySelector(".sport-standing-detail").textContent = detail;
-    homeStandingsEl.appendChild(row);
+    if (selectable) {
+      open.addEventListener("click", () => {
+        setSport(s.id);
+        showScreen("play");
+      });
+    }
+    card.appendChild(open);
+
+    // A sport with no ladder written yet gets no ladder button rather than one
+    // that opens an empty modal.
+    const actions = document.createElement("div");
+    actions.className = "sport-card-actions";
+    if ((s.tiers || []).length) {
+      actions.appendChild(sportCardAction("🏆 Rank", () => openRankLadder(s.id)));
+    }
+    if ((s.howToPlay || []).length) {
+      actions.appendChild(sportCardAction("📖 How to Play", () => openHowToPlay(s.id)));
+    }
+    if (actions.children.length) card.appendChild(actions);
+
+    homeSportCardsEl.appendChild(card);
   });
+}
+
+function sportCardAction(label, onClick) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "sport-card-action";
+  btn.textContent = label;
+  btn.addEventListener("click", onClick);
+  return btn;
 }
 
 /** Re-reads the profile and repaints the home header. Called on entry and
@@ -487,7 +535,7 @@ async function refreshHome() {
     const rankInfo = await loadOverallRankInfo(profile, population);
     renderHomeHeader(homeHeaderRefs, profile, rankInfo);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
-    await renderHomeStandings(profile, population);
+    await renderHomeSportCards(profile, population);
   } catch (e) {
     console.error("Failed to load profile:", e);
     game.nameA = "Player";
@@ -683,8 +731,6 @@ function renderPlayability() {
 // Sport is now real state: it persists like the era does, it decides which
 // era brackets are even on offer, and it is what matchmaking scopes on, so
 // two players can never be paired across sports.
-const sportGridEl = document.getElementById("sport-grid");
-
 // Which sport is active now lives in the registry (js/sports/index.js), so
 // every module can ask rather than being handed the answer. These two stay as
 // thin local names because they are used in a hundred places in this file.
@@ -719,6 +765,9 @@ function applyTheme(s) {
   if (meta) meta.setAttribute("content", t.accent);
 }
 
+const playSportIconEl = document.getElementById("play-sport-icon");
+const playSportNameEl = document.getElementById("play-sport-name");
+
 function setSport(id) {
   if (!setActiveSport(id)) return;
   applyTheme(sport());
@@ -726,41 +775,20 @@ function setSport(id) {
   // previous sport may not exist here. Re-resolving through the new sport
   // snaps to its default rather than leaving a dangling id.
   selectedEra = sport().eraById(selectedEra).id;
-  renderSportChoice();
+  renderPlayHead();
   renderEraChoice();
   renderPlayability();
   warmDatasetStats();
 }
 
-const sportPreviewNoteEl = document.getElementById("sport-preview-note");
-
-function renderSportChoice() {
-  sportGridEl.innerHTML = "";
-  for (const s of SPORTS) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.dataset.sport = s.id;
-    // Three states, not two: playable, previewable (selectable but not
-    // playable), and locked. A preview tile is clickable so its screens can
-    // be seen and built; what it can't do is start a game.
-    const selectable = isSelectable(s.id);
-    btn.className =
-      "sport-tile" +
-      (s.id === getSport() ? " active" : "") +
-      (s.live ? "" : selectable ? " preview" : " locked");
-    btn.disabled = !selectable;
-    btn.setAttribute("role", "radio");
-    btn.setAttribute("aria-checked", String(s.id === getSport()));
-    btn.innerHTML =
-      `<span class="sport-icon" aria-hidden="true">${s.icon}</span>` +
-      `<span class="sport-name"></span>` +
-      `<span class="sport-status"></span>`;
-    btn.querySelector(".sport-name").textContent = s.name;
-    btn.querySelector(".sport-status").textContent = s.status;
-    if (selectable) btn.addEventListener("click", () => setSport(s.id));
-    sportGridEl.appendChild(btn);
-  }
+/** The Play screen says which sport you are in, because the sport was chosen
+ * on the previous screen and there is no picker here to read it off. */
+function renderPlayHead() {
+  playSportIconEl.textContent = sport().icon;
+  playSportNameEl.textContent = sport().name;
 }
+
+const sportPreviewNoteEl = document.getElementById("sport-preview-note");
 
 const ERA_KEY = "bk_era";
 const eraPickerEl = document.getElementById("era-picker");
@@ -819,7 +847,7 @@ function renderEraChoice() {
 // comes back to it - and has to come back to its colors too, not the
 // stylesheet's default sport.
 applyTheme(sport());
-renderSportChoice();
+renderPlayHead();
 renderEraChoice();
 warmDatasetStats();
 renderModeChoice();
@@ -967,9 +995,6 @@ document.getElementById("nav-play").addEventListener("click", () => {
 // live one step in, on the Play screen. Going back returns to the hub rather
 // than to whatever screen preceded it, because the hub is the only thing
 // "back" can mean from here.
-document.getElementById("btn-go-play").addEventListener("click", () => {
-  showScreen("play");
-});
 document.getElementById("btn-play-back").addEventListener("click", () => {
   showScreen("home");
   refreshHome();
@@ -3030,7 +3055,9 @@ function ladderSection(heading, blurb, tiers, rankInfo) {
   return section;
 }
 
-async function openRankLadder() {
+/** @param sportId which sport's ladder to show alongside the all-sports one.
+ * Defaults to the profile screen's subtab, which is the other entry point. */
+async function openRankLadder(sportId = profileStatsSportId) {
   const wrap = document.createElement("div");
 
   const intro = document.createElement("p");
@@ -3043,7 +3070,7 @@ async function openRankLadder() {
   wrap.appendChild(intro);
 
   const profile = currentProfile || (await loadProfile().catch(() => null));
-  const statsSport = sportById(profileStatsSportId);
+  const statsSport = sportById(sportId);
 
   let overall = null;
   let sportRank = null;
@@ -3092,8 +3119,9 @@ async function openRankLadder() {
   openModal("Rank Ladder", wrap);
 }
 
-document.getElementById("btn-rank-ladder").addEventListener("click", openRankLadder);
-document.getElementById("btn-rank-ladder-home").addEventListener("click", openRankLadder);
+// The profile's ladder button follows that screen's sport subtab. The home
+// screen's app-wide one is gone: each sport card opens its own.
+document.getElementById("btn-rank-ladder").addEventListener("click", () => openRankLadder(profileStatsSportId));
 
 /** "Customize Banner" from the Profile screen - the same sport-tabbed
  * banner grid Rewards > Banners shows, just reached from Profile too
