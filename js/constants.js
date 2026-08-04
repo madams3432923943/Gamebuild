@@ -406,9 +406,19 @@ export const QUARTER_TICK_MS = 1500;
 // computing one.
 export const DRAFT_GRADE_HOLD_MS = 3800;
 
-// How long a fully-resolved draft round holds on the "locked in" state
-// before both sides' picks flip-reveal simultaneously.
-export const DRAFT_REVEAL_DELAY_MS = 700;
+// How long a resolved round's picks stay on screen before the next squad is
+// rolled and the board is rebuilt.
+//
+// This was 700ms, which was shorter than the reveal it was meant to be showing:
+// .slot-reveal runs a 1s flip and a 2.4s highlight glow (style.css), so the
+// next round wiped the opponent's name off the board while it was still
+// mid-flip. On a phone, where both roster panels are below the search box and
+// you have to look down to them, the pick was effectively never legible - the
+// one moment in the round where you find out what you're up against.
+//
+// Set past the end of the glow so the reveal finishes, and so there is a beat
+// to actually read the name and think about it before the next squad lands.
+export const DRAFT_REVEAL_DELAY_MS = 2600;
 
 // How long a player has to make each pick before the game auto-picks the
 // worst eligible option for them (or auto-skips if none are eligible).

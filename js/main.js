@@ -1351,10 +1351,20 @@ function handleLocalTimeout() {
 function renderRoundReveal() {
   cleanupPickTimer();
   const draft = game.draft;
-  draftTurnBanner.textContent = "Revealing picks…";
   poolSearch.hidden = true;
   positionSelectorEl.innerHTML = "";
   poolList.innerHTML = "";
+
+  // Say who they took, in the banner, rather than only lighting it up in the
+  // roster panel. On a phone both panels sit below the search box - the whole
+  // point of that layout - so the one moment in the round where you learn what
+  // you are up against was happening off the bottom of the screen. The banner
+  // is already in view, so this puts the answer where the eyes are.
+  const oppSlot = pendingSlotsFor("B")[0];
+  const oppPick = oppSlot && draft.rosterB[oppSlot];
+  draftTurnBanner.textContent = oppPick
+    ? `${game.nameB} took ${oppPick.name} — ${oppSlot}`
+    : "Revealing picks…";
 
   renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { revealSlots: pendingSlotsFor("A"), slots: draft.slots });
   renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { revealSlots: pendingSlotsFor("B"), slots: draft.slots });
