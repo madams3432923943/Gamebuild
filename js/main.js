@@ -11,7 +11,6 @@ import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
-import { countFriends } from "./friends.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import {
@@ -2906,9 +2905,9 @@ function openCustomizeBannerModal() {
 
   // Friend count drives the friend-count banners; it isn't on the profile
   // row, so it's fetched alongside it rather than inferred.
-  Promise.all([loadProfile(), countFriends().catch(() => 0)])
-    .then(([profile, friendCount]) => {
-      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true, { friendCount });
+  loadProfile()
+    .then((profile) => {
+      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
     })
     .catch((e) => {
       console.error("Failed to load banners:", e);
@@ -2981,8 +2980,8 @@ async function openBadgesScreen() {
       openBadgesScreen();
     });
     try {
-      const [profile, friendCount] = await Promise.all([loadProfile(), countFriends().catch(() => 0)]);
-      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner, activeBannerSport, false, { friendCount });
+      const profile = await loadProfile();
+      renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner, activeBannerSport, false);
     } catch (e) {
       console.error("Failed to load banners:", e);
       bannerSummaryEl.textContent = "Couldn't load your banners right now.";

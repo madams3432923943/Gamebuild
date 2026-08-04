@@ -235,32 +235,6 @@ export const GENERAL_BANNERS = [
     blurb: "Every player starts here.",
     progress: () => ({ value: 1, required: 1, unlocked: true }),
   },
-  // Friend-count banners. Three tiers so the reward keeps pace with actually
-  // building a circle rather than being a single one-and-done unlock.
-  //
-  // Each gets its own artwork rather than the ghosted requirement number the
-  // generic treatment would stamp in the corner. A banner is worn - it should
-  // say something about you, not restate the receipt for how it was earned,
-  // and "30" in the corner reads as a jersey number nobody chose. The three
-  // designs escalate the same way the tiers do: a huddle of five, a full
-  // lineup card, then pinstripes.
-  ...[
-    { id: "crew-5", name: "Crew", abbr: "5", need: 5, art: "crew-huddle", colors: ["#4f9d69", "#20402c"] },
-    { id: "crew-15", name: "Roster", abbr: "15", need: 15, art: "crew-roster", colors: ["#3d7ea6", "#1b3a4d"] },
-    { id: "crew-30", name: "Front Office", abbr: "30", need: 30, art: "crew-front-office", colors: ["#8e5ea2", "#3a2547"] },
-  ].map((t) => ({
-    id: t.id,
-    name: t.name,
-    abbr: t.abbr,
-    colors: t.colors,
-    art: t.art,
-    hideAbbr: true,
-    blurb: `Add ${t.need} friends.`,
-    progress: (profile, stats) => {
-      const value = stats.friendCount || 0;
-      return { value, required: t.need, unlocked: value >= t.need };
-    },
-  })),
   // The camo ladder, gated on ranked wins. Diamond sits far out on purpose:
   // it's the one banner meant to be genuinely rare, so it can't share a tier
   // with anything reachable in a weekend.
@@ -292,11 +266,9 @@ export function generalBannerById(id) {
 }
 
 /** Progress for one general banner, in the same shape bannerProgress()
- * returns for franchise banners so the tile renderer can treat both alike.
- * `stats` carries anything that isn't on the profile row itself (today just
- * friendCount). */
-export function generalBannerProgress(banner, profile, stats = {}) {
-  const { value, required, unlocked } = banner.progress(profile, stats);
+ * returns for franchise banners so the tile renderer can treat both alike. */
+export function generalBannerProgress(banner, profile) {
+  const { value, required, unlocked } = banner.progress(profile);
   return { drafted: value, value, required, unlocked, percent: Math.min(100, (100 * value) / required) };
 }
 

@@ -1927,45 +1927,6 @@ table.box-table th, table.history-table th {
   50% { transform: translateX(60%); opacity: 0.8; }
 }
 
-/* ---- Friend-tier banners ----
-   Each tier gets real artwork instead of the ghosted requirement number the
-   default treatment would stamp in the corner. Same no-asset approach as the
-   camo ladder: --art-c1/--art-c2 come from the banner entry, so the palette
-   lives in one place. */
-
-/* Crew (5): five dots in a huddle. The 5/2 frame means a visual circle needs
-   its width and height percentages in that ratio - 6% x 15% both resolve to
-   the same number of pixels, so these read as round rather than as eggs. */
-.banner-art-crew-huddle {
-  background-color: var(--art-c2);
-  background-image:
-    radial-gradient(ellipse 6% 15% at 30% 32%, var(--art-c1) 0 72%, transparent 74%),
-    radial-gradient(ellipse 6% 15% at 46% 22%, var(--art-c1) 0 72%, transparent 74%),
-    radial-gradient(ellipse 6% 15% at 62% 32%, var(--art-c1) 0 72%, transparent 74%),
-    radial-gradient(ellipse 6% 15% at 56% 66%, var(--art-c1) 0 72%, transparent 74%),
-    radial-gradient(ellipse 6% 15% at 36% 66%, var(--art-c1) 0 72%, transparent 74%),
-    linear-gradient(180deg, var(--art-c2) 0%, #0d1a13 100%);
-}
-
-/* Roster (15): a lineup card - a spine down the left, ruled rows across. */
-.banner-art-crew-roster {
-  background-color: var(--art-c2);
-  background-image:
-    linear-gradient(90deg, var(--art-c1) 0 4%, transparent 4%),
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 4%, transparent 4% 18%),
-    linear-gradient(180deg, var(--art-c1) 0%, var(--art-c2) 100%);
-}
-
-/* Front Office (30): pinstripes and a gold sheen. The tier that stops being
-   about playing and starts being about running the thing. */
-.banner-art-crew-front-office {
-  background-color: var(--art-c2);
-  background-image:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 10px),
-    linear-gradient(115deg, transparent 34%, rgba(242, 193, 78, 0.4) 50%, transparent 66%),
-    linear-gradient(180deg, var(--art-c1) 0%, var(--art-c2) 100%);
-}
-
 /* Founder: a gold burst behind a star that stays inside the frame.
    --burst-x follows the star, which sits on the left of a tile but on the
    right of the wide profile card. Without it the burst lands under the

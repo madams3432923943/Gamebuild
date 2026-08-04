@@ -884,7 +884,7 @@ export function renderBannerSportTabs(container, activeSport, onSelect) {
  * "customize" with a banner you haven't earned yet is just the Rewards tab
  * with extra steps. Rewards itself always passes false, since showing what's
  * still locked (and how close you are) is the whole point there. */
-export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false, stats = {}) {
+export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false) {
   container.innerHTML = "";
 
   // Founder and 1st Player: not earned through any sport's play, so they
@@ -899,7 +899,7 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
     let unlockedCount = 0;
     let shownGeneral = 0;
     for (const banner of GENERAL_BANNERS) {
-      const progress = generalBannerProgress(banner, profile, stats);
+      const progress = generalBannerProgress(banner, profile);
       if (progress.unlocked) unlockedCount += 1;
       if (onlyUnlocked && !progress.unlocked) continue;
       shownGeneral += 1;

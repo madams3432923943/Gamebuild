@@ -57,14 +57,6 @@ async function myFriendshipRows() {
   return { rows: data, myId: session.user.id };
 }
 
-/** Accepted friends only - pending requests in either direction don't count
- * toward the friend-count banners (GENERAL_BANNERS in banners.js), or you
- * could unlock one by spamming requests nobody ever accepted. */
-export async function countFriends() {
-  const { rows, myId } = await myFriendshipRows();
-  return rows.filter((r) => r.status === "accepted").length;
-}
-
 async function profilesById(ids) {
   if (!ids.length) return new Map();
   const supabase = await getSupabase();
