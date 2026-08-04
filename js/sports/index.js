@@ -35,8 +35,28 @@ export function sportById(id) {
   return BY_ID.get(id) || BY_ID.get(DEFAULT_SPORT_ID);
 }
 
+/** Can you actually PLAY it - start a draft, enter matchmaking, simulate a
+ * game. This is the strict flag and it gates everything that would reach an
+ * engine. */
 export function isLive(id) {
   return !!BY_ID.get(id)?.live;
+}
+
+/** Can you SWITCH TO it - see its dashboard, its eras, its labels and its
+ * branding, without being able to start a game.
+ *
+ * These used to be the same flag, which meant a sport under construction was
+ * completely unreachable and its screens could not be looked at, let alone
+ * designed. `preview` opens the door without unlocking the game: every screen
+ * renders for the sport, and the one thing that would reach a half-built
+ * engine - Start Draft - stays disabled and says why.
+ *
+ * The strict `isLive` is deliberately left alone rather than widened, because
+ * every other caller of it (dataset warm-up, matchmaking scope, the default
+ * sport) means "playable" and would be wrong to loosen. */
+export function isSelectable(id) {
+  const sport = BY_ID.get(id);
+  return !!sport && (sport.live || sport.preview);
 }
 
 // ---- Which sport is active -------------------------------------------------
@@ -57,7 +77,7 @@ function readStored() {
     const stored = localStorage.getItem(SPORT_KEY);
     // A stored sport that has since been un-launched (or a stale id from an
     // older build) must not strand someone on an unplayable screen.
-    return stored && isLive(stored) ? stored : DEFAULT_SPORT_ID;
+    return stored && isSelectable(stored) ? stored : DEFAULT_SPORT_ID;
   } catch {
     return DEFAULT_SPORT_ID;
   }
@@ -74,7 +94,7 @@ export function activeSport() {
 }
 
 export function setActiveSport(id) {
-  if (!isLive(id)) return false;
+  if (!isSelectable(id)) return false;
   activeId = id;
   try {
     localStorage.setItem(SPORT_KEY, activeId);

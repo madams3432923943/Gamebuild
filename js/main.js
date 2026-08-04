@@ -15,7 +15,7 @@ import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_T
 // read at module scope for DOM wiring that runs before any sport is chosen;
 // unpicking that is a separate change from this one.
 import { SLOTS, STARTER_SLOTS, RANKED_SLOTS, DEFAULT_ERA } from "./sports/nba/constants.js";
-import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID, activeSport, activeSportId, setActiveSport } from "./sports/index.js";
+import { SPORTS, sportById, isLive, isSelectable, DEFAULT_SPORT_ID, activeSport, activeSportId, setActiveSport } from "./sports/index.js";
 import {
   loadProfile,
   loadRankInfo,
@@ -609,6 +609,26 @@ function currentModeConfig() {
 
 function renderModeChoice() {
   modeHintEl.textContent = currentModeConfig().hint;
+  renderPlayability();
+}
+
+/** Start Draft is only live for a sport that can actually be played.
+ *
+ * A preview sport reaches every screen EXCEPT this one - its engine, dataset
+ * and gamestyles all throw on purpose (see js/sports/nfl/index.js), so
+ * pressing Start Draft would surface a stack trace as "the game is broken"
+ * rather than "this sport isn't finished". Saying so plainly on the button is
+ * both the honest answer and the thing that makes the tile safe to click. */
+function renderPlayability() {
+  const playable = isLive(getSport());
+  btnStartDraft.disabled = !playable;
+  btnStartDraft.textContent = playable ? "Start Draft" : `${sport().name} isn't playable yet`;
+  sportPreviewNoteEl.hidden = playable;
+  if (!playable) {
+    sportPreviewNoteEl.textContent =
+      `You're previewing ${sport().name}. Everything here is real except the game itself - ` +
+      `pick a playable sport above to draft.`;
+  }
 }
 
 // --- Era bracket -----------------------------------------------------------
@@ -642,8 +662,11 @@ function setSport(id) {
   selectedEra = sport().eraById(selectedEra).id;
   renderSportChoice();
   renderEraChoice();
+  renderPlayability();
   warmDatasetStats();
 }
+
+const sportPreviewNoteEl = document.getElementById("sport-preview-note");
 
 function renderSportChoice() {
   sportGridEl.innerHTML = "";
@@ -651,8 +674,15 @@ function renderSportChoice() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.sport = s.id;
-    btn.className = "sport-tile" + (s.id === getSport() ? " active" : "") + (s.live ? "" : " locked");
-    btn.disabled = !s.live;
+    // Three states, not two: playable, previewable (selectable but not
+    // playable), and locked. A preview tile is clickable so its screens can
+    // be seen and built; what it can't do is start a game.
+    const selectable = isSelectable(s.id);
+    btn.className =
+      "sport-tile" +
+      (s.id === getSport() ? " active" : "") +
+      (s.live ? "" : selectable ? " preview" : " locked");
+    btn.disabled = !selectable;
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", String(s.id === getSport()));
     btn.innerHTML =
@@ -661,7 +691,7 @@ function renderSportChoice() {
       `<span class="sport-status"></span>`;
     btn.querySelector(".sport-name").textContent = s.name;
     btn.querySelector(".sport-status").textContent = s.status;
-    if (s.live) btn.addEventListener("click", () => setSport(s.id));
+    if (selectable) btn.addEventListener("click", () => setSport(s.id));
     sportGridEl.appendChild(btn);
   }
 }
@@ -818,6 +848,11 @@ async function startOnlineSearch() {
 btnCancelSearch.addEventListener("click", () => endOnlineSearch(null));
 
 btnStartDraft.addEventListener("click", async () => {
+  // Belt as well as braces: the button is disabled for a preview sport, but a
+  // stale listener or a keyboard activation must not reach an engine that
+  // throws by design.
+  if (!isLive(getSport())) return;
+
   const config = currentModeConfig();
   cleanupOnlineWatcher();
 

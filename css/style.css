@@ -400,6 +400,37 @@ input[type="text"]:focus-visible {
   cursor: not-allowed;
 }
 
+/* Selectable but not playable. Deliberately NOT the dimmed locked treatment -
+   a preview tile is a real destination you can click, and dimming it would
+   say the opposite. A dashed border reads as "under construction" rather than
+   "unavailable", which is exactly the difference. */
+.sport-tile.preview {
+  border-style: dashed;
+  border-color: rgba(var(--accent-rgb), 0.55);
+  opacity: 0.9;
+}
+
+.sport-tile.preview .sport-status {
+  color: var(--accent-bright);
+}
+
+.sport-tile.preview.active {
+  border-style: solid;
+  opacity: 1;
+}
+
+/* The line under the era picker explaining why Start Draft is dead. Warned
+   rather than errored: nothing is broken, this sport just isn't finished. */
+.sport-preview-note {
+  border-left: 3px solid rgba(var(--accent-rgb), 0.55);
+  padding-left: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.sport-preview-note[hidden] {
+  display: none;
+}
+
 /* ---- Draft screen ---- */
 /* The squad banner carries the whole run-up to a pick: which round, which
    era, which squad, whose turn, and how long is left. Those used to be five
@@ -2256,6 +2287,20 @@ table.box-table th, table.history-table th {
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* A disabled PRIMARY button needs more than transparency. Faded to 45%, the
+   accent fill still reads as the bright call-to-action it normally is, and the
+   dark label on top of it drops to a contrast nobody can read - so the one
+   button that is explaining why it can't be pressed became the least legible
+   thing on the screen. Flattened to a neutral panel with muted text instead:
+   clearly inactive, and still readable. */
+.btn.btn-primary:disabled {
+  opacity: 1;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  box-shadow: none;
 }
 
 /* ---- Court backdrop ----

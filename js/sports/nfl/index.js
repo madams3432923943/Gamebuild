@@ -26,7 +26,13 @@ export const NFL = {
   icon: "🏈",
 
   live: false,
-  status: "Coming soon",
+  // Selectable without being playable: you can switch the whole app to NFL and
+  // see its dashboard, eras, labels and branding, which is what building those
+  // screens requires. Start Draft stays disabled - see isSelectable() in
+  // js/sports/index.js for why this is a second flag rather than loosening
+  // `live`, which everything that touches an engine still reads.
+  preview: true,
+  status: "In development",
 
   labels: {
     squad: "roster",

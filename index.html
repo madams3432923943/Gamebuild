@@ -125,6 +125,9 @@
         <div class="era-picker" id="era-picker" role="radiogroup" aria-label="Era"></div>
         <p class="hint-text" id="era-hint"></p>
 
+        <!-- Shown when the selected sport is previewable but not playable
+             (js/sports/index.js's isSelectable vs isLive). -->
+        <p class="hint-text sport-preview-note" id="sport-preview-note" hidden></p>
         <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
         <button id="btn-cancel-search" class="btn btn-secondary btn-block hidden">Cancel Search</button>
         <div id="search-status" class="search-status hidden"></div>
