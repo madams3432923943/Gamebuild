@@ -2,10 +2,10 @@
 // bot auto-pick. See build spec #4.
 
 import { BOT_POOL_SIZE, MIN_SEARCH_CHARS } from "./constants.js";
-import { SLOTS, STARTER_SLOTS, basePosition, isBenchSlot } from "./sports/nba/constants.js";
-import { impact } from "./sports/nba/engine.js";
-
-export { basePosition };
+// Slot lists are default parameter values (see ui.js). The helpers below are
+// per-pick calls and go through the active sport.
+import { SLOTS, STARTER_SLOTS } from "./sports/nba/constants.js";
+import { activeSport } from "./sports/index.js";
 
 /** Groups the flat PLAYERS array into squads keyed by "Team|Decade". */
 export function buildSquads(players) {
@@ -26,8 +26,8 @@ export function buildSquads(players) {
  * covers once the roster is set. Position-locked slots compare against
  * basePosition, since a player's recorded pos[] holds only bare codes. */
 export function isEligible(player, slot) {
-  if (slot === "6TH" || isBenchSlot(slot)) return true;
-  return player.pos.includes(basePosition(slot));
+  if (slot === "6TH" || activeSport().isBenchSlot(slot)) return true;
+  return player.pos.includes(activeSport().basePosition(slot));
 }
 
 /** Open slots (not yet filled) for a roster-in-progress, in draft order.
@@ -53,13 +53,13 @@ export function eligibleOpenSlots(player, roster, slots = SLOTS) {
 }
 
 /** Every legal (player, slot) combo for `roster` in `squad`, each scored by
- * impact() - the shared building block behind both the bot's best-pick
+ * activeSport().rate() - the shared building block behind both the bot's best-pick
  * logic and the pick-timer's worst-pick timeout penalty. */
 function eligibleCombos(squad, roster, slots = SLOTS) {
   const combos = [];
   for (const player of squad.players) {
     for (const slot of eligibleOpenSlots(player, roster, slots)) {
-      combos.push({ player, slot, score: impact(player) });
+      combos.push({ player, slot, score: activeSport().rate(player) });
     }
   }
   return combos;

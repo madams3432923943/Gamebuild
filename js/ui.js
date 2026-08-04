@@ -2,8 +2,11 @@
 // (and callbacks), they redraw that container's contents.
 
 import { MIN_SEARCH_CHARS } from "./constants.js";
-import { SLOTS, STARTER_SLOTS, basePosition, ROTATION_BUDGET, minutesRangeFor, orderedRosterSlots, isBenchSlot } from "./sports/nba/constants.js";
-import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID } from "./sports/index.js";
+// Slot lists are still basketball's: they are default PARAMETER values, so
+// they resolve at module load, before a sport is chosen. Everything else
+// here is called at render time and goes through the active sport.
+import { SLOTS, STARTER_SLOTS } from "./sports/nba/constants.js";
+import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
 import {
   mostDraftedPlayer,
@@ -30,7 +33,6 @@ import {
   generalBannerProgress,
   DEFAULT_BANNER_ID,
 } from "./banners.js";
-import { shotLine, formatShotLine } from "./sports/nba/shooting.js";
 import { squadTierForRep } from "./squads.js";
 
 /** Display name for a roster slot. Derived rather than looked up in a fixed
@@ -42,7 +44,7 @@ function slotLabel(slot) {
   // Bench spots aren't position-locked, so numbering them by position would
   // be a lie. They read as "Bench"; the player's own position is shown next
   // to their name instead.
-  if (isBenchSlot(slot)) return "Bench";
+  if (activeSport().isBenchSlot(slot)) return "Bench";
   return slot;
 }
 
@@ -50,7 +52,7 @@ function slotLabel(slot) {
  * engine.js's activeSlots so the box score, live table, and recap all agree
  * on both which slots exist and what order they read in. */
 function rosterSlots(roster) {
-  return orderedRosterSlots(roster);
+  return activeSport().orderedRosterSlots(roster);
 }
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
 
@@ -119,7 +121,7 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       value.className = "slot-filled" + (revealSlots.includes(slot) ? " slot-reveal" : "");
       // A bench slot doesn't say what the player is, so his position rides
       // next to his name - that's the information you need to judge depth.
-      const pos = isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
+      const pos = activeSport().isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
       value.textContent = `${player.name}${pos} (${player.team} ${player.decade})`;
     } else {
       value.className = "slot-empty";
@@ -324,7 +326,7 @@ export function buildShotLines(roster, box) {
   for (const slot of rosterSlots(roster)) {
     const player = roster[slot];
     if (!box[slot]) continue;
-    out[slot] = shotLine(player, box[slot].pts);
+    out[slot] = activeSport().shotLine(player, box[slot].pts);
   }
   return out;
 }
@@ -579,13 +581,13 @@ export function renderUnlockableTabs(container, active, onSelect) {
 /** Sport subtabs for the badges screen. Sports with no badges yet still get
  * a tab so the roadmap is visible, but it's marked locked and says so when
  * opened rather than showing a confusing empty grid. */
-export function renderBadgeSportTabs(container, activeSport, onSelect) {
+export function renderBadgeSportTabs(container, activeId, onSelect) {
   container.innerHTML = "";
   for (const sport of SPORTS) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-      "subtab" + (sport.id === activeSport ? " active" : "") + (sport.live ? "" : " locked");
+      "subtab" + (sport.id === activeId ? " active" : "") + (sport.live ? "" : " locked");
     btn.textContent = `${sport.icon} ${sport.name}`;
     btn.addEventListener("click", () => onSelect(sport.id));
     container.appendChild(btn);
@@ -858,13 +860,13 @@ function generalBannerTile(banner, progress, profile, onEquip) {
 // needs to know it exists.
 const GENERAL_BANNERS_TAB = { id: "general", name: "General", icon: "⭐", live: true };
 
-export function renderBannerSportTabs(container, activeSport, onSelect) {
+export function renderBannerSportTabs(container, activeId, onSelect) {
   container.innerHTML = "";
   for (const sport of [GENERAL_BANNERS_TAB, ...SPORTS]) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-      "subtab" + (sport.id === activeSport ? " active" : "") + (sport.live ? "" : " locked");
+      "subtab" + (sport.id === activeId ? " active" : "") + (sport.live ? "" : " locked");
     btn.textContent = `${sport.icon} ${sport.name}`;
     btn.addEventListener("click", () => onSelect(sport.id));
     container.appendChild(btn);
@@ -1114,9 +1116,9 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
 
   const sync = () => {
     const spent = list.reduce((sum, slot) => sum + (minutesMap[slot] || 0), 0);
-    const remaining = ROTATION_BUDGET - spent;
+    const remaining = activeSport().rotationBudget - spent;
     list.forEach((slot, i) => {
-      const { min, max } = minutesRangeFor(slot);
+      const { min, max } = activeSport().minutesRangeFor(slot);
       // A slider may claim its own value plus whatever is still unspent, and
       // no more. That is what makes going over 240 impossible rather than
       // merely discouraged - there is no invalid state to validate against.
@@ -1132,8 +1134,8 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
 
   for (const slot of list) {
     const player = roster[slot];
-    const { min, max } = minutesRangeFor(slot);
-    const bench = isBenchSlot(slot) || slot === "6TH";
+    const { min, max } = activeSport().minutesRangeFor(slot);
+    const bench = activeSport().isBenchSlot(slot) || slot === "6TH";
 
     const row = document.createElement("div");
     row.className = "rotation-row" + (bench ? " rotation-bench" : " rotation-starter");
@@ -1175,13 +1177,13 @@ function escapeHtml(s) {
 
 function renderRotationTotal(totalEl, minutesMap, list) {
   const spent = list.reduce((sum, slot) => sum + (minutesMap[slot] || 0), 0);
-  const remaining = ROTATION_BUDGET - spent;
+  const remaining = activeSport().rotationBudget - spent;
   if (remaining === 0) {
-    totalEl.textContent = `All ${ROTATION_BUDGET} minutes assigned`;
+    totalEl.textContent = `All ${activeSport().rotationBudget} minutes assigned`;
     totalEl.className = "rotation-total";
   } else {
     totalEl.textContent =
-      `${spent} of ${ROTATION_BUDGET} assigned \u2014 ${remaining} minute${remaining === 1 ? "" : "s"} still to give out`;
+      `${spent} of ${activeSport().rotationBudget} assigned \u2014 ${remaining} minute${remaining === 1 ? "" : "s"} still to give out`;
     totalEl.className = "rotation-total rotation-warning";
   }
 }

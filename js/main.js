@@ -3,9 +3,6 @@
 //   - "bot": synchronous, client-only (DraftState from draft.js).
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
-import { buildRecap, buildGameScript, buildWhyBreakdown } from "./sports/nba/recap.js";
-import { gradeDraft, rotationHint } from "./sports/nba/draftgrade.js";
-import { draftAnalysis } from "./sports/nba/engine.js";
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
@@ -14,8 +11,11 @@ import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./s
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
 import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
+// Slot lists and the default era still come from basketball directly. They are
+// read at module scope for DOM wiring that runs before any sport is chosen;
+// unpicking that is a separate change from this one.
 import { SLOTS, STARTER_SLOTS, RANKED_SLOTS, DEFAULT_ERA } from "./sports/nba/constants.js";
-import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID } from "./sports/index.js";
+import { SPORTS, sportById, isLive, DEFAULT_SPORT_ID, activeSport, activeSportId, setActiveSport } from "./sports/index.js";
 import {
   loadProfile,
   loadRankInfo,
@@ -593,40 +593,23 @@ function renderModeChoice() {
 // Sport is now real state: it persists like the era does, it decides which
 // era brackets are even on offer, and it is what matchmaking scopes on, so
 // two players can never be paired across sports.
-const SPORT_KEY = "bk_sport";
 const sportGridEl = document.getElementById("sport-grid");
 
-let selectedSport = readStoredSport();
-
-function readStoredSport() {
-  try {
-    const stored = localStorage.getItem(SPORT_KEY);
-    // A stored sport that has since been un-launched (or a stale id from an
-    // older build) must not strand someone on an unplayable screen.
-    return stored && isLive(stored) ? stored : DEFAULT_SPORT_ID;
-  } catch {
-    return DEFAULT_SPORT_ID;
-  }
-}
-
+// Which sport is active now lives in the registry (js/sports/index.js), so
+// every module can ask rather than being handed the answer. These two stay as
+// thin local names because they are used in a hundred places in this file.
 function getSport() {
-  return selectedSport;
+  return activeSportId();
 }
 
 /** The active sport's definition - slots, eras, dataset, engine, labels.
  * Everything downstream reads this rather than importing basketball. */
 function sport() {
-  return sportById(selectedSport);
+  return activeSport();
 }
 
 function setSport(id) {
-  if (!isLive(id)) return;
-  selectedSport = id;
-  try {
-    localStorage.setItem(SPORT_KEY, selectedSport);
-  } catch {
-    // Storage refused (private mode) - the choice still applies this session.
-  }
+  if (!setActiveSport(id)) return;
   // Era ids are only unique within a sport, so a bracket selected under the
   // previous sport may not exist here. Re-resolving through the new sport
   // snaps to its default rather than leaving a dangling id.
@@ -642,10 +625,10 @@ function renderSportChoice() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.sport = s.id;
-    btn.className = "sport-tile" + (s.id === selectedSport ? " active" : "") + (s.live ? "" : " locked");
+    btn.className = "sport-tile" + (s.id === getSport() ? " active" : "") + (s.live ? "" : " locked");
     btn.disabled = !s.live;
     btn.setAttribute("role", "radio");
-    btn.setAttribute("aria-checked", String(s.id === selectedSport));
+    btn.setAttribute("aria-checked", String(s.id === getSport()));
     btn.innerHTML =
       `<span class="sport-icon" aria-hidden="true">${s.icon}</span>` +
       `<span class="sport-name"></span>` +
@@ -1379,7 +1362,7 @@ function hideDraftGrade() {
 function showDraftGrade(roster, opts = {}) {
   let grade;
   try {
-    grade = gradeDraft(roster, datasetStatsFor(), opts);
+    grade = sport().gradeDraft(roster, datasetStatsFor(), opts);
   } catch (e) {
     // A grade is commentary. If it can't be computed for some roster shape,
     // that must never be what stops a finished draft reaching the game.
@@ -1393,7 +1376,7 @@ function showDraftGrade(roster, opts = {}) {
   draftGradeReasonsEl.innerHTML = "";
 
   const reasons = [...grade.reasons];
-  const hint = rotationHint(roster);
+  const hint = sport().rotationHint(roster);
   if (hint) reasons.push(hint);
   for (const reason of reasons) {
     const li = document.createElement("li");
@@ -2122,7 +2105,7 @@ const whyCoachingListEl = document.getElementById("why-coaching-list");
 function renderWhyBreakdown(result, ctx) {
   let breakdown;
   try {
-    breakdown = buildWhyBreakdown(result, ctx);
+    breakdown = sport().buildWhyBreakdown(result, ctx);
   } catch (e) {
     // Analysis is commentary on a result that already exists - it must never
     // be what keeps the result off the screen.
@@ -2373,7 +2356,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.
-    pushPlayHeadline(playFeedEl, buildGameScript(periodsSoFar, labelA, labelB), "final");
+    pushPlayHeadline(playFeedEl, sport().buildGameScript(periodsSoFar, labelA, labelB), "final");
 
     const winnerName = result.winner === "A" ? labelA : labelB;
     finalBanner.textContent = `${winnerName} ${subjectVerb(winnerName, "wins", "win")}, ${result.teamScoreA}-${result.teamScoreB}${
@@ -2387,7 +2370,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const shotsB = buildShotLines(rosterB, result.boxB);
 
     // Why it went that way, not just what the score was.
-    const recap = buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, shotsB);
+    const recap = sport().buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, shotsB);
     recapHeadlineEl.textContent = recap.headline;
     recapDetailEl.textContent = recap.detail;
     gameRecapEl.classList.remove("hidden");
@@ -2644,7 +2627,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   // live read on how the other side is doing and the reveal rule withholds it.
   let analysisA = null;
   try {
-    analysisA = draftAnalysis(myRosterFinal, oppRosterFinal, datasetStatsFor(), o.forfeits || []);
+    analysisA = sport().draftAnalysis(myRosterFinal, oppRosterFinal, datasetStatsFor(), o.forfeits || []);
   } catch (e) {
     console.error("Could not rebuild the draft analysis:", e);
   }

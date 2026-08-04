@@ -3,13 +3,13 @@
 // than realtime - see the comment on watchMatch() for why.
 
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { SLOTS, DEFAULT_ERA } from "./sports/nba/constants.js";
-import { DEFAULT_SPORT_ID } from "./sports/index.js";
+import { SLOTS } from "./sports/nba/constants.js";
+import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 
-export async function joinQueue(sport = DEFAULT_SPORT_ID, era = DEFAULT_ERA) {
+export async function joinQueue(sport = DEFAULT_SPORT_ID, era = null) {
   await requireSession();
   const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc("join_queue", { p_sport: sport, p_era: era });
+  const { data, error } = await supabase.rpc("join_queue", { p_sport: sport, p_era: era ?? activeSport().defaultEra ?? activeSport().defaultEra });
   if (error) throw error;
   return data; // { status: "waiting" } | { status: "matched", match_id }
 }

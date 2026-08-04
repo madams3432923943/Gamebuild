@@ -39,6 +39,51 @@ export function isLive(id) {
   return !!BY_ID.get(id)?.live;
 }
 
+// ---- Which sport is active -------------------------------------------------
+//
+// This lived in main.js, which meant every other module that needed to know
+// had to be handed the answer or import basketball directly - and importing
+// basketball directly is exactly what this folder exists to prevent. The
+// registry knows which sports there are; it is the right place to know which
+// one is in play.
+
+// The key main.js has always used. Changing it would silently reset the
+// stored choice for every returning player.
+const SPORT_KEY = "bk_sport";
+let activeId = readStored();
+
+function readStored() {
+  try {
+    const stored = localStorage.getItem(SPORT_KEY);
+    // A stored sport that has since been un-launched (or a stale id from an
+    // older build) must not strand someone on an unplayable screen.
+    return stored && isLive(stored) ? stored : DEFAULT_SPORT_ID;
+  } catch {
+    return DEFAULT_SPORT_ID;
+  }
+}
+
+export function activeSportId() {
+  return activeId;
+}
+
+/** The active sport's definition - slots, eras, dataset, engine, labels,
+ * narrative. Everything downstream reads this rather than importing a sport. */
+export function activeSport() {
+  return sportById(activeId);
+}
+
+export function setActiveSport(id) {
+  if (!isLive(id)) return false;
+  activeId = id;
+  try {
+    localStorage.setItem(SPORT_KEY, activeId);
+  } catch {
+    // Storage refused (private mode) - the choice still applies this session.
+  }
+  return true;
+}
+
 /**
  * Namespaces a per-era record key by sport.
  *

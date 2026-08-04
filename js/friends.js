@@ -4,8 +4,8 @@
 // reasoning as squads.js - who's friends with whom, and who challenged whom,
 // shouldn't be forgeable by a client that just knows another player's id.
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { DEFAULT_ERA } from "./sports/nba/constants.js";
-import { DEFAULT_SPORT_ID } from "./sports/index.js";
+
+import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
 
 async function callRpc(name, args) {
@@ -38,9 +38,9 @@ export async function removeFriend(friendId) {
 /** Returns the new/existing match id - the caller then jumps straight into
  * the same online draft flow a matchmaking pairing uses (enterOnlineMatch
  * in main.js), just with a specific opponent instead of a random one. */
-export async function challengeFriend(friendId, sport = DEFAULT_SPORT_ID, era = DEFAULT_ERA) {
+export async function challengeFriend(friendId, sport = DEFAULT_SPORT_ID, era = null) {
   await requireSession();
-  return callRpc("challenge_friend", { p_friend_id: friendId, p_sport: sport, p_era: era });
+  return callRpc("challenge_friend", { p_friend_id: friendId, p_sport: sport, p_era: era ?? activeSport().defaultEra });
 }
 
 /** Every friendship row touching the caller, regardless of status/side -

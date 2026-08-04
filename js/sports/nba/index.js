@@ -21,6 +21,18 @@ import {
 import { PLAYERS } from "../../../data/nba-players.js";
 import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
+import { buildRecap, buildGameScript, buildWhyBreakdown } from "./recap.js";
+import { gradeDraft, rotationHint } from "./draftgrade.js";
+import { draftAnalysis, impact } from "./engine.js";
+import { shotLine, formatShotLine } from "./shooting.js";
+import {
+  SLOTS as NBA_SLOTS,
+  basePosition,
+  isBenchSlot,
+  orderedRosterSlots,
+  minutesRangeFor,
+  ROTATION_BUDGET,
+} from "./constants.js";
 
 export const NBA = {
   id: "nba",
@@ -84,6 +96,35 @@ export const NBA = {
   defaultMinutes,
   botMinutes,
   defaultMatchups,
+
+  // ---- Draft mechanics ----------------------------------------------------
+  // How the draft board groups squads and scores a bot pick. Basketball rolls
+  // a team-and-decade; football's eras don't fall on decade boundaries, so the
+  // key is the sport's to choose rather than js/draft.js's to assume.
+  groupKey: "decade",
+  rate: impact,
+  basePosition,
+  isBenchSlot,
+  orderedRosterSlots,
+  minutesRangeFor,
+  rotationBudget: ROTATION_BUDGET,
+
+  // ---- Narrative ----------------------------------------------------------
+  // The post-game voice and the draft grade. Both are entirely basketball -
+  // "out-rebounded by 14" means nothing in football - so they belong to the
+  // sport, and main.js asks for them here instead of importing them.
+  buildRecap,
+  buildGameScript,
+  buildWhyBreakdown,
+  gradeDraft,
+  rotationHint,
+  draftAnalysis,
+
+  // How a simulated point total is broken into a believable shooting line.
+  // Football's equivalent splits drive yards across a QB and his receivers;
+  // same role, completely different maths.
+  shotLine,
+  formatShotLine,
 
   // ---- Gamestyles ---------------------------------------------------------
   tactics: TACTICS,
