@@ -1,0 +1,23 @@
+# Search exclusions. Read by ripgrep (and therefore by every code search tool
+# built on it) but NOT by git - everything listed here is still committed,
+# still served to the browser, still imported at runtime. This file only
+# decides what a search walks through.
+#
+# Why it exists: data/nba-players.js is 2,542 generated rows, and the fields it
+# repeats on every one of them are ordinary identifiers. Searching the codebase
+# for "team", "pos", "name" or "decade" - all of which appear in real app code -
+# was pulling ~2,542 dataset lines into the results every single time, before
+# getting to the handful of matches anyone wanted.
+#
+# CLAUDE.md already says not to read data/ while writing app code. This makes
+# it true by default rather than by memory. Looking a player's numbers up is
+# still perfectly possible - name the file directly, or pass --no-ignore - and
+# having to do that deliberately is the point.
+data/
+
+# Build verification output: screenshots, videos and JSON from the browser
+# harness. Already gitignored; listed again because .gitignore and .ignore are
+# read by different tools and a search shouldn't wade through a run's
+# artifacts either.
+verify-artifacts/
+verify-report.json

@@ -1,0 +1,9 @@
+# data/ holds generated datasets, not authored code.
+#
+# linguist-generated stops GitHub counting 2,542 rows of statistics toward the
+# repo's language breakdown and collapses them in pull request diffs.
+#
+# -diff stops git itself trying to produce a line-by-line diff of them. A
+# regenerated dataset is a 2,500-line change that nobody reads and that buries
+# the real diff underneath it; "binary file changed" is the honest summary.
+data/* linguist-generated=true -diff
