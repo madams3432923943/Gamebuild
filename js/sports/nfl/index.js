@@ -9,7 +9,7 @@
 //
 // WHY NFL CANNOT REUSE THE NBA ENGINE
 //
-// js/engine.js is not a generic sports simulator. It models five positions
+// js/sports/nba/engine.js is not a generic sports simulator. It models five positions
 // guarding five positions over four 48-minute quarters, and every number in
 // it - SCORING_K, the rebound and assist matchup factors, the fatigue curve,
 // the 1.55 combined scoring ceiling - is solved against basketball box
@@ -72,24 +72,59 @@ export const NFL = {
   // half-wired NFL reach a player looking like a working game, and the bug
   // would surface as "the sim is broken" rather than "this isn't finished".
   players: () => {
-    throw new Error("NFL player data has not been imported yet - see js/sports/nfl.js");
+    throw new Error("NFL player data has not been imported yet - see js/sports/nfl/");
   },
   playersInEra: () => {
-    throw new Error("NFL eras are not defined yet - see js/sports/nfl.js");
+    throw new Error("NFL eras are not defined yet - see js/sports/nfl/");
   },
   computeDatasetStats: () => {
-    throw new Error("NFL has no dataset statistics yet - see js/sports/nfl.js");
+    throw new Error("NFL has no dataset statistics yet - see js/sports/nfl/");
   },
   simulate: () => {
-    throw new Error("NFL has no simulation engine yet - see js/sports/nfl.js");
+    throw new Error("NFL has no simulation engine yet - see js/sports/nfl/");
   },
   defaultMinutes: () => {
-    throw new Error("NFL has no snap-count model yet - see js/sports/nfl.js");
+    throw new Error("NFL has no snap-count model yet - see js/sports/nfl/");
   },
   botMinutes: () => {
-    throw new Error("NFL has no snap-count model yet - see js/sports/nfl.js");
+    throw new Error("NFL has no snap-count model yet - see js/sports/nfl/");
   },
   defaultMatchups: () => ({}),
+
+  // The draft-board seams shared code reads (see js/sports/nba/index.js for
+  // the working versions). groupKey is "era" rather than basketball's
+  // "decade" because football's brackets follow rule changes.
+  groupKey: "era",
+  rate: () => {
+    throw new Error("NFL has no player rating yet - see js/sports/nfl/");
+  },
+  basePosition: (slot) => slot,
+  isBenchSlot: (slot) => slot.startsWith("BENCH"),
+  orderedRosterSlots: (roster) => Object.keys(roster).filter((s) => roster[s]),
+  minutesRangeFor: () => ({ min: 0, max: 0 }),
+  rotationBudget: 0,
+
+  // Narrative and grading. Stubs live in the sibling files named below; these
+  // throw for the same reason the simulation stubs do - a recap that returned
+  // empty prose would look like a working game with nothing to say.
+  buildRecap: () => {
+    throw new Error("NFL has no recap yet - see js/sports/nfl/recap.js");
+  },
+  buildGameScript: () => {
+    throw new Error("NFL has no game script yet - see js/sports/nfl/recap.js");
+  },
+  buildWhyBreakdown: () => {
+    throw new Error("NFL has no post-game analysis yet - see js/sports/nfl/recap.js");
+  },
+  gradeDraft: () => {
+    throw new Error("NFL has no draft grade yet - see js/sports/nfl/draftgrade.js");
+  },
+  rotationHint: () => null,
+  draftAnalysis: () => {
+    throw new Error("NFL has no draft analysis yet - see js/sports/nfl/engine.js");
+  },
+  shotLine: () => null,
+  formatShotLine: () => "",
 
   tactics: [],
   defaultTactic: null,
@@ -101,6 +136,7 @@ export const NFL = {
    * rather than only in this comment. */
   todo: [
     "Import per-game player data into an nfl_players table",
+    "Aggregate defensive position groups into draftable units (units.js)",
     "Author era brackets that follow rule changes, not decades",
     "Write a drive-based simulation engine and calibrate it",
     "Author gamestyles and solve their multipliers the way tactics.js is",

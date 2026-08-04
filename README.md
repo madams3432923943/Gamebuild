@@ -64,25 +64,24 @@ data/
   nba-players.js  the player dataset - GENERATED, and deliberately outside js/
                   so a search of the app code never has to wade through 2,542
                   rows of statistics
-js/
+js/                 shared app code - never imports a sport directly
   main.js         app controller: wires state, engine, and DOM together
-  engine.js       simulation (quarter-by-quarter positional matchups)
-  draft.js        draft mechanics, squad rolling, typed-name search, bot picks
+  constants.js    app-wide timings only (pick clocks, queue timeouts)
   state.js        shared mutable state (the match, the post-draft choices)
   shell.js        screens, nav and the one modal - app chrome, no basketball
   screens/        one module per screen (squads/friends so far)
-  tactics.js      the 15 gamestyles and their stat modifiers
-  recap.js        post-game narrative, plus the "why you won/lost" breakdown
-  draftgrade.js   grades a finished roster on how it was BUILT
-  progress.js     diffs your profile before/after a game, so gains announce themselves
-  celebrate.js    confetti, buzzer and fanfare (DOM + WebAudio, no assets)
-  shooting.js     derives FG/3PT/FT splits from simulated point totals
+  draft.js        draft mechanics, squad rolling, typed-name search, bot picks
+  ui.js           rendering helpers
+  online.js       Supabase-backed online play
+  profile.js      profile/record persistence
   badges.js       tiered achievements
   banners.js      earnable team banners
-  profile.js      profile/record persistence
-  online.js       Supabase-backed online play
-  ui.js           rendering helpers
-  constants.js    tunable simulation constants
+  progress.js     diffs your profile before/after a game, so gains announce themselves
+  celebrate.js    confetti, buzzer and fanfare (DOM + WebAudio, no assets)
+  sports/
+    index.js      the registry: which sports exist, which is active
+    nba/          engine, constants, tactics, shooting, recap, draftgrade
+    nfl/          declared and scaffolded; live:false until it has an engine
 tools/            data import and balance-calibration scripts (Node)
 ```
 

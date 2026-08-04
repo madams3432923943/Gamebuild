@@ -6,9 +6,14 @@ directly. Serve the root over HTTP (`python3 -m http.server 8000`); opening
 
 ## Rules that bite
 
-- **Engine parity.** `js/sports/nba/`'s `engine.js`, `constants.js` and `tactics.js` are
-  vendored into `supabase/functions/simulate-match/`. Change one, copy it across,
-  or online games diverge from offline ones. `npm run verify:parity` checks this.
+- **One folder per sport.** `js/sports/<id>/` holds that sport's engine, constants,
+  gamestyles, recap and draft grade. Shared code must never import a sport
+  directly — ask `activeSport()` from `js/sports/index.js`. `js/constants.js` is
+  app-wide only (clocks, timeouts); simulation numbers live with their sport.
+- **Engine parity.** Each sport's `engine.js`, `constants.js` and `tactics.js` are
+  vendored into `supabase/functions/simulate-match/sports/<id>/`. Change one, copy
+  it across, or online games diverge from offline ones. `npm run verify:parity`
+  checks every sport that has both.
 - **Balance is solved, not picked.** Gamestyle `pts` mods, `TALENT_PARITY` and the
   quarter-variance range come from `tools/calibrate-*.mjs`. Re-run after any engine
   or gamestyle change, variance first, then gamestyles.

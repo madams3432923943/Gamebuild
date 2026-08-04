@@ -14,7 +14,7 @@
 // break.
 
 import NBA from "./nba/index.js";
-import NFL from "./nfl.js";
+import NFL from "./nfl/index.js";
 import NHL from "./nhl.js";
 import SOCCER from "./soccer.js";
 
