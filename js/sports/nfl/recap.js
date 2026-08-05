@@ -39,17 +39,24 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB) {
   return lines.join(" ");
 }
 
-/** Drive-by-drive, which IS the game script in football - the thing the UI
- * scrolls through while the ball moves up and down the field. */
-export function buildGameScript(result) {
-  return result.drives.map((d) => ({
-    period: d.quarter,
-    side: d.team,
-    text: d.text,
-    startYard: d.startYard,
-    endYard: d.endYard,
-    points: d.points,
-  }));
+/** The closing line of the play feed. Signature matches what shared code
+ * passes - (periods, labelA, labelB) - which is basketball's, and was declared
+ * here as (result): the final headline would have thrown in football, and the
+ * only reason it had not yet is that nothing reached the end of a game.
+ *
+ * Football's drive-by-drive lives on the field itself, not in the feed, so
+ * this is one sentence rather than a list. */
+export function buildGameScript(periods, labelA, labelB) {
+  const rows = Array.isArray(periods) ? periods : [];
+  const total = (key) => rows.reduce((sum, p) => sum + (Number(p[key]) || 0), 0);
+  const a = total("a");
+  const b = total("b");
+  const winner = a === b ? null : a > b ? labelA : labelB;
+  const margin = Math.abs(a - b);
+  if (!winner) return `${labelA} and ${labelB} finish level at ${a}.`;
+  if (margin <= 3) return `${winner} wins it late, ${Math.max(a, b)}-${Math.min(a, b)}.`;
+  if (margin >= 21) return `${winner} runs away with it, ${Math.max(a, b)}-${Math.min(a, b)}.`;
+  return `${winner} takes it ${Math.max(a, b)}-${Math.min(a, b)}.`;
 }
 
 /** Why you won or lost, in terms of the picks that caused it. Reads the

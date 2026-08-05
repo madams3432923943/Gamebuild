@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "bundle": "esbuild js/main.js --bundle --format=iife --outfile=dist/bundle.js",
-    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract",
+    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable",
     "verify:parity": "node scripts/verify-parity.mjs",
     "verify:online": "node scripts/verify-build.js --online",
     "verify:selftest": "node scripts/selftest/run-selftest.mjs",
@@ -16,7 +16,8 @@
     "verify:online-selftest": "node scripts/selftest/run-online-selftest.mjs",
     "verify:abandon-selftest": "node scripts/selftest/run-abandon-selftest.mjs",
     "verify:contract": "node scripts/verify-sport-contract.mjs",
-    "stamp": "node tools/stamp-build.mjs"
+    "stamp": "node tools/stamp-build.mjs",
+    "verify:playable": "node scripts/verify-playable.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2"
