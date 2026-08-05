@@ -796,6 +796,23 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
     blurb.textContent = badge.blurb;
     tile.appendChild(blurb);
 
+    // What a plan BUYS and what it COSTS, side by side. A gamestyle whose
+    // tradeoff is invisible is a guess, not a decision - and these are the
+    // numbers the sim actually applies, so the card is a promise it keeps.
+    if (tactic.up || tactic.down) {
+      const trade = document.createElement("div");
+      trade.className = "tactic-trade";
+      for (const [items, cls] of [[tactic.up, "up"], [tactic.down, "down"]]) {
+        for (const item of items || []) {
+          const chip = document.createElement("span");
+          chip.className = `tactic-trade-item ${cls}`;
+          chip.textContent = item;
+          trade.appendChild(chip);
+        }
+      }
+      tile.appendChild(trade);
+    }
+
     const track = document.createElement("div");
     track.className = "progress-bar-track";
     const fill = document.createElement("div");
@@ -1500,7 +1517,7 @@ export function renderTacticPicker(container, tacticsToShow, selectedId, onSelec
 
     const blurb = document.createElement("span");
     blurb.className = "tactic-blurb";
-    blurb.textContent = tactic.blurb;
+    blurb.textContent = tactic.blurb || "";
     btn.appendChild(blurb);
 
     btn.addEventListener("click", () => onSelect(tactic.id));

@@ -8,3 +8,13 @@
   line-height: 1.35;
   opacity: 0.66;
 }
+
+/* A game plan's tradeoffs, on the card that offers it. Gains and costs are
+   colour-separated because the whole point is that every plan has both. */
+.tactic-trade { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.tactic-trade-item {
+  font-size: 0.72em; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid currentColor; opacity: 0.9; white-space: nowrap;
+}
+.tactic-trade-item.up { color: #5fd18c; }
+.tactic-trade-item.down { color: #ef7a7a; }

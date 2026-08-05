@@ -34,43 +34,43 @@
 // turns ranked into a test of whether you chose style 10. It is given the
 // offensive cost below so it stays a choice. Flagged rather than done quietly.
 export const TACTICS = [
-  { id: "balanced", name: "Balanced",
+  { id: "balanced", icon: "⚖️", blurb: "No tilt either way.", name: "Balanced",
     up: ["+1 Offense", "+1 Defense"], down: ["-1 Explosive Plays", "-1 Specialization"],
     mods: { off: 1.04, def: 1.04, explosive: 0.92, security: 1, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1 } },
 
-  { id: "air-raid", name: "Air Raid",
+  { id: "air-raid", icon: "🎯", blurb: "Throw it deep, live with the picks.", name: "Air Raid",
     up: ["+2 Passing", "+2 Big Play Passing"], down: ["-2 Rushing", "-1 Time of Possession"],
     mods: { off: 1.1, def: 1, explosive: 1.18, security: 0.94, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1.08 } },
 
-  { id: "ground-and-pound", name: "Ground & Pound",
+  { id: "ground-and-pound", icon: "🐏", blurb: "Run it, shorten the game.", name: "Ground & Pound",
     up: ["+2 Rushing", "+2 Ball Control"], down: ["-2 Deep Passing", "-1 Comeback Ability"],
     mods: { off: 1.05, def: 1, explosive: 0.82, security: 1.12, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 0.88 } },
 
-  { id: "west-coast", name: "West Coast Offense",
+  { id: "west-coast", icon: "📋", blurb: "Short, accurate, keep the chains moving.", name: "West Coast Offense",
     up: ["+2 Short Passing", "+2 QB Accuracy"], down: ["-2 Deep Passing", "-1 Explosive Plays"],
     mods: { off: 1.09, def: 1, explosive: 0.8, security: 1.08, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1 } },
 
-  { id: "vertical-attack", name: "Vertical Attack",
+  { id: "vertical-attack", icon: "🚀", blurb: "Take the top off. Your quarterback will get hit.", name: "Vertical Attack",
     up: ["+2 Deep Passing", "+2 WR Separation"], down: ["-2 Sack Avoidance", "-1 Ball Security"],
     mods: { off: 1.08, def: 1, explosive: 1.26, security: 0.85, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1 } },
 
-  { id: "lockdown-defense", name: "Lockdown Defense",
+  { id: "lockdown-defense", icon: "🔒", blurb: "Smother the pass. Your offence pays for it.", name: "Lockdown Defense",
     up: ["+2 Pass Defense", "+2 Coverage"], down: ["-2 Offensive Production", "-1 Pace"],
     mods: { off: 0.9, def: 1.1, explosive: 1, security: 1, takeaway: 1, passRush: 1, coverage: 1.3, runDef: 1, fg: 1, pace: 0.94 } },
 
-  { id: "blitz-brigade", name: "Blitz Brigade",
+  { id: "blitz-brigade", icon: "💥", blurb: "Send pressure, leave corners on an island.", name: "Blitz Brigade",
     up: ["+2 Pass Rush", "+2 Sacks"], down: ["-2 Pass Coverage", "-1 Big Play Prevention"],
     mods: { off: 1, def: 1.02, explosive: 1, security: 1, takeaway: 1.12, passRush: 1.35, coverage: 0.74, runDef: 1, fg: 1, pace: 1 } },
 
-  { id: "steel-curtain", name: "Steel Curtain",
+  { id: "steel-curtain", icon: "🧱", blurb: "Wall off the run. Nothing through the middle.", name: "Steel Curtain",
     up: ["+2 Run Defense", "+2 Tackling"], down: ["-2 Passing Offense", "-1 Tempo"],
     mods: { off: 0.92, def: 1.08, explosive: 1, security: 1, takeaway: 1, passRush: 1, coverage: 1, runDef: 1.32, fg: 1, pace: 0.92 } },
 
-  { id: "ball-hawks", name: "Ball Hawks",
+  { id: "ball-hawks", icon: "🦅", blurb: "Chase the ball. Miss more tackles doing it.", name: "Ball Hawks",
     up: ["+2 Interceptions", "+2 Forced Turnovers"], down: ["-2 Tackling", "-1 Run Defense"],
     mods: { off: 1, def: 1, explosive: 1, security: 1, takeaway: 1.42, passRush: 1, coverage: 1.05, runDef: 0.76, fg: 1, pace: 1 } },
 
-  { id: "special-teams-edge", name: "Special Teams Edge",
+  { id: "special-teams-edge", icon: "🦶", blurb: "Win the kicking game.", name: "Special Teams Edge",
     up: ["+2 Kick Return", "+2 Field Goal Accuracy"],
     // Specified with no downside; given one so it stays a choice. Overrule
     // this and it becomes the correct pick in every ranked game.

@@ -435,14 +435,30 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
 
   // quarterBoxScores is DERIVED from drives, never tracked alongside it. Two
   // writers for one truth is how a scoreboard and a play-by-play disagree.
+  // Shape matters as much as the numbers. Shared playback reads a period as
+  // Object.values(q.a).reduce((s, line) => s + line.pts, 0) - a MAP OF SLOT
+  // LINES, not a total. Returning a plain number made Object.values() iterate a
+  // number, yield nothing, and reduce to 0: the football game simulated
+  // correctly and displayed 0-0 in every quarter.
+  const periodLines = (side, q) => {
+    const lines = {};
+    for (const d of drives) {
+      if (d.team !== side || d.quarter !== q || !d.points) continue;
+      const slot = d.scorerSlot || "TEAM";
+      lines[slot] = lines[slot] || { pts: 0 };
+      lines[slot].pts += d.points;
+    }
+    return lines;
+  };
   const quarterBoxScores = [1, 2, 3, 4].map((q) => ({
     period: q,
-    a: drives.filter((d) => d.team === "A" && d.quarter === q).reduce((s, d) => s + d.points, 0),
-    b: drives.filter((d) => d.team === "B" && d.quarter === q).reduce((s, d) => s + d.points, 0),
+    a: periodLines("A", q),
+    b: periodLines("B", q),
   }));
 
-  let teamScoreA = Math.round(quarterBoxScores.reduce((s, q) => s + q.a, 0));
-  let teamScoreB = Math.round(quarterBoxScores.reduce((s, q) => s + q.b, 0));
+  const periodTotal = (q, side) => Object.values(q[side]).reduce((s, l) => s + l.pts, 0);
+  let teamScoreA = Math.round(quarterBoxScores.reduce((s, q) => s + periodTotal(q, "a"), 0));
+  let teamScoreB = Math.round(quarterBoxScores.reduce((s, q) => s + periodTotal(q, "b"), 0));
 
   // Overtime: both sides get the ball, then the lead decides it. Capped so a
   // pathological pair of defences cannot spin forever - at the cap the game is
@@ -467,11 +483,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       if (side === "A") teamScoreA += r.drive.points;
       else teamScoreB += r.drive.points;
     }
-    quarterBoxScores.push({
-      period: quarter,
-      a: drives.filter((d) => d.team === "A" && d.quarter === quarter).reduce((s, d) => s + d.points, 0),
-      b: drives.filter((d) => d.team === "B" && d.quarter === quarter).reduce((s, d) => s + d.points, 0),
-    });
+    quarterBoxScores.push({ period: quarter, a: periodLines("A", quarter), b: periodLines("B", quarter) });
   }
   teamScoreA = Math.round(teamScoreA);
   teamScoreB = Math.round(teamScoreB);
