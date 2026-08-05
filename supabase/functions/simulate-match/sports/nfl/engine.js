@@ -280,24 +280,41 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   };
 }
 
-// KNOWN BUG - POSSESSION ORDER IS WORTH ABOUT 5 POINTS OF WIN RATE.
+// COIN TOSS, WITH A CORRECTION ON THE RECORD.
 //
-// Identical rosters running identical gamestyles come out 45.1% / 54.9% over
-// 3000 games. It should be a coin flip. A drives first and B inherits whatever
-// field position A's drive produced, so B gets a turnover on the spot or a
-// punt-pinned start before A ever benefits from the same - the alternation
-// never evens out because the game ends after A's last drive.
+// This was first added to fix an apparent 5-point bias: identical rosters came
+// out 45.1% for side A, read as proof that driving first mattered. That reading
+// was wrong. Splitting the outcomes properly gives A 47.4%, B 45.9% and 6.8%
+// TIES - 50.8% among decided games, which is symmetric. The missing 10 points
+// were draws nobody had counted, not an advantage.
 //
-// Real football has this asymmetry too and answers it with a coin toss and a
-// second-half kickoff reversal. The fix is the same: alternate who receives
-// first, and give the trailing side the ball to open the third quarter. Until
-// then, side A is measurably disadvantaged in every game, which matters most
-// online where sides are assigned rather than chosen.
+// The toss stays because it is real football and a genuine choice: electing to
+// kick hands over the first possession to take the ball out of halftime, which
+// is what a coach with a strong defence actually does. The second-half reversal
+// gives each side exactly one opening drive, so the structure is fair by
+// construction rather than by measurement.
+//
+// THE REAL DEFECT THE MEASUREMENT FOUND: 6.8% of games end tied. Real NFL
+// regular-season ties are well under 1%, and there is no overtime here -
+// `overtimePeriods` is hardcoded 0. Football breaks ties by playing on, and
+// until it does, one game in fifteen ends in a draw that ranked has no way to
+// score.
 export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
   const modsA = modsFor(opts.tacticA);
   const modsB = modsFor(opts.tacticB);
+
+  // Who won the toss and what they chose. Both default to random so an
+  // automated or bot game still gets an unbiased one - a missing toss must
+  // never silently hand the first possession to the same side every time,
+  // which is the bug this exists to fix.
+  const tossWinner = opts.tossWinner || (rand() < 0.5 ? "A" : "B");
+  const elected = opts.elected || (rand() < 0.5 ? "receive" : "kick");
+  const other = (side) => (side === "A" ? "B" : "A");
+  // Electing to kick means the OTHER side receives the first half - and you
+  // receive the second, which is the whole point of the choice.
+  const firstHalfReceiver = elected === "receive" ? tossWinner : other(tossWinner);
 
   const offA = sideRating(rosterA, OFFENSE_WEIGHTS, opts.forfeitsA, ctx);
   const offB = sideRating(rosterB, OFFENSE_WEIGHTS, opts.forfeitsB, ctx);
@@ -305,8 +322,6 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   const defB = sideRating(rosterB, DEFENSE_WEIGHTS, opts.forfeitsB, ctx);
 
   const drives = [];
-  let startA = DRIVE_START_YARD;
-  let startB = DRIVE_START_YARD;
 
   // Possessions alternate, so both sides get the same count - a game where one
   // team simply got more chances would be reporting luck as skill.
@@ -315,14 +330,24 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // and why it pairs with a lead rather than a deficit.
   const possessions = Math.max(6, Math.round(DRIVES_PER_TEAM * ((modsA.pace + modsB.pace) / 2)));
 
+  const cfg = {
+    A: { off: offA, def: defA, roster: rosterA, mods: modsA },
+    B: { off: offB, def: defB, roster: rosterB, mods: modsB },
+  };
+  const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
+
   for (let i = 0; i < possessions; i++) {
     const quarter = Math.min(4, Math.floor((i / possessions) * 4) + 1);
-    const a = runDrive(ctx, "A", offA, defB, rosterA, rosterB, startA, quarter, rand, modsA, modsB);
-    drives.push(a.drive);
-    startB = a.nextStart;
-    const b = runDrive(ctx, "B", offB, defA, rosterB, rosterA, startB, quarter, rand, modsB, modsA);
-    drives.push(b.drive);
-    startA = b.nextStart;
+    // Second half flips who opens, so each side receives exactly one half.
+    const receiver = quarter <= 2 ? firstHalfReceiver : other(firstHalfReceiver);
+    for (const side of [receiver, other(receiver)]) {
+      const foe = other(side);
+      const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
+                         cfg[foe].roster, start[side], quarter, rand,
+                         cfg[side].mods, cfg[foe].mods);
+      drives.push(r.drive);
+      start[foe] = r.nextStart;
+    }
   }
 
   // quarterBoxScores is DERIVED from drives, never tracked alongside it. Two
@@ -349,6 +374,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     teamScoreA, teamScoreB,
     boxA: boxFor("A", rosterA), boxB: boxFor("B", rosterB),
     quarterBoxScores, drives, overtimePeriods: 0,
+    coinToss: { winner: tossWinner, elected, firstHalfReceiver },
     winner: teamScoreA === teamScoreB ? null : teamScoreA > teamScoreB ? "A" : "B",
     analysis: { offA, offB, defA, defB },
   };
