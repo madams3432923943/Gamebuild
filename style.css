@@ -1,0 +1,10 @@
+
+/* Members of a drafted unit, under its name in the roster panel. Quieter than
+   the unit's own name - it is supporting detail, not the pick itself. */
+.slot-members {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 0.78em;
+  line-height: 1.35;
+  opacity: 0.66;
+}

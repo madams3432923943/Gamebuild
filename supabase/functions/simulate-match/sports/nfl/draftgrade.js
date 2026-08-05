@@ -38,10 +38,26 @@ export function draftGrade(roster, ctx, forfeits = []) {
   const score = Math.max(0, raw - penalty);
 
   const notes = [];
+  notes.push(`Offence rates ${(100 * offense).toFixed(0)}, defence ${(100 * defense).toFixed(0)}.`);
   if (offense - defense > 0.15) notes.push("Offence-heavy - your defence will give it back.");
   else if (defense - offense > 0.15) notes.push("Defence-first. You will need to win low-scoring games.");
-  else notes.push("Balanced on both sides of the ball.");
   if (forfeits.length) notes.push(`${forfeits.length} slot${forfeits.length === 1 ? "" : "s"} left empty.`);
 
-  return { grade: letterFor(score), score, offense, defense, notes: notes.join(" ") };
+  // The shape shared code renders: letter, headline, reasons[]. It reads
+  // grade.letter and spreads grade.reasons directly, and only the CALL is
+  // wrapped in a try/catch - so returning a different shape threw at the
+  // render step, outside the guard, and killed the whole post-draft flow
+  // before the gamestyle picker. That is why NFL never simulated.
+  return {
+    letter: letterFor(score),
+    headline: offense - defense > 0.15
+      ? "Built to outscore people."
+      : defense - offense > 0.15
+        ? "Built to win ugly."
+        : "Balanced on both sides of the ball.",
+    reasons: notes,
+    score,
+    offense,
+    defense,
+  };
 }

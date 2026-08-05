@@ -143,6 +143,17 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       // next to his name - that's the information you need to judge depth.
       const pos = activeSport().isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
       value.textContent = `${player.name}${pos} — ${seasonLabel(player)}`;
+      // A drafted unit says WHO it contains. "Seattle Seahawks Cornerbacks"
+      // names a slot; Sherman and Maxwell are what you actually took, and
+      // after the pick is made the roster is the only place left to see it.
+      const roll = Array.isArray(player.members) ? player.members : [];
+      if (roll.length) {
+        const who = document.createElement("span");
+        who.className = "slot-members";
+        who.textContent = roll.slice(0, 4).map((m) => m.name || m).join(", ");
+        value.appendChild(document.createElement("br"));
+        value.appendChild(who);
+      }
     } else {
       value.className = "slot-empty";
       value.textContent = "open";

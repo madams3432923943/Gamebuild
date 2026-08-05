@@ -302,6 +302,9 @@ export const NFL = {
   // NFL exposed it as draftGrade and would have thrown the moment a football
   // draft finished - caught by scripts/verify-sport-contract.mjs, which exists
   // for exactly this class of mismatch.
+  // Nothing to hint at - football has no rotation to advise on. Returns null
+  // rather than being absent, because shared code calls it unconditionally.
+  rotationHint: () => null,
   gradeDraft: (roster, ctx, forfeits) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
   rotationHint: () => null,
   // Football's counterpart to basketball's counterplay read: how your roster
