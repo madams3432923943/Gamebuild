@@ -271,6 +271,17 @@ export const NFL = {
   /** Football's version. A quarterback, a back and a secondary have nothing
    * in common statistically, so each says what it is actually good at rather
    * than being forced through one shared set of columns. */
+  /** Football's box score. Passing, rushing and receiving are three different
+   * jobs and get three different columns - a quarterback's line and a
+   * cornerback's have almost nothing in common, which is the whole reason this
+   * is per sport rather than one shared set. */
+  boxColumns: [
+    ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
+    ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
+    ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
+    ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"], ["pts", "PTS"],
+  ],
+  sortBoxBy: "pts",
   cardStatLine: (p) => {
     const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
     if (p.group) {

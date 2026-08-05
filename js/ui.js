@@ -397,7 +397,7 @@ function splitCell(makes, attempts) {
   return attempts > 0 ? `${r(makes)}/${r(attempts)}` : "-";
 }
 
-function boxRow(slotLabel, player, line, shots, minutes) {
+function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = true, showSplits = true) {
   // The year, not the decade. This row is claiming 45 points were scored, and
   // the 2017 Isaiah Thomas and the 2010s Celtics average of him are different
   // players - naming the wrong one makes the line unverifiable.
@@ -406,30 +406,53 @@ function boxRow(slotLabel, player, line, shots, minutes) {
   // and the nickname exists only to stop draft cards wrapping on a phone.
   const era = player.season || player.decade || "";
   const meta = player.team ? `<div class="box-meta">${escapeHtml(player.team)} ${escapeHtml(String(era))}</div>` : "";
+  // Cells come from the SPORT's column list. A value of 0 shows as 0 and a
+  // missing one shows a dash, because "nothing" and "did not do this" are
+  // different claims - a cornerback with no passing yards has not thrown for
+  // zero, he never dropped back.
+  const cells = columns
+    .map(([key]) => {
+      const v = line[key];
+      return `<td>${v === undefined || v === null ? "-" : r(v)}</td>`;
+    })
+    .join("");
   return (
     `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}${meta}</td>` +
-    `<td>${minutes == null ? "-" : r(minutes)}</td>` +
-    `<td>${r(line.pts)}</td><td>${r(line.reb)}</td><td>${r(line.ast)}</td>` +
-    `<td>${r(line.stl)}</td><td>${r(line.blk)}</td><td>${r(line.tov)}</td>` +
-    `<td>${shots ? splitCell(shots.fgm, shots.fga) : "-"}</td>` +
-    `<td>${shots ? splitCell(shots.tpm, shots.tpa) : "-"}</td>` +
-    `<td>${shots ? splitCell(shots.ftm, shots.fta) : "-"}</td></tr>`
+    (showMinutes ? `<td>${minutes == null ? "-" : r(minutes)}</td>` : "") +
+    cells +
+    (showSplits
+      ? `<td>${shots ? splitCell(shots.fgm, shots.fga) : "-"}</td>` +
+        `<td>${shots ? splitCell(shots.tpm, shots.tpa) : "-"}</td>` +
+        `<td>${shots ? splitCell(shots.ftm, shots.fta) : "-"}</td>`
+      : "") +
+    `</tr>`
   );
 }
 
 function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
+  const sport = activeSport();
+  const columns = sport.boxColumns;
+  // MIN and the shooting splits are basketball's, and only basketball's - a
+  // sport with no rotation has no minutes column and no three-point line.
+  const showMinutes = (sport.rotationBudget || 0) > 0;
+  const showSplits = showMinutes;
   let html =
     `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr>` +
-    `<th>Slot</th><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th>` +
-    `<th>FG</th><th>3PT</th><th>FT</th></tr></thead><tbody>`;
+    `<th>Slot</th><th>Player</th>` +
+    (showMinutes ? `<th>MIN</th>` : "") +
+    columns.map(([, head]) => `<th>${head}</th>`).join("") +
+    (showSplits ? `<th>FG</th><th>3PT</th><th>FT</th>` : "") +
+    `</tr></thead><tbody>`;
   // Mid-game, roster order (starters then bench) is what makes the table
   // readable as it fills in - rows aren't jumping around every tick. At the
   // final buzzer the game is a finished box score, and those read top scorer
   // first, so re-sort only once there's nothing left to fill in.
   const slots = rosterSlots(roster).filter((slot) => box[slot]);
-  const ordered = final ? [...slots].sort((a, b) => box[b].pts - box[a].pts) : slots;
+  const key = sport.sortBoxBy || "pts";
+  const ordered = final ? [...slots].sort((a, b) => (box[b][key] || 0) - (box[a][key] || 0)) : slots;
   for (const slot of ordered) {
-    html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot], minutesMap && minutesMap[slot]);
+    html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot],
+                   minutesMap && minutesMap[slot], columns, showMinutes, showSplits);
   }
   html += "</tbody></table>";
   return html;

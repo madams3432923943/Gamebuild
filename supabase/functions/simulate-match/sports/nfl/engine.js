@@ -498,8 +498,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     for (const slot of Object.keys(roster)) {
       const mine = drives.filter((d) => d.team === side && d.scorerSlot === slot);
       const line = {
-        pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
-        rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0,
+        comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
+        rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0,
         td: 0, pts: 0,
       };
       for (const d of mine) {
@@ -514,12 +514,25 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
           line.rush_tds += 1; line.rush_yds += gained; line.td += 1;
         } else {
           line.rec_tds += 1; line.rec_yds += gained; line.td += 1;
+          // Catches on the drive, not just the one that scored. A 60-yard
+          // scoring drive was several completions; crediting one would make
+          // every receiver look like a deep threat.
+          line.rec += 1 + Math.round(gained / 26);
           // A passing touchdown is the quarterback's too - the receiver caught
           // it, somebody threw it, and a QB with no passing yards on a scoring
           // drive would be a strange thing for a box score to claim.
           const qb = box.QB || (box.QB = { pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
             rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0, td: 0, pts: 0 });
-          if (slot !== "QB") { qb.pass_tds += 1; qb.pass_yds += gained; }
+          if (slot !== "QB") {
+            qb.pass_tds += 1;
+            qb.pass_yds += gained;
+            // Completions and attempts for the drive he just led. Attempts run
+            // ahead of completions because nobody is perfect, and the split is
+            // what makes C/ATT worth a column.
+            const completions = 1 + Math.round(gained / 26);
+            qb.comp += completions;
+            qb.att += completions + 1 + Math.round(gained / 45);
+          }
         }
       }
       box[slot] = box[slot] ? Object.assign(box[slot], line, {
@@ -527,6 +540,11 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
         pass_tds: (box[slot].pass_tds || 0) + line.pass_tds,
       }) : line;
     }
+    // Points are whole numbers on a scoreboard. POINTS.touchdown carries 6.94
+    // - the extra point folded in at its real rate - which is right for
+    // simulating and wrong for reading: nobody scored 20.82.
+    for (const line of Object.values(box)) line.pts = Math.round(line.pts);
+
     // Turnovers land on the defensive unit credited with them, so a drafted
     // ball-hawking secondary shows up in the box score as well as the recap.
     for (const d of drives.filter((x) => x.team !== side && x.outcome === "turnover" && x.credit)) {

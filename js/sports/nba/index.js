@@ -169,6 +169,14 @@ export const NBA = {
   /** The one-line stat summary under a name on the draft board. Per sport
    * because a quarterback has no rebounds - this was hardcoded in js/ui.js and
    * printed "undefined pts" for every footballer. */
+  /** The box score's columns, per sport. These were hardcoded in js/ui.js, so
+   * a football game was scored in PTS/REB/AST/STL/BLK - the sport's own line
+   * existed and the table refused to show it. */
+  boxColumns: [
+    ["pts", "PTS"], ["reb", "REB"], ["ast", "AST"],
+    ["stl", "STL"], ["blk", "BLK"], ["tov", "TOV"],
+  ],
+  sortBoxBy: "pts",
   cardStatLine: (p) =>
     `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`,
   basePosition,

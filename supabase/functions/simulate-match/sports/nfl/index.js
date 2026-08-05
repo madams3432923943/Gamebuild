@@ -75,15 +75,18 @@ const TIERS = [
 // has to be TOLD - rather than left to discover by having a pick rejected -
 // are that five slots are units and that you claim one by naming a single
 // player from it. Neither is guessable from a board that just says "LB".
+// Short on purpose - see the same note in js/sports/nba/index.js. The two
+// rules that cannot be guessed from the board (one name takes a unit, and the
+// offensive line is the exception) stay; everything else is trimmed to a line.
 const HOW_TO_PLAY = [
-  ["The draft", "Every round rolls one team-and-era roster - say the 1985 Chicago Bears - and both sides draft from it. Same options, same board: it comes down to who knows the team better."],
-  ["Units, not just players", "Offence is drafted man by man - quarterback, running back, three receivers, tight end. The line and the whole defence are drafted as UNITS: the offensive line, the defensive line, the linebackers, the corners, the safeties, special teams. Nobody remembers the '85 Bears' third safety; everyone remembers that defence."],
-  ["ONE name takes a whole unit", "This is the part to know before your first draft. To draft a unit you name any ONE player from it - type Urlacher and the 2006 Bears linebackers are yours, all four of them. Sherman, Thomas or Chancellor each take the 2013 Seahawks secondary. You never have to name eleven people, and you are never asked which one you meant."],
-  ["The offensive line is the exception", "Type \"Offensive Line\" for that slot. The stat sheets football keeps do not name the linemen who played, so there is nobody to type - it is the one unit claimed by what it is rather than by who was in it."],
-  ["Your roster", "Twelve picks: seven on offence - quarterback, running back, three receivers, tight end, offensive line - and five on defence and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
-  ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something, and how much a gameplan is worth depends on WHO YOU DREW: Ground and Pound with Lamar Jackson under centre is a different thing than with a quarterback who cannot run. There is no best one, only a best one for your lineup."],
-  ["Coin toss", "A toss decides who receives. Electing to kick hands over the first drive to take the ball out of halftime - what a coach with a real defence does. Tied after four quarters and both sides get a possession in overtime, repeating until someone leads."],
-  ["Modes", "Quick Play is a relaxed short-roster game against the bot. Ranked Practice is the full experience against the bot. Ranked is a real opponent and the only mode that moves your record."],
+  ["The draft", "Each round rolls one team and era - say the 1985 Bears - and you both draft from it."],
+  ["Units, not just players", "You draft the skill positions man by man. The line and the whole defence go as units."],
+  ["One name takes a unit", "Type ANY player in it. Urlacher takes the 2006 Bears linebackers - all four. You never name eleven people."],
+  ["Except the line", "Type \"Offensive Line\" for that slot. Football's stat sheets name no linemen, so there is nobody to type."],
+  ["Your roster", "Twelve picks: seven on offence, five on defence and special teams."],
+  ["Game plan", "Three offered at random, and what one is worth depends on who you drew - Ground and Pound wants a running quarterback."],
+  ["Coin toss", "Winner receives or kicks. Tied after four quarters, both sides get a possession in overtime."],
+  ["Modes", "Quick Play is casual. Ranked Practice is the full game against a bot. Ranked moves your record."],
 ];
 
 export const NFL = {
@@ -268,6 +271,17 @@ export const NFL = {
   /** Football's version. A quarterback, a back and a secondary have nothing
    * in common statistically, so each says what it is actually good at rather
    * than being forced through one shared set of columns. */
+  /** Football's box score. Passing, rushing and receiving are three different
+   * jobs and get three different columns - a quarterback's line and a
+   * cornerback's have almost nothing in common, which is the whole reason this
+   * is per sport rather than one shared set. */
+  boxColumns: [
+    ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
+    ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
+    ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
+    ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"], ["pts", "PTS"],
+  ],
+  sortBoxBy: "pts",
   cardStatLine: (p) => {
     const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
     if (p.group) {
