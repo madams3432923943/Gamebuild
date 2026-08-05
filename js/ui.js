@@ -245,13 +245,23 @@ export function groupBySeason(rows) {
     if (!byPlayer.has(row.name)) byPlayer.set(row.name, []);
     byPlayer.get(row.name).push(row);
   }
-  return [...byPlayer.values()].map((seasons) => ({
+  return [...byPlayer.values()].map((seasons) => {
     // The representative card. The most-played season, so the name on the
     // board carries that player's defining year with this team rather than
     // whichever one happened to sort first.
-    lead: [...seasons].sort((a, b) => (b.games || 0) - (a.games || 0))[0],
-    seasons: [...seasons].sort((a, b) => (a.season || 0) - (b.season || 0)),
-  }));
+    const lead = [...seasons].sort((a, b) => (b.games || 0) - (a.games || 0))[0];
+    // Positions are the UNION across his seasons, because a player who moved
+    // position is eligible wherever ANY of his drafted years could play.
+    // Kyshawn George is listed SG in 2024 and SF in 2025: the card led with
+    // one of those, so he was rejected at the other slot - while an opponent
+    // whose lead season happened to be the other year could take him there.
+    // Same player, same board, two different answers.
+    const pos = [...new Set(seasons.flatMap((r) => r.pos || []))];
+    return {
+      lead: { ...lead, pos },
+      seasons: [...seasons].sort((a, b) => (a.season || 0) - (b.season || 0)),
+    };
+  });
 }
 
 function renderNote(container, text, tierClass) {
