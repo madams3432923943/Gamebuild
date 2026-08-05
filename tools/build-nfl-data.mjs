@@ -427,6 +427,13 @@ function buildOlUnit() {
 }
 buildOlUnit();
 
+/** What a unit is called on the board. Spoken-language names, because the
+ * draft asks you to type one and nobody says "the Bears DL". */
+const UNIT_NAMES = {
+  OL: "Offensive Line", DL: "Defensive Line", LB: "Linebackers",
+  CB: "Cornerbacks", S: "Safeties", ST: "Special Teams",
+};
+
 const unitRows = [];
 for (const u of units.values()) {
   const games = teamGames.get(`${u.team}|${u.season}`)?.size || 1;
@@ -462,7 +469,18 @@ for (const u of units.values()) {
           .slice(0, 8)
           .map(([name]) => name);
 
-  const row = { team: u.team, era: u.era, season: u.season, group: u.group, depth, games, members };
+  // Units must present the SAME SHAPE as players. Every shared draft-board
+  // path reads .name and .pos - js/ui.js does `for (const pos of p.pos)` - so a
+  // unit without them threw on render and left the board blank. Giving units a
+  // real name and position here fixes it once, in the data, rather than as a
+  // guard at every call site that would have to be found and remembered.
+  //
+  // The name is what you would call it out loud: "Chicago Bears Linebackers".
+  const row = {
+    team: u.team, era: u.era, season: u.season, group: u.group, depth, games, members,
+    name: `${u.team} ${UNIT_NAMES[u.group] || u.group}`,
+    pos: [u.group],
+  };
   if (u.group === "OL") {
     Object.assign(row, u.derived);
   } else if (u.group === "ST") {
