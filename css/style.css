@@ -2290,18 +2290,25 @@ table.box-table th, table.history-table th {
   color: var(--accent-bright);
 }
 
+/* minmax(0, 1fr), not 1fr. A bare `1fr` is minmax(auto, 1fr), and that `auto`
+   floor is the tile's min-content width - so a tile whose caption is a full
+   sentence ("6 / 75 - Win 75 online ranked games.") pushed its column to
+   295px and the whole five-column row overflowed its container by 439px,
+   cutting the last banner off the right edge. The franchise tiles never hit
+   it because their captions are four words. The 0 floor lets every column
+   shrink to its share and the text wrap instead. */
 .banner-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.7rem;
 }
 
 @media (max-width: 900px) {
-  .banner-grid { grid-template-columns: repeat(3, 1fr); }
+  .banner-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 560px) {
-  .banner-grid { grid-template-columns: repeat(2, 1fr); }
+  .banner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .banner-tile {
@@ -2319,6 +2326,18 @@ table.box-table th, table.history-table th {
 .banner-tile.locked .banner-art {
   filter: grayscale(1);
   opacity: 0.45;
+}
+
+/* ...but a banner with real artwork gets a much gentler lock than a franchise
+   gradient does. Full greyscale flattens a two-colour fade into a slightly
+   duller two-colour fade - no information lost - while it turns Volcanic,
+   Skulls and Pink Blossom into the same grey smear, so the entire ladder
+   reads as one texture and there is nothing left to want. Dimmed and slightly
+   desaturated still says "locked" while leaving the art recognisable, which
+   is the whole point of showing an unearned reward at all. */
+.banner-tile.locked .banner-art.has-image {
+  filter: grayscale(0.3) brightness(0.72);
+  opacity: 0.9;
 }
 
 .banner-tile.equipped {
@@ -3700,7 +3719,8 @@ html, body {
   }
 
   .banner-grid {
-    grid-template-columns: 1fr;
+    /* Same 0 floor as the wider breakpoints - see .banner-grid above. */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
