@@ -430,7 +430,30 @@ for (const u of units.values()) {
     u.group === "OL" ? 5 : [...u.members.values()].filter((g) => g >= MIN_UNIT_GAMES).length;
   const per = (k) => r2(u.sums[k] / games);
 
-  const row = { team: u.team, era: u.era, season: u.season, group: u.group, depth, games };
+  // Who you can NAME to claim this unit. The draft is a ball-knowledge test,
+  // and a unit you take by picking "Linebackers" off a rolled squad tests
+  // nothing - there is exactly one per squad, so it would be a free pick with
+  // a year attached, five times in a twelve-round draft.
+  //
+  // ANY member claims it: Sherman or Thomas or Chancellor all take the 2013
+  // Seahawks secondary. That is a wider net than the NBA draft, where one
+  // specific name is required, so this is the more forgiving of the two.
+  //
+  // Sorted by games so the recognizable starters come first, and capped
+  // because the tail is camp bodies nobody could name and every one of them
+  // costs bytes in a file the browser parses on load. OL keeps none - the
+  // source has no named linemen at all, which is why that slot is claimed by
+  // unit name instead.
+  const members =
+    u.group === "OL"
+      ? []
+      : [...u.members.entries()]
+          .filter(([, g]) => g >= MIN_UNIT_GAMES)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8)
+          .map(([name]) => name);
+
+  const row = { team: u.team, era: u.era, season: u.season, group: u.group, depth, games, members };
   if (u.group === "OL") {
     Object.assign(row, u.derived);
   } else if (u.group === "ST") {
