@@ -27,6 +27,10 @@
 import { ROWS as NFL_PLAYERS } from "../../../data/nfl-players.js";
 import { ROWS as NFL_UNITS } from "../../../data/nfl-units.js";
 import { computeDatasetStats, simulate } from "./engine.js";
+
+/** Built once, on first use. See NFL.computeDatasetStats below for why this
+ * cannot be rebuilt per call. */
+let ratingCtx = null;
 import { rateEntry } from "./units.js";
 import { buildRecap, buildGameScript, buildPostGameAnalysis } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
@@ -218,7 +222,13 @@ export const NFL = {
     return [...NFL_PLAYERS.filter(inEra), ...NFL_UNITS.filter(inEra)];
   },
 
-  computeDatasetStats: () => computeDatasetStats(NFL_PLAYERS, NFL_UNITS),
+  // MEMOISED, and it has to be. Building this sorts a composite score for
+  // every one of ~9,100 players and ~4,800 units. rate() is called once per
+  // row the draft board renders, and each call used to rebuild the whole
+  // index - thousands of full sorts on one click, which froze the tab hard
+  // enough that Quick Play never appeared. The dataset is generated and
+  // immutable at runtime, so one build lasts the session.
+  computeDatasetStats: () => (ratingCtx ||= computeDatasetStats(NFL_PLAYERS, NFL_UNITS)),
   simulate: (rosterA, rosterB, stats, opts) => simulate(rosterA, rosterB, stats, opts),
 
   // Football has no minutes. Everyone on a drafted roster plays every snap of
