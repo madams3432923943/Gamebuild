@@ -688,3 +688,18 @@ export function buildWhyBreakdown(result, ctx = {}) {
     tacticName: ctx.tacticA ? tacticById(ctx.tacticA).name : null,
   };
 }
+
+/** What makes a quarter worth a headline, in basketball's own words.
+ *
+ * These lived in js/main.js as a hardcoded list, so the shared play feed
+ * narrated football in boards and dimes. Each entry is a stat key, the level
+ * that counts as a big period, and how to say it either way. Tuned against
+ * real per-quarter output: a starter averages 4-6 points a quarter, so 8+ is a
+ * genuinely hot stretch.
+ */
+export const HIGHLIGHTS = [
+  { key: "pts", min: 8, hot: (n, v) => `${n} pours in ${v}`, mild: (n, v) => `${n} led with ${v} points` },
+  { key: "reb", min: 4.5, hot: (n, v) => `${n} owns the glass — ${v} boards`, mild: (n, v) => `${n} crashed the boards for ${v} rebounds` },
+  { key: "ast", min: 3.5, hot: (n, v) => `${n} carving it up, ${v} dimes`, mild: (n, v) => `${n} ran the offense with ${v} assists` },
+  { key: "blk", min: 1.8, hot: (n) => `${n} shutting the rim down`, mild: (n) => `${n} chipped in on D` },
+];

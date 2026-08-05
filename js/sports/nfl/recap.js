@@ -88,3 +88,14 @@ export function buildPostGameAnalysis(result, side = "A") {
 
   return notes.join(" ");
 }
+
+/** What makes a quarter worth a headline, in football's words. Same shape as
+ * basketball's so the shared play feed needs no branch - only the sport
+ * changes, never the code that reads it. */
+export const HIGHLIGHTS = [
+  { key: "pass_yds", min: 90, hot: (n, v) => `${n} slinging it — ${v} yards`, mild: (n, v) => `${n} threw for ${v}` },
+  { key: "rush_yds", min: 55, hot: (n, v) => `${n} running through them, ${v} yards`, mild: (n, v) => `${n} ground out ${v} yards` },
+  { key: "rec_yds", min: 55, hot: (n, v) => `${n} can't be covered — ${v} yards`, mild: (n, v) => `${n} caught ${v} yards' worth` },
+  { key: "ints", min: 1, hot: (n) => `${n} taking the ball away`, mild: (n) => `${n} came up with one` },
+  { key: "fgs", min: 2, hot: (n, v) => `${n} perfect on ${v} kicks`, mild: (n) => `${n} split the uprights` },
+];

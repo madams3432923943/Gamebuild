@@ -28,7 +28,11 @@ const REQUIRED_FUNCTIONS = [
 const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels",
   // The profile screen builds its records and career totals from these, so a
   // sport without its own would show basketball's categories under its tab.
-  "statKeys", "lineKeys", "statLabels"];
+  "statKeys", "lineKeys", "statLabels",
+  // Vocabulary and shape shared code would otherwise have to assume. Each of
+  // these was once hardcoded to basketball in js/main.js or js/ui.js, and each
+  // one showed up as football being narrated in boards, dimes and minutes.
+  "boxColumns", "highlights", "usesMatchups"];
 
 /** Hooks whose ARITY shared code depends on. A signature mismatch is invisible
  * - NFL's playersInEra took (eraId) while shared code passes (players, eraId),

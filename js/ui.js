@@ -407,7 +407,7 @@ function splitCell(makes, attempts) {
   return attempts > 0 ? `${r(makes)}/${r(attempts)}` : "-";
 }
 
-function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = true, showSplits = true) {
+function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = true, splits = []) {
   // The year, not the decade. This row is claiming 45 points were scored, and
   // the 2017 Isaiah Thomas and the 2010s Celtics average of him are different
   // players - naming the wrong one makes the line unverifiable.
@@ -430,11 +430,9 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
     `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}${meta}</td>` +
     (showMinutes ? `<td>${minutes == null ? "-" : r(minutes)}</td>` : "") +
     cells +
-    (showSplits
-      ? `<td>${shots ? splitCell(shots.fgm, shots.fga) : "-"}</td>` +
-        `<td>${shots ? splitCell(shots.tpm, shots.tpa) : "-"}</td>` +
-        `<td>${shots ? splitCell(shots.ftm, shots.fta) : "-"}</td>`
-      : "") +
+    splits
+      .map(([key]) => `<td>${shots ? splitCell(shots[`${key}m`], shots[`${key}a`]) : "-"}</td>`)
+      .join("") +
     `</tr>`
   );
 }
@@ -445,13 +443,15 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
   // MIN and the shooting splits are basketball's, and only basketball's - a
   // sport with no rotation has no minutes column and no three-point line.
   const showMinutes = (sport.rotationBudget || 0) > 0;
-  const showSplits = showMinutes;
+  // Declared, not inferred from whether the sport has a rotation - those are
+  // two different facts that happen to coincide for basketball.
+  const splits = sport.splitColumns || [];
   let html =
     `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr>` +
     `<th>Slot</th><th>Player</th>` +
     (showMinutes ? `<th>MIN</th>` : "") +
     columns.map(([, head]) => `<th>${head}</th>`).join("") +
-    (showSplits ? `<th>FG</th><th>3PT</th><th>FT</th>` : "") +
+    splits.map(([, head]) => `<th>${head}</th>`).join("") +
     `</tr></thead><tbody>`;
   // Mid-game, roster order (starters then bench) is what makes the table
   // readable as it fills in - rows aren't jumping around every tick. At the

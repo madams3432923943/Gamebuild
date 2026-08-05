@@ -1701,8 +1701,8 @@ function renderDraftComplete() {
 
   draftTurnBanner.textContent = "Set your rotation";
   rotationPhaseHintEl.textContent =
-    `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
-    `Lower someone to free minutes before raising someone else.`;
+    `${sport().rotationBudget} ${sport().labels.unit} to spend. Starters play more than the bench. ` +
+    `Lower someone to free ${sport().labels.unit} before raising someone else.`;
   const toTactic = () => {
     draftTurnBanner.textContent = "Final round — set your game plan";
     tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
@@ -2209,8 +2209,8 @@ async function beginOnlineStrategyPhase(match) {
   if (hasRotation()) {
     draftTurnBanner.textContent = "Set your rotation";
     rotationPhaseHintEl.textContent =
-      `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
-      `Lower someone to free minutes before raising someone else.`;
+      `${sport().rotationBudget} ${sport().labels.unit} to spend. Starters play more than the bench. ` +
+      `Lower someone to free ${sport().labels.unit} before raising someone else.`;
   }
   const onlineTactic = () => {
       draftTurnBanner.textContent = "Final round — set your game plan";
@@ -2499,10 +2499,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   let fieldRefs = null;
   if (Array.isArray(result.drives) && result.drives.length) {
     fieldRefs = renderFootballField(footballFieldEl, labelA, labelB);
-    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — kickoff`);
+    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
   } else {
     if (footballFieldEl) footballFieldEl.classList.add("hidden");
-    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
+    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
   }
 
   // The player each side's memo named last period. A team's best quarter is
@@ -2530,12 +2530,15 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       // 4-6 points a quarter, so 8+ is a genuinely hot stretch. Below that
       // threshold the same category still describes the quarter, just in a
       // more matter-of-fact voice ("led with" instead of "pours in").
-      const candidates = [
-        { value: line.pts, min: 8, hot: (n, v) => `${n} pours in ${Math.round(v)}`, mild: (n, v) => `${n} led with ${Math.round(v)} points` },
-        { value: line.reb, min: 4.5, hot: (n, v) => `${n} owns the glass — ${Math.round(v)} boards`, mild: (n, v) => `${n} crashed the boards for ${Math.round(v)} rebounds` },
-        { value: line.ast, min: 3.5, hot: (n, v) => `${n} carving it up, ${Math.round(v)} dimes`, mild: (n, v) => `${n} ran the offense with ${Math.round(v)} assists` },
-        { value: line.blk, min: 1.8, hot: (n, v) => `${n} shutting the rim down`, mild: (n, v) => `${n} chipped in on D` },
-      ];
+      // The SPORT decides what a big period is and what to call it. This was
+      // a hardcoded basketball list, so the feed narrated football in boards
+      // and dimes.
+      const candidates = (sport().highlights || []).map((h) => ({
+        value: line[h.key] || 0,
+        min: h.min,
+        hot: h.hot,
+        mild: h.mild,
+      }));
       let bestForPlayer = null;
       for (const c of candidates) {
         if (c.value <= 0) continue;
@@ -2544,7 +2547,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           bestForPlayer = {
             weight,
             name: player.name,
-            text: weight >= 1 ? c.hot(player.name, c.value) : c.mild(player.name, c.value),
+            text: weight >= 1 ? c.hot(player.name, Math.round(c.value)) : c.mild(player.name, Math.round(c.value)),
           };
         }
       }

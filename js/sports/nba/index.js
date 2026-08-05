@@ -21,7 +21,7 @@ import {
 import { PLAYERS } from "../../../data/nba-players.js";
 import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
-import { buildRecap, buildGameScript, buildWhyBreakdown } from "./recap.js";
+import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./recap.js";
 import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
@@ -115,6 +115,9 @@ export const NBA = {
     period: "quarter",
     periodPlural: "quarters",
     scoreVerb: "scored",
+    // How a game starts, in this sport's word. Shared code said "tip-off" for
+    // everything, which is a basketball noun.
+    opening: "tip-off",
   },
 
   // ---- Roster shape -------------------------------------------------------
@@ -159,6 +162,7 @@ export const NBA = {
   defaultMinutes,
   botMinutes,
   // Basketball assigns defenders to attackers; football does not.
+  highlights: HIGHLIGHTS,
   usesMatchups: true,
   defaultMatchups,
 
@@ -174,6 +178,10 @@ export const NBA = {
   /** The box score's columns, per sport. These were hardcoded in js/ui.js, so
    * a football game was scored in PTS/REB/AST/STL/BLK - the sport's own line
    * existed and the table refused to show it. */
+  /** Made/attempted pairs appended after the counting columns. Basketball has
+   * three shooting splits; a sport with none declares an empty list rather
+   * than having js/ui.js know which sports shoot. */
+  splitColumns: [["fg", "FG"], ["tp", "3PT"], ["ft", "FT"]],
   boxColumns: [
     ["pts", "PTS"], ["reb", "REB"], ["ast", "AST"],
     ["stl", "STL"], ["blk", "BLK"], ["tov", "TOV"],

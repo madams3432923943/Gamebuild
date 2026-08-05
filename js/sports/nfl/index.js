@@ -32,7 +32,7 @@ import { computeDatasetStats, simulate } from "./engine.js";
  * cannot be rebuilt per call. */
 let ratingCtx = null;
 import { rateEntry } from "./units.js";
-import { buildRecap, buildGameScript, buildPostGameAnalysis } from "./recap.js";
+import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
 
@@ -131,6 +131,7 @@ export const NFL = {
     period: "quarter",
     periodPlural: "quarters",
     scoreVerb: "scored",
+    opening: "kickoff",
   },
 
   // Seven individuals and five units. The provisional lineup this replaces
@@ -254,6 +255,7 @@ export const NFL = {
   defaultMinutes: () => ({}),
   botMinutes: () => ({}),
   // Units line up against units - nobody to assign.
+  highlights: HIGHLIGHTS,
   usesMatchups: false,
   defaultMatchups: () => ({}),
 
@@ -277,6 +279,9 @@ export const NFL = {
    * jobs and get three different columns - a quarterback's line and a
    * cornerback's have almost nothing in common, which is the whole reason this
    * is per sport rather than one shared set. */
+  // No made/attempted pairs - football's attempts already have their own
+  // columns (COMP/ATT), so there is nothing to append.
+  splitColumns: [],
   boxColumns: [
     ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
     ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
