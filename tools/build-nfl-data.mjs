@@ -289,7 +289,7 @@ function ensureUnit(team, era, season, group) {
       season,
       group,
       members: new Map(),
-      sums: { tackles: 0, sacks: 0, ints: 0, pd: 0, ff: 0, td: 0, fg_made: 0, fg_att: 0, pat_made: 0, pat_att: 0 },
+      sums: { tackles: 0, tfl: 0, qbh: 0, fr: 0, sacks: 0, ints: 0, pd: 0, ff: 0, td: 0, fg_made: 0, fg_att: 0, pat_made: 0, pat_att: 0 },
     });
   }
   return units.get(key);
@@ -305,6 +305,15 @@ for (const row of defence) {
   countMember(u, row.player_display_name || row.player_name);
   const s = u.sums;
   s.tackles += num(row.def_tackles);
+  // Disruption, not volume. A bad defence racks up tackles by being on the
+  // field while the offence moves; nobody accumulates a tackle for loss or a
+  // quarterback hit except by beating a block. These separate a unit that was
+  // busy from one that was good, which raw tackles cannot do.
+  s.tfl += num(row.def_tackles_for_loss);
+  s.qbh += num(row.def_qb_hits);
+  // A recovery is a takeaway the forced-fumble column misses - the fumble was
+  // forced by someone else and this unit came up with the ball.
+  s.fr += num(row.def_fumble_recovery_opp);
   s.sacks += num(row.def_sacks);
   s.ints += num(row.def_interceptions);
   s.pd += num(row.def_pass_defended);
@@ -465,6 +474,9 @@ for (const u of units.values()) {
     row.pat_pct = u.sums.pat_att > 0 ? r3(u.sums.pat_made / u.sums.pat_att) : 0;
   } else {
     row.tackles = per("tackles");
+    row.tfl = per("tfl");
+    row.qbh = per("qbh");
+    row.fr = per("fr");
     row.sacks = per("sacks");
     row.ints = per("ints");
     row.pd = per("pd");

@@ -65,7 +65,22 @@ const COMPOSITES = {
 // them - a bad defence is on the field constantly, and every snap is another
 // chance to accumulate. Rating per GAME therefore pays teams for losing.
 //
-// The honest fix is per-play, and the proxy is already in the data: a team's
+// TWO BETTER IDEAS WERE TRIED AND FAILED, recorded so nobody re-runs them:
+//
+//   POINTS ALLOWED is the right measure and is not available. nflverse ships
+//   player rows with no schedule, so points allowed needs opponent pairing the
+//   files do not carry.
+//
+//   TACKLES FOR LOSS and QUARTERBACK HITS are exactly the disruption stats
+//   this wants - earned by beating a block, not by being on the field while
+//   losing - but nflverse only records them reliably from about 2008. They are
+//   0 for 2003 and 2006, and mean LB qb_hits runs 0.00 in 2004 against 1.82 in
+//   2023. Weighting them measures WHAT YEAR IT IS and craters every pre-2009
+//   unit, which is a worse bias than the one being fixed. The build now emits
+//   them (tfl, qbh, fr) so a later era-aware normalisation can use them; they
+//   are deliberately unused until then.
+//
+// So the fix stays per-play, and the proxy is already in the data: a team's
 // total defensive tackles across all four units is very nearly its plays
 // faced. Dividing by that turns every counting stat into a rate, so Detroit is
 // measured on what it did per opportunity rather than on how many
