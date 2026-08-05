@@ -246,6 +246,10 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   // whether a touchdown was run or caught, and reconstructing it from a string
   // would be parsing English to recover a fact we already had.
   let kind = null;
+  // Interception or strip. Decided here and carried on the drive for the same
+  // reason `kind` is: the box score needs the fact, and recovering it later
+  // would mean guessing at something we already knew.
+  let takeaway = null;
 
   if (outcome === "touchdown") {
     // Rushing scores are rarer than receiving ones and go to backs and
@@ -274,14 +278,23 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   } else if (outcome === "turnover") {
     const stop = pickStopper(oppRoster, rand);
     credit = stop?.slot ?? null;
-    text = stop ? `Turnover forced by the ${label(stop.entry)}` : "Turnover";
+    // Which kind, from the unit's REAL rates. A secondary that intercepted a
+    // lot picks the ball off; a front seven that forced fumbles strips it. So
+    // drafting the 2013 Seahawks gets you interceptions specifically, which is
+    // what that pick was for.
+    const ints = Number(stop?.entry?.ints) || 0;
+    const ff = Number(stop?.entry?.ff) || 0;
+    takeaway = ints + ff <= 0 ? "int" : rand() < ints / (ints + ff) ? "int" : "fumble";
+    text = stop
+      ? `${takeaway === "int" ? "Intercepted" : "Fumble forced"} by the ${label(stop.entry)}`
+      : "Turnover";
   } else {
     text = "Punt";
   }
 
   return {
     drive: { team: side, quarter, startYard: Math.round(startYard), endYard: Math.round(endYard),
-             outcome, points, scorer, scorerSlot, credit, kind, text },
+             outcome, points, scorer, scorerSlot, credit, kind, takeaway, text },
     nextStart: nextStart(outcome, endYard),
   };
 }
@@ -444,7 +457,9 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     // ball-hawking secondary shows up in the box score as well as the recap.
     for (const d of drives.filter((x) => x.team !== side && x.outcome === "turnover" && x.credit)) {
       const unit = box[d.credit];
-      if (unit) unit.ints += 1;
+      if (!unit) continue;
+      if (d.takeaway === "fumble") unit.fumbles += 1;
+      else unit.ints += 1;
     }
     return box;
   };
