@@ -16,3 +16,5 @@ tools/seasons/
 # carrying a second 500 KB copy of a dataset already in the repo - and two
 # copies of the same data are two things that can disagree.
 db/seed/players.json
+
+tools/seasons-nfl/
