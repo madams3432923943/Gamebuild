@@ -526,17 +526,22 @@ function sportCardAction(label, onClick) {
 /** The year picker: one player, their seasons on this squad, pick which.
  *
  * The board shows a player once; this is the second, separate decision -
- * knowing Doncic played for the Mavs is the easy half, knowing 2023 was the
- * scoring title is the half worth testing. Stats show here even under ranked
- * rules, because at this point you have already named the player from memory:
- * the knowledge test was passed, and hiding the years would make it a guess
- * rather than a choice. */
-function openSeasonPicker(player, seasons, onChoose) {
+ * knowing Doncic played for the Mavs is the easy half, knowing which year was
+ * the scoring title is the half worth testing.
+ *
+ * Which is exactly why ranked shows YEARS ONLY. Printing the stat lines would
+ * answer the question it is asking: anyone could pick the best season off a
+ * table without knowing a thing about it. Quick Play shows them, because Quick
+ * Play exists to teach the pool and hiding numbers there teaches nothing. Same
+ * split the player board itself already makes (`showStats`). */
+function openSeasonPicker(player, seasons, onChoose, showStats = false) {
   const wrap = document.createElement("div");
 
   const intro = document.createElement("p");
   intro.className = "hint-text";
-  intro.textContent = `${player.name} played ${seasons.length} draftable seasons for the ${player.team}. Pick one.`;
+  intro.textContent = showStats
+    ? `${player.name} played ${seasons.length} draftable seasons for the ${player.team}. Pick one.`
+    : `${player.name} played ${seasons.length} draftable seasons for the ${player.team}. Pick the one you want - no peeking at the numbers.`;
   wrap.appendChild(intro);
 
   const list = document.createElement("div");
@@ -545,12 +550,12 @@ function openSeasonPicker(player, seasons, onChoose) {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "season-option";
-    row.innerHTML =
-      `<span class="season-year"></span>` +
-      `<span class="season-line"></span>`;
+    row.innerHTML = `<span class="season-year"></span><span class="season-line"></span>`;
     row.querySelector(".season-year").textContent = String(s.season);
-    row.querySelector(".season-line").textContent =
-      `${s.ppg} pts · ${s.rpg} reb · ${s.apg} ast · ${s.games} games`;
+    // Under ranked rules the row is the year and nothing else.
+    row.querySelector(".season-line").textContent = showStats
+      ? `${s.ppg} pts · ${s.rpg} reb · ${s.apg} ast · ${s.games} games`
+      : "";
     row.addEventListener("click", () => {
       closeModal();
       onChoose(s);
@@ -1469,7 +1474,7 @@ function renderPoolForCurrentState() {
     sport().players(),
     game.ruleset,
     draft.slots,
-    (player, seasons) => openSeasonPicker(player, seasons, onPoolPick)
+    (player, seasons, showStats) => openSeasonPicker(player, seasons, onPoolPick, showStats)
   );
 }
 
@@ -2033,7 +2038,7 @@ function renderOnlinePositionAndPool() {
     sport().players(),
     game.ruleset,
     RANKED_SLOTS,
-    (player, seasons) => openSeasonPicker(player, seasons, onOnlinePoolPick)
+    (player, seasons, showStats) => openSeasonPicker(player, seasons, onOnlinePoolPick, showStats)
   );
 }
 

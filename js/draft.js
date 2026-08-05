@@ -73,7 +73,7 @@ function eligibleCombos(squad, roster, slots = SLOTS) {
 /** Lowercases and strips punctuation that trips up naive matching -
  * "O'Neal" / "Amar'e Stoudemire" / "Abdul-Jabbar" should match on the
  * letters a player would actually type. */
-function normalizeName(s) {
+export function normalizeName(s) {
   return (
     s
       .toLowerCase()

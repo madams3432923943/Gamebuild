@@ -7,7 +7,7 @@ import { MIN_SEARCH_CHARS } from "./constants.js";
 // here is called at render time and goes through the active sport.
 import { SLOTS, STARTER_SLOTS } from "./sports/nba/constants.js";
 import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
-import { eligibleOpenSlots, resolveTypedInput } from "./draft.js";
+import { eligibleOpenSlots, resolveTypedInput, normalizeName } from "./draft.js";
 import {
   mostDraftedPlayer,
   mostTripleDoubles,
@@ -182,7 +182,7 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
   }
 
   if (eligible) {
-    card.addEventListener("click", () => (seasons.length > 1 ? onPickSeason(p, seasons) : onPick(p)));
+    card.addEventListener("click", () => (seasons.length > 1 ? onPickSeason(p, seasons, showStats) : onPick(p)));
   }
   container.appendChild(card);
 }
@@ -249,8 +249,11 @@ export function renderPool(
   // learning the pool, not testing recall. The search box still narrows the
   // list, it just isn't the only way to see anyone.
   if (ruleset === "easy") {
-    const q = filterText.trim().toLowerCase();
-    const players = q ? squad.players.filter((p) => p.name.toLowerCase().includes(q)) : squad.players;
+    // Through normalizeName, not a bare toLowerCase: the dataset spells names
+    // properly, so a raw substring match hides Doncic from anyone typing
+    // "doncic" here exactly as it did in the ranked search.
+    const q = normalizeName(filterText);
+    const players = q ? squad.players.filter((p) => normalizeName(p.name).includes(q)) : squad.players;
     if (players.length === 0) {
       renderNote(container, "No players on this squad match that search.");
       return;
