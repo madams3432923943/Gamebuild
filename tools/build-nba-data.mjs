@@ -102,11 +102,19 @@ const sheets = readWorkbook(SOURCE);
 const rows = [];
 
 for (const sheet of sheets) {
-  // Sheet names are the season's END year, matching Basketball Reference's own
-  // convention: the "2025" sheet is the 2024-25 season.
-  const endYear = parseInt(sheet.name.match(/(\d{4})/)?.[1] ?? "", 10);
-  if (!Number.isFinite(endYear)) continue;
-  const startYear = endYear - 1;
+  // Sheet names are the season's START year, not its end. Verified against the
+  // data rather than assumed: Kawhi Leonard appears on Toronto in the "2018"
+  // sheet, and his Raptors year was 2018-19; Michael Jordan appears in 1994
+  // through 1997, which are the 1994-95 through 1997-98 seasons - his comeback
+  // through his last Bulls year.
+  //
+  // This was read as the END year, so every season was labelled one year early
+  // and the 2018-19 Raptors were offered as "2018". It also made Jordan look
+  // like he had gaps in 1993 and 1998; those are his two retirements, and the
+  // dataset was right about them all along.
+  const startYear = parseInt(sheet.name.match(/(\d{4})/)?.[1] ?? "", 10);
+  if (!Number.isFinite(startYear)) continue;
+  const endYear = startYear + 1;
 
   const header = sheet.rows[0] || [];
   const col = Object.fromEntries(header.map((h, i) => [h, i]));
@@ -220,13 +228,37 @@ for (const row of rows) {
   players.get(row.name).push(row);
 }
 
+// NO TRIM. Every player who met MIN_GAMES is draftable.
+//
+// This used to keep the top SQUAD_PLAYERS per squad, which is how Kawhi
+// Leonard's Raptors title year and Durant's Rockets season went missing -
+// ranked by tenure, a one-year star loses to a journeyman who stayed eight.
+// Ranking by peak fixed those two and would have kept cutting somebody: any
+// cutoff removes real players from a game whose entire subject is knowing
+// which players were there.
+//
+// The cost is dataset size, which is worth paying. The draft board searches
+// by name rather than listing everyone, so a deeper squad costs nothing to
+// read - it only means the answer you remember is actually there.
 const kept = [];
 for (const players of bySquad.values()) {
+  // Rank by the player's BEST season with this team, not by how long he
+  // stayed. Total games rewards tenure, which is precisely the wrong thing:
+  // Kawhi Leonard played one year in Toronto and won it, and any journeyman
+  // with eight quiet seasons outranked him - so the Raptors squad lost the
+  // player everyone would name first. Durant's single Houston year went the
+  // same way.
+  //
+  // Peak production, with a small tenure term to break ties between similar
+  // players. A cameo cannot game this because MIN_GAMES already filtered the
+  // rows before they got here.
+  const peak = (seasons) =>
+    Math.max(...seasons.map((r) => r.ppg + 0.7 * r.rpg + 0.7 * r.apg + 0.5 * r.spg + 0.5 * r.bpg));
+  const tenure = (seasons) => seasons.reduce((n, r) => n + r.games, 0);
   const ranked = [...players.values()].sort(
-    (a, b) =>
-      b.reduce((n, r) => n + r.games, 0) - a.reduce((n, r) => n + r.games, 0)
+    (a, b) => peak(b) - peak(a) || tenure(b) - tenure(a)
   );
-  for (const seasons of ranked.slice(0, SQUAD_PLAYERS)) kept.push(...seasons);
+  for (const seasons of ranked) kept.push(...seasons);
 }
 
 kept.sort(

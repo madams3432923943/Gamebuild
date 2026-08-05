@@ -1249,11 +1249,16 @@ function hasRotation() {
   return (sport().rotationBudget || 0) > 0;
 }
 
-/** Same for defensive matchups. Football assigns nobody - units line up
- * against units - so defaultMatchups returns {} and the screen has nothing to
- * ask. */
+/** Same for defensive matchups, asked as a DECLARED FACT rather than by
+ * calling defaultMatchups to see what comes back.
+ *
+ * Probing it was a bug: NBA's signature is defaultMatchups(roster, oppRoster)
+ * and this passed a slots array, which threw inside the check and stopped
+ * basketball dead right after the rotation screen. A capability question
+ * should never be answered by invoking the capability with invented
+ * arguments. */
 function hasMatchups() {
-  return Object.keys(sport().defaultMatchups(sport().slots.ranked) || {}).length > 0;
+  return sport().usesMatchups === true;
 }
 
 function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS) {

@@ -253,6 +253,8 @@ export const NFL = {
   // both sports without branching on which one it is.
   defaultMinutes: () => ({}),
   botMinutes: () => ({}),
+  // Units line up against units - nobody to assign.
+  usesMatchups: false,
   defaultMatchups: () => ({}),
 
   // The draft-board seams shared code reads (see js/sports/nba/index.js for

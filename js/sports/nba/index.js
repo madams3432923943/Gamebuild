@@ -158,6 +158,8 @@ export const NBA = {
   simulate: simulateGame,
   defaultMinutes,
   botMinutes,
+  // Basketball assigns defenders to attackers; football does not.
+  usesMatchups: true,
   defaultMatchups,
 
   // ---- Draft mechanics ----------------------------------------------------
