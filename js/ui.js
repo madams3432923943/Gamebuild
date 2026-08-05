@@ -482,7 +482,11 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     refs.card.style.setProperty("--banner-c2", franchise.colors[1]);
     refs.card.style.setProperty("--art-c1", franchise.colors[0]);
     refs.card.style.setProperty("--art-c2", franchise.colors[1]);
-    if (franchise.art) {
+    // Real artwork wins over the generated pattern.
+    refs.card.classList.toggle("has-banner-image", !!franchise.image);
+    if (franchise.image) refs.card.style.setProperty("--banner-image", `url("${franchise.image}")`);
+    else refs.card.style.removeProperty("--banner-image");
+    if (franchise.art && !franchise.image) {
       refs.card.classList.add(`banner-art-${franchise.art}`);
       refs.card.dataset.bannerArt = franchise.art;
     } else {
@@ -491,9 +495,10 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     if (franchise.hideAbbr) delete refs.card.dataset.bannerAbbr;
     else refs.card.dataset.bannerAbbr = franchise.abbr;
   } else {
-    for (const prop of ["--banner-c1", "--banner-c2", "--art-c1", "--art-c2"]) {
+    for (const prop of ["--banner-c1", "--banner-c2", "--art-c1", "--art-c2", "--banner-image"]) {
       refs.card.style.removeProperty(prop);
     }
+    refs.card.classList.remove("has-banner-image");
     delete refs.card.dataset.bannerAbbr;
     delete refs.card.dataset.bannerArt;
   }
@@ -711,11 +716,30 @@ export function bannerArt(franchise) {
   // `art` (general banners only - see GENERAL_BANNERS in banners.js) swaps the
   // flat two-color gradient for a real pattern. The two colors still drive it
   // via CSS vars, so one class covers every camo instead of a rule per banner.
-  el.className = "banner-art" + (franchise.art ? ` banner-art-${franchise.art}` : "");
+  el.className =
+    "banner-art" + (franchise.image ? " has-image" : franchise.art ? ` banner-art-${franchise.art}` : "");
   el.style.setProperty("--art-c1", franchise.colors[0]);
   el.style.setProperty("--art-c2", franchise.colors[1]);
-  if (!franchise.art) {
-    el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
+  // `image` is real artwork and beats everything below it. The colors still go
+  // on as a background, so a slow or failed load shows the banner's own two
+  // colors rather than an empty hole - the art is an upgrade over the
+  // generated look, not a dependency of it.
+  el.style.background = `linear-gradient(180deg, ${franchise.colors[0]} 0%, ${franchise.colors[1]} 100%)`;
+  if (franchise.image) {
+    const img = document.createElement("img");
+    img.className = "banner-art-img";
+    img.src = franchise.image;
+    img.alt = "";
+    // Every banner in the Rewards grid draws at once, so decoding them eagerly
+    // stalls that screen on a phone for no benefit - most are below the fold.
+    img.loading = "lazy";
+    img.decoding = "async";
+    // A missing file falls back to the gradient already painted underneath,
+    // instead of leaving a broken-image glyph on the card.
+    img.addEventListener("error", () => img.remove());
+    el.appendChild(img);
+  } else if (franchise.art) {
+    el.className = `banner-art banner-art-${franchise.art}`;
   }
   // The ghosted corner abbreviation is the fallback for banners with no
   // artwork of their own - it gives a flat two-color field something to say.

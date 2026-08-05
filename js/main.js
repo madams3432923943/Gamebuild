@@ -29,6 +29,7 @@ import {
   RANK_GAMES_FLOOR,
   allSportRatings,
 } from "./profile.js";
+import { countFriends } from "./friends.js";
 import { GENERAL_TIERS } from "./ranks.js";
 import { START_RATING } from "./rating.js";
 import {
@@ -3155,9 +3156,9 @@ function openCustomizeBannerModal() {
 
   openModal("Customize Banner", wrap);
 
-  // Friend count drives the friend-count banners; it isn't on the profile
+  // Friend count drives the friend banner ladder; it isn't on the profile
   // row, so it's fetched alongside it rather than inferred.
-  loadProfile()
+  loadProfileForBanners()
     .then((profile) => {
       renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
     })
@@ -3222,6 +3223,18 @@ let activeBadgeSport = "nba";
 let activeBannerSport = "nba";
 let activeUnlockablesTab = "badges";
 
+/** The profile, plus the friend count the friends banner ladder needs.
+ *
+ * friendCount isn't a column - friendships live in their own table and only
+ * the two participants may read a row - so it has to be counted separately
+ * and stitched on. Only the banner screens need it, so only they pay for the
+ * extra round trip. A failed count reads as 0, which shows the ladder locked
+ * rather than breaking the screen. */
+async function loadProfileForBanners() {
+  const [profile, friendCount] = await Promise.all([loadProfile(), countFriends().catch(() => 0)]);
+  return { ...profile, friendCount };
+}
+
 async function openBadgesScreen() {
   showScreen("badges");
   renderUnlockableTabs(unlockablesTabsEl, activeUnlockablesTab, (kind) => {
@@ -3237,7 +3250,7 @@ async function openBadgesScreen() {
       openBadgesScreen();
     });
     try {
-      const profile = await loadProfile();
+      const profile = await loadProfileForBanners();
       renderBanners(bannerGridEl, bannerSummaryEl, profile, onEquipBanner, activeBannerSport, false);
     } catch (e) {
       console.error("Failed to load banners:", e);

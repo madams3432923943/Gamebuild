@@ -143,3 +143,15 @@ export async function listPendingChallenges() {
     };
   });
 }
+
+/** How many accepted friendships this player has, for the friends banner
+ * ladder (GENERAL_BANNERS in js/banners.js). Counted here rather than stored
+ * on the profile row because friendships live in their own table and are
+ * deliberately not publicly readable - only the two participants can see one,
+ * so only the player themselves can count their own. */
+export async function countFriends() {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.from("friendships").select("id").eq("status", "accepted");
+  if (error) return 0;
+  return (data || []).length;
+}

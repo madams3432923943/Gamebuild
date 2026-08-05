@@ -811,7 +811,20 @@ input[type="text"]:focus-visible {
   width: 100%;
 }
 
-.matchup-banner-slot .banner-art {
+.matchup-banner-slot /* Real artwork sits on top of the colour gradient already painted on
+   .banner-art, so a missing or slow file degrades to the banner's own two
+   colours instead of a hole. object-fit: cover because the art is a texture -
+   cropping it is fine, distorting it is not. */
+.banner-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.banner-art {
   aspect-ratio: 5 / 3;
 }
 
@@ -1698,6 +1711,16 @@ table.box-table th, table.history-table th {
   gap: 0.9rem;
   position: relative;
   overflow: hidden;
+}
+
+/* The equipped banner's artwork as the whole card's background. A background
+   rather than an <img> because this card is a layout container with the
+   player's name, badges and stats on top - the art is wallpaper, not content.
+   The gradient stays underneath for the same fallback reason as the tiles. */
+.player-banner.has-banner-image {
+  background-image: var(--banner-image);
+  background-size: cover;
+  background-position: center;
 }
 
 .player-banner.has-banner {

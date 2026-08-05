@@ -226,6 +226,36 @@ export function isFirstPlayer(profile) {
  * unlock reads as an upgrade on it. */
 export const DEFAULT_BANNER_ID = "rookie";
 
+/** Shared shape for an artwork banner. The id is derived from the filename so
+ * the two can never drift apart, and `hideAbbr` is always on: stamping a
+ * three-letter code over real artwork is a label competing with the thing it
+ * labels, and the tile prints the name underneath anyway. */
+function bannerBase(t) {
+  return {
+    id: t.file.toLowerCase(),
+    name: t.name,
+    abbr: t.name.slice(0, 3).toUpperCase(),
+    colors: t.colors,
+    // Case-sensitive: GitHub Pages serves these paths literally.
+    image: `assets/banners/${t.file}.png`,
+    hideAbbr: true,
+  };
+}
+
+/** Longest run of wins in the stored history. A deliberate copy of the same
+ * loop in winStreaks() (js/profile.js) - see the streak ladder below for why
+ * it can't just import it. History is capped, so a streak older than the cap
+ * is invisible; that only ever under-counts, never over-credits. */
+function longestWinStreak(profile) {
+  let longest = 0;
+  let run = 0;
+  for (const game of profile.history || []) {
+    run = game.won ? run + 1 : 0;
+    if (run > longest) longest = run;
+  }
+  return longest;
+}
+
 export const GENERAL_BANNERS = [
   {
     id: DEFAULT_BANNER_ID,
@@ -235,29 +265,85 @@ export const GENERAL_BANNERS = [
     blurb: "Every player starts here.",
     progress: () => ({ value: 1, required: 1, unlocked: true }),
   },
-  // The camo ladder, gated on ranked wins. Diamond sits far out on purpose:
-  // it's the one banner meant to be genuinely rare, so it can't share a tier
-  // with anything reachable in a weekend.
+  // ---- The reward ladders -------------------------------------------------
+  // Real artwork now (assets/banners/*.png), so these carry `image` rather
+  // than the generated `art` pattern they used to. `colors` stays as the
+  // fallback painted underneath - a slow or missing file shows the banner's
+  // own two colors instead of a hole.
+  //
+  // Four ladders, each measuring a different thing, so a player always has
+  // more than one thing to be chasing.
+
+  // 1. Ranked wins. Crystal sits far out on purpose: it is the one banner
+  // meant to be genuinely rare, so it can't share a tier with anything
+  // reachable in a weekend.
   ...[
-    { id: "camo-woodland", name: "Woodland Camo", abbr: "WDL", need: 10, art: "camo-woodland", colors: ["#4b5320", "#2f3317"] },
-    { id: "camo-desert", name: "Desert Camo", abbr: "DST", need: 50, art: "camo-desert", colors: ["#c2a373", "#7a6242"] },
-    { id: "camo-tiger", name: "Tiger Camo", abbr: "TGR", need: 100, art: "camo-tiger", colors: ["#d99b2b", "#241c10"] },
-    { id: "camo-gold", name: "Gold Camo", abbr: "GLD", need: 250, art: "camo-gold", colors: ["#e8c14a", "#8a6a12"] },
-    { id: "camo-diamond", name: "Diamond Camo", abbr: "DMD", need: 500, art: "camo-diamond", colors: ["#9fe8ff", "#2b6f86"] },
+    { file: "Forest-Pixel", name: "Forest Pixel", need: 10, colors: ["#4b5320", "#2f3317"] },
+    { file: "Desert-Wind", name: "Desert Wind", need: 25, colors: ["#c2a373", "#7a6242"] },
+    { file: "Reptile", name: "Reptile", need: 50, colors: ["#8a6a3a", "#241c10"] },
+    { file: "Purple-Wind", name: "Purple Wind", need: 100, colors: ["#7d3fc4", "#2a1240"] },
+    { file: "Blue-Wave", name: "Blue Wave", need: 150, colors: ["#1f5fd0", "#0d1c3a"] },
+    { file: "Arctic-Stripe", name: "Arctic Stripe", need: 200, colors: ["#c9d3dc", "#3a434d"] },
+    { file: "Carbon-Fiber", name: "Carbon Fiber", need: 300, colors: ["#4a4f55", "#15181b"] },
+    { file: "Gold", name: "Gold", need: 400, colors: ["#e8c14a", "#8a6a12"] },
+    { file: "Crystal", name: "Crystal", need: 500, colors: ["#cfd8de", "#5b6a75"] },
   ].map((t) => ({
-    id: t.id,
-    name: t.name,
-    abbr: t.abbr,
-    colors: t.colors,
-    art: t.art,
-    // Just the camo. A pattern with "WDL" stamped over it isn't a camo, it's
-    // a label on top of one - and the tile already names it underneath.
-    hideAbbr: true,
+    ...bannerBase(t),
     blurb: `Win ${t.need} online ranked games.`,
     progress: (profile) => {
       const value = profile.onlineWins || 0;
       return { value, required: t.need, unlocked: value >= t.need };
     },
+  })),
+
+  // 2. Friends. Counted from accepted friendships (see countFriends in
+  // js/friends.js) rather than anything on the profile row, because who is
+  // friends with whom lives in its own table and is deliberately not public.
+  ...[
+    { file: "Wild-Fur", name: "Wild Fur", need: 3, colors: ["#c99a4e", "#2b2015"] },
+    { file: "Skulls", name: "Skulls", need: 10, colors: ["#d8d8d8", "#1a1a1a"] },
+    { file: "Inferno", name: "Inferno", need: 25, colors: ["#e3541f", "#2a0c05"] },
+  ].map((t) => ({
+    ...bannerBase(t),
+    blurb: `Add ${t.need} friends.`,
+    progress: (profile) => {
+      const value = profile.friendCount || 0;
+      return { value, required: t.need, unlocked: value >= t.need };
+    },
+  })),
+
+  // 3. Win streaks. Read off the same history the profile screen's streak
+  // stat uses (winStreaks in js/profile.js), computed inline here because
+  // profile.js imports THIS file for DEFAULT_BANNER_ID and importing back
+  // would be a cycle.
+  ...[
+    { file: "Volcanic", name: "Volcanic", need: 5, colors: ["#e0491a", "#1c0d07"] },
+    { file: "Crimson-Splat", name: "Crimson Splat", need: 10, colors: ["#b81f28", "#1a1416"] },
+    { file: "Good-Luck", name: "Good Luck", need: 15, colors: ["#2f8f5b", "#12251a"] },
+  ].map((t) => ({
+    ...bannerBase(t),
+    blurb: `Win ${t.need} online games in a row.`,
+    progress: (profile) => {
+      const value = longestWinStreak(profile);
+      return { value, required: t.need, unlocked: value >= t.need };
+    },
+  })),
+
+  // 4. Clan tournaments. Clans do not exist yet - no table, no code - so
+  // these are deliberately unearnable rather than being given a stand-in
+  // requirement. A banner nobody can earn YET is honest; one with a fake
+  // condition is not, and would have to be taken away later. `pending` lets
+  // the tile say so instead of showing 0% progress toward nothing.
+  ...[
+    { file: "Woodland-Camo", name: "Woodland Camo", colors: ["#4b5320", "#2f3317"] },
+    { file: "Hunter", name: "Hunter", colors: ["#6b5b3e", "#241f14"] },
+    { file: "Stealth", name: "Stealth", colors: ["#3a3f45", "#111316"] },
+    { file: "Urban-Camo", name: "Urban Camo", colors: ["#9aa0a6", "#26292d"] },
+  ].map((t) => ({
+    ...bannerBase(t),
+    pending: true,
+    blurb: "Win a clan tournament. Clans are still being built.",
+    progress: () => ({ value: 0, required: 1, unlocked: false }),
   })),
 ];
 
