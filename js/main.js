@@ -1445,7 +1445,9 @@ function renderDraftRound() {
 
   draftRoundLabel.textContent = `Round ${game.roundNumber}`;
   squadBannerTeam.textContent = draft.currentSquad.team;
-  squadBannerDecade.textContent = draft.currentSquad.decade;
+  // groupKey, not "decade" - football's squads are bracketed by era and the
+  // hardcoded field left the banner blank for every NFL draft.
+  squadBannerDecade.textContent = draft.currentSquad[sport().groupKey] ?? draft.currentSquad.decade ?? "";
   renderDraftEra(game.era);
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
   poolSearch.hidden = false;

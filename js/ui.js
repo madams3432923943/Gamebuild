@@ -182,7 +182,7 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
     wrap.appendChild(name);
     const stats = document.createElement("div");
     stats.className = "player-stats";
-    stats.textContent = `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`;
+    stats.textContent = activeSport().cardStatLine(p);
     wrap.appendChild(stats);
     card.appendChild(wrap);
   } else {

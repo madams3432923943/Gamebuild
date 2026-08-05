@@ -256,6 +256,22 @@ export const NFL = {
   // says "WR", not "WR2", and without this every numbered slot would reject
   // every player eligible for it. Same rule NBA uses; it only looked like an
   // identity function while no slot had a number in it.
+  /** Football's version. A quarterback, a back and a secondary have nothing
+   * in common statistically, so each says what it is actually good at rather
+   * than being forced through one shared set of columns. */
+  cardStatLine: (p) => {
+    const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
+    if (p.group) {
+      const depth = `${p.depth} deep`;
+      if (p.group === "ST") return `${depth} · ${n(100 * (p.fg_pct || 0), 0)}% FG · ${n(p.fg_att)} att`;
+      if (p.group === "OL") return `${depth} · ${n(p.sacks_allowed)} sk allowed · ${n(p.ypc)} ypc`;
+      return `${depth} · ${n(p.tackles)} tkl · ${n(p.sacks)} sk · ${n(p.ints, 2)} int`;
+    }
+    const pos = (p.pos || [])[0];
+    if (pos === "QB") return `${n(p.pass_yds, 0)} pass yds · ${n(p.pass_td, 1)} TD · ${n(p.ints, 1)} INT`;
+    if (pos === "RB") return `${n(p.rush_yds, 0)} rush yds · ${n(p.rush_td)} TD · ${n(p.rec)} rec`;
+    return `${n(p.rec)} rec · ${n(p.rec_yds, 0)} yds · ${n(p.rec_td)} TD`;
+  },
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
   orderedRosterSlots: (roster) => Object.keys(roster).filter((s) => roster[s]),
