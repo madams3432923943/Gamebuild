@@ -98,7 +98,9 @@ export function computeDatasetStats(players, units) {
 function sideRating(roster, weights, forfeits, ctx) {
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
-    const entry = roster[slot];
+    // Quick Play drafts one DEF unit instead of four, so it stands in for
+    // every defensive slot - one pick really is the whole defence there.
+    const entry = roster[slot] ?? (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined);
     const rated = entry ? rateEntry(entry, ctx) : 0.5;
     const penalised = forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated;
     total += weight * penalised;

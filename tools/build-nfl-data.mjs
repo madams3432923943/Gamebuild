@@ -479,7 +479,11 @@ for (const u of units.values()) {
   const row = {
     team: u.team, era: u.era, season: u.season, group: u.group, depth, games, members,
     name: `${u.team} ${UNIT_NAMES[u.group] || u.group}`,
-    pos: [u.group],
+    // Quick Play collapses the whole defence into one DEF pick, so the four
+    // defensive units answer to that slot as well as to their own. Without
+    // this nothing on the board was eligible for DEF, the draft could not
+    // advance past it, and Quick Play hung with two slots open.
+    pos: ["DL", "LB", "CB", "S"].includes(u.group) ? [u.group, "DEF"] : [u.group],
   };
   if (u.group === "OL") {
     Object.assign(row, u.derived);

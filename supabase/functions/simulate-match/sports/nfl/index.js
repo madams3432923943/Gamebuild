@@ -214,7 +214,12 @@ export const NFL = {
   // generated files because they are two different shapes - a quarterback has
   // a passing line, a secondary has a unit line - and flattening them into one
   // table would make every reader guard against the other's columns.
-  players: () => NFL_PLAYERS,
+  // BOTH kinds. Shared code draws the draft pool from players(), so returning
+  // only individuals left every unit slot - OL, DL, LB, CB, S, and Quick
+  // Play's DEF - with nothing eligible. The draft filled its skill positions
+  // and then hung with two slots open and no legal pick on the board.
+  players: () => [...NFL_PLAYERS, ...NFL_UNITS],
+  individuals: () => NFL_PLAYERS,
   units: () => NFL_UNITS,
 
   /** Everything draftable in one era: individuals and units together, since
