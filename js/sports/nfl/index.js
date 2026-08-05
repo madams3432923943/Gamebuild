@@ -285,7 +285,11 @@ export const NFL = {
     buildRecap(result, rosterA, rosterB, labelA, labelB),
   buildGameScript: (result) => buildGameScript(result),
   buildPostGameAnalysis: (result, side) => buildPostGameAnalysis(result, side),
-  draftGrade: (roster, ctx, forfeits) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
+  // Named gradeDraft because that is what shared code calls (js/main.js).
+  // NFL exposed it as draftGrade and would have thrown the moment a football
+  // draft finished - caught by scripts/verify-sport-contract.mjs, which exists
+  // for exactly this class of mismatch.
+  gradeDraft: (roster, ctx, forfeits) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
   rotationHint: () => null,
   // Football's counterpart to basketball's counterplay read: how your roster
   // stacks against theirs, side of the ball by side of the ball.

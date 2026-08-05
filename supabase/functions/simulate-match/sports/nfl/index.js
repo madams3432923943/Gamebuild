@@ -71,15 +71,18 @@ const TIERS = [
   { name: "Legend", minPercentile: 99.5 },
 ];
 
-// Written against the roster shape in docs/nfl-plan.md rather than the
-// placeholder slots below, because this is what the game will be and a
-// How to Play that describes a lineup nobody drafts is worse than none.
+// Written against the roster the game actually deals now. The rules a player
+// has to be TOLD - rather than left to discover by having a pick rejected -
+// are that five slots are units and that you claim one by naming a single
+// player from it. Neither is guessable from a board that just says "LB".
 const HOW_TO_PLAY = [
   ["The draft", "Every round rolls one team-and-era roster - say the 1985 Chicago Bears - and both sides draft from it. Same options, same board: it comes down to who knows the team better."],
-  ["Units, not just players", "Offense is drafted man by man - quarterback, running back, receivers, tight end. Defense is drafted in UNITS: a team's defensive line, its linebackers, its corners, its safeties. Nobody remembers the '85 Bears' third safety; everyone remembers that defense."],
-  ["Naming them", "Under ranked rules there is no visible list - you type from memory. For a unit you name the team, not eleven players."],
-  ["Your roster", "Twelve picks: six offensive skill players, the offensive line, four defensive units, and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
-  ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something - a heavy pass rush concedes the run, air raid concedes the clock - and none is simply strongest."],
+  ["Units, not just players", "Offence is drafted man by man - quarterback, running back, three receivers, tight end. The line and the whole defence are drafted as UNITS: the offensive line, the defensive line, the linebackers, the corners, the safeties, special teams. Nobody remembers the '85 Bears' third safety; everyone remembers that defence."],
+  ["ONE name takes a whole unit", "This is the part to know before your first draft. To draft a unit you name any ONE player from it - type Urlacher and the 2006 Bears linebackers are yours, all four of them. Sherman, Thomas or Chancellor each take the 2013 Seahawks secondary. You never have to name eleven people, and you are never asked which one you meant."],
+  ["The offensive line is the exception", "Type \"Offensive Line\" for that slot. The stat sheets football keeps do not name the linemen who played, so there is nobody to type - it is the one unit claimed by what it is rather than by who was in it."],
+  ["Your roster", "Twelve picks: seven on offence - quarterback, running back, three receivers, tight end, offensive line - and five on defence and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
+  ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something, and how much a gameplan is worth depends on WHO YOU DREW: Ground and Pound with Lamar Jackson under centre is a different thing than with a quarterback who cannot run. There is no best one, only a best one for your lineup."],
+  ["Coin toss", "A toss decides who receives. Electing to kick hands over the first drive to take the ball out of halftime - what a coach with a real defence does. Tied after four quarters and both sides get a possession in overtime, repeating until someone leads."],
   ["Modes", "Quick Play is a relaxed short-roster game against the bot. Ranked Practice is the full experience against the bot. Ranked is a real opponent and the only mode that moves your record."],
 ];
 
@@ -253,6 +256,22 @@ export const NFL = {
   // says "WR", not "WR2", and without this every numbered slot would reject
   // every player eligible for it. Same rule NBA uses; it only looked like an
   // identity function while no slot had a number in it.
+  /** Football's version. A quarterback, a back and a secondary have nothing
+   * in common statistically, so each says what it is actually good at rather
+   * than being forced through one shared set of columns. */
+  cardStatLine: (p) => {
+    const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
+    if (p.group) {
+      const depth = `${p.depth} deep`;
+      if (p.group === "ST") return `${depth} · ${n(100 * (p.fg_pct || 0), 0)}% FG · ${n(p.fg_att)} att`;
+      if (p.group === "OL") return `${depth} · ${n(p.sacks_allowed)} sk allowed · ${n(p.ypc)} ypc`;
+      return `${depth} · ${n(p.tackles)} tkl · ${n(p.sacks)} sk · ${n(p.ints, 2)} int`;
+    }
+    const pos = (p.pos || [])[0];
+    if (pos === "QB") return `${n(p.pass_yds, 0)} pass yds · ${n(p.pass_td, 1)} TD · ${n(p.ints, 1)} INT`;
+    if (pos === "RB") return `${n(p.rush_yds, 0)} rush yds · ${n(p.rush_td)} TD · ${n(p.rec)} rec`;
+    return `${n(p.rec)} rec · ${n(p.rec_yds, 0)} yds · ${n(p.rec_td)} TD`;
+  },
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
   orderedRosterSlots: (roster) => Object.keys(roster).filter((s) => roster[s]),
@@ -266,7 +285,11 @@ export const NFL = {
     buildRecap(result, rosterA, rosterB, labelA, labelB),
   buildGameScript: (result) => buildGameScript(result),
   buildPostGameAnalysis: (result, side) => buildPostGameAnalysis(result, side),
-  draftGrade: (roster, ctx, forfeits) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
+  // Named gradeDraft because that is what shared code calls (js/main.js).
+  // NFL exposed it as draftGrade and would have thrown the moment a football
+  // draft finished - caught by scripts/verify-sport-contract.mjs, which exists
+  // for exactly this class of mismatch.
+  gradeDraft: (roster, ctx, forfeits) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
   rotationHint: () => null,
   // Football's counterpart to basketball's counterplay read: how your roster
   // stacks against theirs, side of the ball by side of the ball.

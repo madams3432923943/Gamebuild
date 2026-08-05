@@ -14,7 +14,9 @@ import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_M
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
 // unpicking that is a separate change from this one.
-import { SLOTS, STARTER_SLOTS, RANKED_SLOTS, DEFAULT_ERA } from "./sports/nba/constants.js";
+// DEFAULT_ERA only. Slot shapes come from sport().slots - shared code
+// importing basketball's roster is what dealt PG/SG/SF/PF/C in an NFL draft.
+import { DEFAULT_ERA } from "./sports/nba/constants.js";
 import { SPORTS, sportById, isLive, isSelectable, DEFAULT_SPORT_ID, activeSport, activeSportId, setActiveSport } from "./sports/index.js";
 import {
   loadProfile,
@@ -1284,8 +1286,8 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
   cleanupPickTimer();
   cleanupMatchupTimer();
 
-  const myStarters = STARTER_SLOTS.filter((slot) => myRoster[slot]);
-  const oppStarters = STARTER_SLOTS.filter((slot) => oppRoster[slot]);
+  const myStarters = sport().slots.starters.filter((slot) => myRoster[slot]);
+  const oppStarters = sport().slots.starters.filter((slot) => oppRoster[slot]);
   strategy.matchups = sport().defaultMatchups(myRoster, oppRoster);
 
   renderMatchupPicker(matchupGridEl, myRoster, oppRoster, myStarters, oppStarters, strategy.matchups, oppLabel);
@@ -1349,7 +1351,11 @@ function rememberSquad(squadId) {
 // startOnlineSearch() before reaching startDraft(), so online play keeps its
 // own (still 6-slot) path until the ranked backend lands.
 function slotsForRuleset(ruleset) {
-  return ruleset === "easy" ? STARTER_SLOTS : RANKED_SLOTS;
+  // Ask the SPORT. This returned basketball's slots for every sport, which is
+  // why an NFL draft dealt PG/SG/SF/PF/C and five bench spots off a Cowboys
+  // roster - the board was basketball wearing a football squad's name.
+  const shape = sport().slots;
+  return ruleset === "easy" ? shape.quickPlay : shape.ranked;
 }
 
 function startDraft() {
@@ -2022,16 +2028,16 @@ async function renderOnlineDraftRound(match) {
 
   if (game.ruleset !== "easy") startPickTimer(handleOnlineTimeout);
   renderOnlinePositionAndPool();
-  renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: RANKED_SLOTS });
-  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS, revealSlots: oppRevealSlots });
+  renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: sport().slots.ranked });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, revealSlots: oppRevealSlots });
 }
 
 function renderOnlinePositionAndPool() {
   const o = game.online;
-  const eligibleForPending = o.pendingPlayer ? eligibleOpenSlots(o.pendingPlayer, o.myRoster, RANKED_SLOTS) : null;
+  const eligibleForPending = o.pendingPlayer ? eligibleOpenSlots(o.pendingPlayer, o.myRoster, sport().slots.ranked) : null;
   renderPositionSelector(positionSelectorEl, o.myRoster, eligibleForPending, (slot) => {
     finalizeOnlinePick(o.pendingPlayer, slot);
-  }, RANKED_SLOTS);
+  }, sport().slots.ranked);
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
   renderPool(
     poolList,
@@ -2042,14 +2048,14 @@ function renderOnlinePositionAndPool() {
     onOnlinePoolPick,
     sport().players(),
     game.ruleset,
-    RANKED_SLOTS,
+    sport().slots.ranked,
     (player, seasons, showStats) => openSeasonPicker(player, seasons, onOnlinePoolPick, showStats)
   );
 }
 
 function onOnlinePoolPick(player) {
   const o = game.online;
-  const slots = eligibleOpenSlots(player, o.myRoster, RANKED_SLOTS);
+  const slots = eligibleOpenSlots(player, o.myRoster, sport().slots.ranked);
   // Mirrors onPoolPick (offline) exactly: one eligible slot, or every
   // eligible slot is bench (interchangeable, not a real decision) - place
   // him without a popup.
@@ -2080,7 +2086,7 @@ function onOnlinePoolPick(player) {
 async function handleOnlineTimeout() {
   const o = game.online;
   if (!o || !o.currentSquad) return;
-  const combo = worstEligiblePick(o.currentSquad, o.myRoster, RANKED_SLOTS);
+  const combo = worstEligiblePick(o.currentSquad, o.myRoster, sport().slots.ranked);
   if (combo) {
     await finalizeOnlinePick(combo.player, combo.slot, true);
   } else {
@@ -2151,19 +2157,19 @@ async function beginOnlineStrategyPhase(match) {
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
-  renderRosterPanel(rosterPanelA, o.myRoster, "You", false, { slots: RANKED_SLOTS });
-  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: RANKED_SLOTS });
+  renderRosterPanel(rosterPanelA, o.myRoster, "You", false, { slots: sport().slots.ranked });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked });
 
   showDraftGrade(o.myRoster, {
     oppRoster: o.oppRoster,
-    forfeits: [...(o.forfeits || []), ...RANKED_SLOTS.filter((slot) => !o.myRoster[slot])],
+    forfeits: [...(o.forfeits || []), ...sport().slots.ranked.filter((slot) => !o.myRoster[slot])],
   });
 
   draftTurnBanner.textContent = "Set your rotation";
   rotationPhaseHintEl.textContent =
     `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
     `Lower someone to free minutes before raising someone else.`;
-  startRotationPhase(o.myRoster, RANKED_SLOTS, () => {
+  startRotationPhase(o.myRoster, sport().slots.ranked, () => {
     draftTurnBanner.textContent = "Set your defensive matchups";
     matchupPhaseHintEl.textContent =
       `Your starters are on their opposite numbers by default. Move anyone you want - ` +
