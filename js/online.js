@@ -181,13 +181,25 @@ export async function submitPick(matchId, player, slot, forfeited = false) {
     p_slot: slot,
   };
 
-  const { error } = await supabase.rpc("submit_pick", { ...args, p_forfeited: forfeited });
+  // The chosen year. Rows are per season now, so without it the server picks
+  // whichever season sorts first and you get a different player from the one
+  // on your screen - which is exactly what online did before this.
+  const withSeason = player.season ? { ...args, p_season: player.season } : args;
+
+  const { error } = await supabase.rpc("submit_pick", { ...withSeason, p_forfeited: forfeited });
   if (!error) return;
   if (error.code !== NO_SUCH_FUNCTION) throw error;
 
-  console.warn("submit_pick has no p_forfeited argument yet - apply db/migrations/20260803_01_forfeited_picks.sql.");
-  const retry = await supabase.rpc("submit_pick", args);
-  if (retry.error) throw retry.error;
+  // PostgREST resolves an RPC by ARGUMENT NAMES, so an unmatched set is a
+  // missing function rather than a type error. Falling back drops the newest
+  // arguments in turn, which keeps a client working against a database that
+  // hasn't caught up - the deploy order this project cannot control.
+  console.warn("submit_pick is missing p_season/p_forfeited - apply the latest db/migrations.");
+  const retry = await supabase.rpc("submit_pick", { ...args, p_forfeited: forfeited });
+  if (!retry.error) return;
+  if (retry.error.code !== NO_SUCH_FUNCTION) throw retry.error;
+  const bare = await supabase.rpc("submit_pick", args);
+  if (bare.error) throw bare.error;
 }
 
 export async function submitSkip(matchId) {
