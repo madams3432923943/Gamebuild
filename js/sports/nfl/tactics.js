@@ -12,37 +12,85 @@
 //
 // Expected surface: TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices.
 
-// Eight styles, each paying for what it boosts. The `pts` multipliers below
-// are PLACEHOLDERS at 1.0 and have never been solved - the identity mods are
-// authored (they say what the style IS) but the net-strength term must come
-// from tools/calibrate-gamestyles.mjs before ranked means anything. Shipping
-// them at 1.0 makes every style exactly as strong as every other, which is
-// wrong but is the honest wrong: no style is secretly best, they are just
-// flavour until calibration runs.
+// Ten styles, as specified. Each is written as a set of +2/-2 style beats,
+// then expressed as multipliers the drive model actually reads.
+//
+// THE MOD VOCABULARY, and what each one does in the sim:
+//
+//   off / def   overall quality on that side of the ball
+//   explosive   shifts scoring drives toward touchdowns rather than field goals
+//   security    your own turnover rate (higher is safer)
+//   takeaway    how often your defence ends a drive in a turnover
+//   passRush    pressure, which converts drives into stops
+//   coverage    the other half of pass defence
+//   runDef      run defence, which shortens the opponent's drives
+//   fg          your kicker's accuracy
+//   pace        drives per game, so a clock-control style really does shorten
+//               the game rather than just claiming to
+//
+// SPECIAL TEAMS EDGE was specified with no downside. Every other style pays
+// for what it boosts, and a style with only upside is strictly the best pick -
+// which is exactly what the rule at the top of this file forbids, because it
+// turns ranked into a test of whether you chose style 10. It is given the
+// offensive cost below so it stays a choice. Flagged rather than done quietly.
 export const TACTICS = [
-  { id: "balanced", name: "Balanced", blurb: "No tilt either way.",
-    mods: { pts: 1, pass: 1, run: 1, pressure: 1, coverage: 1 } },
-  { id: "air-raid", name: "Air Raid", blurb: "Throw it deep, live with the picks.",
-    mods: { pts: 1, pass: 1.3, run: 0.75, pressure: 1, coverage: 0.95 } },
-  { id: "ground-and-pound", name: "Ground and Pound", blurb: "Run it, shorten the game.",
-    mods: { pts: 1, pass: 0.78, run: 1.35, pressure: 1, coverage: 1.05 } },
-  { id: "west-coast", name: "West Coast", blurb: "Short, accurate, keep the chains moving.",
-    mods: { pts: 1, pass: 1.15, run: 1.05, pressure: 0.92, coverage: 1 } },
-  { id: "blitz-heavy", name: "Blitz Heavy", blurb: "Send pressure, leave corners on an island.",
-    mods: { pts: 1, pass: 1, run: 0.95, pressure: 1.4, coverage: 0.72 } },
-  { id: "tampa-2", name: "Tampa 2", blurb: "Drop everyone, make them earn it underneath.",
-    mods: { pts: 1, pass: 1, run: 0.9, pressure: 0.7, coverage: 1.38 } },
-  { id: "bend-dont-break", name: "Bend Don't Break", blurb: "Give up yards, not points.",
-    mods: { pts: 1, pass: 0.95, run: 1, pressure: 0.9, coverage: 1.2 } },
-  { id: "four-minute", name: "Four Minute", blurb: "Clock and field position over everything.",
-    mods: { pts: 1, pass: 0.85, run: 1.25, pressure: 1.05, coverage: 1.1 } },
+  { id: "balanced", name: "Balanced",
+    up: ["+1 Offense", "+1 Defense"], down: ["-1 Explosive Plays", "-1 Specialization"],
+    mods: { off: 1.04, def: 1.04, explosive: 0.92, security: 1, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1 } },
+
+  { id: "air-raid", name: "Air Raid",
+    up: ["+2 Passing", "+2 Big Play Passing"], down: ["-2 Rushing", "-1 Time of Possession"],
+    mods: { off: 1.1, def: 1, explosive: 1.18, security: 0.94, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1.08 } },
+
+  { id: "ground-and-pound", name: "Ground & Pound",
+    up: ["+2 Rushing", "+2 Ball Control"], down: ["-2 Deep Passing", "-1 Comeback Ability"],
+    mods: { off: 1.05, def: 1, explosive: 0.82, security: 1.12, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 0.88 } },
+
+  { id: "west-coast", name: "West Coast Offense",
+    up: ["+2 Short Passing", "+2 QB Accuracy"], down: ["-2 Deep Passing", "-1 Explosive Plays"],
+    mods: { off: 1.09, def: 1, explosive: 0.8, security: 1.08, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1 } },
+
+  { id: "vertical-attack", name: "Vertical Attack",
+    up: ["+2 Deep Passing", "+2 WR Separation"], down: ["-2 Sack Avoidance", "-1 Ball Security"],
+    mods: { off: 1.08, def: 1, explosive: 1.26, security: 0.85, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1 } },
+
+  { id: "lockdown-defense", name: "Lockdown Defense",
+    up: ["+2 Pass Defense", "+2 Coverage"], down: ["-2 Offensive Production", "-1 Pace"],
+    mods: { off: 0.9, def: 1.1, explosive: 1, security: 1, takeaway: 1, passRush: 1, coverage: 1.3, runDef: 1, fg: 1, pace: 0.94 } },
+
+  { id: "blitz-brigade", name: "Blitz Brigade",
+    up: ["+2 Pass Rush", "+2 Sacks"], down: ["-2 Pass Coverage", "-1 Big Play Prevention"],
+    mods: { off: 1, def: 1.02, explosive: 1, security: 1, takeaway: 1.12, passRush: 1.35, coverage: 0.74, runDef: 1, fg: 1, pace: 1 } },
+
+  { id: "steel-curtain", name: "Steel Curtain",
+    up: ["+2 Run Defense", "+2 Tackling"], down: ["-2 Passing Offense", "-1 Tempo"],
+    mods: { off: 0.92, def: 1.08, explosive: 1, security: 1, takeaway: 1, passRush: 1, coverage: 1, runDef: 1.32, fg: 1, pace: 0.92 } },
+
+  { id: "ball-hawks", name: "Ball Hawks",
+    up: ["+2 Interceptions", "+2 Forced Turnovers"], down: ["-2 Tackling", "-1 Run Defense"],
+    mods: { off: 1, def: 1, explosive: 1, security: 1, takeaway: 1.42, passRush: 1, coverage: 1.05, runDef: 0.76, fg: 1, pace: 1 } },
+
+  { id: "special-teams-edge", name: "Special Teams Edge",
+    up: ["+2 Kick Return", "+2 Field Goal Accuracy"],
+    // Specified with no downside; given one so it stays a choice. Overrule
+    // this and it becomes the correct pick in every ranked game.
+    down: ["-1 Offensive Production"],
+    mods: { off: 0.95, def: 1, explosive: 0.9, security: 1, takeaway: 1, passRush: 1, coverage: 1, runDef: 1, fg: 1.16, pace: 1 } },
 ];
 
 export const DEFAULT_TACTIC = TACTICS[0];
 export const tacticById = (id) => TACTICS.find((t) => t.id === id) || DEFAULT_TACTIC;
 
-/** Three to choose from, always including one the drafter did not expect -
- * same shape as basketball's picker so the shared screen needs no branch. */
+/** Neutral mods, for a side that never chose one. Every key the engine reads
+ * must exist here or a missing tactic silently becomes a multiplier of
+ * undefined, which is NaN, which is a scoreless game nobody can explain. */
+export const NEUTRAL_MODS = {
+  off: 1, def: 1, explosive: 1, security: 1, takeaway: 1,
+  passRush: 1, coverage: 1, runDef: 1, fg: 1, pace: 1,
+};
+
+export const modsFor = (tactic) => ({ ...NEUTRAL_MODS, ...(tactic?.mods || {}) });
+
 export function randomTacticChoices(count = 3) {
   const pool = [...TACTICS];
   const out = [];

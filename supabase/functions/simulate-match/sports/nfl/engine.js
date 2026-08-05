@@ -86,6 +86,7 @@ import {
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
 } from "./constants.js";
 import { buildRatingContext, rateEntry, isUnit } from "./units.js";
+import { modsFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
   return buildRatingContext(players, units);
@@ -198,9 +199,9 @@ function nextStart(outcome, endYard) {
 /** Whether a kick from this distance goes through, using the DRAFTED kicker's
  * accuracy rather than a constant. Falls back to a league-ish rate when the ST
  * slot was forfeited, scaled down for distance either way. */
-function fieldGoalGood(kicker, endYard, rand) {
+function fieldGoalGood(kicker, endYard, rand, fgMod = 1) {
   const distance = 100 - endYard + 17;
-  const base = Number(kicker?.fg_pct) || 0.78;
+  const base = (Number(kicker?.fg_pct) || 0.78) * fgMod;
   const longPenalty = Math.max(0, distance - 38) * 0.011;
   return rand() < Math.max(0.25, base - longPenalty);
 }
@@ -209,10 +210,30 @@ const label = (entry) => entry?.name || entry?.group || "the unit";
 
 /** One team's drive. Returns the record the UI animates and the field position
  * the opponent inherits. */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand) {
-  const mult = edge(off, def) * (TEAM_QUARTER_VARIANCE_MIN +
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs) {
+  // The gamestyle acts on BOTH sides: yours lifts your offence, theirs lifts
+  // the defence you are running into. A style that only helped its owner would
+  // make the opponent's choice invisible, which is half the decision gone.
+  const offAdj = off * mine.off;
+  const defAdj = def * theirs.def * ((theirs.passRush + theirs.coverage + theirs.runDef) / 3);
+  const mult = edge(offAdj, defAdj) * (TEAM_QUARTER_VARIANCE_MIN +
     rand() * (TEAM_QUARTER_VARIANCE_MAX - TEAM_QUARTER_VARIANCE_MIN));
   let outcome = driveOutcome(mult, rand);
+
+  // Ball Hawks and Blitz Brigade turn stops into takeaways; Ground & Pound's
+  // ball control resists them. Applied as a re-roll of a stop rather than as
+  // free points, so a takeaway style wins the ball rather than the game.
+  if (outcome === "punt") {
+    const steal = (theirs.takeaway - 1) * 0.5 + (1 - mine.security) * 0.5;
+    if (steal > 0 && rand() < steal) outcome = "turnover";
+  }
+  // Explosive styles convert their scoring drives into touchdowns rather than
+  // field goals - the difference between Vertical Attack and West Coast.
+  if (outcome === "fieldGoal" && mine.explosive > 1 && rand() < (mine.explosive - 1)) {
+    outcome = "touchdown";
+  } else if (outcome === "touchdown" && mine.explosive < 1 && rand() < (1 - mine.explosive) * 0.6) {
+    outcome = "fieldGoal";
+  }
   let endYard = Math.max(1, Math.min(100, startYard + driveYards(outcome, startYard, mult, rand)));
   let points = 0;
   let scorer = null;
@@ -233,7 +254,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       : "Touchdown";
   } else if (outcome === "fieldGoal") {
     const kicker = roster.ST;
-    if (fieldGoalGood(kicker, endYard, rand)) {
+    if (fieldGoalGood(kicker, endYard, rand, mine.fg)) {
       points = POINTS.fieldGoal;
       scorer = kicker?.members?.[0] || label(kicker);
       scorerSlot = "ST";
@@ -259,9 +280,24 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   };
 }
 
+// KNOWN BUG - POSSESSION ORDER IS WORTH ABOUT 5 POINTS OF WIN RATE.
+//
+// Identical rosters running identical gamestyles come out 45.1% / 54.9% over
+// 3000 games. It should be a coin flip. A drives first and B inherits whatever
+// field position A's drive produced, so B gets a turnover on the spot or a
+// punt-pinned start before A ever benefits from the same - the alternation
+// never evens out because the game ends after A's last drive.
+//
+// Real football has this asymmetry too and answers it with a coin toss and a
+// second-half kickoff reversal. The fix is the same: alternate who receives
+// first, and give the trailing side the ball to open the third quarter. Until
+// then, side A is measurably disadvantaged in every game, which matters most
+// online where sides are assigned rather than chosen.
 export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
+  const modsA = modsFor(opts.tacticA);
+  const modsB = modsFor(opts.tacticB);
 
   const offA = sideRating(rosterA, OFFENSE_WEIGHTS, opts.forfeitsA, ctx);
   const offB = sideRating(rosterB, OFFENSE_WEIGHTS, opts.forfeitsB, ctx);
@@ -274,12 +310,17 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
 
   // Possessions alternate, so both sides get the same count - a game where one
   // team simply got more chances would be reporting luck as skill.
-  for (let i = 0; i < DRIVES_PER_TEAM; i++) {
-    const quarter = Math.min(4, Math.floor((i / DRIVES_PER_TEAM) * 4) + 1);
-    const a = runDrive(ctx, "A", offA, defB, rosterA, rosterB, startA, quarter, rand);
+  // Pace is a real cost, not flavour: Ground & Pound shortening the game means
+  // FEWER possessions for both sides, which is what ball control actually buys
+  // and why it pairs with a lead rather than a deficit.
+  const possessions = Math.max(6, Math.round(DRIVES_PER_TEAM * ((modsA.pace + modsB.pace) / 2)));
+
+  for (let i = 0; i < possessions; i++) {
+    const quarter = Math.min(4, Math.floor((i / possessions) * 4) + 1);
+    const a = runDrive(ctx, "A", offA, defB, rosterA, rosterB, startA, quarter, rand, modsA, modsB);
     drives.push(a.drive);
     startB = a.nextStart;
-    const b = runDrive(ctx, "B", offB, defA, rosterB, rosterA, startB, quarter, rand);
+    const b = runDrive(ctx, "B", offB, defA, rosterB, rosterA, startB, quarter, rand, modsB, modsA);
     drives.push(b.drive);
     startA = b.nextStart;
   }
