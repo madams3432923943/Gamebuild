@@ -74,12 +74,24 @@ function eligibleCombos(squad, roster, slots = SLOTS) {
  * "O'Neal" / "Amar'e Stoudemire" / "Abdul-Jabbar" should match on the
  * letters a player would actually type. */
 function normalizeName(s) {
-  return s
-    .toLowerCase()
-    .replace(/[.']/g, "")
-    .replace(/-/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    s
+      .toLowerCase()
+      // Fold accents before anything else. The dataset spells names properly -
+      // Dončić, Jokić, Porziņģis, Schröder - and nobody types them that way,
+      // so without this 59 players are unreachable no matter how well you
+      // remember them. NFD splits a letter from its diacritic and the range
+      // strips the diacritic, leaving the plain letter behind.
+      //
+      // It is deliberately one-way: only the comparison is folded, never the
+      // stored name, so the card still reads "Luka Dončić".
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[.']/g, "")
+      .replace(/-/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function levenshteinDistance(a, b) {

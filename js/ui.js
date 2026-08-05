@@ -136,7 +136,7 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
 /** Renders one clickable (or disabled) player card - unchanged visuals from
  * the old always-visible pool, just factored out so both the "in-squad"
  * match tier and any future reuse can share it. */
-function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = SLOTS) {
+function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = SLOTS, seasons = [p], onPickSeason = null) {
   const eligibleSlots = eligibleOpenSlots(p, roster, slots);
   const eligible = eligibleSlots.length > 0;
   const card = document.createElement("div");
@@ -170,10 +170,45 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
     card.appendChild(name);
   }
 
+  // A player with more than one draftable season on this squad says so, and
+  // clicking opens the year picker rather than drafting immediately. One card
+  // per PLAYER, not per season: seven identical "Luka Doncic" cards is not a
+  // choice, it's a puzzle about which one the game meant.
+  if (seasons.length > 1) {
+    const hint = document.createElement("span");
+    hint.className = "player-card-seasons";
+    hint.textContent = `${seasons.length} seasons`;
+    card.appendChild(hint);
+  }
+
   if (eligible) {
-    card.addEventListener("click", () => onPick(p));
+    card.addEventListener("click", () => (seasons.length > 1 ? onPickSeason(p, seasons) : onPick(p)));
   }
   container.appendChild(card);
+}
+
+/**
+ * Groups a squad's rows into one entry per player.
+ *
+ * Rows are per season now (see tools/build-nba-data.mjs), so a name resolves
+ * to every year that player spent with this team in this era. The draft board
+ * shows the player once; which year is a second, separate decision.
+ *
+ * Order within a group is by season so the picker reads as a career.
+ */
+export function groupBySeason(rows) {
+  const byPlayer = new Map();
+  for (const row of rows) {
+    if (!byPlayer.has(row.name)) byPlayer.set(row.name, []);
+    byPlayer.get(row.name).push(row);
+  }
+  return [...byPlayer.values()].map((seasons) => ({
+    // The representative card. The most-played season, so the name on the
+    // board carries that player's defining year with this team rather than
+    // whichever one happened to sort first.
+    lead: [...seasons].sort((a, b) => (b.games || 0) - (a.games || 0))[0],
+    seasons: [...seasons].sort((a, b) => (a.season || 0) - (b.season || 0)),
+  }));
 }
 
 function renderNote(container, text, tierClass) {
@@ -196,7 +231,18 @@ function renderNote(container, text, tierClass) {
  * contract as before. `allPlayers` is the full dataset, used only for the
  * "elsewhere" lookup.
  */
-export function renderPool(container, squad, filterText, roster, pendingPlayerName, onPick, allPlayers, ruleset = "strict", slots = SLOTS) {
+export function renderPool(
+  container,
+  squad,
+  filterText,
+  roster,
+  pendingPlayerName,
+  onPick,
+  allPlayers,
+  ruleset = "strict",
+  slots = SLOTS,
+  onPickSeason = null
+) {
   container.innerHTML = "";
 
   // Easy practice puts the whole squad on screen with stats - it's for
@@ -209,8 +255,8 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
       renderNote(container, "No players on this squad match that search.");
       return;
     }
-    for (const p of players) {
-      renderPlayerCard(container, p, roster, pendingPlayerName, onPick, true, slots);
+    for (const { lead, seasons } of groupBySeason(players)) {
+      renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, true, slots, seasons, onPickSeason);
     }
     return;
   }
@@ -229,14 +275,17 @@ export function renderPool(container, squad, filterText, roster, pendingPlayerNa
   }
 
   if (result.tier === "in-squad") {
-    for (const p of result.candidates) {
-      renderPlayerCard(container, p, roster, pendingPlayerName, onPick, false, slots);
+    for (const { lead, seasons } of groupBySeason(result.candidates)) {
+      renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, false, slots, seasons, onPickSeason);
     }
     return;
   }
 
   if (result.tier === "elsewhere") {
-    const named = result.candidates.map((p) => `${p.name} (${p.team} ${p.decade})`).join(", ");
+    // Grouped, or a player with six seasons elsewhere would be listed six times.
+    const named = groupBySeason(result.candidates)
+      .map(({ lead }) => `${lead.name} (${lead.team} ${lead.decade})`)
+      .join(", ");
     renderNote(
       container,
       `Not on this squad. We do have ${named} — wrong team/decade for this pick, not a wrong guess.`,

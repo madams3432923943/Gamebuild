@@ -4282,3 +4282,59 @@ html, body {
     animation: none;
   }
 }
+
+/* "3 seasons" on a player card whose name resolves to more than one year.
+   Muted and small: it is a fact about the card, not a call to action - the
+   whole card is already the button. */
+.player-card-seasons {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+/* The year picker. A vertical list rather than a grid, because the rows are
+   read down a career and each carries a stat line long enough that two
+   columns would wrap it on a phone. */
+.season-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.season-option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.season-option:hover {
+  border-color: var(--accent);
+}
+
+.season-year {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--accent-bright);
+  /* Fixed width so the stat lines start on the same column down the list,
+     which is what makes two seasons comparable at a glance. */
+  min-width: 3.2rem;
+}
+
+.season-line {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}

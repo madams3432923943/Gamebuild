@@ -523,6 +523,45 @@ function sportCardAction(label, onClick) {
   return btn;
 }
 
+/** The year picker: one player, their seasons on this squad, pick which.
+ *
+ * The board shows a player once; this is the second, separate decision -
+ * knowing Doncic played for the Mavs is the easy half, knowing 2023 was the
+ * scoring title is the half worth testing. Stats show here even under ranked
+ * rules, because at this point you have already named the player from memory:
+ * the knowledge test was passed, and hiding the years would make it a guess
+ * rather than a choice. */
+function openSeasonPicker(player, seasons, onChoose) {
+  const wrap = document.createElement("div");
+
+  const intro = document.createElement("p");
+  intro.className = "hint-text";
+  intro.textContent = `${player.name} played ${seasons.length} draftable seasons for the ${player.team}. Pick one.`;
+  wrap.appendChild(intro);
+
+  const list = document.createElement("div");
+  list.className = "season-picker";
+  for (const s of seasons) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "season-option";
+    row.innerHTML =
+      `<span class="season-year"></span>` +
+      `<span class="season-line"></span>`;
+    row.querySelector(".season-year").textContent = String(s.season);
+    row.querySelector(".season-line").textContent =
+      `${s.ppg} pts · ${s.rpg} reb · ${s.apg} ast · ${s.games} games`;
+    row.addEventListener("click", () => {
+      closeModal();
+      onChoose(s);
+    });
+    list.appendChild(row);
+  }
+  wrap.appendChild(list);
+
+  openModal(`Which ${player.name}?`, wrap);
+}
+
 /** Re-reads the profile and repaints the home header. Called on entry and
  * after anything that can change the record (a finished game, a rename). */
 async function refreshHome() {
@@ -1420,7 +1459,18 @@ function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
-  renderPool(poolList, draft.currentSquad, poolSearch.value, rosterFor(side), pendingName, onPoolPick, sport().players(), game.ruleset, draft.slots);
+  renderPool(
+    poolList,
+    draft.currentSquad,
+    poolSearch.value,
+    rosterFor(side),
+    pendingName,
+    onPoolPick,
+    sport().players(),
+    game.ruleset,
+    draft.slots,
+    (player, seasons) => openSeasonPicker(player, seasons, onPoolPick)
+  );
 }
 
 function onPoolPick(player) {
@@ -1973,7 +2023,18 @@ function renderOnlinePositionAndPool() {
     finalizeOnlinePick(o.pendingPlayer, slot);
   }, RANKED_SLOTS);
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
-  renderPool(poolList, o.currentSquad, poolSearch.value, o.myRoster, pendingName, onOnlinePoolPick, sport().players(), game.ruleset, RANKED_SLOTS);
+  renderPool(
+    poolList,
+    o.currentSquad,
+    poolSearch.value,
+    o.myRoster,
+    pendingName,
+    onOnlinePoolPick,
+    sport().players(),
+    game.ruleset,
+    RANKED_SLOTS,
+    (player, seasons) => openSeasonPicker(player, seasons, onOnlinePoolPick)
+  );
 }
 
 function onOnlinePoolPick(player) {
