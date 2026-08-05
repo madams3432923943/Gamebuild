@@ -161,6 +161,49 @@ for (const sheet of sheets) {
 }
 
 // ---------------------------------------------------------------------------
+// Merge same-name teammates
+// ---------------------------------------------------------------------------
+// The 1988 Bullets had two different Charles Joneses, and 1980s basketball has
+// a few of these. They are genuinely two people, but the draft cannot tell
+// them apart - you type a name, and a name is all the game ever has - so
+// leaving both would put two identical cards on the board and, downstream,
+// collide on the database's (name, team, decade, season) identity.
+//
+// Combined games-weighted, which is the same arithmetic used to average a
+// season in the first place: the merged line is what "Charles Jones on the
+// 1988 Bullets" produced, which is the honest answer to the only question the
+// game can ask.
+
+const merged = new Map();
+for (const row of rows) {
+  const key = `${row.name}|${row.team}|${row.season}`;
+  const prior = merged.get(key);
+  if (!prior) {
+    merged.set(key, row);
+    continue;
+  }
+  const g = prior.games + row.games;
+  const blend = (k) => r1((prior[k] * prior.games + row[k] * row.games) / g);
+  const blend3 = (k) => r3((prior[k] * prior.games + row[k] * row.games) / g);
+  merged.set(key, {
+    ...prior,
+    games: g,
+    pos: [...new Set([...prior.pos, ...row.pos])].slice(0, 2),
+    ppg: blend("ppg"), rpg: blend("rpg"), apg: blend("apg"),
+    spg: blend("spg"), bpg: blend("bpg"), tov: blend("tov"),
+    fga: blend("fga"), fgp: blend3("fgp"),
+    tpa: blend("tpa"), tpp: blend3("tpp"),
+    fta: blend("fta"), ftp: blend3("ftp"),
+  });
+}
+const deduped = [...merged.values()];
+if (deduped.length !== rows.length) {
+  console.log(`merged ${rows.length - deduped.length} same-name teammate row(s)`);
+}
+rows.length = 0;
+rows.push(...deduped);
+
+// ---------------------------------------------------------------------------
 // Trim each squad to its most-used players
 // ---------------------------------------------------------------------------
 // Trimming is by PLAYER, not by row: once a player is on the squad every one
