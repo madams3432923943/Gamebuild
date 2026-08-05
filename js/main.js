@@ -1233,6 +1233,27 @@ function cleanupRotationTimer() {
  * minutes across your roster before choosing how to play them. Timing out
  * locks in whatever's currently assigned, same philosophy as the tactic
  * timer - it keeps the match moving, it doesn't punish indecision. */
+/** Sports that have a rotation to set. Basketball spends 240 minutes across
+ * ten players; football plays everyone every snap of his side of the ball, so
+ * there is nothing to allocate.
+ *
+ * This is why NFL never simulated: the rotation screen keeps Confirm disabled
+ * until the whole budget is spent, NFL's budget is 0 with no minutes to spend,
+ * so the button could never unlock and the draft ended at a dead screen. The
+ * phase is skipped rather than shown empty - an empty screen with a dead button
+ * is worse than no screen.
+ */
+function hasRotation() {
+  return (sport().rotationBudget || 0) > 0;
+}
+
+/** Same for defensive matchups. Football assigns nobody - units line up
+ * against units - so defaultMatchups returns {} and the screen has nothing to
+ * ask. */
+function hasMatchups() {
+  return Object.keys(sport().defaultMatchups(sport().slots.ranked) || {}).length > 0;
+}
+
 function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS) {
   cleanupPickTimer();
   cleanupRotationTimer();
@@ -1675,17 +1696,25 @@ function renderDraftComplete() {
   rotationPhaseHintEl.textContent =
     `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
     `Lower someone to free minutes before raising someone else.`;
-  startRotationPhase(draft.rosterA, draft.slots, () => {
+  const toTactic = () => {
+    draftTurnBanner.textContent = "Final round — set your game plan";
+    tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
+    startTacticPhase(runLocalSimulation);
+  };
+  const afterRotationOffline = () => {
+    if (!hasMatchups()) return toTactic();
     draftTurnBanner.textContent = "Set your defensive matchups";
     matchupPhaseHintEl.textContent =
       `Your starters are on their opposite numbers by default. Move anyone you want - ` +
       `switching two players trades their assignments.`;
-    startMatchupPhase(draft.rosterA, draft.rosterB, game.nameB, () => {
-    draftTurnBanner.textContent = "Final round — set your game plan";
-    tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
-    startTacticPhase(runLocalSimulation);
-    });
-  });
+    startMatchupPhase(draft.rosterA, draft.rosterB, game.nameB, toTactic);
+  };
+  // Straight past both phases for a sport that has neither. NFL has no minutes
+  // to allocate and no matchups to assign, and the rotation screen keeps its
+  // Confirm disabled until the budget is spent - a budget of zero could never
+  // be spent, so the draft ended on a dead screen and nothing ever simulated.
+  if (hasRotation()) startRotationPhase(draft.rosterA, draft.slots, afterRotationOffline);
+  else afterRotationOffline();
 }
 
 // ---- Online draft flow ----
@@ -2170,16 +2199,13 @@ async function beginOnlineStrategyPhase(match) {
     forfeits: [...(o.forfeits || []), ...sport().slots.ranked.filter((slot) => !o.myRoster[slot])],
   });
 
-  draftTurnBanner.textContent = "Set your rotation";
-  rotationPhaseHintEl.textContent =
-    `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
-    `Lower someone to free minutes before raising someone else.`;
-  startRotationPhase(o.myRoster, sport().slots.ranked, () => {
-    draftTurnBanner.textContent = "Set your defensive matchups";
-    matchupPhaseHintEl.textContent =
-      `Your starters are on their opposite numbers by default. Move anyone you want - ` +
-      `switching two players trades their assignments.`;
-    startMatchupPhase(o.myRoster, o.oppRoster, o.oppUsername, () => {
+  if (hasRotation()) {
+    draftTurnBanner.textContent = "Set your rotation";
+    rotationPhaseHintEl.textContent =
+      `240 minutes to spend, 10-40 each. Starters play more than the bench. ` +
+      `Lower someone to free minutes before raising someone else.`;
+  }
+  const onlineTactic = () => {
       draftTurnBanner.textContent = "Final round — set your game plan";
       tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
       startTacticPhase(async () => {
@@ -2194,8 +2220,20 @@ async function beginOnlineStrategyPhase(match) {
           await handleOnlineMatchState(freshMatch);
         }
       });
-    });
-  }, ONLINE_ROTATION_TIMER_SECONDS);
+  };
+  const afterRotationOnline = () => {
+    if (!hasMatchups()) return onlineTactic();
+    draftTurnBanner.textContent = "Set your defensive matchups";
+    matchupPhaseHintEl.textContent =
+      `Your starters are on their opposite numbers by default. Move anyone you want - ` +
+      `switching two players trades their assignments.`;
+    startMatchupPhase(o.myRoster, o.oppRoster, o.oppUsername, onlineTactic);
+  };
+  if (hasRotation()) {
+    startRotationPhase(o.myRoster, sport().slots.ranked, afterRotationOnline, ONLINE_ROTATION_TIMER_SECONDS);
+  } else {
+    afterRotationOnline();
+  }
 }
 
 /** A second, independent path from "I've submitted my game plan" to the game

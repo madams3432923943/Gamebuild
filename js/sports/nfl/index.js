@@ -271,7 +271,11 @@ export const NFL = {
   cardStatLine: (p) => {
     const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
     if (p.group) {
-      const depth = `${p.depth} deep`;
+      // Lead the line with a name you know. "Cornerbacks" is a slot; "Sherman,
+      // Maxwell" is the pick - and since any member's name claims the unit,
+      // showing them is also showing what you are allowed to type.
+      const known = (p.members || []).slice(0, 2).map((m) => m.name).join(", ");
+      const depth = known ? `${known} · ${p.depth} deep` : `${p.depth} deep`;
       if (p.group === "ST") return `${depth} · ${n(100 * (p.fg_pct || 0), 0)}% FG · ${n(p.fg_att)} att`;
       if (p.group === "OL") return `${depth} · ${n(p.sacks_allowed)} sk allowed · ${n(p.ypc)} ypc`;
       return `${depth} · ${n(p.tackles)} tkl · ${n(p.sacks)} sk · ${n(p.ints, 2)} int`;
