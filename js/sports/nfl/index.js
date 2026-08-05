@@ -69,7 +69,7 @@ const HOW_TO_PLAY = [
   ["The draft", "Every round rolls one team-and-era roster - say the 1985 Chicago Bears - and both sides draft from it. Same options, same board: it comes down to who knows the team better."],
   ["Units, not just players", "Offense is drafted man by man - quarterback, running back, receivers, tight end. Defense is drafted in UNITS: a team's defensive line, its linebackers, its corners, its safeties. Nobody remembers the '85 Bears' third safety; everyone remembers that defense."],
   ["Naming them", "Under ranked rules there is no visible list - you type from memory. For a unit you name the team, not eleven players."],
-  ["Your roster", "Eleven picks: five offensive skill players, the offensive line, four defensive units, and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
+  ["Your roster", "Twelve picks: six offensive skill players, the offensive line, four defensive units, and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
   ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something - a heavy pass rush concedes the run, air raid concedes the clock - and none is simply strongest."],
   ["Modes", "Quick Play is a relaxed short-roster game against the bot. Ranked Practice is the full experience against the bot. Ranked is a real opponent and the only mode that moves your record."],
 ];
@@ -112,21 +112,28 @@ export const NFL = {
     scoreVerb: "scored",
   },
 
-  // Six individuals and five units. The provisional lineup this replaces
+  // Seven individuals and five units. The provisional lineup this replaces
   // (QB, RB1, RB2, WR1, WR2, TE, FLEX, K, DEF, BENCH1) modelled fantasy
   // football rather than football - a FLEX and a lone kicker are fantasy
   // constructs, and one catch-all DEF slot throws away the whole point of
   // drafting a defence in units.
   //
-  // Eleven rather than basketball's ten because dropping special teams to hit
+  // THREE receivers, not two. Eleven personnel - one back, one tight end,
+  // three wide - has been the league's base offence for over a decade; a
+  // two-receiver ranked roster would be drafting a personnel package the
+  // modern game only uses part-time. It also makes the third receiver a real
+  // decision rather than a luxury, which is where a lot of the good arguments
+  // about an offence actually live.
+  //
+  // Twelve rather than basketball's ten because dropping special teams to hit
   // a round number would be a mistake: field goals decide real games, and a
   // game where kicking never matters is missing a third of its endings.
   slots: {
     quickPlay: ["QB", "RB", "WR", "TE", "OL", "DEF"],
-    ranked: ["QB", "RB", "WR1", "WR2", "TE", "OL", "DL", "LB", "CB", "S", "ST"],
-    starters: ["QB", "RB", "WR1", "WR2", "TE", "OL", "DL", "LB", "CB", "S", "ST"],
+    ranked: ["QB", "RB", "WR1", "WR2", "WR3", "TE", "OL", "DL", "LB", "CB", "S", "ST"],
+    starters: ["QB", "RB", "WR1", "WR2", "WR3", "TE", "OL", "DL", "LB", "CB", "S", "ST"],
     // No bench. Football substitutes by unit and by situation, not by a sixth
-    // man, so the roster is eleven starters and the depth term lives on the
+    // man, so the roster is twelve starters and the depth term lives on the
     // units themselves (see `depth` in data/nfl-units.js).
     bench: [],
   },
@@ -221,7 +228,11 @@ export const NFL = {
   rate: () => {
     throw new Error("NFL has no player rating yet - see js/sports/nfl/");
   },
-  basePosition: (slot) => slot,
+  // Strips the ordinal so WR1/WR2/WR3 all resolve to WR - a receiver's data
+  // says "WR", not "WR2", and without this every numbered slot would reject
+  // every player eligible for it. Same rule NBA uses; it only looked like an
+  // identity function while no slot had a number in it.
+  basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
   orderedRosterSlots: (roster) => Object.keys(roster).filter((s) => roster[s]),
   minutesRangeFor: () => ({ min: 0, max: 0 }),
