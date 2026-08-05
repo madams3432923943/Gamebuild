@@ -470,6 +470,10 @@ async function renderHomeSportCards(profile, population = null) {
     // playable) and locked. A preview card opens so its screens can be seen
     // and built; what it can't do is start a game.
     card.className = "sport-card" + (s.live ? "" : selectable ? " preview" : " locked");
+    // A stable hook for tests and for anything that needs to address one
+    // sport's tile. The browser selftest had no way to pick a sport, so it sat
+    // on the hub clicking for a mode toggle that only appears inside one.
+    card.dataset.sport = s.id;
     // Its own accent, even though this screen is sport-neutral: the colour is
     // how you recognise the sport before reading the word, and a row of
     // identical grey cards would throw that away.

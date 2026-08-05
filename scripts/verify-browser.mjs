@@ -446,7 +446,14 @@ export async function runBrowserChecks(opts = {}) {
     // ---- start the match --------------------------------------------------
     const matchStart = Date.now();
     for (const { page } of sessions) {
+      // Pick a sport first. The home screen is a sport hub now - the mode
+      // toggle only exists once you are inside a sport, so this test sat on
+      // the hub clicking at a button that was not on the page yet. It is not
+      // that the app broke; the test was written before the hub existed.
+      const sportRow = page.locator(`[data-sport="${(typeof sportId !== "undefined" && sportId) || "nba"}"]`).first();
+      if (await sportRow.count()) await sportRow.click();
       const modeBtn = mode === "online" ? '[data-mode="online"]' : '[data-mode="practice-hard"]';
+      await page.locator(`#mode-toggle ${modeBtn}`).waitFor({ state: "visible", timeout: 15000 });
       await page.locator(`#mode-toggle ${modeBtn}`).click();
     }
     await Promise.all(sessions.map(({ page }) => page.evaluate(() => window.__bkPerfStart("matchup-intro"))));
