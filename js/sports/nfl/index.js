@@ -71,15 +71,18 @@ const TIERS = [
   { name: "Legend", minPercentile: 99.5 },
 ];
 
-// Written against the roster shape in docs/nfl-plan.md rather than the
-// placeholder slots below, because this is what the game will be and a
-// How to Play that describes a lineup nobody drafts is worse than none.
+// Written against the roster the game actually deals now. The rules a player
+// has to be TOLD - rather than left to discover by having a pick rejected -
+// are that five slots are units and that you claim one by naming a single
+// player from it. Neither is guessable from a board that just says "LB".
 const HOW_TO_PLAY = [
   ["The draft", "Every round rolls one team-and-era roster - say the 1985 Chicago Bears - and both sides draft from it. Same options, same board: it comes down to who knows the team better."],
-  ["Units, not just players", "Offense is drafted man by man - quarterback, running back, receivers, tight end. Defense is drafted in UNITS: a team's defensive line, its linebackers, its corners, its safeties. Nobody remembers the '85 Bears' third safety; everyone remembers that defense."],
-  ["Naming them", "Under ranked rules there is no visible list - you type from memory. For a unit you name the team, not eleven players."],
-  ["Your roster", "Twelve picks: six offensive skill players, the offensive line, four defensive units, and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
-  ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something - a heavy pass rush concedes the run, air raid concedes the clock - and none is simply strongest."],
+  ["Units, not just players", "Offence is drafted man by man - quarterback, running back, three receivers, tight end. The line and the whole defence are drafted as UNITS: the offensive line, the defensive line, the linebackers, the corners, the safeties, special teams. Nobody remembers the '85 Bears' third safety; everyone remembers that defence."],
+  ["ONE name takes a whole unit", "This is the part to know before your first draft. To draft a unit you name any ONE player from it - type Urlacher and the 2006 Bears linebackers are yours, all four of them. Sherman, Thomas or Chancellor each take the 2013 Seahawks secondary. You never have to name eleven people, and you are never asked which one you meant."],
+  ["The offensive line is the exception", "Type \"Offensive Line\" for that slot. The stat sheets football keeps do not name the linemen who played, so there is nobody to type - it is the one unit claimed by what it is rather than by who was in it."],
+  ["Your roster", "Twelve picks: seven on offence - quarterback, running back, three receivers, tight end, offensive line - and five on defence and special teams. Field goals decide real games, so the kicking unit is a real choice rather than an afterthought."],
+  ["Gameplan", "Once both rosters are set you pick one of three gameplans offered at random. Each trades something for something, and how much a gameplan is worth depends on WHO YOU DREW: Ground and Pound with Lamar Jackson under centre is a different thing than with a quarterback who cannot run. There is no best one, only a best one for your lineup."],
+  ["Coin toss", "A toss decides who receives. Electing to kick hands over the first drive to take the ball out of halftime - what a coach with a real defence does. Tied after four quarters and both sides get a possession in overtime, repeating until someone leads."],
   ["Modes", "Quick Play is a relaxed short-roster game against the bot. Ranked Practice is the full experience against the bot. Ranked is a real opponent and the only mode that moves your record."],
 ];
 
