@@ -226,7 +226,29 @@ for (const row of rows) {
   players.get(row.name).push(row);
 }
 
-// NO TRIM. Every player who met MIN_GAMES is draftable.
+/** A season worth drafting. Deep-bench filler is dropped to keep the file
+ * small, but "worth drafting" cannot mean scoring alone: Dennis Rodman
+ * averaged 7 points and was one of the best players alive. A player is kept
+ * if he was meaningful in ANY category, which is also how anyone remembers
+ * him - you do not recall Ben Wallace's scoring average.
+ *
+ * Deliberately generous. The cost of keeping a marginal player is a few
+ * kilobytes; the cost of cutting a real one is somebody typing a name they
+ * clearly remember and being told he was not there. */
+function isDraftable(r) {
+  return (
+    r.ppg >= 8 ||
+    r.rpg >= 6 ||
+    r.apg >= 4 ||
+    r.spg >= 1.2 ||
+    r.bpg >= 1 ||
+    // A high-usage scorer on a bad team can fall under every bar above while
+    // still being the guy that squad is remembered for.
+    r.fga >= 10
+  );
+}
+
+// NO SQUAD TRIM. Every draftable player is kept - no per-squad cap.
 //
 // This used to keep the top SQUAD_PLAYERS per squad, which is how Kawhi
 // Leonard's Raptors title year and Durant's Rockets season went missing -
@@ -256,7 +278,21 @@ for (const players of bySquad.values()) {
   const ranked = [...players.values()].sort(
     (a, b) => peak(b) - peak(a) || tenure(b) - tenure(a)
   );
-  for (const seasons of ranked) kept.push(...seasons);
+  // Filter first, then top up. A ranked roster is ten slots, and a squad that
+  // cannot fill one is a draft that cannot finish - four early-expansion squads
+  // fell under that line on the contributor filter alone. So thin squads take
+  // back their next-best players until they can field a team, ranked by peak
+  // exactly as above.
+  const MIN_SQUAD_PLAYERS = 12;
+  const worth = [];
+  const spare = [];
+  for (const seasons of ranked) {
+    const draftable = seasons.filter(isDraftable);
+    if (draftable.length) worth.push(draftable);
+    else spare.push(seasons);
+  }
+  while (worth.length < MIN_SQUAD_PLAYERS && spare.length) worth.push(spare.shift());
+  for (const seasons of worth) kept.push(...seasons);
 }
 
 kept.sort(
