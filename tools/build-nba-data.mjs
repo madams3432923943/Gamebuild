@@ -102,19 +102,17 @@ const sheets = readWorkbook(SOURCE);
 const rows = [];
 
 for (const sheet of sheets) {
-  // Sheet names are the season's START year, not its end. Verified against the
-  // data rather than assumed: Kawhi Leonard appears on Toronto in the "2018"
-  // sheet, and his Raptors year was 2018-19; Michael Jordan appears in 1994
-  // through 1997, which are the 1994-95 through 1997-98 seasons - his comeback
-  // through his last Bulls year.
+  // Sheet names are the season's START year, and that is also how a season is
+  // NAMED here: "2025" means 2025-26. Kawhi's 2018 is the 2018-19 Raptors year
+  // and Durant's 2025 is his first Houston season - the sheet name goes on the
+  // card unchanged.
   //
-  // This was read as the END year, so every season was labelled one year early
-  // and the 2018-19 Raptors were offered as "2018". It also made Jordan look
-  // like he had gaps in 1993 and 1998; those are his two retirements, and the
-  // dataset was right about them all along.
+  // The decade is taken from that same start year. It used to be taken from
+  // startYear - 1, which put a season in the decade before the one it belongs
+  // to; that is the half of this that was genuinely wrong.
   const startYear = parseInt(sheet.name.match(/(\d{4})/)?.[1] ?? "", 10);
   if (!Number.isFinite(startYear)) continue;
-  const endYear = startYear + 1;
+  const endYear = startYear;
 
   const header = sheet.rows[0] || [];
   const col = Object.fromEntries(header.map((h, i) => [h, i]));
@@ -145,8 +143,8 @@ for (const sheet of sheets) {
       team,
       // Kept so the squad roll (team + decade) still works exactly as before.
       decade: decadeOf(startYear),
-      // The season a pick actually resolves to. Stored as the END year, which
-      // is how a basketball season is spoken about - "the 2016 Warriors".
+      // The season a pick resolves to, named by its START year: "2025" is the
+      // 2025-26 season, which is the convention this project uses throughout.
       season: endYear,
       pos: positions(at(cells, "Pos")),
       games,
