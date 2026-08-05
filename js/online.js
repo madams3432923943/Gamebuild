@@ -3,8 +3,17 @@
 // than realtime - see the comment on watchMatch() for why.
 
 import { getSupabase, requireSession } from "./supabaseClient.js";
-import { SLOTS } from "./sports/nba/constants.js";
 import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
+
+/** Default roster shape: the ACTIVE SPORT's, never basketball's.
+ *
+ * These defaults used to be imported straight from js/sports/nba/constants.js,
+ * so any caller that forgot to pass its slots silently got basketball's - which
+ * is how an NFL draft came to deal PG/SG/SF/PF/C off a Cowboys roster. Evaluated
+ * per call, so it follows whichever sport is live rather than whatever was
+ * loaded first. */
+const defaultSlots = () => activeSport().slots.quickPlay;
+const defaultStarters = () => activeSport().slots.starters;
 
 export async function joinQueue(sport = DEFAULT_SPORT_ID, era = null) {
   await requireSession();

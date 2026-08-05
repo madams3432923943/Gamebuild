@@ -4,8 +4,17 @@
 import { BOT_POOL_SIZE, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists are default parameter values (see ui.js). The helpers below are
 // per-pick calls and go through the active sport.
-import { SLOTS, STARTER_SLOTS } from "./sports/nba/constants.js";
 import { activeSport } from "./sports/index.js";
+
+/** Default roster shape: the ACTIVE SPORT's, never basketball's.
+ *
+ * These defaults used to be imported straight from js/sports/nba/constants.js,
+ * so any caller that forgot to pass its slots silently got basketball's - which
+ * is how an NFL draft came to deal PG/SG/SF/PF/C off a Cowboys roster. Evaluated
+ * per call, so it follows whichever sport is live rather than whatever was
+ * loaded first. */
+const defaultSlots = () => activeSport().slots.quickPlay;
+const defaultStarters = () => activeSport().slots.starters;
 
 /** Groups the flat PLAYERS array into squads keyed by "Team|Decade". */
 export function buildSquads(players) {
@@ -49,7 +58,7 @@ export function isEligible(player, slot) {
  * `slots` defaults to the full 6-slot list so any caller that doesn't know
  * about smaller rosters (Quick Play's 5-slot draft, no 6th man) keeps
  * today's behavior unchanged. */
-export function openSlots(roster, slots = SLOTS) {
+export function openSlots(roster, slots = defaultSlots()) {
   return slots.filter((s) => !roster[s]);
 }
 
@@ -62,7 +71,7 @@ function rosterHasPlayerName(roster, name) {
 }
 
 /** Slots a given player could legally fill among a roster's open slots. */
-export function eligibleOpenSlots(player, roster, slots = SLOTS) {
+export function eligibleOpenSlots(player, roster, slots = defaultSlots()) {
   if (rosterHasPlayerName(roster, player.name)) return [];
   return openSlots(roster, slots).filter((s) => isEligible(player, s));
 }
@@ -70,7 +79,7 @@ export function eligibleOpenSlots(player, roster, slots = SLOTS) {
 /** Every legal (player, slot) combo for `roster` in `squad`, each scored by
  * activeSport().rate() - the shared building block behind both the bot's best-pick
  * logic and the pick-timer's worst-pick timeout penalty. */
-function eligibleCombos(squad, roster, slots = SLOTS) {
+function eligibleCombos(squad, roster, slots = defaultSlots()) {
   const combos = [];
   for (const player of squad.players) {
     for (const slot of eligibleOpenSlots(player, roster, slots)) {
@@ -204,7 +213,7 @@ export function resolveTypedInput(query, currentSquad, allPlayers) {
  * the pick-timer timeout penalty. Returns null if there's no eligible
  * combo at all (the caller should auto-skip instead, same precondition
  * as the Skip button). */
-export function worstEligiblePick(squad, roster, slots = SLOTS) {
+export function worstEligiblePick(squad, roster, slots = defaultSlots()) {
   const combos = eligibleCombos(squad, roster, slots);
   if (combos.length === 0) return null;
   return combos.reduce((worst, c) => (c.score < worst.score ? c : worst));
@@ -244,7 +253,7 @@ export class DraftState {
    *   Kept as one class rather than a per-size variant since every mode
    *   shares the exact same draft mechanics regardless of roster size.
    */
-  constructor(allPlayers, recentSquadIds = [], slots = SLOTS) {
+  constructor(allPlayers, recentSquadIds = [], slots = defaultSlots()) {
     this.squads = buildSquads(allPlayers);
     this.recentSquadIds = new Set(recentSquadIds);
     this.usedSquadIds = new Set();

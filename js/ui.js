@@ -5,7 +5,6 @@ import { MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists are still basketball's: they are default PARAMETER values, so
 // they resolve at module load, before a sport is chosen. Everything else
 // here is called at render time and goes through the active sport.
-import { SLOTS, STARTER_SLOTS } from "./sports/nba/constants.js";
 import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 import { eligibleOpenSlots, resolveTypedInput, normalizeName } from "./draft.js";
 import {
@@ -35,6 +34,16 @@ import {
   DEFAULT_BANNER_ID,
 } from "./banners.js";
 import { squadTierForRep } from "./squads.js";
+
+/** Default roster shape: the ACTIVE SPORT's, never basketball's.
+ *
+ * These defaults used to be imported straight from js/sports/nba/constants.js,
+ * so any caller that forgot to pass its slots silently got basketball's - which
+ * is how an NFL draft came to deal PG/SG/SF/PF/C off a Cowboys roster. Evaluated
+ * per call, so it follows whichever sport is live rather than whatever was
+ * loaded first. */
+const defaultSlots = () => activeSport().slots.quickPlay;
+const defaultStarters = () => activeSport().slots.starters;
 
 /** Display name for a roster slot. Derived rather than looked up in a fixed
  * map, because roster shape varies by mode: Quick Play uses bare positions,
@@ -82,7 +91,7 @@ function seasonLabel(player) {
  *   pending player's eligible open slots (those glow and are clickable;
  *   other open slots dim since they don't apply to this player).
  */
-export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect, slots = SLOTS) {
+export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect, slots = defaultSlots()) {
   container.innerHTML = "";
   for (const slot of slots) {
     const btn = document.createElement("button");
@@ -118,7 +127,7 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
  *   on this render pass (the round that just resolved).
  */
 export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
-  const { pendingSlots = [], revealSlots = [], slots = SLOTS } = opts;
+  const { pendingSlots = [], revealSlots = [], slots = defaultSlots() } = opts;
   container.innerHTML = "";
   const h3 = document.createElement("h3");
   h3.textContent = label + (isTurn ? " •" : "");
@@ -166,7 +175,7 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
 /** Renders one clickable (or disabled) player card - unchanged visuals from
  * the old always-visible pool, just factored out so both the "in-squad"
  * match tier and any future reuse can share it. */
-function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = SLOTS, seasons = [p], onPickSeason = null) {
+function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = defaultSlots(), seasons = [p], onPickSeason = null) {
   const eligibleSlots = eligibleOpenSlots(p, roster, slots);
   const eligible = eligibleSlots.length > 0;
   const card = document.createElement("div");
@@ -274,7 +283,7 @@ export function renderPool(
   onPick,
   allPlayers,
   ruleset = "strict",
-  slots = SLOTS,
+  slots = defaultSlots(),
   onPickSeason = null
 ) {
   container.innerHTML = "";
