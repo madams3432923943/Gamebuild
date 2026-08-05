@@ -182,7 +182,11 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
     wrap.appendChild(name);
     const stats = document.createElement("div");
     stats.className = "player-stats";
-    stats.textContent = activeSport().cardStatLine(p);
+    // Falls back rather than throwing. A missing hook used to take the whole
+    // draft board down with it - one undefined function and the render died
+    // mid-list, leaving an empty screen with no error anyone would see.
+    const line = activeSport().cardStatLine;
+    stats.textContent = typeof line === "function" ? line(p) : "";
     wrap.appendChild(stats);
     card.appendChild(wrap);
   } else {

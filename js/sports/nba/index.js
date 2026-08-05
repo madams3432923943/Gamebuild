@@ -163,6 +163,11 @@ export const NBA = {
   // key is the sport's to choose rather than js/draft.js's to assume.
   groupKey: "decade",
   rate: impact,
+  /** The one-line stat summary under a name on the draft board. Per sport
+   * because a quarterback has no rebounds - this was hardcoded in js/ui.js and
+   * printed "undefined pts" for every footballer. */
+  cardStatLine: (p) =>
+    `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`,
   basePosition,
   isBenchSlot,
   orderedRosterSlots,
