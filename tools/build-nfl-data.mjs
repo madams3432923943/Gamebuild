@@ -272,9 +272,19 @@ function unitKey(team, season, group) {
   return `${team}|${season}|${group}`;
 }
 
-/** Records one game for one player in one unit-season. */
-function countMember(unit, who) {
-  unit.members.set(who, (unit.members.get(who) || 0) + 1);
+/** Records one game for one player in one unit-season, and what he did in it.
+ *
+ * Per-player takeaways are kept, not just appearances, so the simulation can
+ * name WHO picked the ball off. "Intercepted by the Seahawks Cornerbacks"
+ * throws away the reason anybody drafted them; "Richard Sherman" is the whole
+ * point. Weighting by his real share means Sherman turns up about as often as
+ * he actually did, rather than the unit's snaps being a lottery ticket. */
+function countMember(unit, who, ints = 0, ff = 0) {
+  const m = unit.members.get(who) || { games: 0, ints: 0, ff: 0 };
+  m.games += 1;
+  m.ints += ints;
+  m.ff += ff;
+  unit.members.set(who, m);
 }
 
 // One row per team per SEASON per group, for the same reason players are
@@ -302,7 +312,8 @@ for (const row of defence) {
   if (!group || !era || !team) continue;
 
   const u = ensureUnit(team, era, num(row.season), group);
-  countMember(u, row.player_display_name || row.player_name);
+  countMember(u, row.player_display_name || row.player_name,
+              num(row.def_interceptions), num(row.def_fumbles_forced));
   const s = u.sums;
   s.tackles += num(row.def_tackles);
   // Disruption, not volume. A bad defence racks up tackles by being on the
@@ -443,7 +454,7 @@ for (const u of units.values()) {
   // unit you could field. A two-man linebacker corps really is thinner than a
   // five-man one, and only the per-season view can see that.
   const depth =
-    u.group === "OL" ? 5 : [...u.members.values()].filter((g) => g >= MIN_UNIT_GAMES).length;
+    u.group === "OL" ? 5 : [...u.members.values()].filter((m) => m.games >= MIN_UNIT_GAMES).length;
   const per = (k) => r2(u.sums[k] / games);
 
   // Who you can NAME to claim this unit. The draft is a ball-knowledge test,
@@ -464,10 +475,12 @@ for (const u of units.values()) {
     u.group === "OL"
       ? []
       : [...u.members.entries()]
-          .filter(([, g]) => g >= MIN_UNIT_GAMES)
-          .sort((a, b) => b[1] - a[1])
+          .filter(([, m]) => m.games >= MIN_UNIT_GAMES)
+          .sort((a, b) => b[1].games - a[1].games)
           .slice(0, 8)
-          .map(([name]) => name);
+          // name plus the takeaways he personally made, so the sim can pick a
+          // scorer by his real share instead of at random.
+          .map(([name, m]) => ({ name, games: m.games, ints: r2(m.ints), ff: r2(m.ff) }));
 
   // Units must present the SAME SHAPE as players. Every shared draft-board
   // path reads .name and .pos - js/ui.js does `for (const pos of p.pos)` - so a

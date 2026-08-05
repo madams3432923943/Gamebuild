@@ -210,6 +210,27 @@ function fieldGoalGood(kicker, endYard, rand, fgMod = 1) {
 
 const label = (entry) => entry?.name || entry?.group || "the unit";
 
+/** WHO on this unit made the play. Weighted by each member's real takeaways of
+ * that kind, so Richard Sherman turns up on 2013 Seahawks interceptions about
+ * as often as he actually made them - and a corner who never picked one off
+ * does not get handed a highlight he never earned.
+ *
+ * Falls back to the unit's name when nobody on it recorded that takeaway, which
+ * is the honest answer rather than crediting a random body. */
+function pickTakeawayMan(entry, kindOfTakeaway, rand) {
+  const members = Array.isArray(entry?.members) ? entry.members : [];
+  const field = kindOfTakeaway === "fumble" ? "ff" : "ints";
+  let total = 0;
+  for (const m of members) total += Number(m?.[field]) || 0;
+  if (total <= 0) return null;
+  let roll = rand() * total;
+  for (const m of members) {
+    roll -= Number(m?.[field]) || 0;
+    if (roll <= 0) return m.name;
+  }
+  return members[0]?.name ?? null;
+}
+
 /** One team's drive. Returns the record the UI animates and the field position
  * the opponent inherits. */
 function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs) {
@@ -285,9 +306,13 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     const ints = Number(stop?.entry?.ints) || 0;
     const ff = Number(stop?.entry?.ff) || 0;
     takeaway = ints + ff <= 0 ? "int" : rand() < ints / (ints + ff) ? "int" : "fumble";
-    text = stop
-      ? `${takeaway === "int" ? "Intercepted" : "Fumble forced"} by the ${label(stop.entry)}`
-      : "Turnover";
+    const man = stop ? pickTakeawayMan(stop.entry, takeaway, rand) : null;
+    scorer = man;
+    text = !stop
+      ? "Turnover"
+      : man
+        ? `${man} ${takeaway === "int" ? "interception" : "forces a fumble"}`
+        : `${takeaway === "int" ? "Intercepted" : "Fumble forced"} by the ${label(stop.entry)}`;
   } else {
     text = "Punt";
   }
