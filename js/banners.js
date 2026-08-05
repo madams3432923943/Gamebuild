@@ -281,6 +281,7 @@ export const GENERAL_BANNERS = [
     { file: "Forest-Pixel", name: "Forest Pixel", need: 10, colors: ["#4b5320", "#2f3317"] },
     { file: "Desert-Wind", name: "Desert Wind", need: 25, colors: ["#c2a373", "#7a6242"] },
     { file: "Reptile", name: "Reptile", need: 50, colors: ["#8a6a3a", "#241c10"] },
+    { file: "blossom", name: "Pink Blossom", need: 75, colors: ["#e88aa8", "#4a3038"] },
     { file: "Purple-Wind", name: "Purple Wind", need: 100, colors: ["#7d3fc4", "#2a1240"] },
     { file: "Blue-Wave", name: "Blue Wave", need: 150, colors: ["#1f5fd0", "#0d1c3a"] },
     { file: "Arctic-Stripe", name: "Arctic Stripe", need: 200, colors: ["#c9d3dc", "#3a434d"] },
