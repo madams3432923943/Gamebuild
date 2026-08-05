@@ -1,0 +1,36 @@
+# Loads the per-season player dataset into the database.
+#
+# Manual only. This replaces every row in `players`, which is not something a
+# push should ever do by accident - it runs when someone decides the server
+# should catch up to a rebuilt dataset, and not otherwise.
+#
+# It exists because the alternative was asking a human to generate a 1MB SQL
+# file and paste it into a query console. Every step of that is a step where a
+# batch goes missing, and a half-loaded players table is worse than an unloaded
+# one: the draft finds some of a player's seasons and not others, with no error
+# anywhere to say so.
+name: Seed Players
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Generated here rather than committed: it is derivable from
+      # data/nba-players.js in one command, and generating it in the same run
+      # that applies it means the two can never disagree.
+      - name: Generate the seed
+        run: node tools/export-players-sql.mjs
+
+      - name: Apply it
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node tools/apply-seed.mjs --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}
