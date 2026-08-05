@@ -307,10 +307,30 @@ export class DraftState {
    * on `side` ("A" or "B"). Throws if the pick is illegal. */
   makePick(side, player, slot) {
     const roster = side === "A" ? this.rosterA : this.rosterB;
-    if (!this.currentSquad || !this.currentSquad.players.includes(player)) {
+    // Match on the row's KEY, not object identity. includes() compares
+    // references, so any code that mapped, spread or reshaped a player broke
+    // the draft silently - a click that does nothing and says nothing. The
+    // key is name + team + group + season, which is what a row actually is
+    // since the dataset went per-season.
+    const groupKey = activeSport().groupKey;
+    const inSquad = this.currentSquad?.players.some(
+      (p) =>
+        p.name === player.name &&
+        p.team === player.team &&
+        p[groupKey] === player[groupKey] &&
+        (p.season ?? null) === (player.season ?? null)
+    );
+    if (!inSquad) {
       throw new Error("Player is not part of the currently rolled squad.");
     }
-    if (!isEligible(player, slot) || roster[slot] || rosterHasPlayerName(roster, player.name)) {
+    // Eligibility is judged across every season of this player ON THIS SQUAD,
+    // the same union the board shows. Judging the picked row alone means the
+    // board offers a slot and the draft refuses it - Kyshawn George is SG in
+    // one year and SF in the next, so the card said SF and the pick threw.
+    const seasonsHere = this.currentSquad.players.filter((p) => p.name === player.name);
+    const unionPos = [...new Set(seasonsHere.flatMap((p) => p.pos || []))];
+    const eligible = isEligible({ ...player, pos: unionPos }, slot);
+    if (!eligible || roster[slot] || rosterHasPlayerName(roster, player.name)) {
       throw new Error(`${player.name} cannot fill slot ${slot}.`);
     }
     roster[slot] = player;

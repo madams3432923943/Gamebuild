@@ -17,6 +17,7 @@
 import { SPORTS } from "../js/sports/index.js";
 import { setActiveSport } from "../js/sports/index.js";
 import { DraftState, isEligible } from "../js/draft.js";
+import { groupBySeason } from "../js/ui.js";
 
 let failures = 0;
 
@@ -36,12 +37,26 @@ for (const meta of SPORTS) {
         const squad = draft.rollNextSquad();
         if (!squad) break;
         rounds++;
-        for (const roster of [draft.rosterA, draft.rosterB]) {
-          for (const slot of slots) {
-            if (roster[slot]) continue;
+        // Draft the way the UI does: group the squad, then hand the card's
+        // `lead` to makePick exactly as a click would. The old version wrote
+        // straight into the roster, which is why it never noticed that
+        // makePick was rejecting every pick on object identity - the test was
+        // bypassing the very function that was broken.
+        const cards = groupBySeason(squad.players);
+        for (const side of ["A", "B"]) {
+          const roster = side === "A" ? draft.rosterA : draft.rosterB;
+          let placed = false;
+          for (const { lead, pos } of cards) {
+            if (placed) break;
             const taken = new Set(Object.values(roster).filter(Boolean).map((p) => p.name));
-            const pick = squad.players.find((p) => isEligible(p, slot) && !taken.has(p.name));
-            if (pick) { roster[slot] = pick; break; }
+            if (taken.has(lead.name)) continue;
+            for (const slot of slots) {
+              if (roster[slot]) continue;
+              if (!isEligible({ ...lead, pos }, slot)) continue;
+              draft.makePick(side, lead, slot);
+              placed = roster[slot] != null;
+              if (placed) break;
+            }
           }
         }
       }

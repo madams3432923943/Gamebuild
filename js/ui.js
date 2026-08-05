@@ -175,8 +175,11 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
 /** Renders one clickable (or disabled) player card - unchanged visuals from
  * the old always-visible pool, just factored out so both the "in-squad"
  * match tier and any future reuse can share it. */
-function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = defaultSlots(), seasons = [p], onPickSeason = null) {
-  const eligibleSlots = eligibleOpenSlots(p, roster, slots);
+function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showStats = false, slots = defaultSlots(), seasons = [p], onPickSeason = null, allPos = null) {
+  // Eligibility uses every position this player held across the seasons on
+  // offer, without reshaping the player object the draft will validate.
+  const positions = allPos || p.pos || [];
+  const eligibleSlots = eligibleOpenSlots({ ...p, pos: positions }, roster, slots);
   const eligible = eligibleSlots.length > 0;
   const card = document.createElement("div");
   card.className =
@@ -188,7 +191,7 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
   const name = document.createElement("span");
   name.className = "player-card-name";
   name.textContent = p.name;
-  for (const pos of p.pos) {
+  for (const pos of positions) {
     const chip = document.createElement("span");
     chip.className = "pos-chip";
     chip.textContent = pos;
@@ -256,9 +259,14 @@ export function groupBySeason(rows) {
     // one of those, so he was rejected at the other slot - while an opponent
     // whose lead season happened to be the other year could take him there.
     // Same player, same board, two different answers.
+    // The union goes BESIDE the lead, not over it. Spreading it into a copy
+    // broke the draft outright: makePick validates by object identity, so a
+    // fresh object is not in squad.players and every click was silently
+    // rejected. `lead` stays the row the squad actually holds.
     const pos = [...new Set(seasons.flatMap((r) => r.pos || []))];
     return {
-      lead: { ...lead, pos },
+      lead,
+      pos,
       seasons: [...seasons].sort((a, b) => (a.season || 0) - (b.season || 0)),
     };
   });
@@ -330,8 +338,8 @@ export function renderPool(
       }
       grouped.sort((a, b) => best.get(b) - best.get(a));
     }
-    for (const { lead, seasons } of grouped) {
-      renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, true, slots, seasons, onPickSeason);
+    for (const { lead, pos, seasons } of grouped) {
+      renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, true, slots, seasons, onPickSeason, pos);
     }
     return;
   }
@@ -351,7 +359,7 @@ export function renderPool(
 
   if (result.tier === "in-squad") {
     for (const { lead, seasons } of groupBySeason(result.candidates)) {
-      renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, false, slots, seasons, onPickSeason);
+      renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, false, slots, seasons, onPickSeason, pos);
     }
     return;
   }
