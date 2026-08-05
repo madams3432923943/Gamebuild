@@ -294,11 +294,12 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
 // gives each side exactly one opening drive, so the structure is fair by
 // construction rather than by measurement.
 //
-// THE REAL DEFECT THE MEASUREMENT FOUND: 6.8% of games end tied. Real NFL
-// regular-season ties are well under 1%, and there is no overtime here -
-// `overtimePeriods` is hardcoded 0. Football breaks ties by playing on, and
-// until it does, one game in fifteen ends in a draw that ranked has no way to
-// score.
+// OVERTIME breaks the 6.8% of games that ended tied. Both sides get a
+// possession before it can end - the modern rule, and the right one here for a
+// reason beyond realism: a sudden-death first score would make the overtime
+// coin toss worth more than the entire draft, and this game is about the
+// draft. Paired possessions repeat until somebody leads after both have had
+// the ball.
 export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
@@ -358,8 +359,40 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     b: drives.filter((d) => d.team === "B" && d.quarter === q).reduce((s, d) => s + d.points, 0),
   }));
 
-  const teamScoreA = Math.round(quarterBoxScores.reduce((s, q) => s + q.a, 0));
-  const teamScoreB = Math.round(quarterBoxScores.reduce((s, q) => s + q.b, 0));
+  let teamScoreA = Math.round(quarterBoxScores.reduce((s, q) => s + q.a, 0));
+  let teamScoreB = Math.round(quarterBoxScores.reduce((s, q) => s + q.b, 0));
+
+  // Overtime: both sides get the ball, then the lead decides it. Capped so a
+  // pathological pair of defences cannot spin forever - at the cap the game is
+  // recorded as a genuine tie, which is what football does too.
+  let overtimePeriods = 0;
+  const OT_CAP = 6;
+  while (teamScoreA === teamScoreB && overtimePeriods < OT_CAP) {
+    overtimePeriods++;
+    const quarter = 4 + overtimePeriods;
+    // The team that kicked to open the second half receives in overtime, which
+    // keeps the toss's cost and payoff intact rather than re-rolling it.
+    const receiver = other(firstHalfReceiver);
+    start.A = DRIVE_START_YARD;
+    start.B = DRIVE_START_YARD;
+    for (const side of [receiver, other(receiver)]) {
+      const foe = other(side);
+      const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
+                         cfg[foe].roster, start[side], quarter, rand,
+                         cfg[side].mods, cfg[foe].mods);
+      drives.push(r.drive);
+      start[foe] = r.nextStart;
+      if (side === "A") teamScoreA += r.drive.points;
+      else teamScoreB += r.drive.points;
+    }
+    quarterBoxScores.push({
+      period: quarter,
+      a: drives.filter((d) => d.team === "A" && d.quarter === quarter).reduce((s, d) => s + d.points, 0),
+      b: drives.filter((d) => d.team === "B" && d.quarter === quarter).reduce((s, d) => s + d.points, 0),
+    });
+  }
+  teamScoreA = Math.round(teamScoreA);
+  teamScoreB = Math.round(teamScoreB);
 
   const boxFor = (side, roster) => {
     const box = {};
@@ -373,7 +406,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   return {
     teamScoreA, teamScoreB,
     boxA: boxFor("A", rosterA), boxB: boxFor("B", rosterB),
-    quarterBoxScores, drives, overtimePeriods: 0,
+    quarterBoxScores, drives, overtimePeriods,
     coinToss: { winner: tossWinner, elected, firstHalfReceiver },
     winner: teamScoreA === teamScoreB ? null : teamScoreA > teamScoreB ? "A" : "B",
     analysis: { offA, offB, defA, defB },

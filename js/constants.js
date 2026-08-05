@@ -26,6 +26,14 @@ export const QUARTER_REVEAL_DELAY_MS = 4200;
 // How long the running score takes to climb to the new period's total.
 export const QUARTER_TICK_MS = 1500;
 
+/** Overtime plays back slower. A regulation quarter is one of four and the
+ * viewer knows roughly where the game stands; overtime is the whole result
+ * arriving in one period, often decided by a single score, and running it at
+ * regulation pace throws away the moment people actually came for. The tick
+ * is stretched too, so the score counts up rather than snapping. */
+export const OT_REVEAL_DELAY_MS = 6800;
+export const OT_TICK_MS = 2600;
+
 // How long a resolved round's picks stay on screen before the next squad is
 // rolled and the board is rebuilt.
 //

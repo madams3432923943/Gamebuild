@@ -10,7 +10,7 @@ import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
-import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
+import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
 // unpicking that is a separate change from this one.
@@ -2510,10 +2510,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
    * (optional) fires right as the numbers land on the new total - that's
    * when a period-end flash actually reads as tied to the score, not just
    * to a timer running somewhere else. */
-  function tickScoreTo(fromA2, fromB2, toA, toB, periods, remaining, duringLabel, doneLabel, onDone) {
+  function tickScoreTo(fromA2, fromB2, toA, toB, periods, remaining, duringLabel, doneLabel, onDone, tickMs) {
     const started = Date.now();
     const tick = setInterval(() => {
-      const t = Math.min(1, (Date.now() - started) / QUARTER_TICK_MS);
+      const t = Math.min(1, (Date.now() - started) / (tickMs || QUARTER_TICK_MS));
       const eased = 1 - Math.pow(1 - t, 2);
       const done = t >= 1;
       renderScoreboard(
@@ -2590,7 +2590,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       periodsRemaining,
       `${label} in progress`,
       `End of ${label}`,
-      () => flashClass(liveScoreboard, leadChanged ? "lead-flash" : "period-flash")
+      () => flashClass(liveScoreboard, leadChanged ? "lead-flash" : "period-flash"),
+      // Overtime counts up slower, so a two-point period is watchable rather
+      // than a number that changes between blinks.
+      isOt ? OT_TICK_MS : QUARTER_TICK_MS
     );
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
@@ -2604,7 +2607,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     }
 
     i += 1;
-    setTimeout(step, QUARTER_REVEAL_DELAY_MS);
+    // Overtime holds longer - see OT_REVEAL_DELAY_MS. isOt is this period, so
+    // the pause after it is the one that lets the decisive score land.
+    setTimeout(step, isOt ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS);
   }
 
   function finish() {
