@@ -157,7 +157,12 @@ export const NBA = {
   statLabels: { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" },
 
   // ---- Simulation ---------------------------------------------------------
-  computeDatasetStats,
+  computeDatasetStats: (players) => {
+    const ctx = computeDatasetStats(players ?? PLAYERS);
+    // For the grade curve to sample real rosters - see js/gradecurve.js.
+    ctx.__allEntries = players ?? PLAYERS;
+    return ctx;
+  },
   simulate: simulateGame,
   defaultMinutes,
   botMinutes,

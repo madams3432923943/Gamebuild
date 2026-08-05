@@ -13,7 +13,8 @@
 // the engine is about to charge you for a thin bench.
 
 import { constructionMetrics, rosterTilt, impact } from "./engine.js";
-import { isBenchSlot, orderedRosterSlots } from "./constants.js";
+import { isBenchSlot, orderedRosterSlots, basePosition, RANKED_SLOTS } from "./constants.js";
+import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
 
 // Weighted toward how the roster is BUILT rather than how good its players
 // are. Talent still counts - a grade that ignored it would call a squad of
@@ -47,8 +48,49 @@ const CATEGORY_WORDS = {
   defense: { strong: "your defense is elite", weak: "you can't get a stop" },
 };
 
+/** Fixed cutoffs, kept only as the fallback when no curve can be built.
+ *
+ * GRADES was the whole story until the dataset changed four times - per-season
+ * rows, a squad trim, that trim removed, a contributor filter. Each shifted
+ * what an average roster scores and the letters drifted with it: forty rosters
+ * graded D- to C+, with no A and no F. Everybody failing tells a drafter
+ * nothing. The curve in js/gradecurve.js is derived from the data instead. */
 function letterFor(score) {
   return (GRADES.find((g) => score >= g.min) || GRADES[GRADES.length - 1]).letter;
+}
+
+/** Scores a roster EXACTLY as gradeDraft does, for curve sampling. Sampling a
+ * different formula is worse than not sampling at all - the first attempt
+ * weighted a `value` metric that does not exist and graded every roster F,
+ * because the curve and the score were measuring different things. */
+function rawScore(roster, datasetStats) {
+  const m = constructionMetrics(roster, datasetStats);
+  if (!m.hasBench) {
+    return (
+      (WEIGHTS.balance * m.balance + WEIGHTS.talent * m.talent) /
+      (WEIGHTS.balance + WEIGHTS.talent)
+    );
+  }
+  return (
+    WEIGHTS.balance * m.balance +
+    WEIGHTS.coverage * m.coverage +
+    WEIGHTS.versatility * m.versatility +
+    WEIGHTS.talent * m.talent
+  );
+}
+
+function curveFor(datasetStats) {
+  if (datasetStats.__gradeCurve === undefined) {
+    const all = datasetStats.__allEntries || [];
+    datasetStats.__gradeCurve = all.length
+      ? sampleRosterScores(
+          RANKED_SLOTS,
+          (slot) => all.filter((p) => isBenchSlot(slot) || (p.pos || []).includes(basePosition(slot))),
+          (roster) => rawScore(roster, datasetStats)
+        )
+      : null;
+  }
+  return datasetStats.__gradeCurve;
 }
 
 /** The one player a rotation should be built around who isn't a starter -
@@ -101,7 +143,10 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   // as well - a third of a letter each.
   score = Math.max(0, score - 0.07 * forfeits.length);
 
-  const letter = letterFor(score);
+  // Percentile against what could actually have been drafted from this data,
+  // falling back to the fixed bands only if no curve exists.
+  const curve = curveFor(datasetStats);
+  const letter = curve ? curveLetter(score, curve) : letterFor(score);
   const reasons = [];
 
   const strong = CATEGORY_WORDS[metrics.strongest];

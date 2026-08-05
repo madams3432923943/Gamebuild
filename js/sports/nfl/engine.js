@@ -126,7 +126,11 @@ import { buildRatingContext, rateEntry, isUnit } from "./units.js";
 import { scaledModsFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
-  return buildRatingContext(players, units);
+  const ctx = buildRatingContext(players, units);
+  // Kept so the draft grade can sample real rosters to build its curve
+  // without re-reading the dataset. See js/gradecurve.js.
+  ctx.__allEntries = [...(players || []), ...(units || [])];
+  return ctx;
 }
 
 /** Weighted mean of the slots on one side of the ball. A forfeited slot is not
