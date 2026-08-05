@@ -1979,3 +1979,77 @@ export function renderFriendsLeaderboard(container, entries, callbacks) {
     container.appendChild(row);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Football field playback
+// ---------------------------------------------------------------------------
+// The counterpart to basketball's quarter-by-quarter scoreboard reveal, and
+// the reason the engine returns `drives` as a first-class value rather than a
+// debug log. A quarter box score can say a team scored 14; it cannot say the
+// drive stalled at the 40, or that the third receiver broke it open. This can.
+//
+// Reads only what the engine already returns - startYard, endYard, outcome,
+// scorer, text - so there is nothing for the view to recompute and no second
+// source of truth to disagree with the scoreboard.
+
+/** Builds the static field: two banner endzones and the turf between them.
+ * Called once per game; showDrive() then moves the ball within it. */
+export function renderFootballField(container, labelA, labelB) {
+  container.innerHTML = "";
+  container.classList.remove("hidden");
+
+  const left = document.createElement("div");
+  left.className = "ff-endzone left";
+  left.textContent = labelA;
+  const right = document.createElement("div");
+  right.className = "ff-endzone right";
+  right.textContent = labelB;
+
+  const turf = document.createElement("div");
+  turf.className = "ff-turf";
+  const mid = document.createElement("div");
+  mid.className = "ff-mid";
+  const trail = document.createElement("div");
+  trail.className = "ff-drive";
+  const ball = document.createElement("div");
+  ball.className = "ff-ball";
+  ball.style.left = "50%";
+  turf.append(mid, trail, ball);
+
+  const call = document.createElement("div");
+  call.className = "ff-call";
+  call.textContent = `${labelA} vs ${labelB}`;
+
+  container.append(left, right, turf, call);
+  return { turf, trail, ball, call };
+}
+
+/** Animates one drive. A drives from left to right and B from right to left,
+ * so the ball genuinely changes ends with possession rather than restarting -
+ * which is what makes field position readable at a glance.
+ *
+ * Yardage is from the DRIVING team's own goal line, so B's numbers have to be
+ * mirrored to place them on a field drawn left-to-right. */
+export function showDrive(refs, drive) {
+  if (!refs) return;
+  const toPct = (yard) => (drive.team === "A" ? yard : 100 - yard);
+  const from = toPct(drive.startYard);
+  const to = toPct(drive.endYard);
+
+  refs.trail.className = `ff-drive ${drive.team.toLowerCase()}`;
+  refs.trail.style.left = `${Math.min(from, to)}%`;
+  refs.trail.style.width = `${Math.abs(to - from)}%`;
+  refs.ball.style.left = `${to}%`;
+
+  const scored = drive.points > 0;
+  const took = drive.outcome === "turnover";
+  refs.call.className = "ff-call" + (scored ? " score" : took ? " takeaway" : "");
+  refs.call.textContent = drive.text || "";
+}
+
+/** Football's box score columns. Basketball's six are hardcoded elsewhere in
+ * this file; these are the ones a football line actually has. */
+export const FOOTBALL_BOX_COLUMNS = [
+  ["pass_yds", "PASS"], ["rush_yds", "RUSH"], ["rec_yds", "REC"],
+  ["td", "TD"], ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"],
+];

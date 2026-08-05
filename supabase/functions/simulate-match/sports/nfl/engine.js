@@ -324,14 +324,14 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     const kicker = roster.ST;
     if (fieldGoalGood(kicker, endYard, rand, mine.fg)) {
       points = POINTS.fieldGoal;
-      scorer = kicker?.members?.[0] || label(kicker);
+      scorer = kicker?.members?.[0]?.name || label(kicker);
       scorerSlot = "ST";
       text = `Field goal by ${scorer}`;
     } else {
       // A miss is still a drive that got into range, and it still hands the
       // ball over at the spot - which is why the arrow should show it.
       outcome = "downs";
-      text = `Field goal missed by ${kicker?.members?.[0] || label(kicker)}`;
+      text = `Field goal missed by ${kicker?.members?.[0]?.name || label(kicker)}`;
     }
   } else if (outcome === "turnover") {
     const stop = pickStopper(oppRoster, rand);

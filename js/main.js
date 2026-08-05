@@ -98,6 +98,8 @@ import {
   renderFriendChallenges,
   renderFriendRequests,
   renderFriendsLeaderboard,
+  renderFootballField,
+  showDrive,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -2485,7 +2487,18 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   fullBoxScore.classList.remove("hidden");
   renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
   renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
-  pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
+  // Football gets a field; basketball keeps the tip-off line it always had.
+  // `drives` is the signal, not the sport id - a sport that returns drives has
+  // something to animate on a field, and one that does not never will.
+  const footballFieldEl = document.getElementById("football-field");
+  let fieldRefs = null;
+  if (Array.isArray(result.drives) && result.drives.length) {
+    fieldRefs = renderFootballField(footballFieldEl, labelA, labelB);
+    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — kickoff`);
+  } else {
+    if (footballFieldEl) footballFieldEl.classList.add("hidden");
+    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — tip-off`);
+  }
 
   // The player each side's memo named last period. A team's best quarter is
   // usually its best player's quarter, so without this the feed reads as the
@@ -2552,7 +2565,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         lastNamed[key] = best.name;
         pushPlayHeadline(playFeedEl, `${best.text} in ${label}`, best.weight >= 1 ? "hot" : "");
       } else {
-        pushPlayHeadline(playFeedEl, `${teamLabel} scraped by in ${label}`, "");
+        pushPlayHeadline(playFeedEl, `${teamLabel} ${fieldRefs ? "held on" : "scraped by"} in ${label}`, "");
       }
     }
   }
@@ -2646,6 +2659,22 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       // than a number that changes between blinks.
       isOt ? OT_TICK_MS : QUARTER_TICK_MS
     );
+    // Play this quarter's drives across the field, spaced inside the period's
+    // hold so the ball moves while the score counts rather than after it.
+    if (fieldRefs) {
+      const ofQuarter = result.drives.filter((d) => d.quarter === i + 1);
+      const hold = (isOt ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS) * 0.82;
+      ofQuarter.forEach((d, n) => {
+        setTimeout(() => {
+          showDrive(fieldRefs, d);
+          // Only the drives worth reading go to the feed - a punt is field
+          // position, which the ball already showed.
+          if (d.points > 0 || d.outcome === "turnover") {
+            pushPlayHeadline(playFeedEl, d.text, d.points > 0 ? "lead-change" : "");
+          }
+        }, (hold / Math.max(1, ofQuarter.length)) * n);
+      });
+    }
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
     if (leadChanged) {
