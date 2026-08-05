@@ -18,3 +18,9 @@ tools/seasons/
 db/seed/players.json
 
 tools/seasons-nfl/
+
+# The per-season players seed: 1.1MB of generated INSERTs, regenerable from
+# data/nba-players.js in one command. Committing it would put a megabyte of
+# machine-written SQL in every clone and every diff to say what the dataset
+# already says.
+db/seed/players-seed.sql
