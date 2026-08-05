@@ -558,8 +558,13 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false) {
     row.innerHTML = `<span class="season-year"></span><span class="season-line"></span>`;
     row.querySelector(".season-year").textContent = String(s.season);
     // Under ranked rules the row is the year and nothing else.
+    // Through the sport's own hook, not basketball's columns. This printed
+    // "undefined pts · undefined reb · undefined ast" on every football season,
+    // which is the same bug the draft board had - fixed there, missed here,
+    // because the year picker is a separate render path.
+    const line = sport().cardStatLine;
     row.querySelector(".season-line").textContent = showStats
-      ? `${s.ppg} pts · ${s.rpg} reb · ${s.apg} ast · ${s.games} games`
+      ? `${typeof line === "function" ? line(s) : ""} · ${s.games} games`
       : "";
     row.addEventListener("click", () => {
       closeModal();

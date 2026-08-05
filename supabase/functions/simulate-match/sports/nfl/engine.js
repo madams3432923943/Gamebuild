@@ -240,11 +240,15 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   let scorerSlot = null;
   let credit = null;
   let text = "";
+  // Kept on the drive, not just spent on the text. The box score needs to know
+  // whether a touchdown was run or caught, and reconstructing it from a string
+  // would be parsing English to recover a fact we already had.
+  let kind = null;
 
   if (outcome === "touchdown") {
     // Rushing scores are rarer than receiving ones and go to backs and
     // quarterbacks, which is why the kind is drawn before the man.
-    const kind = rand() < 0.32 ? "rush" : "rec";
+    kind = rand() < 0.32 ? "rush" : "rec";
     const who = pickScorer(roster, kind, rand) || pickScorer(roster, kind === "rush" ? "rec" : "rush", rand);
     points = POINTS.touchdown;
     scorer = who ? who.entry.name : null;
@@ -275,7 +279,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
 
   return {
     drive: { team: side, quarter, startYard: Math.round(startYard), endYard: Math.round(endYard),
-             outcome, points, scorer, scorerSlot, credit, text },
+             outcome, points, scorer, scorerSlot, credit, kind, text },
     nextStart: nextStart(outcome, endYard),
   };
 }
@@ -395,11 +399,50 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   teamScoreA = Math.round(teamScoreA);
   teamScoreB = Math.round(teamScoreB);
 
+  // The box score has to speak the sport's OWN lineKeys, because that is what
+  // the profile builds records and career totals from. Emitting {td, pts} left
+  // every football record - Passing Yards, Rushing TDs, Field Goals -
+  // permanently unsettable, which looks like an empty profile rather than a
+  // bug and would never have reported itself.
   const boxFor = (side, roster) => {
     const box = {};
     for (const slot of Object.keys(roster)) {
       const mine = drives.filter((d) => d.team === side && d.scorerSlot === slot);
-      box[slot] = { td: mine.length, pts: mine.reduce((s, d) => s + d.points, 0) };
+      const line = {
+        pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
+        rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0,
+        td: 0, pts: 0,
+      };
+      for (const d of mine) {
+        line.pts += d.points;
+        // Yards the scorer is credited with: how far the drive travelled. Not
+        // a full play-by-play, but it is the drive he finished, which is the
+        // honest unit this model works in.
+        const gained = Math.max(0, d.endYard - d.startYard);
+        if (d.outcome === "fieldGoal") {
+          line.fgs += 1;
+        } else if (d.kind === "rush") {
+          line.rush_tds += 1; line.rush_yds += gained; line.td += 1;
+        } else {
+          line.rec_tds += 1; line.rec_yds += gained; line.td += 1;
+          // A passing touchdown is the quarterback's too - the receiver caught
+          // it, somebody threw it, and a QB with no passing yards on a scoring
+          // drive would be a strange thing for a box score to claim.
+          const qb = box.QB || (box.QB = { pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
+            rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0, td: 0, pts: 0 });
+          if (slot !== "QB") { qb.pass_tds += 1; qb.pass_yds += gained; }
+        }
+      }
+      box[slot] = box[slot] ? Object.assign(box[slot], line, {
+        pass_yds: (box[slot].pass_yds || 0) + line.pass_yds,
+        pass_tds: (box[slot].pass_tds || 0) + line.pass_tds,
+      }) : line;
+    }
+    // Turnovers land on the defensive unit credited with them, so a drafted
+    // ball-hawking secondary shows up in the box score as well as the recap.
+    for (const d of drives.filter((x) => x.team !== side && x.outcome === "turnover" && x.credit)) {
+      const unit = box[d.credit];
+      if (unit) unit.ints += 1;
     }
     return box;
   };

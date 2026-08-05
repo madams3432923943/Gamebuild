@@ -25,7 +25,10 @@ const REQUIRED_FUNCTIONS = [
   "defaultMinutes", "botMinutes", "defaultMatchups",
 ];
 
-const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels"];
+const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels",
+  // The profile screen builds its records and career totals from these, so a
+  // sport without its own would show basketball's categories under its tab.
+  "statKeys", "lineKeys", "statLabels"];
 
 /** Hooks whose ARITY shared code depends on. A signature mismatch is invisible
  * - NFL's playersInEra took (eraId) while shared code passes (players, eraId),
@@ -44,6 +47,13 @@ for (const meta of SPORTS) {
   for (const key of REQUIRED_VALUES) if (sport?.[key] === undefined) missing.push(key);
   // A slot list shared code iterates must actually exist for both modes.
   if (!sport?.slots?.quickPlay?.length || !sport?.slots?.ranked?.length) missing.push("slots.quickPlay/ranked");
+  // Every label must name a real box-score key, or the profile promises a
+  // record the simulation never produces. NFL's engine emits {td, pts} per
+  // slot while its labels advertise passing and rushing yards - a record that
+  // can never be set, and nothing else would have caught it.
+  for (const key of Object.keys(sport?.statLabels || {})) {
+    if (!(sport.lineKeys || []).includes(key)) missing.push(`statLabels.${key} is not in lineKeys`);
+  }
   for (const [fn, arity] of Object.entries(REQUIRED_ARITY)) {
     if (typeof sport?.[fn] === "function" && sport[fn].length < arity) {
       missing.push(`${fn}() takes ${sport[fn].length} args, shared code passes ${arity}`);
