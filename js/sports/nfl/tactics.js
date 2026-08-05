@@ -99,3 +99,94 @@ export function randomTacticChoices(count = 3) {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// FIT: why there is no single right answer
+// ---------------------------------------------------------------------------
+//
+// A flat multiplier makes one style strongest for everybody, and then ranked
+// measures whether you picked style 5 rather than whether you know football.
+// The fix is that a style's strength depends on the ROSTER running it.
+//
+// Lamar Jackson is the clearest case: he rushes for more than most backs, so
+// Ground & Pound with him is a different proposition than Ground & Pound with
+// a statue at quarterback. Peyton Manning wants Air Raid. A secondary full of
+// ball hawks wants Ball Hawks; one that just tackles well does not.
+//
+// Each style below scores its own fit from the drafted roster, 0..1 with 0.5
+// neutral, and the mods are scaled by it - a style you built for gets close to
+// its full effect, one you did not gets a fraction. Nobody is punished for
+// choosing "wrong", they simply get less of a bonus they were not set up for.
+//
+// This also means the old "which style wins most against mirror rosters" test
+// is the wrong measure. The right one is whether the BEST style differs across
+// rosters, which is what tools/calibrate-gamestyles.mjs should be checking.
+//
+// MEASURED, AND NOT THERE YET. Fit does what it should - Lamar Jackson 2019
+// scores 0.76 on Ground & Pound against Peyton Manning 2013's 0.39, off 80.4
+// rushing yards a game against MINUS 1.9 - but the simulated best style is
+// still Vertical Attack for both rosters, and Ground & Pound is Lamar's WORST
+// at 46.1%.
+//
+// The cause is the base mods, not the fit machinery. Ground & Pound cuts pace
+// to 0.88 and explosive to 0.82, shedding more than any fit bonus can return.
+// Fit scales a modifier; it cannot rescue one that is net-negative before
+// scaling. Those base numbers are the PROVISIONAL placeholders that have never
+// been through a calibrator, and until they are, style choice is still partly
+// a right answer rather than a read on your lineup.
+
+/** Percentile-ish helper: turns a raw per-game stat into 0..1 against a
+ * plausible ceiling. Crude on purpose - fit only has to rank styles against
+ * each other for one roster, not measure anything absolutely. */
+const scale = (value, ceiling) => Math.max(0, Math.min(1, (Number(value) || 0) / ceiling));
+
+const qb = (r) => r.QB || {};
+const rb = (r) => r.RB || {};
+const wrs = (r) => [r.WR1, r.WR2, r.WR3].filter(Boolean);
+const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+/** How well each style suits the roster that chose it. */
+export const FIT = {
+  // Suits everyone equally - that is what balanced means, and it is the
+  // baseline the others are worth more or less than.
+  balanced: () => 0.5,
+
+  // Volume passing and receivers who can carry it.
+  "air-raid": (r) => 0.5 * scale(qb(r).pass_yds, 300) + 0.5 * scale(mean(wrs(r).map((w) => w.rec_yds)), 85),
+
+  // The Lamar Jackson case. A quarterback's OWN rushing counts as much as the
+  // back's, because a running quarterback is what makes this style frightening
+  // rather than merely stubborn.
+  "ground-and-pound": (r) => 0.45 * scale(rb(r).rush_yds, 110) + 0.35 * scale(qb(r).rush_yds, 55) + 0.2 * scale(rb(r).rush_td, 1),
+
+  // Accuracy and catch volume over yardage - the short game.
+  "west-coast": (r) => 0.5 * scale(mean(wrs(r).map((w) => w.rec)), 6.5) + 0.3 * scale((r.TE || {}).rec, 5) + 0.2 * (1 - scale(qb(r).ints, 1.4)),
+
+  // Yards per target is the separation proxy the dataset actually has.
+  "vertical-attack": (r) => 0.6 * scale(mean(wrs(r).map((w) => w.ypt)), 10.5) + 0.4 * scale(qb(r).pass_td, 2.2),
+
+  "lockdown-defense": (r) => 0.5 * scale((r.CB || {}).pd, 3) + 0.5 * scale((r.S || {}).pd, 2.2),
+  "blitz-brigade": (r) => 0.7 * scale((r.DL || {}).sacks, 3) + 0.3 * scale((r.LB || {}).sacks, 1.5),
+  "steel-curtain": (r) => 0.6 * scale((r.DL || {}).tackles, 14) + 0.4 * scale((r.LB || {}).tackles, 19),
+  "ball-hawks": (r) => 0.4 * scale((r.S || {}).ints, 0.55) + 0.4 * scale((r.CB || {}).ints, 0.7) + 0.2 * scale((r.LB || {}).ff, 0.4),
+  "special-teams-edge": (r) => scale((r.ST || {}).fg_pct, 0.92),
+};
+
+export const fitFor = (tactic, roster) => {
+  const fn = FIT[tactic?.id];
+  if (!fn || !roster) return 0.5;
+  const v = fn(roster);
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5;
+};
+
+/** Mods scaled by how well the roster suits the style. A perfect fit gets the
+ * full modifier, a poor one gets about a third of it - and the DOWNSIDES scale
+ * too, so a style you are not built for is weak rather than actively punishing.
+ * That keeps a wrong choice a missed opportunity instead of a trap. */
+export function scaledModsFor(tactic, roster) {
+  const base = modsFor(tactic);
+  const strength = 0.35 + 1.3 * fitFor(tactic, roster);
+  const out = {};
+  for (const [key, value] of Object.entries(base)) out[key] = 1 + (value - 1) * strength;
+  return out;
+}

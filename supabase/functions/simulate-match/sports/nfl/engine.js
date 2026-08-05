@@ -86,7 +86,7 @@ import {
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
 } from "./constants.js";
 import { buildRatingContext, rateEntry, isUnit } from "./units.js";
-import { modsFor } from "./tactics.js";
+import { scaledModsFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
   return buildRatingContext(players, units);
@@ -303,8 +303,9 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
 export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
-  const modsA = modsFor(opts.tacticA);
-  const modsB = modsFor(opts.tacticB);
+  // Scaled by roster fit, so a style is worth what your lineup makes it worth.
+  const modsA = scaledModsFor(opts.tacticA, rosterA);
+  const modsB = scaledModsFor(opts.tacticB, rosterB);
 
   // Who won the toss and what they chose. Both default to random so an
   // automated or bot game still gets an unbiased one - a missing toss must
