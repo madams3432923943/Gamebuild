@@ -9,11 +9,26 @@ import { activeSport } from "./sports/index.js";
 
 /** Groups the flat PLAYERS array into squads keyed by "Team|Decade". */
 export function buildSquads(players) {
+  // Group by the SPORT's own key. This read p.decade unconditionally, and
+  // football rows carry `era` - so every Raiders season from 2000 to 2024
+  // collapsed into one squad keyed "Las Vegas Raiders|undefined". That is why
+  // an All Years draft showed no era in the banner and drafted from every
+  // season at once instead of rolling one.
+  //
+  // With this, All Years means what it should: each round rolls a specific
+  // team AND a specific era, drawn from the whole range. The era is part of
+  // the roll, not something the mode discards.
+  const groupKey = activeSport().groupKey;
   const map = new Map();
   for (const p of players) {
-    const key = `${p.team}|${p.decade}`;
+    const group = p[groupKey];
+    const key = `${p.team}|${group}`;
     if (!map.has(key)) {
-      map.set(key, { id: key, team: p.team, decade: p.decade, players: [] });
+      // Written under the sport's key AND as `decade`, because shared code and
+      // stored match rows have said "decade" since before a second sport
+      // existed. Renaming that field reaches into the database; carrying both
+      // does not.
+      map.set(key, { id: key, team: p.team, [groupKey]: group, decade: group, players: [] });
     }
     map.get(key).players.push(p);
   }

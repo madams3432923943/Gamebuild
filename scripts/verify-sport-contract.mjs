@@ -27,6 +27,11 @@ const REQUIRED_FUNCTIONS = [
 
 const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels"];
 
+/** Hooks whose ARITY shared code depends on. A signature mismatch is invisible
+ * - NFL's playersInEra took (eraId) while shared code passes (players, eraId),
+ * so it filtered on nothing and the era picker silently did nothing. */
+const REQUIRED_ARITY = { playersInEra: 2 };
+
 let failures = 0;
 for (const meta of SPORTS) {
   if (!meta.live) {
@@ -39,6 +44,11 @@ for (const meta of SPORTS) {
   for (const key of REQUIRED_VALUES) if (sport?.[key] === undefined) missing.push(key);
   // A slot list shared code iterates must actually exist for both modes.
   if (!sport?.slots?.quickPlay?.length || !sport?.slots?.ranked?.length) missing.push("slots.quickPlay/ranked");
+  for (const [fn, arity] of Object.entries(REQUIRED_ARITY)) {
+    if (typeof sport?.[fn] === "function" && sport[fn].length < arity) {
+      missing.push(`${fn}() takes ${sport[fn].length} args, shared code passes ${arity}`);
+    }
+  }
 
   if (missing.length) {
     failures++;

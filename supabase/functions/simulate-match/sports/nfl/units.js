@@ -188,8 +188,20 @@ function percentile(sorted, value) {
 
 /** Clamped away from the ends: 0 would mean an offence that can never move the
  * ball and 1 an unstoppable one, and both make the drive model degenerate. The
- * best real offences still punt a third of the time. */
-const clamp = (v) => Math.max(0.06, Math.min(0.97, v));
+ * best real offences still punt a third of the time.
+ *
+ * The clamp is for the SIMULATION, and it used to flatten the top of the board
+ * as a side effect: every elite player pinned at exactly 0.97, so Quick Play's
+ * best-first list put Peyton Manning fifth on his own Colts behind four
+ * team-mates tied with him. Compressing into the last sliver instead of
+ * truncating keeps the drive model's ceiling while preserving the ORDER, which
+ * is the whole point of a list you are reading to learn who mattered. */
+const clamp = (v) => {
+  if (v <= 0.06) return 0.06;
+  if (v < 0.92) return v;
+  // 0.92..1 maps onto 0.92..0.97, so ranking survives at the top.
+  return 0.92 + (v - 0.92) * (0.05 / 0.08);
+};
 
 /** Rate one drafted player, 0..1 among others at his position.
  *

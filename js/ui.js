@@ -281,7 +281,26 @@ export function renderPool(
       renderNote(container, "No players on this squad match that search.");
       return;
     }
-    for (const { lead, seasons } of groupBySeason(players)) {
+    // Best first. Practice mode is for LEARNING a squad, and alphabetical or
+    // dataset order buries the players worth knowing among the ones who took
+    // twelve snaps. Sorted by the sport's own rating, so the top of the list is
+    // the answer to "who mattered on this team" - which is the thing a player
+    // is here to find out.
+    //
+    // Ranked is deliberately NOT sorted: there is no list there to sort, and
+    // handing over a ranked-by-quality board would replace recall with reading.
+    const rate = activeSport().rate;
+    const grouped = groupBySeason(players);
+    if (typeof rate === "function") {
+      const best = new Map();
+      for (const g of grouped) {
+        // A player is worth what his BEST drafted season is worth, not his
+        // average - you can pick that season, so it is what he offers.
+        best.set(g, Math.max(...g.seasons.map((p) => rate(p) ?? 0)));
+      }
+      grouped.sort((a, b) => best.get(b) - best.get(a));
+    }
+    for (const { lead, seasons } of grouped) {
       renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, true, slots, seasons, onPickSeason);
     }
     return;

@@ -219,10 +219,14 @@ export const NFL = {
 
   /** Everything draftable in one era: individuals and units together, since
    * the draft board offers them side by side. "all" is every season. */
-  playersInEra: (eraId) => {
+  // Signature must match NBA's (players, eraId) - shared code calls
+  // sport().playersInEra(sport().players(), game.era). NFL took only an eraId,
+  // so it received the PLAYER ARRAY as its era and filtered on nothing: the era
+  // picker did nothing at all and All Years drafted the same pool as 2010s.
+  playersInEra: (players, eraId) => {
     const era = NFL.eraById(eraId);
-    const inEra = (row) => !era.decades || era.decades.includes(row.era);
-    return [...NFL_PLAYERS.filter(inEra), ...NFL_UNITS.filter(inEra)];
+    const inEra = (row) => !era?.decades || era.decades.includes(row.era);
+    return (players ?? [...NFL_PLAYERS, ...NFL_UNITS]).filter(inEra);
   },
 
   // MEMOISED, and it has to be. Building this sorts a composite score for
