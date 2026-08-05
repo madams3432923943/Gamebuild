@@ -2715,7 +2715,14 @@ function runLocalSimulation() {
     // narrates the same numbers the simulation actually used.
     analysis: result.analysis && result.analysis.a,
     onComplete: () => {
-      const ownLines = draft.slots.map((slot) => ({ playerName: draft.rosterA[slot].name, line: result.boxA[slot] }));
+      // Carries the season too: the roster entry knows which year was drafted,
+      // and the record books need it or "Most Points - Luka Doncic" no longer
+      // identifies a player.
+      const ownLines = draft.slots.map((slot) => ({
+        playerName: draft.rosterA[slot].name,
+        season: draft.rosterA[slot].season ?? null,
+        line: result.boxA[slot],
+      }));
 
       const resultWritten = recordPracticeResult({
         mode: "offline",

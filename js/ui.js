@@ -355,7 +355,14 @@ function splitCell(makes, attempts) {
 }
 
 function boxRow(slotLabel, player, line, shots, minutes) {
-  const meta = player.team ? `<div class="box-meta">${escapeHtml(player.team)} ${escapeHtml(player.decade || "")}</div>` : "";
+  // The year, not the decade. This row is claiming 45 points were scored, and
+  // the 2017 Isaiah Thomas and the 2010s Celtics average of him are different
+  // players - naming the wrong one makes the line unverifiable.
+  //
+  // Full team name rather than seasonLabel()'s nickname: this table is wide,
+  // and the nickname exists only to stop draft cards wrapping on a phone.
+  const era = player.season || player.decade || "";
+  const meta = player.team ? `<div class="box-meta">${escapeHtml(player.team)} ${escapeHtml(String(era))}</div>` : "";
   return (
     `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}${meta}</td>` +
     `<td>${minutes == null ? "-" : r(minutes)}</td>` +
@@ -1215,7 +1222,7 @@ export function renderProfileScreen(
       refs.topPerformances.appendChild(
         best
           ? performanceRow(
-              `${label} — ${escapeHtml(best.playerName)}`,
+              `${label} — ${escapeHtml(best.season ? `${best.season} ${best.playerName}` : best.playerName)}`,
               `${r(best.value)} — ${new Date(best.date).toLocaleDateString()}`,
               best.game,
               onOpenGame

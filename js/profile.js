@@ -333,6 +333,13 @@ export async function recordDraftPicks(playerNames, sport = DEFAULT_SPORT_ID) {
  * only, granted server-side (see the award_banner_progress trigger), because
  * anything the client can grant itself isn't worth earning.
  */
+/** The season a drafted player was taken as, for the record books. ownLines
+ * carries the roster entry, which is where the chosen year lives. */
+function seasonOf(ownLines, playerName) {
+  const entry = ownLines.find((l) => l.playerName === playerName);
+  return entry?.season ?? entry?.player?.season ?? null;
+}
+
 export async function recordPracticeResult({
   mode,
   era = "all",
@@ -391,7 +398,10 @@ export async function recordPracticeResult({
       const value = line[statKey];
       const current = personalBests[key];
       if (!current || value > current.value) {
-        personalBests[key] = { value, playerName, date, game: gameSnapshot };
+        // The season is part of the record now. "Most Points - Luka Doncic"
+        // is ambiguous once a name means seven different players; "2023 Luka
+        // Doncic" is the fact worth keeping.
+        personalBests[key] = { value, playerName, season: seasonOf(ownLines, playerName), date, game: gameSnapshot };
       }
     }
   }

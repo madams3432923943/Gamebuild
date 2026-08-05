@@ -112,7 +112,13 @@ function bumpEraRecord(records: Record<string, any>, eraKey: string, won: boolea
 }
 
 const ownLinesFor = (roster: Record<string, any>, box: Record<string, any>) =>
-  Object.keys(roster).map((slot) => ({ playerName: roster[slot].name, line: box[slot] }));
+  Object.keys(roster).map((slot) => ({
+    playerName: roster[slot].name,
+    // submit_pick writes the chosen season into the roster jsonb, so the
+    // record books can say WHICH Doncic set a personal best.
+    season: roster[slot].season ?? null,
+    line: box[slot],
+  }));
 
 /** Strips a roster to what a stored box score needs to re-render later - the
  * server's copy of snapshotRoster() in js/profile.js. Keeping pos and the
@@ -139,7 +145,7 @@ async function applyMatchOutcome(
   scoreFor: number,
   scoreAgainst: number,
   mvpName: string,
-  ownLines: { playerName: string; line: Record<string, number> }[],
+  ownLines: { playerName: string; season?: number | null; line: Record<string, number> }[],
   friendly: boolean,
   sport: string,
   era: string,
@@ -164,11 +170,11 @@ async function applyMatchOutcome(
 
   const personalBests: Record<string, any> = { ...(profile.personal_bests || {}) };
   for (const statKey of STAT_LABELS) {
-    for (const { playerName, line } of ownLines) {
+    for (const { playerName, season, line } of ownLines) {
       const value = line[statKey];
       const current = personalBests[key(statKey)];
       if (!current || value > current.value) {
-        personalBests[key(statKey)] = { value, playerName, date, game };
+        personalBests[key(statKey)] = { value, playerName, season: season ?? null, date, game };
       }
     }
   }

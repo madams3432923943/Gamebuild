@@ -1,0 +1,13 @@
+-- Record which season a pick was made as.
+--
+-- A client rebuilding a draft from match_picks had only (name, team, decade) to
+-- look stats up by. That was a unique key when players had one row per decade;
+-- since the dataset went per-season it covers up to ten rows, so the client
+-- attached an arbitrary year's stat line to the pick. Your screen could show
+-- the right name over the wrong numbers.
+--
+-- get_visible_picks returns SETOF match_picks, so it carries the new column
+-- with no change to the function and no risk to the round-reveal rule it
+-- enforces. Left nullable: picks already made cannot say which year they meant,
+-- and inventing one would be worse than admitting it.
+alter table public.match_picks add column if not exists season integer;

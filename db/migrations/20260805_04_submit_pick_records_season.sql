@@ -1,0 +1,14 @@
+-- submit_pick writes the resolved season onto the pick row.
+--
+-- It already resolved the right player (20260805_02) - it just threw away which
+-- year it had found, leaving the client to guess.
+--
+-- Also drops the pre-season overload. It resolved a player with a bare
+-- `limit 1`, taking whichever of his ten rows came back first, and PostgREST
+-- picks an overload by argument NAMES - so leaving it in place kept a live path
+-- that silently drafted the wrong year. The remaining function defaults both
+-- new arguments, so it still answers the 5- and 6-argument calls the old one
+-- served.
+--
+-- The full body is in the applied migration; see supabase/ or pg_get_functiondef.
+drop function if exists public.submit_pick(uuid, text, text, text, text, boolean);

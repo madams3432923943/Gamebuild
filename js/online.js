@@ -75,7 +75,15 @@ export async function fetchStatsForPicks(picks) {
   const squads = await Promise.all([...pairs.values()].map(({ team, decade }) => fetchSquadPlayers(team, decade)));
   const statsByKey = new Map();
   for (const squad of squads) {
-    for (const p of squad) statsByKey.set(`${p.name}|${p.team}|${p.decade}`, p);
+    for (const p of squad) {
+      statsByKey.set(`${p.name}|${p.team}|${p.decade}|${p.season}`, p);
+      // Also under the season-less key, for picks made before match_picks
+      // recorded a season. Those rows cannot say which year they meant, so the
+      // first season seen is the only answer available - the old behaviour,
+      // reached only by old data.
+      const loose = `${p.name}|${p.team}|${p.decade}`;
+      if (!statsByKey.has(loose)) statsByKey.set(loose, p);
+    }
   }
   return statsByKey;
 }
@@ -85,9 +93,11 @@ export async function fetchStatsForPicks(picks) {
  * committed (revealed or not) this round.
  *
  * `statsByKey` (optional, from fetchStatsForPicks) keys stats by
- * name|team|decade rather than just name, since the same player can appear
- * in more than one squad (e.g. a player traded mid-career) - without the
- * team/decade in the key a lookup could silently grab the wrong season.
+ * name|team|decade|season. Every part earns its place: the same player appears
+ * in more than one squad (traded mid-career), and since the dataset went
+ * per-season a name|team|decade key covers up to ten different rows - so
+ * without the season a lookup grabs an arbitrary year and prints one player's
+ * stat line under another's pick.
  * Without it, a roster slot only carries name/team/decade/pos, which is
  * enough to render a draft board but not enough for shotLine() to produce a
  * shooting split on the post-game box score. */
@@ -100,11 +110,14 @@ export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
     if (p.round_number === currentRound) actedThisRound[p.side] = true;
     if (p.action !== "pick") continue;
     const roster = p.side === "A" ? rosterA : rosterB;
-    const stats = statsByKey.get(`${p.player_name}|${p.team}|${p.decade}`);
+    const stats =
+      statsByKey.get(`${p.player_name}|${p.team}|${p.decade}|${p.season}`) ??
+      statsByKey.get(`${p.player_name}|${p.team}|${p.decade}`);
     roster[p.slot] = {
       name: p.player_name,
       team: p.team,
       decade: p.decade,
+      season: p.season ?? stats?.season ?? null,
       pos: [p.slot === "6TH" ? "6TH" : p.slot],
       ...(stats && {
         ppg: stats.ppg,
@@ -134,6 +147,7 @@ export async function fetchSquadPlayers(team, decade) {
     name: p.name,
     team: p.team,
     decade: p.decade,
+    season: p.season ?? null,
     pos: p.pos,
     ppg: Number(p.ppg),
     rpg: Number(p.rpg),
