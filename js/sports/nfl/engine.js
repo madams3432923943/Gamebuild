@@ -79,6 +79,43 @@
 // quarterBoxScores stays in the return for the existing screens, but it is a
 // SUMMARY OF `drives`, derived from it, never tracked in parallel. Two writers
 // for one truth is how a scoreboard and a play-by-play end up disagreeing.
+//
+// ---------------------------------------------------------------------------
+// THE PLAYBACK THIS FEEDS - NOT BUILT YET
+// ---------------------------------------------------------------------------
+//
+// The engine is done and correct: a Quick Play roster simulates 34-27 over 22
+// drives with named scorers and continuous field position. What does NOT exist
+// is a football way to WATCH it. NFL currently renders through playOutResult(),
+// which is basketball's playback - it counts quarters up and draws a
+// PTS/REB/AST table, so a football game arrives as an empty basketball box
+// score. That is the whole of the "it simmed a basketball game" report.
+//
+// What it should be, per the design call:
+//
+//   A FIELD, not a table. One horizontal field, 0 to 100. The ball moves from
+//   startYard to endYard for each drive, then the possession flips and it
+//   moves the other way - which is why nextStart() exists and why a punt has
+//   to change the opponent's starting position rather than resetting to 25.
+//
+//   EACH ENDZONE IS A PLAYER'S BANNER. The two endzones are the two drafters'
+//   equipped banners, so you can see whose goal line the ball is approaching
+//   without reading a label. Banners already exist per profile
+//   (profiles.equipped_banner) and are already rendered elsewhere.
+//
+//   POPUPS ON THE SCORE. drive.text is written ready to show - "Zay Flowers
+//   receiving touchdown", "Field goal by Justin Tucker", "Richard Sherman
+//   interception". It is a sentence, not a stat, precisely so it can be
+//   surfaced as it happens.
+//
+//   THE BOX SCORE IS FOOTBALL'S. boxA/boxB already carry pass_yds, rush_yds,
+//   rec_yds, tds, ints, fumbles and fgs per slot - the columns js/ui.js draws
+//   are still hardcoded to basketball's six (see LINE_KEYS there), which is
+//   the other half of why the table read PTS/REB/AST.
+//
+// None of this needs engine changes. Everything the view wants is already in
+// the return value; what is missing is a per-sport playback the way there is
+// already a per-sport engine.
 
 import {
   DRIVES_PER_TEAM, BASE_POINTS_PER_DRIVE, DRIVE_START_YARD, FG_RANGE_YARD,
