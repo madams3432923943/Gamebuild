@@ -1,27 +1,13 @@
-// Tunable constants for the simulation engine. Keeping these in one place
+// Tunable constants for the NBA simulation engine. Keeping these in one place
 // makes balance passes (the kind of thing that produced the 1.55 ceiling
 // and the 0.0035 compression coefficient) auditable without hunting through
 // engine logic.
-
-// Every sport the game advertises, whether playable yet or not - the one
-// place a sport gets registered, so the home screen tiles, badge/banner
-// subtabs, and online play's sport scoping all agree on the same list
-// instead of drifting copies. Each live sport is expected to bring its own
-// engine and player dataset (see js/sports/nba/engine.js's header comment) rather than
-// share NBA's - `live` here just gates whether that engine/dataset/draft
-// flow actually exists yet.
-export const SPORTS = [
-  { id: "nba", name: "NBA", icon: "🏀", live: true },
-  { id: "nfl", name: "NFL", icon: "🏈", live: false },
-  { id: "nhl", name: "NHL", icon: "🏒", live: false },
-  { id: "soccer", name: "Soccer", icon: "⚽", live: false },
-];
-
-// Online matchmaking/challenges need a sport to scope to. Hardcoded rather
-// than read from a selector because there isn't one yet - NBA is the only
-// sport with a real online draft flow. Swap this for real sport selection
-// once a second sport goes live.
-export const DEFAULT_SPORT = "nba";
+//
+// This file is BASKETBALL. It used to live at js/constants.js mixed in with
+// the app's UI timers, which meant every screen that wanted a pick-clock
+// duration also imported the talent-parity coefficient, and a second sport
+// had nowhere to put its own version of any of it. The app-wide half stayed
+// behind; everything here moved.
 
 export const SLOTS = ["PG", "SG", "SF", "PF", "C", "6TH"];
 export const STARTER_SLOTS = ["PG", "SG", "SF", "PF", "C"];
@@ -252,8 +238,8 @@ export const VARIANCE_MAX = 1.18;
 // AFTER talent parity below, which is what makes it bite: rolled before
 // compression, the gap and the noise shrink together and quarters never
 // change hands.
-export const TEAM_QUARTER_VARIANCE_MIN = 0.74;
-export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
+export const TEAM_QUARTER_VARIANCE_MIN = 0.66;
+export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
 
 // How much of a roster's talent advantage actually reaches the scoreboard.
 //
@@ -292,7 +278,7 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 // in four requires a real talent edge, and a real edge shows up on the
 // scoreboard. Tuning parity down trades win rate for a closer scoreline; the
 // knob is here if that trade is ever worth revisiting.
-export const TALENT_PARITY = 0.84;
+export const TALENT_PARITY = 0.371;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's

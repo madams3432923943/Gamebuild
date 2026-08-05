@@ -238,8 +238,8 @@ export const VARIANCE_MAX = 1.18;
 // AFTER talent parity below, which is what makes it bite: rolled before
 // compression, the gap and the noise shrink together and quarters never
 // change hands.
-export const TEAM_QUARTER_VARIANCE_MIN = 0.74;
-export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
+export const TEAM_QUARTER_VARIANCE_MIN = 0.66;
+export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
 
 // How much of a roster's talent advantage actually reaches the scoreboard.
 //
@@ -278,7 +278,7 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.26;
 // in four requires a real talent edge, and a real edge shows up on the
 // scoreboard. Tuning parity down trades win rate for a closer scoreline; the
 // knob is here if that trade is ever worth revisiting.
-export const TALENT_PARITY = 0.84;
+export const TALENT_PARITY = 0.371;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's
