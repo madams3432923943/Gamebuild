@@ -219,7 +219,10 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
 
   const meta = document.createElement("div");
   meta.className = "modal-player-meta";
-  meta.textContent = `${player.pos.join(" / ")} · ${player.team} ${player.decade}`;
+  // The season, not the decade: by this point a year has been chosen and the
+  // slot picker should confirm which one, or the last thing you see before
+  // committing disagrees with what you committed to.
+  meta.textContent = `${player.pos.join(" / ")} · ${player.season || player.decade} ${player.team}`;
   wrap.appendChild(meta);
 
   // Bench spots are interchangeable, so offering five identical "Bench"

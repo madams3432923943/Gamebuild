@@ -57,6 +57,25 @@ function rosterSlots(roster) {
 }
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
 
+/** "2023 Mavericks" - which version of a player is actually on the roster.
+ *
+ * The year is the point. Two people can both draft Doncic off the Mavs 2020s
+ * and end up with different players, so a card reading only "Luka Doncic
+ * (Dallas Mavericks 2020s)" hides the half of the pick that was a decision.
+ *
+ * Nickname rather than the full team name because the season goes in front of
+ * it and "2023 Dallas Mavericks" is a mouthful that wraps on a phone. The last
+ * word is how every one of these teams is spoken about - Mavericks, Lakers,
+ * Blazers, SuperSonics - so it needs no lookup table to stay right.
+ *
+ * Falls back to the decade for any row with no season, so a dataset that
+ * hasn't been rebuilt still renders something true.
+ */
+function seasonLabel(player) {
+  const nickname = String(player.team || "").split(" ").pop();
+  return `${player.season || player.decade} ${nickname}`;
+}
+
 /**
  * @param eligibleSlotsForPendingPlayer null when no player is pending yet
  *   (all slots shown as plain status, none clickable) - or an array of the
@@ -123,7 +142,7 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       // A bench slot doesn't say what the player is, so his position rides
       // next to his name - that's the information you need to judge depth.
       const pos = activeSport().isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
-      value.textContent = `${player.name}${pos} (${player.team} ${player.decade})`;
+      value.textContent = `${player.name}${pos} — ${seasonLabel(player)}`;
     } else {
       value.className = "slot-empty";
       value.textContent = "open";
