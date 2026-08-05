@@ -484,8 +484,17 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     refs.card.style.setProperty("--art-c2", franchise.colors[1]);
     // Real artwork wins over the generated pattern.
     refs.card.classList.toggle("has-banner-image", !!franchise.image);
-    if (franchise.image) refs.card.style.setProperty("--banner-image", `url("${franchise.image}")`);
-    else refs.card.style.removeProperty("--banner-image");
+    // Resolved against the DOCUMENT, not left relative. A relative url() inside
+    // a custom property resolves against the STYLESHEET that consumes it, so
+    // "assets/banners/X.png" became "css/assets/banners/X.png" and 404'd - the
+    // card silently fell back to its gradient. The tiles never hit this because
+    // they set an <img src>, which resolves against the document. baseURI
+    // rather than a leading slash, since Pages serves this from /Gamebuild/.
+    if (franchise.image) {
+      refs.card.style.setProperty("--banner-image", `url("${new URL(franchise.image, document.baseURI).href}")`);
+    } else {
+      refs.card.style.removeProperty("--banner-image");
+    }
     if (franchise.art && !franchise.image) {
       refs.card.classList.add(`banner-art-${franchise.art}`);
       refs.card.dataset.bannerArt = franchise.art;

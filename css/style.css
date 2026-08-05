@@ -1731,8 +1731,15 @@ table.box-table th, table.history-table th {
    fade. A patterned one (camo, crew tier, Founder) keeps the banner-art-*
    class it was given in renderHomeHeader - written as :not() rather than
    letting the two rules fight, since .player-banner.has-banner outranks a
-   single .banner-art-* class and would silently win. */
-.player-banner.has-banner:not([data-banner-art]) {
+   single .banner-art-* class and would silently win.
+
+   A real PNG banner needs the same exemption for the same reason, and it is
+   worth spelling out because this rule beat it twice over: it outranks
+   .player-banner.has-banner-image on specificity (0,3,0 against 0,2,0), AND
+   `background` is the shorthand, which resets background-image even on a tie.
+   Equipping Volcanic showed a plain orange fade on the home card while the
+   same banner rendered correctly as a tile. */
+.player-banner.has-banner:not([data-banner-art]):not(.has-banner-image) {
   background: linear-gradient(180deg, var(--banner-c1) 0%, var(--banner-c2) 100%);
 }
 

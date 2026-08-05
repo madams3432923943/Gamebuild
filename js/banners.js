@@ -16,6 +16,11 @@
 //    below. No player likenesses, nothing to license, and it scales to every
 //    team without commissioning a single asset.
 
+// The era-mastery ladder needs to know which brackets a sport HAS, and how a
+// per-era record is keyed. Both come from the registry rather than being
+// restated here, so the ladder follows a sport that changes its eras.
+import { activeSport, eraRecordKey } from "./sports/index.js";
+
 /** Players from a franchise you must draft in winning games to earn it. */
 export const BANNER_THRESHOLD = 10;
 
@@ -242,18 +247,33 @@ function bannerBase(t) {
   };
 }
 
-/** Longest run of wins in the stored history. A deliberate copy of the same
- * loop in winStreaks() (js/profile.js) - see the streak ladder below for why
- * it can't just import it. History is capped, so a streak older than the cap
- * is invisible; that only ever under-counts, never over-credits. */
-function longestWinStreak(profile) {
-  let longest = 0;
-  let run = 0;
-  for (const game of profile.history || []) {
-    run = game.won ? run + 1 : 0;
-    if (run > longest) longest = run;
+/** The fewest online wins this player has in any one era bracket.
+ *
+ * Reads era_records directly rather than through eraRecord() in js/profile.js,
+ * because profile.js imports THIS file for DEFAULT_BANNER_ID and importing
+ * back would be a cycle - the same reason the streak ladder this replaced
+ * inlined its own loop.
+ *
+ * Only the ONLINE counter counts. Practice is unverified, and a reward you can
+ * grant yourself against a bot isn't worth earning - the same rule every other
+ * ranked banner follows.
+ *
+ * The bracket list comes from the sport, not a hardcoded array, so this stays
+ * correct when a second sport brings its own eras. "All Years" is skipped: it
+ * is every player in the dataset, so winning there says nothing about knowing
+ * a particular decade.
+ */
+function winsInEveryEra(profile) {
+  const sport = activeSport();
+  const brackets = (sport.eras || []).filter((e) => e.id !== "all");
+  if (!brackets.length) return 0;
+  const records = profile.eraRecords || {};
+  let fewest = Infinity;
+  for (const era of brackets) {
+    const record = records[eraRecordKey(sport.id, era.id)] || {};
+    fewest = Math.min(fewest, record.online_wins || 0);
   }
-  return longest;
+  return fewest === Infinity ? 0 : fewest;
 }
 
 export const GENERAL_BANNERS = [
@@ -313,19 +333,20 @@ export const GENERAL_BANNERS = [
     },
   })),
 
-  // 3. Win streaks. Read off the same history the profile screen's streak
-  // stat uses (winStreaks in js/profile.js), computed inline here because
-  // profile.js imports THIS file for DEFAULT_BANNER_ID and importing back
-  // would be a cycle.
+  // 3. Era mastery. The MINIMUM online wins across every narrow era bracket,
+  // not the total: this is the one ladder that can't be farmed in a single
+  // decade, and taking the minimum is what forces breadth. "All Years" is
+  // excluded because it is the unfiltered pool - counting it would let one
+  // bracket carry the ladder and defeat the whole point.
   ...[
-    { file: "Volcanic", name: "Volcanic", need: 5, colors: ["#e0491a", "#1c0d07"] },
-    { file: "Crimson-Splat", name: "Crimson Splat", need: 10, colors: ["#b81f28", "#1a1416"] },
-    { file: "Good-Luck", name: "Good Luck", need: 15, colors: ["#2f8f5b", "#12251a"] },
+    { file: "Volcanic", name: "Volcanic", need: 1, colors: ["#e0491a", "#1c0d07"] },
+    { file: "Crimson-Splat", name: "Crimson Splat", need: 3, colors: ["#b81f28", "#1a1416"] },
+    { file: "Good-Luck", name: "Good Luck", need: 10, colors: ["#2f8f5b", "#12251a"] },
   ].map((t) => ({
     ...bannerBase(t),
-    blurb: `Win ${t.need} online games in a row.`,
+    blurb: `Win ${t.need} online game${t.need === 1 ? "" : "s"} in every era.`,
     progress: (profile) => {
-      const value = longestWinStreak(profile);
+      const value = winsInEveryEra(profile);
       return { value, required: t.need, unlocked: value >= t.need };
     },
   })),
@@ -336,16 +357,18 @@ export const GENERAL_BANNERS = [
   // condition is not, and would have to be taken away later. `pending` lets
   // the tile say so instead of showing 0% progress toward nothing.
   ...[
-    { file: "Woodland-Camo", name: "Woodland Camo", colors: ["#4b5320", "#2f3317"] },
-    { file: "Hunter", name: "Hunter", colors: ["#6b5b3e", "#241f14"] },
-    { file: "Stealth", name: "Stealth", colors: ["#3a3f45", "#111316"] },
-    { file: "Urban-Camo", name: "Urban Camo", colors: ["#9aa0a6", "#26292d"] },
+    { file: "Woodland-Camo", name: "Woodland Camo", need: 1, colors: ["#4b5320", "#2f3317"] },
+    { file: "Hunter", name: "Hunter", need: 5, colors: ["#6b5b3e", "#241f14"] },
+    { file: "Stealth", name: "Stealth", need: 15, colors: ["#3a3f45", "#111316"] },
+    { file: "Urban-Camo", name: "Urban Camo", need: 30, colors: ["#9aa0a6", "#26292d"] },
   ].map((t) => ({
     ...bannerBase(t),
     pending: true,
-    blurb: "Win a clan tournament. Clans are still being built.",
-    progress: () => ({ value: 0, required: 1, unlocked: false }),
-  })),
+    blurb: `Win ${t.need} clan tournament${t.need === 1 ? "" : "s"}. Clans are still being built.`,
+    // Always zero: there is nothing to count yet. The thresholds are real
+    // though, so the ladder reads as a climb now and needs no retuning when
+    // clans land - only a source for `value`.
+    progress: () => ({ value: 0, required: t.need, unlocked: false }),  })),
 ];
 
 export function generalBannerById(id) {
