@@ -521,6 +521,12 @@
        the time nothing is celebrating. See js/celebrate.js. -->
   <div id="celebration-layer" class="celebration-layer" aria-hidden="true"></div>
 
-  <script type="module" src="js/main.js"></script>
+  <!-- Version query busts the browser cache on every deploy. GitHub Pages
+       sends no cache-busting headers and browsers hold ES modules hard, so
+       four separate "the fix did not work" reports in a row turned out to
+       be stale JS. main.js changes on every deploy; its importees are
+       re-fetched because the module graph is revalidated when the entry
+       URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
+  <script type="module" src="js/main.js?v=e9c4cf5"></script>
 </body>
 </html>
