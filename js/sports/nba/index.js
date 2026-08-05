@@ -67,13 +67,16 @@ const TIERS = [
 // How the game is explained, in basketball's own terms. Moved out of main.js
 // because "five starters plus five bench spots" and "240 minutes" describe
 // this sport and no other.
+// Short on purpose. This is read once, standing up, before a first game -
+// long paragraphs get skipped and the rules that matter get missed with them.
+// One line each, and only the things you cannot work out from the screen.
 const HOW_TO_PLAY = [
-  ["The draft", "Every round rolls one team-and-decade squad - say Chicago Bulls 1990s - and both sides draft from that same squad. You are picking against the same options your opponent has, so it comes down to who knows the roster better."],
-  ["Naming players", "Under ranked rules there is no visible list: you type a name from memory. Spelling is forgiving, so remembering the player matters more than spelling him. Quick Play shows the whole squad with stats instead."],
-  ["Your roster", "Five starters, position-locked, plus five bench spots that take anyone. Bench players cover whichever position needs them, so someone who plays two positions is worth more than a specialist."],
-  ["Rotation", "240 minutes to spread across ten players, 10 to 40 each, and starters must play more than the bench. Push someone past 34 and he tires and gives production back, so loading your best five is a trade rather than a free win."],
-  ["Gamestyle", "Once both rosters are set you pick one of three gamestyles offered at random. Each one boosts something and pays for it elsewhere; none is simply strongest."],
-  ["Modes", "Quick Play is a relaxed five-a-side against the bot. Ranked Practice is the full ranked experience against the bot. Ranked is against a real opponent and is the only mode that moves your record."],
+  ["The draft", "Each round rolls one squad - say Bulls 1990s - and you both draft from it. Same options: it comes down to who knows the roster."],
+  ["Type from memory", "Ranked shows no list. Spelling is forgiving. Quick Play shows the whole squad with stats."],
+  ["Your roster", "Five starters, position-locked, plus five bench spots that take anyone. Two-position players are worth more."],
+  ["Rotation", "240 minutes across ten players. Past 34 a player tires and gives production back."],
+  ["Gamestyle", "Three offered at random. Each boosts something and pays for it elsewhere."],
+  ["Modes", "Quick Play is casual. Ranked Practice is the full game against a bot. Ranked moves your record."],
 ];
 
 export const NBA = {
