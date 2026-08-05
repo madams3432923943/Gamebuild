@@ -47,28 +47,39 @@ const COMPOSITES = {
 /** Same idea for units. Defensive groups are rated on what actually ends
  * drives - takeaways and pressure - rather than on tackles, which mostly count
  * how often the unit was on the field while the offence moved. */
-// KNOWN WRONG - see the eye-test results recorded below. These order most
-// units correctly but fail on two cases that matter, and the failures share a
-// cause: counting stats reward being on the field, and a defence that is on
-// the field constantly is usually a bad one.
+// TWO CORRECTIONS ARE BAKED IN HERE, both from failed eye tests.
 //
-//   2006 Bears linebackers rate 0.401. Urlacher and Briggs were one of the
-//   best corps ever, and the composite cannot see coverage - the thing that
-//   made them great - because the dataset has no coverage stat for linebackers.
+// SACKS ARE A SCHEME CHOICE, NOT A QUALITY (the 2006 Bears problem)
 //
-//   2008 Lions defensive line rates 0.744 on an 0-16 team. Opponents ran far
-//   more plays against them, so the tackle term rewards the volume that losing
-//   produced.
+// Urlacher and Briggs recorded 0.06 sacks a game between them and rated 484th
+// of 798 linebacker corps. They were not bad; they were a Tampa-2 unit, which
+// drops linebackers into coverage and asks the line for pressure. Weighting
+// sacks heavily for linebackers measures which SCHEME a team ran, then reports
+// it as talent. So the sack term is small for linebackers and secondaries, who
+// blitz only when a coordinator decides they should, and stays large for the
+// defensive line, whose whole job it is.
 //
-// The fix is to rate per-play rather than per-game, which needs a snaps or
-// opponent-plays column the import does not yet carry. Recorded here rather
-// than quietly tuned, because tuning coefficients until Chicago looks right
-// would be picking balance instead of solving it.
+// COUNTING STATS REWARD BEING ON THE FIELD (the 0-16 Lions problem)
+//
+// Detroit's 2008 line rated 0.744 because opponents ran far more plays against
+// them - a bad defence is on the field constantly, and every snap is another
+// chance to accumulate. Rating per GAME therefore pays teams for losing.
+//
+// The honest fix is per-play, and the proxy is already in the data: a team's
+// total defensive tackles across all four units is very nearly its plays
+// faced. Dividing by that turns every counting stat into a rate, so Detroit is
+// measured on what it did per opportunity rather than on how many
+// opportunities its offence handed over.
 const UNIT_COMPOSITES = {
-  DL: (r) => 12 * r.sacks + 8 * r.ff + 6 * r.ints + 2 * r.pd + 0.4 * r.tackles,
-  LB: (r) => 8 * r.sacks + 7 * r.ff + 7 * r.ints + 2.5 * r.pd + 0.5 * r.tackles,
-  CB: (r) => 14 * r.ints + 4 * r.pd + 4 * r.ff + 0.3 * r.tackles,
-  S: (r) => 13 * r.ints + 3.5 * r.pd + 5 * r.ff + 0.4 * r.tackles,
+  // The line is the one group whose job really is to get to the quarterback,
+  // so sacks stay dominant here and only here.
+  DL: (r) => 20 * r.sacks + 9 * r.ff + 6 * r.ints + 3 * r.pd + 0.5 * r.tackles,
+  // Coverage and run support, which is what a linebacker corps is for. Passes
+  // defended carry real weight because for a linebacker they are the only
+  // visible coverage evidence the dataset has.
+  LB: (r) => 3 * r.sacks + 9 * r.ff + 11 * r.ints + 7 * r.pd + 0.9 * r.tackles,
+  CB: (r) => 14 * r.ints + 5 * r.pd + 4 * r.ff + 0.3 * r.tackles,
+  S: (r) => 13 * r.ints + 4 * r.pd + 5 * r.ff + 0.4 * r.tackles,
   // The line has no counting stats, so the import derived a rating for it.
   // Sacks allowed is the pass-protection half, yards per carry the run half.
   OL: (r) => r.rating - 6 * r.sacks_allowed + 8 * r.ypc,
@@ -92,8 +103,39 @@ function depthFactor(depth) {
  * Short seasons are excluded from the DISTRIBUTION but still ratable against
  * it: a player who appeared in four games should not help define what a median
  * season looks like, though he still deserves a number. */
+/** Groups whose counting stats scale with how many plays the defence faced,
+ * and so have to be normalised. OL and ST are excluded: an offensive line's
+ * rating is already derived and a kicker's accuracy is a rate to begin with. */
+const LOAD_NORMALISED = new Set(["DL", "LB", "CB", "S"]);
+
+/** A team-season's total defensive tackles, which is very nearly the number of
+ * plays its defence was on the field for. The proxy the per-play fix needs,
+ * and it is already in the data - no snaps column required. */
+function buildLoadIndex(units) {
+  const load = new Map();
+  for (const row of units) {
+    if (!LOAD_NORMALISED.has(row.group)) continue;
+    const key = `${row.team}|${row.season}`;
+    load.set(key, (load.get(key) || 0) + (row.tackles || 0));
+  }
+  const values = [...load.values()].sort((a, b) => a - b);
+  const median = values[Math.floor(values.length / 2)] || 1;
+  return { load, median };
+}
+
+/** Scales a unit's counting stats to what they would have been at a league
+ * median workload. A defence that faced 15% more plays than average has its
+ * production divided by 1.15, so volume earned by losing stops counting as
+ * quality. Clamped because the extremes are usually short or odd seasons. */
+function loadFactor(row, index) {
+  if (!index || !LOAD_NORMALISED.has(row.group)) return 1;
+  const total = index.load.get(`${row.team}|${row.season}`);
+  if (!total || !index.median) return 1;
+  return Math.max(0.8, Math.min(1.25, total / index.median));
+}
+
 export function buildRatingContext(players, units) {
-  const ctx = { players: {}, units: {} };
+  const ctx = { players: {}, units: {}, load: buildLoadIndex(units) };
 
   for (const row of players) {
     for (const pos of row.pos || []) {
@@ -105,7 +147,7 @@ export function buildRatingContext(players, units) {
   for (const row of units) {
     const composite = UNIT_COMPOSITES[row.group];
     if (!composite || row.games < MIN_RATED_GAMES) continue;
-    (ctx.units[row.group] ||= []).push(composite(row));
+    (ctx.units[row.group] ||= []).push(composite(row) / loadFactor(row, ctx.load));
   }
 
   for (const bucket of [ctx.players, ctx.units]) {
@@ -154,7 +196,7 @@ export function ratePlayer(row, ctx) {
 export function rateUnit(row, ctx) {
   const composite = UNIT_COMPOSITES[row.group];
   if (!composite) return 0.5;
-  const raw = percentile(ctx.units[row.group], composite(row));
+  const raw = percentile(ctx.units[row.group], composite(row) / loadFactor(row, ctx.load));
   const trust = row.games >= MIN_RATED_GAMES ? 1 : Math.max(0, row.games) / MIN_RATED_GAMES;
   const withSample = 0.5 + (raw - 0.5) * trust;
   return clamp(0.5 + (withSample - 0.5) * depthFactor(row.depth));
