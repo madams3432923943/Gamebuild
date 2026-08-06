@@ -36,6 +36,16 @@ import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "
 import { draftGrade } from "./draftgrade.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
 
+/** The order a football roster is READ in, which is not the order it is
+ * drafted in. Offence before defence, and inside offence the skill positions
+ * in depth-chart order - a box score that opens on a wide receiver reads as a
+ * bug even when every number in it is right. Covers both roster shapes: Quick
+ * Play's bare WR and ranked's WR1/WR2/WR3. */
+const LINEUP_ORDER = [
+  "QB", "RB", "WR", "WR1", "WR2", "WR3", "TE", "FLEX", "OL",
+  "DL", "LB", "CB", "S", "DEF", "ST",
+];
+
 // The football career, rung by rung - the counterpart to basketball's ladder
 // in js/sports/nba/index.js, and deliberately built on the SAME percentile
 // bands. A rank means the same thing in both sports (top X% of the player
@@ -46,15 +56,6 @@ import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tact
 // through the levels a real career passes, and narrows hard at the top. Bands
 // widen at the bottom and tighten above the 80th percentile on purpose - most
 // people never leave youth football, and "Hall of Fame" should mean it.
-/** The order a football roster is READ in, which is not the order it is
- * drafted in. Offence before defence, and inside offence the skill positions
- * in depth-chart order - a box score that opens on a wide receiver reads as a
- * bug even when every number in it is right. Covers both roster shapes: Quick
- * Play's bare WR and ranked's WR1/WR2/WR3. */
-const LINEUP_ORDER = [
-  "QB", "RB", "WR", "WR1", "WR2", "WR3", "TE", "FLEX", "OL",
-  "DL", "LB", "CB", "S", "DEF", "ST",
-];
 
 const TIERS = [
   { name: "Pop Warner", minPercentile: 0 },
@@ -144,6 +145,11 @@ export const NFL = {
     opening: "kickoff",
   },
 
+  // Football is watched on a field. See the note on NBA.presentation - the
+  // stage is declared, not inferred from whether the engine happened to
+  // return drives.
+  presentation: { stage: "field" },
+
   // Seven individuals and five units. The provisional lineup this replaces
   // (QB, RB1, RB2, WR1, WR2, TE, FLEX, K, DEF, BENCH1) modelled fantasy
   // football rather than football - a FLEX and a lone kicker are fantasy
@@ -195,7 +201,11 @@ export const NFL = {
   statKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
   // Kept in step with statLabels below: these are the columns a football box
   // score will carry, and the profile's records are read straight off them.
-  lineKeys: ["pass_yds", "pass_tds", "rush_yds", "rush_tds", "rec_yds", "rec_tds", "ints", "fumbles", "fgs"],
+  // Every column the box score draws needs a key here, or the live table has
+  // nowhere to accumulate it and sits at zero all game while the header
+  // promises a number. comp/att/rec were missing exactly that way.
+  lineKeys: ["comp", "att", "pass_yds", "pass_tds", "rush_yds", "rush_tds",
+             "rec", "rec_yds", "rec_tds", "ints", "fumbles", "fgs"],
 
   // Placeholders, and honestly so: no NFL game has been simulated, so every
   // one of these reads as a dash on the profile. They are declared now because
@@ -217,6 +227,11 @@ export const NFL = {
     ints: "Interceptions",
     fumbles: "Fumbles Recovered",
     fgs: "Field Goals",
+    comp: "Completions",
+    rec: "Receptions",
+    // `att` is deliberately absent. These keys become PERSONAL BESTS, and a
+    // record for most passes thrown rewards volume and losing rather than
+    // anything anyone would want to chase.
   },
 
   // ---- Not built yet ------------------------------------------------------

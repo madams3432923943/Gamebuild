@@ -257,7 +257,12 @@
 
     <section id="screen-game" class="screen hidden">
       <div class="court-stage" id="court-stage">
-        <div class="court" aria-hidden="true">
+        <!-- Basketball's stage. Shown only when the active sport declares
+             `presentation.stage === "court"` - see showStage() in js/main.js.
+             data-stage is what shared code keys on, so a new sport adds a
+             sibling here and declares its name rather than editing a
+             condition somewhere else. -->
+        <div class="court" data-stage="court" aria-hidden="true">
           <span class="court-circle"></span>
           <span class="court-halfline"></span>
           <span class="court-key court-key-left"></span>
@@ -269,7 +274,7 @@
         <!-- Football's playback. Hidden for sports that do not use it, so the
              basketball reveal is untouched. Populated by renderFootballField()
              in js/ui.js from the engine's `drives` array. -->
-        <div id="football-field" class="football-field hidden"></div>
+        <div id="football-field" class="football-field hidden" data-stage="field"></div>
         <div id="play-feed" class="play-feed"></div>
       </div>
       <div id="final-banner" class="final-banner hidden"></div>

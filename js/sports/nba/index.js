@@ -120,6 +120,13 @@ export const NBA = {
     opening: "tip-off",
   },
 
+  // ---- Presentation -------------------------------------------------------
+  // What this sport is WATCHED on. Shared code shows the declared stage and
+  // hides every other one, rather than testing the sport id in each place
+  // that draws something - which is how football ended up playing on a
+  // basketball court with a field drawn underneath it.
+  presentation: { stage: "court" },
+
   // ---- Roster shape -------------------------------------------------------
   slots: {
     quickPlay: SLOTS,

@@ -2476,6 +2476,30 @@ function resetGameScreen() {
   courtStageEl.classList.remove("final-flash");
 }
 
+/** The active sport's opening word, in the scoreboard's sentence case -
+ * "Tip-off", "Kickoff". The word itself belongs to the sport; only the
+ * capitalisation is this screen's business. */
+function openingLabel() {
+  const word = sport().labels.opening || "";
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/**
+ * Shows the one stage this sport is watched on and hides every other.
+ *
+ * Keyed on data-stage in index.html rather than on ids, so adding a sport
+ * means adding a sibling element and declaring its name - not editing a
+ * condition here. Hiding the others is the half that was missing: the court
+ * had no code path that ever removed it, so it stayed on screen under
+ * football's field, and switching back from a sport that DID hide something
+ * would otherwise leave the previous sport's stage behind.
+ */
+function showStage(stage) {
+  for (const el of document.querySelectorAll("#court-stage [data-stage]")) {
+    el.classList.toggle("hidden", el.dataset.stage !== stage);
+  }
+}
+
 function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, matchups, tactic, analysis, onComplete }) {
   resetGameScreen();
   showScreen("game");
@@ -2491,9 +2515,18 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // Cumulative per-slot totals, grown as each period is revealed, so the live
   // box score builds through the game instead of appearing finished.
   const scoreTickIntervals = [];
+  // Seeded from the SPORT's own line keys. These were basketball's six
+  // literals, so a football game opened on a live table of PTS/REB/AST that
+  // had nowhere to put a completion - the football columns existed in the
+  // header with no key behind them to accumulate into.
   const liveTotals = { a: {}, b: {} };
-  for (const slot of Object.keys(rosterA)) liveTotals.a[slot] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
-  for (const slot of Object.keys(rosterB)) liveTotals.b[slot] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0 };
+  const emptyLine = () => {
+    const line = { pts: 0 };
+    for (const key of sport().lineKeys) line[key] = 0;
+    return line;
+  };
+  for (const slot of Object.keys(rosterA)) liveTotals.a[slot] = emptyLine();
+  for (const slot of Object.keys(rosterB)) liveTotals.b[slot] = emptyLine();
 
   // One box score for the whole game: the same table fills in live as periods
   // are revealed, then gains shooting splits at the final buzzer. Showing a
@@ -2501,19 +2534,22 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // screen saying different things.
   fullBoxScore.classList.remove("hidden");
   renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
-  renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, "Tip-off", true);
-  // Football gets a field; basketball keeps the tip-off line it always had.
-  // `drives` is the signal, not the sport id - a sport that returns drives has
-  // something to animate on a field, and one that does not never will.
+  // The sport's own word for how a game starts. This said "Tip-off" for
+  // everything, so a football game opened by telling you there had been a
+  // jump ball.
+  renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, REGULATION_PERIODS, 0, 0, openingLabel(), true);
+
+  // The stage is whichever one this sport declares, and every other stage is
+  // hidden. Previously the field was toggled on the presence of `drives` and
+  // the court was never hidden at all, so football played on a basketball
+  // court with a field drawn underneath it.
+  showStage(sport().presentation.stage);
   const footballFieldEl = document.getElementById("football-field");
   let fieldRefs = null;
-  if (Array.isArray(result.drives) && result.drives.length) {
+  if (sport().presentation.stage === "field" && Array.isArray(result.drives) && result.drives.length) {
     fieldRefs = renderFootballField(footballFieldEl, labelA, labelB);
-    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
-  } else {
-    if (footballFieldEl) footballFieldEl.classList.add("hidden");
-    pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
   }
+  pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
 
   // The player each side's memo named last period. A team's best quarter is
   // usually its best player's quarter, so without this the feed reads as the

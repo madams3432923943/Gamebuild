@@ -32,7 +32,11 @@ const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "la
   // Vocabulary and shape shared code would otherwise have to assume. Each of
   // these was once hardcoded to basketball in js/main.js or js/ui.js, and each
   // one showed up as football being narrated in boards, dimes and minutes.
-  "boxColumns", "highlights", "usesMatchups"];
+  "boxColumns", "highlights", "usesMatchups",
+  // Which stage the sport is WATCHED on. Shared code shows the declared one
+  // and hides the rest; a sport that does not declare it would play on
+  // whatever the previous sport left on screen.
+  "presentation"];
 
 /** Hooks whose ARITY shared code depends on. A signature mismatch is invisible
  * - NFL's playersInEra took (eraId) while shared code passes (players, eraId),
