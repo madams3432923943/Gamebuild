@@ -121,6 +121,7 @@ import {
   DRIVES_PER_TEAM, BASE_POINTS_PER_DRIVE, DRIVE_START_YARD, FG_RANGE_YARD,
   DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY,
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
+  RUSH_CARRIER_WEIGHTS,
 } from "./constants.js";
 import { buildRatingContext, rateEntry, isUnit } from "./units.js";
 import { scaledModsFor } from "./tactics.js";
@@ -180,7 +181,11 @@ function pickScorer(roster, kind, rand) {
   let total = 0;
   for (const [slot, entry] of Object.entries(roster)) {
     if (!entry || isUnit(entry)) continue;
-    const share = Number(entry[field]) || 0;
+    let share = Number(entry[field]) || 0;
+    // On the ground, the POSITION gates the play before production weighs it.
+    // WR3 and WR are the same job; the trailing digit is a depth-chart index,
+    // not a different position.
+    if (kind === "rush") share *= RUSH_CARRIER_WEIGHTS[slot.replace(/\d+$/, "")] ?? 0;
     if (share <= 0) continue;
     candidates.push({ slot, entry, share });
     total += share;
@@ -313,7 +318,16 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     // Rushing scores are rarer than receiving ones and go to backs and
     // quarterbacks, which is why the kind is drawn before the man.
     kind = rand() < 0.32 ? "rush" : "rec";
-    const who = pickScorer(roster, kind, rand) || pickScorer(roster, kind === "rush" ? "rec" : "rush", rand);
+    // If nobody on this roster can carry it, the play was not a run. The
+    // fallback used to draw from the OTHER pool while leaving `kind` alone, so
+    // an empty backfield produced a receiver - very often the tight end -
+    // credited with a rushing touchdown he had no carry for. The kind of the
+    // play and the man who made it have to agree, so the kind moves too.
+    let who = pickScorer(roster, kind, rand);
+    if (!who) {
+      kind = kind === "rush" ? "rec" : "rush";
+      who = pickScorer(roster, kind, rand);
+    }
     points = POINTS.touchdown;
     scorer = who ? who.entry.name : null;
     scorerSlot = who?.slot ?? null;

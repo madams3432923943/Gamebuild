@@ -67,6 +67,28 @@ export const OFFENSE_WEIGHTS = {
  * has time, which is the rush's business. Sums to 1. */
 export const DEFENSE_WEIGHTS = { DL: 0.3, LB: 0.24, CB: 0.26, S: 0.2 };
 
+/**
+ * Who is allowed to carry the ball on a designed run, as a multiplier on that
+ * player's own rushing production.
+ *
+ * A player's `rush_td` already encodes how often he really scored on the
+ * ground, so this is not a second opinion about talent - it is a gate on the
+ * PLAY. Without it any nonzero figure in the data made a man a candidate, and
+ * tight ends carry small ones: a career's worth of tackle-eligible sneaks and
+ * fumble recoveries averages out to a number just above zero, which is enough
+ * to be drawn for a carry roughly every other game.
+ *
+ * TE is zero, not small. A tight end taking a handoff is a specific called
+ * play, and this model has no plays to call - it works in drives. Until there
+ * is a play-level ledger that can say "end-around to the tight end", the
+ * honest answer is that it does not happen, rather than that it happens at a
+ * rate nobody chose.
+ *
+ * Receivers keep a small share for the end-arounds and jet sweeps that are a
+ * real part of a modern offence and that the data does support.
+ */
+export const RUSH_CARRIER_WEIGHTS = { RB: 1, QB: 1, FLEX: 0.6, WR: 0.12, TE: 0 };
+
 /** Games of a unit's season needed before it is rated as itself rather than
  * regressed toward the mean. A three-game sample is noise wearing a name. */
 export const MIN_RATED_GAMES = 6;
