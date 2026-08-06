@@ -358,7 +358,7 @@ export function renderPool(
   }
 
   if (result.tier === "in-squad") {
-    for (const { lead, seasons } of groupBySeason(result.candidates)) {
+    for (const { lead, pos, seasons } of groupBySeason(result.candidates)) {
       renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, false, slots, seasons, onPickSeason, pos);
     }
     return;
