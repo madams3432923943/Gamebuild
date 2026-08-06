@@ -27,31 +27,46 @@
  * matters is that a touchdown is worth about three ordinary snaps.
  */
 export const EVENT_WEIGHTS = {
-  kickoff: 1200,
-  driveStart: 700,
-  // An ordinary snap. Deliberately the floor: most of a game is these, so
-  // this number sets the pace more than any other.
-  play: 650,
+  kickoff: 1300,
+  driveStart: 900,
+  // An ordinary snap. Most of a game is these, so this number sets the pace
+  // more than any other - and at 650ms it was faster than a person can read
+  // the description, the down and the ball's new position before it changed.
+  play: 850,
   // Enough of a gain to move the chains, or to be worth noticing.
-  firstDown: 1050,
-  bigGain: 1050,
-  // The three things people actually wait for.
-  touchdown: 1800,
-  fieldGoal: 1600,
-  turnover: 1700,
-  punt: 800,
-  downs: 1200,
-  quarterEnd: 1250,
-  halfEnd: 1400,
-  gameEnd: 2000,
+  firstDown: 1200,
+  bigGain: 1200,
+  // A sack is a swing in field position and the crowd noise of a drive
+  // stalling; the red zone is the part everybody leans in for.
+  sack: 1400,
+  redZone: 1400,
+  // The things people actually wait for.
+  touchdown: 2000,
+  fieldGoal: 1900,
+  turnover: 2000,
+  punt: 1000,
+  downs: 1500,
+  quarterEnd: 1500,
+  halfEnd: 1700,
+  gameEnd: 2200,
 };
 
 /** The band a whole game's playback has to land in. Below the floor nobody can
  * follow it; above the ceiling it stops being a highlight and becomes a
  * broadcast. */
-export const TARGET_MIN_MS = 25000;
-export const TARGET_MAX_MS = 40000;
-const TARGET_MS = 32000;
+export const TARGET_MIN_MS = 35000;
+export const TARGET_MAX_MS = 50000;
+const TARGET_MS = 42000;
+
+/**
+ * Playback speed, as a divisor on every duration. 1 is the pace above; 2 is
+ * twice as fast. Declared here so a speed control is a value to change rather
+ * than a rewrite - nothing in this module measures itself against the wall
+ * clock, so scaling this re-times the entire game consistently.
+ *
+ * No user-facing selector yet, deliberately.
+ */
+export const DEFAULT_SPEED = 1;
 
 /** Seconds in a quarter. Football's, not this playback's - the game clock the
  * field shows is the one inside the fiction. */
@@ -62,6 +77,10 @@ function formatClock(seconds) {
   const s = Math.max(0, Math.round(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** Inside this yard line is the red zone, counted from the driving team's own
+ * goal line the way every other yardage in this engine is. */
+const RED_ZONE_YARD = 80;
 
 /** A gain big enough to be worth dwelling on even when it does not convert. */
 const BIG_GAIN_YARDS = 18;
@@ -155,9 +174,23 @@ export function buildTimeline(drives, opts = {}) {
       const terminal = !!play.result;
       if (!terminal) {
         const big = play.gain >= BIG_GAIN_YARDS;
+        // A snap inside the opponent's twenty is a red-zone snap, and a sack
+        // is its own kind of moment. Both were being shown at an ordinary
+        // play's pace, which is what made the parts worth watching go past
+        // at the speed of the parts that were not.
+        const inRedZone = play.endYard >= RED_ZONE_YARD;
+        const weightKey = play.type === "sack"
+          ? "sack"
+          : play.firstDown
+            ? "firstDown"
+            : inRedZone
+              ? "redZone"
+              : big
+                ? "bigGain"
+                : "play";
         push(
           "play",
-          play.firstDown ? "firstDown" : big ? "bigGain" : "play",
+          weightKey,
           {
             quarter: drive.quarter,
             possession: drive.team,
@@ -209,7 +242,7 @@ export function buildTimeline(drives, opts = {}) {
   // ---- fit the whole thing into a watchable window ------------------------
   const rawTotal = events.reduce((s, e) => s + e.weight, 0);
   const target = clamp(opts.targetMs || TARGET_MS, TARGET_MIN_MS, TARGET_MAX_MS);
-  const speed = opts.speed && opts.speed > 0 ? opts.speed : 1;
+  const speed = opts.speed && opts.speed > 0 ? opts.speed : DEFAULT_SPEED;
   // One scale factor across every event, so the RATIOS above survive: a
   // touchdown stays worth three snaps whether the game had 40 plays or 90.
   const scale = rawTotal > 0 ? target / rawTotal : 1;

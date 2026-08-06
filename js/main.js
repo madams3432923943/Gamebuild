@@ -2565,17 +2565,34 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
    * not from the period's hold - which is what stops a game with few drives
    * crawling and one with many flickering past.
    */
-  function playQuarterEvents(period, isOtPeriod) {
+  /** How long one period's events actually take, at the pace the timeline was
+   * built for. Zero when this sport has no timeline. */
+  function timelineSpanFor(period) {
+    const ofPeriod = timeline.events.filter((e) => e.quarter === period);
+    if (!ofPeriod.length) return 0;
+    const last = ofPeriod[ofPeriod.length - 1];
+    return Math.max(0, last.atMs + last.durationMs - ofPeriod[0].atMs);
+  }
+
+  /**
+   * Plays one period's slice of the timeline, AT ITS OWN PACE.
+   *
+   * This used to compress the slice to fit basketball's quarter hold: a
+   * quarter of football spans about eight seconds and the hold is 3.8, so
+   * every event was shown at under half the speed it was designed for. That
+   * is the whole of "the simulation finishes too quickly to follow" - the
+   * timeline was right and the harness around it was throwing the pacing
+   * away.
+   *
+   * Nothing is squeezed now. The period reveal WAITS for the timeline
+   * instead (see holdFor below), which is the only way the ball, the down and
+   * distance, the description and the score can stay in step with each other.
+   */
+  function playQuarterEvents(period) {
     if (!fieldRefs) return;
     const ofPeriod = timeline.events.filter((e) => e.quarter === period);
     if (!ofPeriod.length) return;
     const base = ofPeriod[0].atMs;
-    // Compressed to fit inside the hold this period actually gets, so the
-    // field finishes with the scoreboard rather than running past it. The
-    // RATIOS between events survive, because it is one factor for all of them.
-    const span = Math.max(1, ofPeriod[ofPeriod.length - 1].atMs + ofPeriod[ofPeriod.length - 1].durationMs - base);
-    const hold = (isOtPeriod ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS) * 0.9;
-    const squeeze = Math.min(1, hold / span);
     for (const event of ofPeriod) {
       fieldTimers.push(
         setTimeout(() => {
@@ -2586,9 +2603,18 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           if (event.scoring > 0 || event.turnover) {
             pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
           }
-        }, (event.atMs - base) * squeeze)
+        }, event.atMs - base)
       );
     }
+  }
+
+  /** The pause before the next period is revealed. A sport with a timeline
+   * gets however long that period's events genuinely take; everything else
+   * keeps basketball's fixed hold. */
+  function holdFor(period, isOtPeriod) {
+    const fixed = isOtPeriod ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS;
+    const span = timelineSpanFor(period);
+    return span > 0 ? Math.max(fixed, span + 250) : fixed;
   }
   pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
 
@@ -2760,7 +2786,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // Football's playback runs off its own timeline (below), built once for
     // the whole game rather than sliced out of each quarter's hold - see
     // js/sports/nfl/playback.js for why that distinction matters.
-    playQuarterEvents(i + 1, isOt);
+    playQuarterEvents(i + 1);
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
     if (leadChanged) {
@@ -2772,10 +2798,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       );
     }
 
+    // The period just revealed is the one whose events are now playing, so
+    // the wait has to be ITS span - read before `i` moves on to the next.
+    const wait = holdFor(i + 1, isOt);
     i += 1;
     // Overtime holds longer - see OT_REVEAL_DELAY_MS. isOt is this period, so
     // the pause after it is the one that lets the decisive score land.
-    setTimeout(step, isOt ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS);
+    setTimeout(step, wait);
   }
 
   function finish() {
