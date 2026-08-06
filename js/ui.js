@@ -517,11 +517,17 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
     `</tr></thead><tbody>`;
   // Mid-game, roster order (starters then bench) is what makes the table
   // readable as it fills in - rows aren't jumping around every tick. At the
-  // final buzzer the game is a finished box score, and those read top scorer
-  // first, so re-sort only once there's nothing left to fill in.
+  // final buzzer basketball re-sorts, because a finished box score reads top
+  // scorer first.
+  //
+  // Football does not, and `sortBoxBy: null` is how a sport says so. It is
+  // read by position - quarterback, backs, receivers - so the ranked sort put
+  // the kicker above the quarterback on any night he outscored him. Declared
+  // by the sport rather than branched on the sport's id, so the next sport
+  // answers the question instead of shared code guessing.
   const slots = rosterSlots(roster).filter((slot) => box[slot]);
-  const key = sport.sortBoxBy || "pts";
-  const ordered = final ? [...slots].sort((a, b) => (box[b][key] || 0) - (box[a][key] || 0)) : slots;
+  const key = sport.sortBoxBy;
+  const ordered = final && key ? [...slots].sort((a, b) => (box[b][key] || 0) - (box[a][key] || 0)) : slots;
   for (const slot of ordered) {
     html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot],
                    minutesMap && minutesMap[slot], columns, showMinutes, splits);
