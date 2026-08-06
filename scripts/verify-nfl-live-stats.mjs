@@ -17,13 +17,11 @@
 // js/main.js boots the entire app on import (auth, Supabase, the home screen)
 // and cannot be loaded in node at all.
 //
-// WHAT THIS DOES NOT CLAIM. It proves the accumulator handles every stat an
-// NFL simulation produces, and that those stats are nonzero. It does NOT prove
-// the live table fills in during playback - NFL's periodLines() emits only
-// `pts` per quarter (js/sports/nfl/engine.js), so the football columns have
-// nothing to accumulate until the engine carries them per period. That is a
-// separate change, and pretending otherwise here would be the same kind of
-// green-but-wrong check that let the original bug ship.
+// The per-quarter lines now come from the SAME ledger as the final box score,
+// restricted to one quarter, so summing the quarters cannot disagree with the
+// game. That is asserted below rather than assumed - it is the property the
+// live table depends on, and it is what was missing when a football box score
+// filled in with zeros all game and only agreed with itself at the whistle.
 
 import { setActiveSport } from "../js/sports/index.js";
 import { NBA } from "../js/sports/nba/index.js";
@@ -187,6 +185,82 @@ for (const [sport, slots] of [[NBA, NBA.slots.quickPlay], [NFL, NFL.slots.quickP
       text
     );
   }
+}
+
+// ---- period lines must sum to the final box score -------------------------
+// The live table is the sum of the quarters. If that sum is not the final box
+// score then the table people watch fill in is a different game from the one
+// they are shown at the end.
+{
+  setActiveSport("nfl");
+  const game = playOneGame(NFL, NFL.slots.quickPlay);
+  if (!game) {
+    check("NFL period lines sum to the final box score", false, "draft did not complete");
+  } else {
+    const { result } = game;
+    const keys = liveStatKeys(NFL);
+    const summed = {};
+    const finalTotals = {};
+    for (const k of keys) {
+      summed[k] = 0;
+      finalTotals[k] = 0;
+    }
+    for (const period of result.quarterBoxScores) {
+      for (const line of Object.values(period.a)) accumulatePeriodStats(summed, line, keys);
+    }
+    for (const line of Object.values(result.boxA)) accumulatePeriodStats(finalTotals, line, keys);
+    const off = keys.filter((k) => Math.round(summed[k]) !== Math.round(finalTotals[k]));
+    check(
+      "NFL period lines sum exactly to the final box score",
+      off.length === 0,
+      off.length
+        ? off.map((k) => `${k}: ${Math.round(summed[k])} vs ${Math.round(finalTotals[k])}`).join(", ")
+        : `${keys.length} stats reconciled`
+    );
+
+    // The live table has to be non-empty DURING the game, not only after it.
+    const nonzeroLive = keys.filter((k) => summed[k] > 0);
+    check(
+      "NFL quarters carry real football stats, not just points",
+      nonzeroLive.length >= 4 && nonzeroLive.some((k) => k !== "pts"),
+      `nonzero across quarters: ${nonzeroLive.join(" ") || "NONE"}`
+    );
+  }
+}
+
+// ---- the play feed says football, and says it in words -------------------
+{
+  setActiveSport("nfl");
+  let undefinedText = 0;
+  let placeholderUnit = 0;
+  let longDecimals = 0;
+  let sampled = 0;
+  for (let i = 0; i < 12; i++) {
+    const game = playOneGame(NFL, i % 2 ? NFL.slots.ranked : NFL.slots.quickPlay);
+    if (!game) continue;
+    sampled++;
+    for (const drive of game.result.drives) {
+      const text = String(drive.text || "");
+      if (text.includes("undefined")) undefinedText++;
+      // "the unit" is what a missing roster entry used to be called out loud.
+      if (/the unit/.test(text)) placeholderUnit++;
+      // A touchdown carries 6.94 points; nothing should ever print that raw.
+      if (/\d\.\d{3,}/.test(text)) longDecimals++;
+    }
+  }
+  check("no play-feed text contains undefined", undefinedText === 0, `${undefinedText} across ${sampled} games`);
+  check("no play-feed text falls back to \"the unit\"", placeholderUnit === 0, `${placeholderUnit} across ${sampled} games`);
+  check("no play-feed text prints an unrounded value", longDecimals === 0, `${longDecimals} across ${sampled} games`);
+
+  // The final sentence names both teams. NFL wrapped buildGameScript in a
+  // lambda that dropped its second and third arguments, so football's closing
+  // line read "undefined and undefined finish level at 15.940000000000001".
+  const line = NFL.buildGameScript([{ a: 10, b: 10 }], "Home", "Away");
+  check(
+    "the closing line names both teams and rounds the score",
+    !line.includes("undefined") && line.includes("Home") && line.includes("Away") && !/\d\.\d/.test(line),
+    line
+  );
 }
 
 console.log(renderSection("Live box-score accumulation and MVP line, per sport"));

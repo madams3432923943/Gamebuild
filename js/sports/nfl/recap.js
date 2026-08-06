@@ -49,8 +49,11 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB) {
 export function buildGameScript(periods, labelA, labelB) {
   const rows = Array.isArray(periods) ? periods : [];
   const total = (key) => rows.reduce((sum, p) => sum + (Number(p[key]) || 0), 0);
-  const a = total("a");
-  const b = total("b");
+  // Rounded before anything reads them. POINTS.touchdown carries 6.94 - the
+  // extra point folded in at its real rate - which is right for simulating and
+  // wrong for saying out loud: nobody finished level at 15.940000000000001.
+  const a = Math.round(total("a"));
+  const b = Math.round(total("b"));
   const winner = a === b ? null : a > b ? labelA : labelB;
   const margin = Math.abs(a - b);
   if (!winner) return `${labelA} and ${labelB} finish level at ${a}.`;

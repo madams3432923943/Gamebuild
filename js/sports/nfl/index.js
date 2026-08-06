@@ -366,7 +366,11 @@ export const NFL = {
   // empty prose would look like a working game with nothing to say.
   buildRecap: (result, rosterA, rosterB, labelA, labelB) =>
     buildRecap(result, rosterA, rosterB, labelA, labelB),
-  buildGameScript: (result) => buildGameScript(result),
+  // Passed through, not re-wrapped. The wrapper took only the first argument
+  // and dropped the two team names behind it, so football's final line read
+  // "undefined and undefined finish level at 15.94". NBA hands the function
+  // over directly, which is why only football lost the names.
+  buildGameScript,
   buildPostGameAnalysis: (result, side) => buildPostGameAnalysis(result, side),
   // Named gradeDraft because that is what shared code calls (js/main.js).
   // NFL exposed it as draftGrade and would have thrown the moment a football

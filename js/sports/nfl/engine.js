@@ -260,7 +260,55 @@ function fieldGoalGood(kicker, endYard, rand, fgMod = 1) {
   return rand() < Math.max(0.25, base - longPenalty);
 }
 
-const label = (entry) => entry?.name || entry?.group || "the unit";
+/** What to call a roster entry out loud. A drafted unit carries the team it
+ * came from, so "the Ravens special teams" beats "the unit" - which is what a
+ * kicker with no named members used to be announced as, in a sentence that
+ * read "Field goal by the unit". */
+const label = (entry) => {
+  // NULL for a missing entry, not a placeholder string. Returning "the unit"
+  // here made every `label(x) || fallback` dead code, because the placeholder
+  // is truthy - which is exactly how "Field goal by the unit" survived a
+  // fallback written to prevent it.
+  if (!entry) return null;
+  if (entry.name) return entry.name;
+  const team = entry.team ? `${entry.team} ` : "";
+  return entry.group ? `${team}${GROUP_NAMES[entry.group] || entry.group}`.trim() : (team.trim() || null);
+};
+
+/** Plain names for the unit groups, so a sentence reads like football rather
+ * than like a slot id. */
+/** Which roster slot kicks. Ranked drafts special teams; Quick Play does not
+ * have the slot at all, which is why a field goal there used to be announced
+ * as "by the unit" - roster.ST was simply undefined and the fallback said so
+ * out loud. */
+function kickerSlot(roster) {
+  for (const slot of ["ST", "K"]) if (roster && roster[slot]) return slot;
+  return null;
+}
+
+function kickingEntry(roster) {
+  const slot = kickerSlot(roster);
+  return slot ? roster[slot] : null;
+}
+
+/** The team this roster was drafted from, for sentences that need a subject
+ * when no individual is responsible. A roster is picked across several teams,
+ * so this is the most common one rather than "the" team. */
+function teamName(roster) {
+  const counts = new Map();
+  for (const entry of Object.values(roster || {})) {
+    if (!entry?.team) continue;
+    counts.set(entry.team, (counts.get(entry.team) || 0) + 1);
+  }
+  let best = null;
+  for (const [team, n] of counts) if (!best || n > best[1]) best = [team, n];
+  return best ? best[0] : "the offense";
+}
+
+const GROUP_NAMES = {
+  ST: "special teams", OL: "offensive line", DL: "defensive line",
+  LB: "linebackers", CB: "cornerbacks", S: "safeties", DEF: "defense",
+};
 
 /** WHO on this unit made the play. Weighted by each member's real takeaways of
  * that kind, so Richard Sherman turns up on 2013 Seahawks interceptions about
@@ -345,17 +393,17 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       ? `${scorer} ${kind === "rush" ? "rushing" : "receiving"} touchdown`
       : "Touchdown";
   } else if (outcome === "fieldGoal") {
-    const kicker = roster.ST;
+    const kicker = kickingEntry(roster);
     if (fieldGoalGood(kicker, endYard, rand, mine.fg)) {
       points = POINTS.fieldGoal;
-      scorer = kicker?.members?.[0]?.name || label(kicker);
-      scorerSlot = "ST";
+      scorer = kicker?.members?.[0]?.name || label(kicker) || teamName(roster);
+      scorerSlot = kickerSlot(roster);
       text = `Field goal by ${scorer}`;
     } else {
       // A miss is still a drive that got into range, and it still hands the
       // ball over at the spot - which is why the arrow should show it.
       outcome = "downs";
-      text = `Field goal missed by ${kicker?.members?.[0]?.name || label(kicker)}`;
+      text = `Field goal missed by ${kicker?.members?.[0]?.name || label(kicker) || teamName(roster)}`;
     }
   } else if (outcome === "turnover") {
     const stop = pickStopper(oppRoster, rand);
@@ -373,7 +421,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       ? "Turnover"
       : man
         ? `${man} ${takeaway === "int" ? "interception" : "forces a fumble"}`
-        : `${takeaway === "int" ? "Intercepted" : "Fumble forced"} by the ${label(stop.entry)}`;
+        : `${takeaway === "int" ? "Intercepted" : "Fumble forced"} by ${label(stop.entry) || "the defense"}`;
   } else {
     text = "Punt";
   }
@@ -775,7 +823,16 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
    * spread the work correctly but still had no play behind any individual
    * number - "who caught it" was a distribution, not an event.
    */
-  const boxFor = (side, roster) => {
+  const boxFor = (side, roster, onlyQuarter = null) => {
+    // The quarter filter is what makes the live table and the final table the
+    // same table. Period lines used to be a second, much poorer ledger that
+    // recorded points and nothing else, so a football box score filled in with
+    // zeros all game and only agreed with itself at the final whistle. Running
+    // ONE ledger over a subset of drives means summing the quarters cannot
+    // disagree with the game - they are the same additions over the same plays.
+    const mine = drives.filter(
+      (d) => d.team === side && (onlyQuarter == null || d.quarter === onlyQuarter)
+    );
     const box = {};
     const emptyLine = () => ({
       comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
@@ -797,7 +854,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       plays: 0,
     };
 
-    for (const drive of drives.filter((d) => d.team === side)) {
+    for (const drive of mine) {
       team.drives += 1;
       team.startYardTotal += drive.startYard;
       // A trip inside the opponent's twenty, counted once per drive however
@@ -865,7 +922,13 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       }
 
       // The drive's result, credited to the man the drive already named.
-      const scorer = at(drive.scorerSlot);
+      // Points nobody on this roster can be credited with still have to land
+      // somewhere, or the box score stops adding up to the scoreboard. Quick
+      // Play drafts no kicker, so its field goals have no slot to go to - they
+      // go to TEAM, which is not a roster slot and therefore never renders as
+      // a row, but does keep every sum honest.
+      const teamLine = () => (box.TEAM = box.TEAM || emptyLine());
+      const scorer = at(drive.scorerSlot) || (drive.points > 0 ? teamLine() : null);
       if (drive.outcome === "fieldGoal" && scorer) {
         scorer.fgs += 1;
         scorer.fga += 1;
@@ -914,7 +977,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
 
     // Turnovers land on the defensive unit credited with them, so a drafted
     // ball-hawking secondary shows up in the box score as well as the recap.
-    for (const d of drives.filter((x) => x.team !== side && x.outcome === "turnover" && x.credit)) {
+    for (const d of drives.filter((x) => x.team !== side && x.outcome === "turnover" && x.credit && (onlyQuarter == null || x.quarter === onlyQuarter))) {
       const unit = box[d.credit];
       if (!unit) continue;
       if (d.takeaway === "fumble") unit.fumbles += 1;
@@ -923,6 +986,17 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
 
     return { box, team };
   };
+
+  // Re-emit the per-quarter lines through the real ledger now that it exists.
+  // The cheap points-only pass above still runs first because the overtime
+  // loop needs a score before a box score is meaningful - but what the UI
+  // finally receives is the full football line per quarter, so the live table
+  // fills in with completions and yards instead of sitting at zero until the
+  // final whistle.
+  for (const period of quarterBoxScores) {
+    period.a = boxFor("A", rosterA, period.period).box;
+    period.b = boxFor("B", rosterB, period.period).box;
+  }
 
   return {
     teamScoreA, teamScoreB,
