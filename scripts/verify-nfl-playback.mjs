@@ -24,7 +24,7 @@
 import { setActiveSport } from "../js/sports/index.js";
 import { NFL } from "../js/sports/nfl/index.js";
 import { DraftState } from "../js/draft.js";
-import { buildTimeline, TARGET_MIN_MS, TARGET_MAX_MS, EVENT_WEIGHTS } from "../js/sports/nfl/playback.js";
+import { buildTimeline, TARGET_MIN_MS, TARGET_MAX_MS, EVENT_WEIGHTS, DEFAULT_SPEED } from "../js/sports/nfl/playback.js";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
@@ -144,6 +144,27 @@ const weightingHolds =
   w.touchdown > w.firstDown && w.firstDown > w.play &&
   w.turnover > w.play && w.fieldGoal > w.play && w.quarterEnd > w.play;
 
+// The product spec's bands, as data. [label, actual, min, max]
+const BANDS = [
+  ["ordinary play", w.play, 700, 1000],
+  ["first down", w.firstDown, 1000, 1400],
+  ["big gain", w.bigGain, 1000, 1400],
+  ["sack", w.sack, 1200, 1600],
+  ["red zone", w.redZone, 1200, 1600],
+  ["turnover", w.turnover, 1700, 2300],
+  ["touchdown", w.touchdown, 1700, 2300],
+  ["field goal", w.fieldGoal, 1700, 2300],
+  ["quarter end", w.quarterEnd, 1200, 1800],
+];
+
+// Scaling the speed has to re-time the whole game proportionally, or a future
+// speed control would change the pacing's shape rather than its rate.
+const speedSample = playOneGame();
+const singleSpeedMs = speedSample ? buildTimeline(speedSample.drives).totalMs : 0;
+const doubleSpeedMs = speedSample ? buildTimeline(speedSample.drives, { speed: 2 }).totalMs : 0;
+const halfSpeedHalvesIt =
+  singleSpeedMs > 0 && Math.abs(doubleSpeedMs - singleSpeedMs / 2) / (singleSpeedMs / 2) < 0.05;
+
 const REQUIRED_EVENTS = ["kickoff", "driveStart", "play", "touchdown", "punt", "quarterEnd", "gameEnd"];
 const missingEvents = REQUIRED_EVENTS.filter((t) => !seen.has(t));
 
@@ -164,9 +185,19 @@ const checks = [
     detail: `play ${w.play}ms, firstDown ${w.firstDown}ms, TD ${w.touchdown}ms, turnover ${w.turnover}ms`,
   },
   {
-    title: "Ordinary plays sit in the 500-800ms band before scaling",
-    ok: w.play >= 500 && w.play <= 800,
-    detail: `${w.play}ms`,
+    // Every band the product spec asks for, checked individually rather than
+    // as one "feels about right" total. A game can land inside 35-50s while
+    // still showing a touchdown at the speed of an incompletion.
+    title: "Every event class sits inside its specified duration band",
+    ok: BANDS.every(([, value, lo, hi]) => value >= lo && value <= hi),
+    detail: BANDS.map(([name, value, lo, hi]) =>
+      `${name} ${value}ms${value >= lo && value <= hi ? "" : ` OUT OF ${lo}-${hi}`}`
+    ).join(", "),
+  },
+  {
+    title: "A speed control is a value, not a rewrite",
+    ok: DEFAULT_SPEED === 1 && halfSpeedHalvesIt,
+    detail: `speed 2 gives ${(doubleSpeedMs / 1000).toFixed(1)}s against ${(singleSpeedMs / 1000).toFixed(1)}s`,
   },
   {
     title: "Events are emitted in forward time order",
