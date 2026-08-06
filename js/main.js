@@ -100,6 +100,9 @@ import {
   renderFriendsLeaderboard,
   renderFootballField,
   showFootballEvent,
+  accumulatePeriodStats,
+  liveStatKeys,
+  formatMvpStatLine,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -2721,12 +2724,15 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
     const leadChanged = !!newLeader && !!prevLeader && newLeader !== prevLeader;
 
+    // The stats this sport keeps, not basketball's six literals. A football
+    // period line has no `reb`, so every one of those added undefined and
+    // turned the running total into NaN, while a completion or a passing yard
+    // was never added at all because nothing asked for it.
+    const statKeys = liveStatKeys(sport());
     for (const key of ["a", "b"]) {
       const period = result.quarterBoxScores[i][key];
       for (const slot of Object.keys(liveTotals[key])) {
-        const src = period[slot];
-        if (!src) continue;
-        for (const stat of ["pts", "reb", "ast", "stl", "blk", "tov"]) liveTotals[key][slot][stat] += src[stat];
+        accumulatePeriodStats(liveTotals[key][slot], period[slot], statKeys);
       }
     }
 
@@ -2800,9 +2806,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
     const mvp = result.mvp;
     const mvpTeamName = mvp.side === "A" ? labelA : labelB;
-    mvpCallout.textContent = `MVP: ${mvp.player.name} (${mvpTeamName}) — ${Math.round(
-      mvp.line.pts
-    )} PTS / ${Math.round(mvp.line.reb)} REB / ${Math.round(mvp.line.ast)} AST`;
+    // In the sport's own statistics. This was three basketball literals, so
+    // football's best player was announced with a rebound and an assist total
+    // that do not exist, both reading zero.
+    mvpCallout.textContent =
+      `MVP: ${mvp.player.name} (${mvpTeamName}) — ${formatMvpStatLine(sport(), mvp.line)}`;
     mvpCallout.classList.remove("hidden");
 
     // Why it went that way in terms you can act on, as opposed to the

@@ -49,6 +49,9 @@ jobs:
       - name: Verify NFL box-score attribution
         run: npm run verify:nfl-box-score
 
+      - name: Verify live box-score accumulation and MVP line
+        run: npm run verify:nfl-live-stats
+
       - name: Verify each sport's game-screen stage
         run: npm run verify:game-stage
 

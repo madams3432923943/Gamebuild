@@ -2256,3 +2256,96 @@ export const FOOTBALL_BOX_COLUMNS = [
   ["pass_yds", "PASS"], ["rush_yds", "RUSH"], ["rec_yds", "REC"],
   ["td", "TD"], ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"],
 ];
+
+/**
+ * Adds one period's line into a running total, for the stats this sport
+ * actually keeps.
+ *
+ * The keys used to be basketball's six literals, spelled out at the call site.
+ * A football game therefore accumulated `reb` and `ast` - which a football
+ * period line does not have, so every one of them added `undefined` and turned
+ * the running total into NaN - while never once adding a completion or a
+ * passing yard, because nothing asked for them. The live table sat at zero
+ * under a header promising numbers.
+ *
+ * `pts` leads the list because it is every sport's, and is what the scoreboard
+ * is built on; the rest is whatever the sport declares in lineKeys.
+ *
+ * Every add is guarded. A period line legitimately omits a stat nobody
+ * recorded that quarter, and a missing value must leave the total alone rather
+ * than poison it - NaN in a box score is worse than a zero, because it
+ * propagates and nothing downstream can tell where it started.
+ */
+export function accumulatePeriodStats(total, periodLine, keys) {
+  if (!total || !periodLine) return total;
+  for (const key of keys) {
+    const value = Number(periodLine[key]);
+    if (Number.isFinite(value)) total[key] = (Number(total[key]) || 0) + value;
+  }
+  return total;
+}
+
+/**
+ * The stat keys the live box score accumulates for a sport: points, then
+ * whatever that sport keeps. One place, so the seed and the accumulation
+ * cannot disagree about which columns exist.
+ *
+ * DEDUPED, and that is not a detail. Basketball's lineKeys already begin with
+ * `pts`, so the obvious ["pts", ...lineKeys] lists it twice and the
+ * accumulator adds every point of every quarter to the running total twice -
+ * a live NBA box score climbing to double the real score. Football's lineKeys
+ * do not include it, which is exactly the kind of asymmetry that makes this
+ * worth doing in one function instead of at each call site.
+ */
+export function liveStatKeys(sport) {
+  return [...new Set(["pts", ...(sport.lineKeys || [])])];
+}
+
+/** How many statistics the MVP line shows before it stops being readable. */
+const MVP_STAT_COUNT = 3;
+
+/**
+ * The MVP's line, in the active sport's own statistics.
+ *
+ * This was three basketball literals - PTS / REB / AST - so football's most
+ * valuable player was announced with a rebound and an assist total that do not
+ * exist, both reading zero.
+ *
+ * A sport may declare `mvpStatKeys` to fix which three it always shows;
+ * basketball does, because points, rebounds and assists is the line everyone
+ * knows and it should not reshuffle itself game to game. A sport that declares
+ * none gets its top nonzero statistics instead, which is the right default for
+ * football: a quarterback's line and a cornerback's have nothing in common,
+ * and forcing both into the same three columns would leave one of them empty.
+ */
+export function formatMvpStatLine(sport, line) {
+  if (!line) return "";
+  const columns = sport.boxColumns || [];
+  const labelFor = (key) => {
+    const declared = sport.statLabels && sport.statLabels[key];
+    if (declared) return declared;
+    const column = columns.find(([k]) => k === key);
+    return column ? column[1] : key.toUpperCase();
+  };
+  const value = (key) => Math.round(Number(line[key]) || 0);
+
+  // Declared: always these, in this order, whether or not they are the
+  // biggest numbers on the line.
+  if (Array.isArray(sport.mvpStatKeys) && sport.mvpStatKeys.length) {
+    return sport.mvpStatKeys.map((key) => `${value(key)} ${labelFor(key)}`).join(" / ");
+  }
+
+  // Otherwise the biggest things he actually did. Ties keep the sport's own
+  // column order, so a line is never rearranged by a coin flip between two
+  // equal numbers.
+  const ranked = columns
+    .map(([key], index) => ({ key, index, value: value(key) }))
+    .filter((entry) => entry.value > 0)
+    .sort((a, b) => b.value - a.value || a.index - b.index)
+    .slice(0, MVP_STAT_COUNT);
+
+  // A player can genuinely do nothing measurable - a kicker who never came on.
+  // Saying so beats printing an empty dash.
+  if (!ranked.length) return "no recorded statistics";
+  return ranked.map((entry) => `${entry.value} ${labelFor(entry.key)}`).join(" / ");
+}
