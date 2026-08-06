@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ROWS as PLAYERS } from "../data/nba-players.js";
+import { PLAYERS } from "../data/nba-players.js";
 import {
   activeSlots,
   computeDatasetStats,
