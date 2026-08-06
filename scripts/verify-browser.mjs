@@ -147,8 +147,19 @@ async function makeOnePick(page, squadIndex, log) {
 
     await card.click();
 
-    // A player eligible for more than one non-bench slot opens the picker.
+    // TWO different modals can follow a card click, and they can follow each
+    // other. A player with more than one draftable season on this squad opens
+    // the season picker first; choosing a year then runs the ordinary pick
+    // path, which opens the slot picker if he is eligible for more than one
+    // non-bench slot. Handling only the second one left the season modal open
+    // over the board, and every later pick clicked into a backdrop.
     const modal = page.locator("#modal-backdrop:not(.hidden)");
+    if (await modal.isVisible().catch(() => false)) {
+      const season = page.locator("#modal-backdrop .season-option").first();
+      if (await season.isVisible().catch(() => false)) {
+        await season.click().catch(() => {});
+      }
+    }
     if (await modal.isVisible().catch(() => false)) {
       await page.locator("#modal-backdrop .modal-slot-grid button").first().click().catch(() => {});
     }
