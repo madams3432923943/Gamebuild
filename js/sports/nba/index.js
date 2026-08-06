@@ -199,6 +199,11 @@ export const NBA = {
     ["stl", "STL"], ["blk", "BLK"], ["tov", "TOV"],
   ],
   sortBoxBy: "pts",
+  // The MVP line everyone already knows, fixed rather than derived. Points,
+  // rebounds and assists is basketball's shorthand for a night's work, and it
+  // should not reshuffle itself game to game just because somebody had four
+  // steals. A sport that declares none gets its top nonzero stats instead.
+  mvpStatKeys: ["pts", "reb", "ast"],
   cardStatLine: (p) =>
     `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`,
   basePosition,
