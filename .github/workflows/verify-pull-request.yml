@@ -34,7 +34,7 @@ jobs:
         run: npm run verify:playable
 
       - name: Verify client/server parity
-        run: npm run verify:parity
+        run: npm run verify:parity -- --no-network
 
       - name: Verify simulation statistically
         env:
