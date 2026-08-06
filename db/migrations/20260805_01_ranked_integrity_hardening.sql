@@ -1,20 +1,15 @@
 -- Production hardening for online ranked integrity.
--- Keeps NFL offline/preview-only until a server engine is deployed, validates
--- strategy payloads server-side, fixes the RLS-bypassing public view, removes
--- unnecessary direct writes, and adds an atomic result finalizer.
 
 -- Online matches are currently supported only by the NBA server engine.
 alter table public.matches
-  add constraint matches_supported_online_sport
-  check (sport = 'nba') not valid;
+  add constraint matches_supported_online_sport check (sport = 'nba') not valid;
 alter table public.matches validate constraint matches_supported_online_sport;
 
 alter table public.matchmaking_queue
-  add constraint matchmaking_supported_online_sport
-  check (sport = 'nba') not valid;
+  add constraint matchmaking_supported_online_sport check (sport = 'nba') not valid;
 alter table public.matchmaking_queue validate constraint matchmaking_supported_online_sport;
 
--- Result replay/audit metadata.
+-- Result replay and audit metadata.
 alter table public.match_results
   add column if not exists simulation_seed bigint,
   add column if not exists engine_version text,
@@ -22,11 +17,9 @@ alter table public.match_results
   add column if not exists rules_version text,
   add column if not exists finalized_at timestamptz;
 
--- Views run as their caller so the matches table participant RLS policy applies.
+-- The view now applies the participant RLS policy of the querying user.
 drop view if exists public.matches_public;
-create view public.matches_public
-with (security_invoker = true)
-as
+create view public.matches_public with (security_invoker = true) as
   select id, player_a, player_b, status, round_number, current_squad_team,
     current_squad_decade, used_squads, winner, created_at, updated_at,
     is_friendly, sport, era
@@ -34,7 +27,8 @@ as
 revoke all on public.matches_public from anon;
 grant select on public.matches_public to authenticated;
 
--- Clients use RPCs, not direct writes, for competitive state.
+-- Competitive state is written through authenticated RPCs and the result
+-- Edge Function, never directly by a browser client.
 revoke insert, update, delete, truncate on public.matches from anon, authenticated;
 revoke insert, update, delete, truncate on public.match_picks from anon, authenticated;
 revoke insert, update, delete, truncate on public.match_results from anon, authenticated;
@@ -54,8 +48,10 @@ declare
   v_side text;
   v_match public.matches%rowtype;
   v_roster jsonb;
+  v_opp_roster jsonb;
   v_slot text;
   v_minutes integer;
+  v_minutes_text text;
   v_total integer := 0;
   v_rotation_count integer := 0;
   v_matchup_count integer := 0;
@@ -70,20 +66,28 @@ declare
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
   v_side := public.get_side(p_match_id);
+
   select * into v_match from public.matches where id = p_match_id for update;
   if not found then raise exception 'match not found'; end if;
   if v_match.status <> 'strategy' then raise exception 'match is not awaiting strategy'; end if;
   if v_match.sport <> 'nba' then raise exception 'online sport is not supported'; end if;
 
   v_roster := case when v_side = 'A' then v_match.roster_a else v_match.roster_b end;
+  v_opp_roster := case when v_side = 'A' then v_match.roster_b else v_match.roster_a end;
+
   if jsonb_typeof(p_rotation) <> 'object' then raise exception 'rotation must be an object'; end if;
   if jsonb_typeof(p_matchups) <> 'object' then raise exception 'matchups must be an object'; end if;
   if p_tactic is null or not (p_tactic = any(v_allowed_tactics)) then raise exception 'invalid tactic'; end if;
-  if pg_column_size(p_rotation) > 4096 or pg_column_size(p_matchups) > 4096 then raise exception 'strategy payload too large'; end if;
+  if pg_column_size(p_rotation) > 4096 or pg_column_size(p_matchups) > 4096 then
+    raise exception 'strategy payload too large';
+  end if;
 
-  for v_slot, v_minutes in
-    select key, value::text::integer from jsonb_each(p_rotation)
+  for v_slot, v_minutes_text in
+    select key, trim(both '"' from value::text) from jsonb_each(p_rotation)
   loop
+    if v_minutes_text !~ '^[0-9]+$' then raise exception 'rotation values must be integers'; end if;
+    v_minutes := v_minutes_text::integer;
+
     if not (v_roster ? v_slot) then raise exception 'rotation contains unknown slot %', v_slot; end if;
     if v_slot = any(v_starter_slots) then
       if v_minutes < 25 or v_minutes > 40 then raise exception 'starter minutes out of range'; end if;
@@ -92,49 +96,57 @@ begin
     else
       raise exception 'invalid ranked slot %', v_slot;
     end if;
+
     v_total := v_total + v_minutes;
     v_rotation_count := v_rotation_count + 1;
-  exception when invalid_text_representation then
-    raise exception 'rotation values must be integers';
   end loop;
 
-  if v_rotation_count <> (select count(*) from jsonb_object_keys(v_roster)) then raise exception 'rotation must include every roster slot'; end if;
+  if v_rotation_count <> (select count(*) from jsonb_object_keys(v_roster)) then
+    raise exception 'rotation must include every roster slot';
+  end if;
   if v_total <> 240 then raise exception 'rotation must total 240 minutes'; end if;
 
   select count(*), count(distinct value)
     into v_matchup_count, v_unique_targets
   from jsonb_each_text(p_matchups);
-  if v_matchup_count <> 5 or v_unique_targets <> 5 then raise exception 'matchups must assign five unique starters'; end if;
+  if v_matchup_count <> 5 or v_unique_targets <> 5 then
+    raise exception 'matchups must assign five unique starters';
+  end if;
   if exists (
     select 1 from jsonb_each_text(p_matchups) e
     where not (e.key = any(v_starter_slots))
-       or not ((case when v_side = 'A' then v_match.roster_b else v_match.roster_a end) ? e.value)
+       or not (v_roster ? e.key)
+       or not (e.value = any(v_starter_slots))
+       or not (v_opp_roster ? e.value)
   ) then
     raise exception 'matchups contain invalid slots';
   end if;
 
   if v_side = 'A' then
     update public.matches
-      set rotation_a = p_rotation, matchups_a = p_matchups, tactic_a = p_tactic, updated_at = now()
+      set rotation_a = p_rotation, matchups_a = p_matchups,
+          tactic_a = p_tactic, updated_at = now()
       where id = p_match_id;
   else
     update public.matches
-      set rotation_b = p_rotation, matchups_b = p_matchups, tactic_b = p_tactic, updated_at = now()
+      set rotation_b = p_rotation, matchups_b = p_matchups,
+          tactic_b = p_tactic, updated_at = now()
       where id = p_match_id;
   end if;
 
   select * into v_match from public.matches where id = p_match_id;
   if v_match.tactic_a is not null and v_match.tactic_b is not null then
-    update public.matches set status = 'ready_to_simulate', updated_at = now() where id = p_match_id;
+    update public.matches
+      set status = 'ready_to_simulate', updated_at = now()
+      where id = p_match_id;
   end if;
 end;
 $$;
 revoke all on function public.submit_strategy(uuid,jsonb,jsonb,text) from public, anon;
 grant execute on function public.submit_strategy(uuid,jsonb,jsonb,text) to authenticated;
 
--- One transaction for result insertion, match completion, and both profile
--- replacements. The Edge Function computes the replacement documents from a
--- consistent pregame snapshot and this function commits all of them or none.
+-- Result insertion, match completion, and both profile/rating replacements are
+-- committed together. A retry returns the already stored result.
 create or replace function public.finalize_match_result(
   p_match_id uuid,
   p_result jsonb,
@@ -180,11 +192,11 @@ begin
     where id = p_match_id;
 
   update public.profiles set
-    personal_bests = p_profile_a->'personal_bests',
-    draft_counts = p_profile_a->'draft_counts',
-    history = p_profile_a->'history',
-    highest_scoring_game = p_profile_a->'highest_scoring_game',
-    largest_margin_game = p_profile_a->'largest_margin_game',
+    personal_bests = coalesce(p_profile_a->'personal_bests', personal_bests),
+    draft_counts = coalesce(p_profile_a->'draft_counts', draft_counts),
+    history = coalesce(p_profile_a->'history', history),
+    highest_scoring_game = coalesce(p_profile_a->'highest_scoring_game', highest_scoring_game),
+    largest_margin_game = coalesce(p_profile_a->'largest_margin_game', largest_margin_game),
     online_wins = coalesce((p_profile_a->>'online_wins')::integer, online_wins),
     online_losses = coalesce((p_profile_a->>'online_losses')::integer, online_losses),
     era_records = coalesce(p_profile_a->'era_records', era_records),
@@ -192,11 +204,11 @@ begin
     where id = v_match.player_a;
 
   update public.profiles set
-    personal_bests = p_profile_b->'personal_bests',
-    draft_counts = p_profile_b->'draft_counts',
-    history = p_profile_b->'history',
-    highest_scoring_game = p_profile_b->'highest_scoring_game',
-    largest_margin_game = p_profile_b->'largest_margin_game',
+    personal_bests = coalesce(p_profile_b->'personal_bests', personal_bests),
+    draft_counts = coalesce(p_profile_b->'draft_counts', draft_counts),
+    history = coalesce(p_profile_b->'history', history),
+    highest_scoring_game = coalesce(p_profile_b->'highest_scoring_game', highest_scoring_game),
+    largest_margin_game = coalesce(p_profile_b->'largest_margin_game', largest_margin_game),
     online_wins = coalesce((p_profile_b->>'online_wins')::integer, online_wins),
     online_losses = coalesce((p_profile_b->>'online_losses')::integer, online_losses),
     era_records = coalesce(p_profile_b->'era_records', era_records),
@@ -206,5 +218,7 @@ begin
   return v_result;
 end;
 $$;
-revoke all on function public.finalize_match_result(uuid,jsonb,text,jsonb,jsonb,bigint,text,text,text) from public, anon, authenticated;
-grant execute on function public.finalize_match_result(uuid,jsonb,text,jsonb,jsonb,bigint,text,text,text) to service_role;
+revoke all on function public.finalize_match_result(uuid,jsonb,text,jsonb,jsonb,bigint,text,text,text)
+  from public, anon, authenticated;
+grant execute on function public.finalize_match_result(uuid,jsonb,text,jsonb,jsonb,bigint,text,text,text)
+  to service_role;
