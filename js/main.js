@@ -99,7 +99,7 @@ import {
   renderFriendRequests,
   renderFriendsLeaderboard,
   renderFootballField,
-  showDrive,
+  showFootballEvent,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -2546,8 +2546,46 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   showStage(sport().presentation.stage);
   const footballFieldEl = document.getElementById("football-field");
   let fieldRefs = null;
+  // The whole game's playback, built as data before a single timer starts.
+  let timeline = { events: [], totalMs: 0 };
+  const fieldTimers = [];
   if (sport().presentation.stage === "field" && Array.isArray(result.drives) && result.drives.length) {
     fieldRefs = renderFootballField(footballFieldEl, labelA, labelB);
+    timeline = sport().presentation.buildTimeline?.(result.drives) || timeline;
+  }
+
+  /**
+   * Plays one period's slice of the timeline.
+   *
+   * The events already carry their own offsets, so this only has to rebase
+   * them onto the moment the period starts. Timing comes from the timeline,
+   * not from the period's hold - which is what stops a game with few drives
+   * crawling and one with many flickering past.
+   */
+  function playQuarterEvents(period, isOtPeriod) {
+    if (!fieldRefs) return;
+    const ofPeriod = timeline.events.filter((e) => e.quarter === period);
+    if (!ofPeriod.length) return;
+    const base = ofPeriod[0].atMs;
+    // Compressed to fit inside the hold this period actually gets, so the
+    // field finishes with the scoreboard rather than running past it. The
+    // RATIOS between events survive, because it is one factor for all of them.
+    const span = Math.max(1, ofPeriod[ofPeriod.length - 1].atMs + ofPeriod[ofPeriod.length - 1].durationMs - base);
+    const hold = (isOtPeriod ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS) * 0.9;
+    const squeeze = Math.min(1, hold / span);
+    for (const event of ofPeriod) {
+      fieldTimers.push(
+        setTimeout(() => {
+          showFootballEvent(fieldRefs, event, { clock: event.clock });
+          // Only the moments worth reading go to the feed. Every snap would
+          // be a wall of text nobody follows, and the ball already showed the
+          // ordinary ones.
+          if (event.scoring > 0 || event.turnover) {
+            pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
+          }
+        }, (event.atMs - base) * squeeze)
+      );
+    }
   }
   pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
 
@@ -2713,22 +2751,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       // than a number that changes between blinks.
       isOt ? OT_TICK_MS : QUARTER_TICK_MS
     );
-    // Play this quarter's drives across the field, spaced inside the period's
-    // hold so the ball moves while the score counts rather than after it.
-    if (fieldRefs) {
-      const ofQuarter = result.drives.filter((d) => d.quarter === i + 1);
-      const hold = (isOt ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS) * 0.82;
-      ofQuarter.forEach((d, n) => {
-        setTimeout(() => {
-          showDrive(fieldRefs, d);
-          // Only the drives worth reading go to the feed - a punt is field
-          // position, which the ball already showed.
-          if (d.points > 0 || d.outcome === "turnover") {
-            pushPlayHeadline(playFeedEl, d.text, d.points > 0 ? "lead-change" : "");
-          }
-        }, (hold / Math.max(1, ofQuarter.length)) * n);
-      });
-    }
+    // Football's playback runs off its own timeline (below), built once for
+    // the whole game rather than sliced out of each quarter's hold - see
+    // js/sports/nfl/playback.js for why that distinction matters.
+    playQuarterEvents(i + 1, isOt);
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
     if (leadChanged) {

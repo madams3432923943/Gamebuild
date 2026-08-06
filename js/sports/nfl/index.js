@@ -35,6 +35,7 @@ import { rateEntry } from "./units.js";
 import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
+import { buildTimeline } from "./playback.js";
 
 /** The order a football roster is READ in, which is not the order it is
  * drafted in. Offence before defence, and inside offence the skill positions
@@ -145,10 +146,15 @@ export const NFL = {
     opening: "kickoff",
   },
 
-  // Football is watched on a field. See the note on NBA.presentation - the
-  // stage is declared, not inferred from whether the engine happened to
-  // return drives.
-  presentation: { stage: "field" },
+  // Football is watched on a field, and it is watched as a TIMELINE - a
+  // sequence of events each worth its own amount of time. Both are declared
+  // here rather than discovered by shared code, which is what keeps js/main.js
+  // from importing a sport (see CLAUDE.md).
+  //
+  // buildTimeline is optional in the contract: a sport that does not declare
+  // one is revealed by whatever its stage already does, which is what
+  // basketball's quarter reveal is.
+  presentation: { stage: "field", buildTimeline },
 
   // Seven individuals and five units. The provisional lineup this replaces
   // (QB, RB1, RB2, WR1, WR2, TE, FLEX, K, DEF, BENCH1) modelled fantasy
