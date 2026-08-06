@@ -4346,3 +4346,215 @@ html, body {
   font-family: var(--font-mono);
   font-size: 0.78rem;
 }
+
+/* ---- Football field -----------------------------------------------------
+   Football's stage, the counterpart to .court above. Shown only when the
+   active sport declares presentation.stage === "field" (see showStage() in
+   js/main.js). Every moving part is positioned as a percentage of the turf so
+   the field scales to any width without recomputing anything in JS. */
+.football-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.ff-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.ff-quarter,
+.ff-clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--accent-bright);
+}
+
+.ff-score {
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ff-downdist {
+  font-weight: 600;
+}
+
+.ff-field {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 92px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+}
+
+/* The two end zones are the two drafters' ends of the field, named so you can
+   see whose goal line the ball is approaching without reading a label. */
+.ff-endzone {
+  flex: 0 0 11%;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--accent-rgb), 0.22);
+  overflow: hidden;
+}
+
+.ff-endzone span {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+  padding: 0 0.15rem;
+  color: var(--accent-bright);
+  /* Sideways, the way an end zone is actually painted, and it keeps a long
+     username from pushing the field out of shape. */
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.ff-endzone.right span {
+  transform: none;
+}
+
+.ff-turf {
+  position: relative;
+  flex: 1 1 auto;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.12));
+}
+
+.ff-yardline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ff-yardline.major {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.ff-yardline.midfield {
+  background: rgba(255, 255, 255, 0.38);
+  width: 2px;
+}
+
+.ff-yardnum {
+  position: absolute;
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-size: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+
+/* The latest play, drawn as a band from where the ball was to where it ended.
+   Coloured by side so possession is readable without the label. */
+.ff-drive {
+  position: absolute;
+  top: 32%;
+  height: 36%;
+  border-radius: 3px;
+  background: rgba(var(--accent-rgb), 0.3);
+  transition: left 340ms ease, width 340ms ease;
+}
+
+.ff-drive.b {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ff-scrimmage {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-bright);
+  transition: left 340ms ease;
+}
+
+/* The chains. Yellow because that is what a first-down line is, everywhere. */
+.ff-firstdown {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ffd166;
+  transition: left 340ms ease;
+}
+
+.ff-ball {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 7px;
+  margin: -3.5px 0 0 -5px;
+  border-radius: 50%;
+  background: #d9a066;
+  box-shadow: 0 0 6px rgba(217, 160, 102, 0.8);
+  transition: left 340ms ease;
+  z-index: 2;
+}
+
+/* Which way this possession is going. Sits just above the ball and flips with
+   the drive, which is the whole point of mirroring B's yardage. */
+.ff-arrow {
+  position: absolute;
+  top: 14%;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: left 340ms ease;
+}
+
+.ff-arrow.right {
+  border-left: 7px solid var(--accent-bright);
+  margin-left: 2px;
+}
+
+.ff-arrow.left {
+  border-right: 7px solid #ffffff;
+  margin-left: -9px;
+}
+
+.ff-call {
+  min-height: 1.2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ff-call.score {
+  color: var(--accent-bright);
+}
+
+.ff-call.takeaway {
+  color: var(--buzzer);
+}
+
+.ff-call.first {
+  color: #ffd166;
+}
+
+@media (max-width: 520px) {
+  .ff-field {
+    height: 72px;
+  }
+  .ff-status {
+    font-size: 0.72rem;
+    gap: 0.25rem 0.6rem;
+  }
+}

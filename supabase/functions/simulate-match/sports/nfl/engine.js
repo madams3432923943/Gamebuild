@@ -368,11 +368,98 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     text = "Punt";
   }
 
+  const from = Math.round(startYard);
+  const to = Math.round(endYard);
   return {
-    drive: { team: side, quarter, startYard: Math.round(startYard), endYard: Math.round(endYard),
-             outcome, points, scorer, scorerSlot, credit, kind, takeaway, text },
+    drive: { team: side, quarter, startYard: from, endYard: to,
+             outcome, points, scorer, scorerSlot, credit, kind, takeaway, text,
+             plays: buildPlays(from, to, outcome, kind, scorer, rand) },
     nextStart: nextStart(outcome, endYard),
   };
+}
+
+/** Seconds a play takes off the clock, by what kind of play it was. An
+ * incompletion stops it; a run does not. */
+const PLAY_SECONDS = { run: 40, shortPass: 34, deepPass: 32, incompletion: 7, sack: 38 };
+
+/**
+ * The plays inside one drive.
+ *
+ * STRICTLY DERIVED. The drive already knows where it started, where it ended
+ * and how it finished; this reconstructs a sequence of downs that arrives at
+ * exactly those numbers. It cannot change a score, a yard or an outcome - the
+ * final play is pinned to endYard, and the gains before it are a partition of
+ * the same distance.
+ *
+ * That constraint is the point. A play-by-play that could disagree with the
+ * drive it belongs to would be a second source of truth, and a scoreboard and
+ * a play feed that contradict each other is worse than having no feed at all.
+ * What this adds is DETAIL, not information: down, distance, where the ball
+ * sat, and what kind of play moved it - everything the field needs to draw a
+ * line of scrimmage and a first-down marker, and none of it invented past
+ * what the drive already committed to.
+ */
+function buildPlays(startYard, endYard, outcome, kind, scorer, rand) {
+  const net = endYard - startYard;
+  // Longer drives get more snaps, with a floor of one: a drive exists because
+  // somebody ran a play.
+  const count = Math.max(1, Math.min(12, Math.round(Math.abs(net) / 9) + 1 + Math.floor(rand() * 2)));
+  const plays = [];
+
+  // Gains are drawn, then normalised so they sum to exactly `net`. Drawing
+  // first and scaling after keeps the SHAPE of a drive - a chunk play among
+  // short ones - which a flat division would iron out.
+  const raw = [];
+  for (let i = 0; i < count; i++) raw[i] = 0.35 + rand() * 1.3;
+  const rawTotal = raw.reduce((s, v) => s + v, 0);
+
+  let yard = startYard;
+  let down = 1;
+  let toGo = 10;
+  let carried = 0;
+
+  for (let i = 0; i < count; i++) {
+    const last = i === count - 1;
+    // The last play absorbs the rounding so the drive lands exactly where the
+    // simulation said it did.
+    const gain = last ? endYard - yard : Math.round((net * raw[i]) / rawTotal);
+    carried += gain;
+
+    let type;
+    if (gain <= 0 && !last) type = rand() < 0.45 ? "sack" : "incompletion";
+    else if (gain >= 18) type = "deepPass";
+    else if (rand() < 0.46) type = "run";
+    else type = "shortPass";
+
+    const before = yard;
+    yard = Math.max(1, Math.min(99, yard + gain));
+    const gotFirst = gain >= toGo;
+
+    plays.push({
+      type,
+      down,
+      distance: Math.max(1, Math.round(toGo)),
+      startYard: Math.round(before),
+      endYard: Math.round(last ? endYard : yard),
+      gain: Math.round(gain),
+      firstDown: gotFirst && !last,
+      seconds: PLAY_SECONDS[type] || 35,
+      // The terminal play carries the drive's own result, so playback has one
+      // event to read the score off rather than inferring it from position.
+      result: last ? outcome : null,
+      kind: last ? kind : null,
+      scorer: last ? scorer : null,
+    });
+
+    if (gotFirst) {
+      down = 1;
+      toGo = 10;
+    } else {
+      down = Math.min(4, down + 1);
+      toGo = Math.max(1, toGo - gain);
+    }
+  }
+  return plays;
 }
 
 // COIN TOSS, WITH A CORRECTION ON THE RECORD.

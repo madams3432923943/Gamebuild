@@ -52,6 +52,9 @@ jobs:
       - name: Verify each sport's game-screen stage
         run: npm run verify:game-stage
 
+      - name: Verify NFL drive playback and pacing
+        run: npm run verify:nfl-playback
+
       - name: Verify client/server parity
         run: npm run verify:parity -- --no-network
 
