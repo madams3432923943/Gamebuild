@@ -1,0 +1,45 @@
+name: Apply simulation renderer hotfix
+
+on:
+  push:
+    branches: [hotfix/simulation-boxscore-crash]
+    paths: [.github/workflows/apply-simulation-hotfix.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/simulation-boxscore-crash
+      - name: Patch undefined shooting-split variable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/ui.js')
+          text = path.read_text()
+          old = '''  const splits = sport.splitColumns || [];
+  let html ='''
+          new = '''  const splits = sport.splitColumns || [];
+  // Split columns only belong on the completed box score. The previous call
+  // passed an undefined `showSplits` identifier, which crashed every game
+  // reveal before the scoreboard could render.
+  const showSplits = final ? splits : [];
+  let html ='''
+          if old not in text:
+              raise SystemExit('Expected split declaration not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('    splits.map(([, head]) => `<th>${head}</th>`).join("") +', '    showSplits.map(([, head]) => `<th>${head}</th>`).join("") +', 1)
+          path.write_text(text)
+          PY
+          rm .github/workflows/apply-simulation-hotfix.yml
+      - name: Commit hotfix
+        run: |
+          git config user.name "BallKnowledge Hotfix"
+          git config user.email "actions@users.noreply.github.com"
+          git add js/ui.js .github/workflows/apply-simulation-hotfix.yml
+          git commit -m "Fix box score crash blocking every simulation"
+          git push origin HEAD:hotfix/simulation-boxscore-crash
