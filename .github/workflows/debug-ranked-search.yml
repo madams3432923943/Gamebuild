@@ -1,9 +1,17 @@
 name: Debug ranked search
 on:
   push:
-    branches: [main]
     paths:
       - scripts/verify-ranked-search.mjs
+      - js/ui.js
+      - package.json
+      - package-lock.json
+  pull_request:
+    paths:
+      - scripts/verify-ranked-search.mjs
+      - js/ui.js
+      - package.json
+      - package-lock.json
 permissions:
   contents: read
 jobs:
@@ -14,4 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node scripts/verify-ranked-search.mjs
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run verify:ranked-search

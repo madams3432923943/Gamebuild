@@ -18,6 +18,7 @@
     "verify:abandon-selftest": "node scripts/selftest/run-abandon-selftest.mjs",
     "verify:contract": "node scripts/verify-sport-contract.mjs",
     "verify:playable": "node scripts/verify-playable.mjs",
+    "verify:ranked-search": "node scripts/verify-ranked-search.mjs",
     "stamp": "node tools/stamp-build.mjs",
     "data:nfl:fetch": "node tools/fetch-nfl-seasons.mjs",
     "data:nfl:manifest": "node tools/write-nfl-source-manifest.mjs",
