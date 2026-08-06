@@ -17,8 +17,13 @@
     "verify:online-selftest": "node scripts/selftest/run-online-selftest.mjs",
     "verify:abandon-selftest": "node scripts/selftest/run-abandon-selftest.mjs",
     "verify:contract": "node scripts/verify-sport-contract.mjs",
+    "verify:playable": "node scripts/verify-playable.mjs",
     "stamp": "node tools/stamp-build.mjs",
-    "verify:playable": "node scripts/verify-playable.mjs"
+    "data:nfl:fetch": "node tools/fetch-nfl-seasons.mjs",
+    "data:nfl:manifest": "node tools/write-nfl-source-manifest.mjs",
+    "data:nfl:validate": "node tools/validate-nfl-source.mjs",
+    "data:nfl:build": "npm run data:nfl:validate && node tools/build-nfl-data.mjs",
+    "data:nfl:refresh": "npm run data:nfl:fetch && npm run data:nfl:manifest && npm run data:nfl:build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2"
