@@ -77,7 +77,11 @@ const fails = {
   rushTdNoYards: 0,
   recTdNoCatch: 0,
   negative: 0,
+  tightEndRushTd: 0,
 };
+// Who actually carried the ball on scoring runs, so the gate can be shown to
+// redirect the work rather than simply delete it.
+const rushTdBy = { QB: 0, RB: 0, WR: 0, TE: 0 };
 let teams = 0;
 let silentReceiverGames = 0;
 let topShareSum = 0;
@@ -108,7 +112,18 @@ for (let n = 0; n < GAMES; n++) {
         example = example || `${slot} ${line.rush_tds} rush TD on ${line.rush_yds} yards`;
       }
       if ((line.rec_tds || 0) > 0 && (line.rec || 0) === 0) fails.recTdNoCatch++;
+      // A tight end does not take handoffs in a model that has no plays to
+      // call. See RUSH_CARRIER_WEIGHTS in js/sports/nfl/constants.js.
+      if (slot === "TE" && (line.rush_tds || 0) > 0) fails.tightEndRushTd += line.rush_tds;
       if ((line.rec_yds || 0) < 0 || (line.rush_yds || 0) < 0 || (line.rec || 0) < 0) fails.negative++;
+    }
+
+    // Counted over every ball carrier, QB included - CATCHERS above does not
+    // list him, and reading the split off that loop reported a league where no
+    // quarterback ever ran it in.
+    for (const slot of ["QB", ...CATCHERS]) {
+      const carrier = slot.replace(/\d+$/, "");
+      if (carrier in rushTdBy) rushTdBy[carrier] += rec(slot).rush_tds || 0;
     }
 
     for (const slot of RECEIVERS) if ((rec(slot).rec || 0) === 0) silentReceiverGames++;
@@ -139,6 +154,18 @@ const checks = [
     title: "No rushing touchdown without rushing yards",
     ok: fails.rushTdNoYards === 0,
     detail: fails.rushTdNoYards ? `${fails.rushTdNoYards} contradictory lines, e.g. ${example}` : "none",
+  },
+  {
+    title: "Tight ends are never credited a rushing touchdown",
+    ok: fails.tightEndRushTd === 0,
+    detail: `${fails.tightEndRushTd} TE rushing TDs in ${teams} team-games`,
+  },
+  {
+    // The gate has to REDIRECT the carries, not delete them - a league where
+    // nobody runs it in would be a different bug wearing the same fix.
+    title: "Rushing touchdowns go to backs and quarterbacks",
+    ok: rushTdBy.RB + rushTdBy.QB > 0 && rushTdBy.RB > rushTdBy.WR,
+    detail: `QB ${rushTdBy.QB}  RB ${rushTdBy.RB}  WR ${rushTdBy.WR}  TE ${rushTdBy.TE}`,
   },
   {
     title: "No receiving touchdown without a reception",
