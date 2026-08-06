@@ -173,7 +173,12 @@ for (const [sport, slots] of [[NBA, NBA.slots.quickPlay], [NFL, NFL.slots.quickP
       text
     );
   } else {
-    const basketball = ["Rebounds", "Assists", "Steals", "Blocks", "PTS", "REB", "AST"];
+    // NOT a blocklist of every basketball-looking word. Football scores
+    // points too, and NFL declares its own ["pts", "PTS"] column - so listing
+    // PTS here failed a completely correct football MVP line whenever points
+    // happened to be among his top three. Only the stats football does not
+    // keep belong in this list.
+    const basketball = ["Rebounds", "Assists", "Steals", "Blocks", "REB", "AST", "STL", "BLK"];
     const leaked = basketball.filter((w) => text.includes(w));
     check("NFL MVP line contains no basketball statistics", leaked.length === 0, leaked.length ? `leaked: ${leaked.join(" ")}` : text);
     check(
