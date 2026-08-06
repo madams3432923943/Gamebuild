@@ -33,14 +33,18 @@ jobs:
       - name: Verify playable configuration
         run: npm run verify:playable
 
-      # The ranked draft board is the one thing here that has to be checked in
-      # a real browser: the search blank-out was a DOM-render throw that every
-      # module-level test walked straight past.
+      # The rendered screens have to be checked in a real browser. Both bugs
+      # these cover were DOM-render throws that every module-level test walked
+      # straight past - one blanked the draft board, one misaligned every
+      # NBA box score.
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
       - name: Verify ranked search renders
         run: npm run verify:ranked-search
+
+      - name: Verify box scores render per sport
+        run: npm run verify:box-score
 
       - name: Verify client/server parity
         run: npm run verify:parity -- --no-network
