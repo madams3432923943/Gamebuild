@@ -185,6 +185,12 @@ function pickScorer(roster, kind, rand) {
   let total = 0;
   for (const [slot, entry] of Object.entries(roster)) {
     if (!entry || isUnit(entry)) continue;
+    // A quarterback does not catch his own pass. The dataset carries the odd
+    // receiving touchdown for one - trick plays, where somebody else threw it -
+    // and without this he was drawn as his own receiver, which credited him a
+    // completion and a reception on the same play and put the box score's
+    // completions one ahead of its receptions.
+    if (kind === "rec" && slot === "QB") continue;
     let share = Number(entry[field]) || 0;
     // On the ground, the POSITION gates the play before production weighs it.
     // WR3 and WR are the same job; the trailing digit is a depth-chart index,
@@ -377,14 +383,78 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   return {
     drive: { team: side, quarter, startYard: from, endYard: to,
              outcome, points, scorer, scorerSlot, credit, kind, takeaway, text,
-             plays: buildPlays(from, to, outcome, kind, scorer, rand) },
+             plays: buildPlays(from, to, outcome, kind, scorerSlot, roster, rand) },
     nextStart: nextStart(outcome, endYard),
   };
 }
 
+/**
+ * Who touches the ball, and how often, from each man's REAL per-game
+ * production. Computed once per drive rather than per play - it depends only
+ * on the roster, and rebuilding it 6 times a drive would be 130 rebuilds a
+ * game for an identical answer.
+ */
+function usageWeights(roster) {
+  const skill = Object.entries(roster || {})
+    .filter(([, e]) => e && !isUnit(e))
+    .map(([slot, entry]) => ({ slot, entry }));
+  const build = (list, field, gate) => {
+    const items = list.map(({ slot, entry }) => ({
+      slot,
+      weight: Math.max(0, Number(entry[field]) || 0) * (gate ? gate[slot.replace(/\d+$/, "")] ?? 0 : 1),
+    }));
+    const total = items.reduce((s, i) => s + i.weight, 0);
+    // A roster with no production in this column (a data gap) shares evenly
+    // rather than dropping the touches on the floor.
+    if (total <= 0) return items.map((i) => ({ ...i, weight: 1 / (items.length || 1) }));
+    return items.map((i) => ({ ...i, weight: i.weight / total }));
+  };
+  return {
+    catchers: build(skill.filter(({ slot }) => slot !== "QB"), "rec"),
+    // Carries are gated by POSITION before production weights them, the same
+    // way scoring runs are. A quarterback's rushing yards can rival a back's
+    // without him being the man the ball is handed to twenty times a game.
+    rushers: build(skill, "rush_yds", CARRY_SHARE),
+  };
+}
+
+/** Who the ball is handed to on an ordinary carry, as a multiplier on that
+ * man's rushing production. Backs carry; quarterbacks scramble and keep;
+ * receivers get the occasional designed run; tight ends do not carry. */
+const CARRY_SHARE = { RB: 1, QB: 0.3, FLEX: 0.7, WR: 0.08, TE: 0 };
+
+/** One weighted draw. Returns a SLOT. */
+function pickBySlotWeight(items, rand) {
+  if (!items || !items.length) return null;
+  let roll = rand();
+  for (const item of items) {
+    roll -= item.weight;
+    if (roll <= 0) return item.slot;
+  }
+  return items[items.length - 1].slot;
+}
+
 /** Seconds a play takes off the clock, by what kind of play it was. An
- * incompletion stops it; a run does not. */
-const PLAY_SECONDS = { run: 40, shortPass: 34, deepPass: 32, incompletion: 7, sack: 38 };
+ * incompletion stops it; a run does not. Solved against the only constraint
+ * that matters here: both teams' possession has to add up to about sixty
+ * minutes, because that is how long a football game is. */
+const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sack: 36 };
+
+/** How much of a drive is snaps that gained nothing - incompletions and
+ * sacks. Carved out of the play count rather than added to it, so the count
+ * stays at football's ~64 a side. */
+const DEAD_PLAY_SHARE = 0.28;
+
+/** ...and how many of those are sacks rather than incompletions. */
+const SACK_SHARE_OF_DEAD = 0.13;
+
+/** How much of a productive drive is carried on the ground. Solved against a
+ * real team's ~120 rushing yards a game, not chosen. */
+const RUN_SHARE = 0.45;
+
+/** What a carry is worth against a throw, as a multiplier on the yardage it
+ * draws. Real football is about 4.3 a carry against 7.2 an attempt. */
+const RUN_YARD_WEIGHT = 0.6;
 
 /**
  * The plays inside one drive.
@@ -403,7 +473,7 @@ const PLAY_SECONDS = { run: 40, shortPass: 34, deepPass: 32, incompletion: 7, sa
  * line of scrimmage and a first-down marker, and none of it invented past
  * what the drive already committed to.
  */
-function buildPlays(startYard, endYard, outcome, kind, scorer, rand) {
+function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand) {
   const net = endYard - startYard;
   // Longer drives get more snaps, with a floor of one: a drive exists because
   // somebody ran a play.
@@ -413,31 +483,118 @@ function buildPlays(startYard, endYard, outcome, kind, scorer, rand) {
   // Gains are drawn, then normalised so they sum to exactly `net`. Drawing
   // first and scaling after keeps the SHAPE of a drive - a chunk play among
   // short ones - which a flat division would iron out.
+  // DEAD PLAYS. A drive is not only the snaps that gained something: without
+  // incompletions and sacks the quarterback completed every pass he threw and
+  // was never once brought down, which is not football, and it left the clock
+  // running 78 minutes because every play took a run's worth of it.
+  //
+  // They are carved OUT of the play count rather than added to it - the total
+  // was already right at about 64 a side - and a sack's lost yardage is added
+  // back into the pool the productive plays share, so the drive still lands
+  // exactly where the simulation said.
+  const dead = Math.min(count - 1, Math.round(count * DEAD_PLAY_SHARE));
+  const productive = Math.max(1, count - dead);
+  // Rounded PROBABILISTICALLY, not to nearest. A drive has about two dead
+  // plays, so round-to-nearest turned 0.4 sacks into 0 every single time and
+  // the whole league finished the season with none.
+  const sackFloat = dead * SACK_SHARE_OF_DEAD;
+  const sacks = Math.floor(sackFloat) + (rand() < sackFloat % 1 ? 1 : 0);
+  let sackLoss = 0;
+  const deadPlays = [];
+  for (let i = 0; i < dead; i++) {
+    const isSack = i < sacks;
+    const loss = isSack ? -(3 + Math.floor(rand() * 7)) : 0;
+    sackLoss += loss;
+    deadPlays.push({ type: isSack ? "sack" : "incompletion", gain: loss });
+  }
+
+  // Type is decided BEFORE the yardage, and then weights it. Assigning gains
+  // first and labelling them afterwards made a carry worth exactly as much as
+  // a throw, so matching football's yardage split (about 66:34) forced the
+  // play split to 71% passes - a league that threw it on nearly every down.
+  // A run gains less than a pass, which is why both can be right at once.
   const raw = [];
-  for (let i = 0; i < count; i++) raw[i] = 0.35 + rand() * 1.3;
+  const kinds = [];
+  for (let i = 0; i < productive; i++) {
+    const isRun = rand() < RUN_SHARE;
+    kinds[i] = isRun ? "run" : "pass";
+    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT : 1);
+  }
   const rawTotal = raw.reduce((s, v) => s + v, 0);
+  // The productive plays make up whatever the sacks gave away.
+  const gainPool = net - sackLoss;
+
+  const usage = usageWeights(roster);
 
   let yard = startYard;
   let down = 1;
   let toGo = 10;
   let carried = 0;
 
-  for (let i = 0; i < count; i++) {
-    const last = i === count - 1;
-    // The last play absorbs the rounding so the drive lands exactly where the
-    // simulation said it did.
-    const gain = last ? endYard - yard : Math.round((net * raw[i]) / rawTotal);
+  // Dead plays are shuffled in among the productive ones rather than bolted on
+  // at the front, so a drive reads like a drive: an incompletion on second
+  // down, not three of them before anybody touches the ball.
+  const order = [];
+  for (let i = 0; i < productive; i++) order.push({ productive: true, index: i });
+  for (const d of deadPlays) order.push({ productive: false, dead: d });
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  // The drive has to END on a play that moves it to endYard, so whichever
+  // productive play sorted last is pulled to the back.
+  const lastProductive = order.map((o, i) => (o.productive ? i : -1)).filter((i) => i >= 0).pop();
+  if (lastProductive != null && lastProductive !== order.length - 1) {
+    const [pulled] = order.splice(lastProductive, 1);
+    order.push(pulled);
+  }
+
+  for (let i = 0; i < order.length; i++) {
+    const slot = order[i];
+    const last = i === order.length - 1;
+    const gain = last
+      ? endYard - yard
+      : slot.productive
+        ? Math.round((gainPool * raw[slot.index]) / rawTotal)
+        : slot.dead.gain;
     carried += gain;
 
+    // The play that scores has to BE the play the drive says it was. Left to
+    // the ordinary draw, a drive recorded as a rushing touchdown could end on
+    // a pass, and the scorer would be credited with a rushing score he had no
+    // carry for - the box score contradicting the drive it came from.
+    const scoringTd = last && outcome === "touchdown" && scorerSlot;
+
     let type;
-    if (gain <= 0 && !last) type = rand() < 0.45 ? "sack" : "incompletion";
+    if (scoringTd) type = kind === "rush" ? "run" : gain >= 18 ? "deepPass" : "shortPass";
+    else if (!slot.productive) type = slot.dead.type;
+    else if (kinds[slot.index] === "run") type = "run";
     else if (gain >= 18) type = "deepPass";
-    else if (rand() < 0.46) type = "run";
     else type = "shortPass";
 
     const before = yard;
     yard = Math.max(1, Math.min(99, yard + gain));
     const gotFirst = gain >= toGo;
+
+    // WHO DID IT. Every play names its participants, which is what makes the
+    // box score a LEDGER rather than a share-out: each stat is written by the
+    // play that produced it, so a total can never be something other than the
+    // sum of the plays behind it.
+    //
+    // The play that ends a scoring drive is pinned to the man the drive
+    // already named. Drawing a fresh one here would let the popup say one
+    // name and the box score another.
+    let carrier = null;
+    let receiver = null;
+    if (type === "run") {
+      carrier = scoringTd && kind === "rush" ? scorerSlot : pickBySlotWeight(usage.rushers, rand);
+    } else if (type === "sack") {
+      carrier = "QB";
+    } else if (type === "incompletion") {
+      receiver = null;
+    } else {
+      receiver = scoringTd && kind === "rec" ? scorerSlot : pickBySlotWeight(usage.catchers, rand);
+    }
 
     plays.push({
       type,
@@ -448,11 +605,16 @@ function buildPlays(startYard, endYard, outcome, kind, scorer, rand) {
       gain: Math.round(gain),
       firstDown: gotFirst && !last,
       seconds: PLAY_SECONDS[type] || 35,
+      // Slots, not names: the roster is what turns a slot into a person, and
+      // storing the name here would duplicate it into a second place that can
+      // fall out of step.
+      carrier,
+      receiver,
       // The terminal play carries the drive's own result, so playback has one
       // event to read the score off rather than inferring it from position.
       result: last ? outcome : null,
       kind: last ? kind : null,
-      scorer: last ? scorer : null,
+      scorer: last ? scorerSlot : null,
     });
 
     if (gotFirst) {
@@ -598,149 +760,157 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // every football record - Passing Yards, Rushing TDs, Field Goals -
   // permanently unsettable, which looks like an empty profile rather than a
   // bug and would never have reported itself.
+  /**
+   * THE LEDGER.
+   *
+   * Every number below is written by a PLAY. Nothing is estimated after the
+   * fact and nothing is shared out from a total, which is the property that
+   * makes the reconciliations hold by construction rather than by luck:
+   * team passing yards cannot differ from the sum of receiving yards, because
+   * they are the same additions.
+   *
+   * This replaces two earlier generations. The first credited only the man who
+   * finished a drive, so most of a game existed only in the score. The second
+   * shared each drive's yardage out across the roster by season usage, which
+   * spread the work correctly but still had no play behind any individual
+   * number - "who caught it" was a distribution, not an event.
+   */
   const boxFor = (side, roster) => {
     const box = {};
     const emptyLine = () => ({
       comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
-      rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0,
+      carries: 0, targets: 0, sacked: 0,
+      rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0, fga: 0,
       td: 0, pts: 0,
     });
-    // Every slot gets a line, filled or not. A receiver who was quiet had a
-    // quiet game; he did not fail to exist, and an absent row is the one thing
-    // a box score must never say.
+    // Every slot gets a line, filled or not. A quiet receiver had a quiet
+    // game; he did not fail to exist, and an absent row is the one thing a box
+    // score must never say.
     for (const slot of Object.keys(roster)) box[slot] = emptyLine();
+    const at = (slot) => (slot && box[slot] ? box[slot] : null);
 
-    // WHY THE WORK IS SPREAD
-    //
-    // This used to credit only the man who FINISHED a drive: `drives.filter(d
-    // => d.scorerSlot === slot)`. Two things followed, both wrong. A drive
-    // that ended in a punt or a field goal credited nobody, so most of the
-    // game's yards existed only in the score. And on a scoring drive the one
-    // scorer took every catch and every yard, so a roster's second and third
-    // receivers finished games with a row of zeros while one man caught
-    // eleven passes. Ten personnel on the field, one in the box score.
-    //
-    // The drive is still the honest unit - this model does not simulate
-    // individual plays, and pretending otherwise would be inventing data. But
-    // the yards a drive covered were covered by the people who play those
-    // positions, in the proportion they really played them. Each drive's
-    // yardage is split pass/run and then shared out by each man's REAL
-    // per-game production, which is already in the dataset. The touchdown
-    // still belongs to whoever pickScorer chose.
-    const skill = Object.entries(roster)
-      .filter(([, e]) => e && !isUnit(e))
-      .map(([slot, entry]) => ({ slot, entry }));
-    const catchers = skill.filter(({ slot }) => slot !== "QB");
-    const weightOf = (list, field) => {
-      const weights = list.map(({ entry }) => Math.max(0, Number(entry[field]) || 0));
-      const total = weights.reduce((s, w) => s + w, 0);
-      // Nobody in the dataset produced here (a roster of blockers, or a data
-      // gap): share it evenly rather than dropping the yards on the floor.
-      return total > 0 ? weights.map((w) => w / total) : weights.map(() => 1 / (list.length || 1));
+    const team = {
+      passYards: 0, rushYards: 0, totalYards: 0, firstDowns: 0, turnovers: 0,
+      thirdDownAttempts: 0, thirdDownConversions: 0,
+      redZoneTrips: 0, redZoneTouchdowns: 0,
+      sacksAllowed: 0, possessionSeconds: 0, drives: 0, startYardTotal: 0,
+      plays: 0,
     };
-    const recShare = weightOf(catchers, "rec_yds");
-    const catchShare = weightOf(catchers, "rec");
-    const rushers = skill;
-    const rushShare = weightOf(rushers, "rush_yds");
 
-    // How this roster moves the ball, from the roster itself rather than a
-    // constant: a team built around a back should run more than one built
-    // around three receivers. Bounded because no NFL offence is all of one.
-    const totalRec = catchers.reduce((s, { entry }) => s + (Number(entry.rec_yds) || 0), 0);
-    const totalRush = rushers.reduce((s, { entry }) => s + (Number(entry.rush_yds) || 0), 0);
-    const passBias = totalRec + totalRush > 0 ? totalRec / (totalRec + totalRush) : 0.6;
-    const passRatio = Math.max(0.4, Math.min(0.78, passBias));
+    for (const drive of drives.filter((d) => d.team === side)) {
+      team.drives += 1;
+      team.startYardTotal += drive.startYard;
+      // A trip inside the opponent's twenty, counted once per drive however
+      // many plays it took to get there.
+      let enteredRedZone = false;
 
-    for (const d of drives.filter((x) => x.team === side)) {
-      const gained = Math.max(0, d.endYard - d.startYard);
-      if (d.outcome === "fieldGoal" && d.scorerSlot && box[d.scorerSlot]) {
-        box[d.scorerSlot].fgs += 1;
-        box[d.scorerSlot].pts += d.points;
-      }
-      if (!gained || !skill.length) continue;
-
-      const passYards = Math.round(gained * passRatio);
-      const rushYards = gained - passYards;
-
-      // Receiving. Yards and catches are shared on separate weights on
-      // purpose - a possession receiver and a deep threat split the same
-      // drive very differently, and using one weight for both would make
-      // every catch worth the same yardage.
-      catchers.forEach(({ slot }, i) => {
-        const yds = passYards * recShare[i];
-        if (yds <= 0) return;
-        box[slot].rec_yds += yds;
-        box[slot].rec += Math.max(0, catchShare[i] * (1 + gained / 26));
-      });
-      // A man who is about to be credited with a rushing touchdown carried the
-      // ball on this drive, by definition, so he gets a real share of its
-      // rushing yards rather than whatever his season weight says. Without
-      // this a tight end could finish with a rushing touchdown and zero
-      // rushing yards - a row that contradicts itself in public.
-      //
-      // This makes the LINE consistent. It does not fix how the scorer was
-      // chosen: pickScorer still weights by rush_td alone, so a tight end with
-      // any rushing score in the dataset can be drawn for a carry he would
-      // rarely be given. That is the designed-run attribution work, and it
-      // belongs with the play-level ledger rather than here.
-      const scoringRusher = d.kind === "rush" && d.scorerSlot && box[d.scorerSlot] ? d.scorerSlot : null;
-      const SCORER_FLOOR = 0.5;
-      rushers.forEach(({ slot }, i) => {
-        let portion = rushShare[i];
-        if (scoringRusher) {
-          portion = slot === scoringRusher
-            ? Math.max(portion, SCORER_FLOOR)
-            : portion * (1 - SCORER_FLOOR);
+      for (const play of drive.plays || []) {
+        team.plays += 1;
+        team.possessionSeconds += play.seconds || 0;
+        if (play.firstDown) team.firstDowns += 1;
+        if (play.down === 3) {
+          team.thirdDownAttempts += 1;
+          if (play.firstDown) team.thirdDownConversions += 1;
         }
-        const yds = rushYards * portion;
-        if (yds > 0) box[slot].rush_yds += yds;
-      });
+        if (!enteredRedZone && play.endYard >= 80) {
+          enteredRedZone = true;
+          team.redZoneTrips += 1;
+        }
 
-      if (d.kind === "rush" && d.scorerSlot && box[d.scorerSlot]) {
-        box[d.scorerSlot].rush_tds += 1;
-        box[d.scorerSlot].td += 1;
-        box[d.scorerSlot].pts += d.points;
-      } else if (d.kind === "rec" && d.scorerSlot && box[d.scorerSlot]) {
-        box[d.scorerSlot].rec_tds += 1;
-        box[d.scorerSlot].td += 1;
-        box[d.scorerSlot].pts += d.points;
-        if (box.QB && d.scorerSlot !== "QB") box.QB.pass_tds += 1;
+        const qb = at("QB");
+        switch (play.type) {
+          case "run": {
+            const line = at(play.carrier);
+            if (line) {
+              line.carries += 1;
+              line.rush_yds += play.gain;
+            }
+            team.rushYards += play.gain;
+            break;
+          }
+          case "sack": {
+            // Charged to the quarterback and to the line that let it happen.
+            // Sack yardage is lost passing yardage in the NFL's own books.
+            if (qb) {
+              qb.sacked += 1;
+              qb.att += 0;
+            }
+            team.sacksAllowed += 1;
+            team.passYards += play.gain;
+            if (qb) qb.pass_yds += play.gain;
+            break;
+          }
+          case "incompletion": {
+            if (qb) qb.att += 1;
+            break;
+          }
+          default: {
+            // A completion. The quarterback and his receiver are two halves of
+            // one event, written together so they can never disagree.
+            const line = at(play.receiver);
+            if (qb) {
+              qb.att += 1;
+              qb.comp += 1;
+              qb.pass_yds += play.gain;
+            }
+            if (line) {
+              line.targets += 1;
+              line.rec += 1;
+              line.rec_yds += play.gain;
+            }
+            team.passYards += play.gain;
+            break;
+          }
+        }
+      }
+
+      // The drive's result, credited to the man the drive already named.
+      const scorer = at(drive.scorerSlot);
+      if (drive.outcome === "fieldGoal" && scorer) {
+        scorer.fgs += 1;
+        scorer.fga += 1;
+        scorer.pts += drive.points;
+      } else if (drive.outcome === "downs" && drive.text && /missed/i.test(drive.text)) {
+        const kicker = at("ST");
+        if (kicker) kicker.fga += 1;
+      } else if (drive.outcome === "touchdown" && scorer) {
+        if (drive.kind === "rush") scorer.rush_tds += 1;
+        else {
+          scorer.rec_tds += 1;
+          const qb = at("QB");
+          if (qb && drive.scorerSlot !== "QB") qb.pass_tds += 1;
+        }
+        scorer.td += 1;
+        scorer.pts += drive.points;
+        if (enteredRedZone) team.redZoneTouchdowns += 1;
+      } else if (drive.outcome === "turnover") {
+        team.turnovers += 1;
       }
     }
 
-    // Whole numbers first. These are counting stats on a printed page, not
-    // the fractional shares they were computed from - and the quarterback's
-    // line below has to be built from what the table will actually SHOW, or
-    // his passing yards and his receivers' receiving yards disagree by the
-    // rounding and the box score contradicts itself in public.
+    // Rounding happens once, here, at the boundary between simulating and
+    // printing - and BEFORE the team totals are read off the same numbers, so
+    // the table and its totals agree to the yard.
     for (const line of Object.values(box)) {
-      line.rec_yds = Math.round(line.rec_yds);
-      line.rush_yds = Math.round(line.rush_yds);
-      line.rec = Math.round(line.rec);
+      for (const key of ["rec_yds", "rush_yds", "pass_yds", "rec", "att", "comp", "carries", "targets"]) {
+        line[key] = Math.round(line[key] || 0);
+      }
+      // Points are whole numbers on a scoreboard. POINTS.touchdown carries
+      // 6.94 - the extra point folded in at its real rate - which is right for
+      // simulating and wrong for reading: nobody scored 20.82.
+      line.pts = Math.round(line.pts);
     }
 
-    // The quarterback's line is the SUM of what his receivers did, not a
-    // parallel estimate of it. Derived rather than accumulated so passing
-    // yards always equal receiving yards and completions always equal
-    // receptions - two of the reconciliations a football box score is judged
-    // on, and impossible to drift out of once they are the same number.
-    if (box.QB) {
-      let recYds = 0;
-      let catches = 0;
-      for (const { slot } of catchers) {
-        recYds += box[slot].rec_yds;
-        catches += box[slot].rec;
-      }
-      box.QB.pass_yds = recYds;
-      box.QB.comp = catches;
-      // Attempts exceed completions because nobody is perfect. The gap is
-      // what makes C/ATT worth a column at all.
-      box.QB.att = catches + Math.round(catches * 0.42);
-    }
-    // Points are whole numbers on a scoreboard. POINTS.touchdown carries 6.94
-    // - the extra point folded in at its real rate - which is right for
-    // simulating and wrong for reading: nobody scored 20.82.
-    for (const line of Object.values(box)) line.pts = Math.round(line.pts);
+    // Team yardage is the SUM OF THE LINES, not a parallel tally. Two counters
+    // for one truth is how a box score and its totals end up disagreeing.
+    const slots = Object.keys(box);
+    team.passYards = slots.reduce((sum, k) => sum + box[k].rec_yds, 0);
+    team.rushYards = slots.reduce((sum, k) => sum + box[k].rush_yds, 0);
+    team.totalYards = team.passYards + team.rushYards;
+    team.averageStart = team.drives ? Math.round(team.startYardTotal / team.drives) : 0;
+    // A quarterback's passing yards are his receivers' receiving yards. Same
+    // additions, so they cannot drift.
+    if (box.QB) box.QB.pass_yds = team.passYards;
 
     // Turnovers land on the defensive unit credited with them, so a drafted
     // ball-hawking secondary shows up in the box score as well as the recap.
@@ -750,12 +920,20 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       if (d.takeaway === "fumble") unit.fumbles += 1;
       else unit.ints += 1;
     }
-    return box;
+
+    return { box, team };
   };
 
   return {
     teamScoreA, teamScoreB,
-    boxA: boxFor("A", rosterA), boxB: boxFor("B", rosterB),
+    ...(() => {
+      const a = boxFor("A", rosterA);
+      const b = boxFor("B", rosterB);
+      // Team totals travel beside the box score, not inside it: they are a
+      // different shape (one object per side, not one per slot) and folding
+      // them in would make every consumer guard against a fake roster slot.
+      return { boxA: a.box, boxB: b.box, teamStatsA: a.team, teamStatsB: b.team };
+    })(),
     quarterBoxScores, drives, overtimePeriods,
     coinToss: { winner: tossWinner, elected, firstHalfReceiver },
     winner: teamScoreA === teamScoreB ? null : teamScoreA > teamScoreB ? "A" : "B",
