@@ -1617,6 +1617,14 @@ table.box-table th, table.history-table th {
   color: var(--buzzer);
 }
 
+/* A render failure, not a search result - it has to read as something that
+   went wrong on our side rather than as another "no match" note. */
+.pool-error-note {
+  color: var(--buzzer);
+  font-style: normal;
+  font-weight: 600;
+}
+
 /* ---- Auth screen ---- */
 .auth-card {
   max-width: 420px;

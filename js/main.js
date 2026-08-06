@@ -1512,7 +1512,7 @@ function renderPoolForCurrentState() {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
-  renderPool(
+  const rendered = renderPool(
     poolList,
     draft.currentSquad,
     poolSearch.value,
@@ -1524,6 +1524,9 @@ function renderPoolForCurrentState() {
     draft.slots,
     (player, seasons, showStats) => openSeasonPicker(player, seasons, onPoolPick, showStats)
   );
+  // The pool told the player it is broken; running the clock down and
+  // forfeiting their pick on top of that would be charging them for our bug.
+  if (!rendered.ok) cleanupPickTimer();
 }
 
 function onPoolPick(player) {
@@ -2084,7 +2087,7 @@ function renderOnlinePositionAndPool() {
     finalizeOnlinePick(o.pendingPlayer, slot);
   }, sport().slots.ranked);
   const pendingName = o.pendingPlayer ? o.pendingPlayer.name : null;
-  renderPool(
+  const rendered = renderPool(
     poolList,
     o.currentSquad,
     poolSearch.value,
@@ -2096,6 +2099,9 @@ function renderOnlinePositionAndPool() {
     sport().slots.ranked,
     (player, seasons, showStats) => openSeasonPicker(player, seasons, onOnlinePoolPick, showStats)
   );
+  // Same contract as offline. The server still holds the turn clock, so this
+  // only stops the local countdown from pressuring a player who cannot search.
+  if (!rendered.ok) cleanupPickTimer();
 }
 
 function onOnlinePoolPick(player) {

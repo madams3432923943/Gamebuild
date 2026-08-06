@@ -279,6 +279,13 @@ function renderNote(container, text, tierClass) {
   container.appendChild(note);
 }
 
+/** The user-facing half of a pool render failure. Declared before its use
+ * rather than after it - reading an identifier that is not bound yet is the
+ * exact bug this block exists to report. Exported so the tests assert on the
+ * real string instead of a copy that can drift out of step with it. */
+export const POOL_RENDER_ERROR_MESSAGE =
+  "Something went wrong showing the players for this squad. Your pick timer is paused \u2014 please report this.";
+
 /**
  * Renders the current squad's search results - no default visible list.
  * You type a player from memory; nothing appears until MIN_SEARCH_CHARS
@@ -291,6 +298,10 @@ function renderNote(container, text, tierClass) {
  * `onPick(player)` fires on click of an eligible in-squad card, same
  * contract as before. `allPlayers` is the full dataset, used only for the
  * "elsewhere" lookup.
+ *
+ * Returns `{ ok: true }`, or `{ ok: false, error }` if rendering threw - the
+ * pool shows POOL_RENDER_ERROR_MESSAGE in that case and the caller is
+ * expected to stop the pick timer. Callers must not ignore the result.
  */
 export function renderPool(
   container,
@@ -305,7 +316,46 @@ export function renderPool(
   onPickSeason = null
 ) {
   container.innerHTML = "";
+  try {
+    renderPoolContents(
+      container, squad, filterText, roster, pendingPlayerName,
+      onPick, allPlayers, ruleset, slots, onPickSeason
+    );
+    return { ok: true };
+  } catch (error) {
+    // A throw in here used to be indistinguishable from "nothing matched":
+    // the container had already been emptied, so the draft board sat blank
+    // with a running pick timer and no console anyone would look at. The
+    // error is NOT swallowed - it is logged with the state needed to
+    // reproduce it, and returned to the caller, whose job is to stop the
+    // timer rather than charge the player for a screen they cannot use.
+    console.error("Draft pool render failed:", error, {
+      ruleset,
+      filterText,
+      squad: squad ? `${squad.team} ${squad.decade}` : null,
+      squadSize: squad && squad.players ? squad.players.length : 0,
+      openSlots: slots,
+    });
+    container.innerHTML = "";
+    // Useful, and says what happens next, without naming a function or
+    // leaking a stack to someone who only wanted to draft a player.
+    renderNote(container, POOL_RENDER_ERROR_MESSAGE, "pool-error-note");
+    return { ok: false, error };
+  }
+}
 
+function renderPoolContents(
+  container,
+  squad,
+  filterText,
+  roster,
+  pendingPlayerName,
+  onPick,
+  allPlayers,
+  ruleset,
+  slots,
+  onPickSeason
+) {
   // Easy practice puts the whole squad on screen with stats - it's for
   // learning the pool, not testing recall. The search box still narrows the
   // list, it just isn't the only way to see anyone.
@@ -358,6 +408,10 @@ export function renderPool(
   }
 
   if (result.tier === "in-squad") {
+    // `pos` is the union of positions across the seasons on offer, and every
+    // one of these three has to stay bound - reading one without binding it is
+    // a ReferenceError in a module, thrown after the container was emptied,
+    // which reaches the player as a blank board rather than as an error.
     for (const { lead, pos, seasons } of groupBySeason(result.candidates)) {
       renderPlayerCard(container, lead, roster, pendingPlayerName, onPick, false, slots, seasons, onPickSeason, pos);
     }
