@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ROWS as PLAYERS } from "../data/nba-players.js";
+import { PLAYERS } from "../data/nba-players.js";
 import {
   activeSlots,
   computeDatasetStats,
@@ -56,7 +56,6 @@ function simulate(seed, a, b, extra) {
   return withSeededMathRandom(seed, () => simulateGame(a, b, dataset, options(a, b, extra)));
 }
 
-// Exact replay: same inputs and seed must produce byte-identical output.
 const replayA = simulate(123456, strong, weak);
 const replayB = simulate(123456, strong, weak);
 assert.deepEqual(replayA, replayB, "same seed did not reproduce the same game");
@@ -65,7 +64,6 @@ let strongWins = 0;
 let swappedStrongWins = 0;
 let fullWinsAgainstForfeit = 0;
 let balancedWins = 0;
-let lockdownWins = 0;
 let marginSum = 0;
 
 for (let i = 0; i < RUNS; i++) {
@@ -86,7 +84,6 @@ for (let i = 0; i < RUNS; i++) {
     tacticB: "lockdown-defense",
   }));
   if (tactic.winner === "A") balancedWins++;
-  else lockdownWins++;
 }
 
 const pct = (n) => n / RUNS;
@@ -101,7 +98,6 @@ assert(sideGap <= 0.04, `side symmetry gap ${sideGap} is too large`);
 assert(forfeitRate >= 0.58, `two forfeits were not penalized enough: ${forfeitRate}`);
 assert(tacticRate >= 0.42 && tacticRate <= 0.58, `tactic matchup appears unbalanced: ${tacticRate}`);
 
-// PRNG sanity: independent instances with the same seed must match.
 const rngA = createSeededRng("ballknowledge");
 const rngB = createSeededRng("ballknowledge");
 for (let i = 0; i < 100; i++) assert.equal(rngA(), rngB());
