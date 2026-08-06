@@ -65,8 +65,8 @@ function playOneGame() {
   if (!draft.isComplete()) return null;
   const result = NFL.simulate(draft.rosterA, draft.rosterB, ctx, {});
   return [
-    { box: result.boxA, roster: draft.rosterA },
-    { box: result.boxB, roster: draft.rosterB },
+    { box: result.boxA, roster: draft.rosterA, team: result.teamStatsA, drives: result.drives, side: "A", score: result.teamScoreA },
+    { box: result.boxB, roster: draft.rosterB, team: result.teamStatsB, drives: result.drives, side: "B", score: result.teamScoreB },
   ];
 }
 
@@ -78,6 +78,11 @@ const fails = {
   recTdNoCatch: 0,
   negative: 0,
   tightEndRushTd: 0,
+  teamPassYards: 0,
+  teamRushYards: 0,
+  teamTotalYards: 0,
+  scoreLedger: 0,
+  impossibleTeam: 0,
 };
 // Who actually carried the ball on scoring runs, so the gate can be shown to
 // redirect the work rather than simply delete it.
@@ -90,7 +95,7 @@ let example = null;
 for (let n = 0; n < GAMES; n++) {
   const sides = playOneGame();
   if (!sides) continue;
-  for (const { box } of sides) {
+  for (const { box, team, drives, side, score } of sides) {
     teams++;
     const rec = (slot) => box[slot] || {};
     const sumRec = CATCHERS.reduce((s, k) => s + (rec(k).rec || 0), 0);
@@ -125,6 +130,27 @@ for (let n = 0; n < GAMES; n++) {
       const carrier = slot.replace(/\d+$/, "");
       if (carrier in rushTdBy) rushTdBy[carrier] += rec(slot).rush_tds || 0;
     }
+    // ---- team totals are the sum of the lines, never a parallel tally ----
+    const slotKeys = Object.keys(box);
+    const linePass = slotKeys.reduce((s2, k) => s2 + (box[k].rec_yds || 0), 0);
+    const lineRush = slotKeys.reduce((s2, k) => s2 + (box[k].rush_yds || 0), 0);
+    if (team.passYards !== linePass) fails.teamPassYards++;
+    if (team.rushYards !== lineRush) fails.teamRushYards++;
+    if (team.totalYards !== team.passYards + team.rushYards) fails.teamTotalYards++;
+
+    // Every point on the scoreboard is a point some play in the ledger put
+    // there. This is the assertion that makes the box score trustworthy: the
+    // score cannot be something the plays did not produce.
+    const ledgerPoints = drives
+      .filter((d) => d.team === side)
+      .reduce((s2, d) => s2 + d.points, 0);
+    if (Math.round(ledgerPoints) !== Math.round(score)) fails.scoreLedger++;
+
+    // Nothing a football team cannot do.
+    if (team.thirdDownConversions > team.thirdDownAttempts) fails.impossibleTeam++;
+    if (team.redZoneTouchdowns > team.redZoneTrips) fails.impossibleTeam++;
+    if (team.possessionSeconds < 0 || team.drives <= 0) fails.impossibleTeam++;
+    if (team.averageStart < 0 || team.averageStart > 100) fails.impossibleTeam++;
 
     for (const slot of RECEIVERS) if ((rec(slot).rec || 0) === 0) silentReceiverGames++;
     topShareSum += sumRec > 0 ? Math.max(...CATCHERS.map((k) => rec(k).rec || 0)) / sumRec : 0;
@@ -173,17 +199,48 @@ const checks = [
     detail: `${fails.recTdNoCatch} contradictory lines`,
   },
   {
+    title: "Team passing yards equal the sum of receiving yards",
+    ok: fails.teamPassYards === 0,
+    detail: `${fails.teamPassYards} mismatches in ${teams} team-games`,
+  },
+  {
+    title: "Team rushing yards equal the sum of individual rushing yards",
+    ok: fails.teamRushYards === 0,
+    detail: `${fails.teamRushYards} mismatches in ${teams} team-games`,
+  },
+  {
+    title: "Team total yards equal passing plus rushing",
+    ok: fails.teamTotalYards === 0,
+    detail: `${fails.teamTotalYards} mismatches in ${teams} team-games`,
+  },
+  {
+    title: "Every point on the scoreboard came from a drive in the ledger",
+    ok: fails.scoreLedger === 0,
+    detail: `${fails.scoreLedger} mismatches in ${teams} team-games`,
+  },
+  {
+    title: "Team stats are physically possible",
+    ok: fails.impossibleTeam === 0,
+    detail: `${fails.impossibleTeam} impossible values (3rd down, red zone, possession, field position)`,
+  },
+  {
     title: "No negative counting stats",
     ok: fails.negative === 0,
     detail: `${fails.negative} negative values`,
   },
   {
-    // The headline behaviour: everyone on the field touches the ball. Held at
-    // a low percentage rather than zero because a genuinely quiet game is a
-    // real thing - but it used to be the overwhelming majority.
+    // The headline behaviour: everyone on the field touches the ball.
+    //
+    // The budget was 2% when receptions were a SHARE of each drive - under
+    // that model a receiver could not reach zero, because he always got a
+    // fraction. Catches are discrete events now, drawn per play, so a fourth
+    // option genuinely can be held without one. Real football does that to
+    // somebody most weeks, and forcing a guaranteed catch would be inventing
+    // one. 10% is the honest ceiling; the bug this exists to catch ran at
+    // 71.9%, so there is no risk of it hiding inside this budget.
     title: "Receivers are not shut out of the box score",
-    ok: silentPct < 2,
-    detail: `${silentPct.toFixed(1)}% of receiver-games had zero catches (budget < 2%)`,
+    ok: silentPct < 10,
+    detail: `${silentPct.toFixed(1)}% of receiver-games had zero catches (budget < 10%)`,
   },
   {
     // The other half: work spread, not concentrated on one man. A team's
