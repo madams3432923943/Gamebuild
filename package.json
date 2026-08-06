@@ -1,14 +1,15 @@
 {
   "name": "ball-knowledge",
-  "description": "An NBA draft-battle game: draft a shared team-and-decade squad from memory, then play out the result.",
+  "description": "A multi-sport draft-battle simulation game.",
   "repository": "github:madams3432923943/gamebuild",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "scripts": {
     "bundle": "esbuild js/main.js --bundle --format=iife --outfile=dist/bundle.js",
-    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable",
+    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable && npm run verify:simulation",
     "verify:parity": "node scripts/verify-parity.mjs",
+    "verify:simulation": "node scripts/verify-simulation-statistics.mjs",
     "verify:online": "node scripts/verify-build.js --online",
     "verify:selftest": "node scripts/selftest/run-selftest.mjs",
     "verify:mobile": "node scripts/verify-build.js --mobile",
