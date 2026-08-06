@@ -46,6 +46,9 @@ jobs:
       - name: Verify box scores render per sport
         run: npm run verify:box-score
 
+      - name: Verify NFL box-score attribution
+        run: npm run verify:nfl-box-score
+
       - name: Verify client/server parity
         run: npm run verify:parity -- --no-network
 

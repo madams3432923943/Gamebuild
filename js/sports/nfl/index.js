@@ -46,6 +46,16 @@ import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tact
 // through the levels a real career passes, and narrows hard at the top. Bands
 // widen at the bottom and tighten above the 80th percentile on purpose - most
 // people never leave youth football, and "Hall of Fame" should mean it.
+/** The order a football roster is READ in, which is not the order it is
+ * drafted in. Offence before defence, and inside offence the skill positions
+ * in depth-chart order - a box score that opens on a wide receiver reads as a
+ * bug even when every number in it is right. Covers both roster shapes: Quick
+ * Play's bare WR and ranked's WR1/WR2/WR3. */
+const LINEUP_ORDER = [
+  "QB", "RB", "WR", "WR1", "WR2", "WR3", "TE", "FLEX", "OL",
+  "DL", "LB", "CB", "S", "DEF", "ST",
+];
+
 const TIERS = [
   { name: "Pop Warner", minPercentile: 0 },
   { name: "Middle School", minPercentile: 5 },
@@ -288,7 +298,12 @@ export const NFL = {
     ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
     ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"], ["pts", "PTS"],
   ],
-  sortBoxBy: "pts",
+  // Deliberately none. A football box score is read by position - quarterback,
+  // then backs, then receivers - not ranked by who scored most, and re-sorting
+  // it at the final buzzer put the kicker above the quarterback whenever he
+  // outscored him. Shared code falls back to orderedRosterSlots when this is
+  // null, which for football is LINEUP_ORDER.
+  sortBoxBy: null,
   cardStatLine: (p) => {
     const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
     if (p.group) {
@@ -308,7 +323,20 @@ export const NFL = {
   },
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
-  orderedRosterSlots: (roster) => Object.keys(roster).filter((s) => roster[s]),
+  // Lineup order, not draft order. Object.keys() hands back the order the
+  // slots were FILLED, so a roster drafted WR-first printed its box score
+  // WR, RB, TE, QB - which reads as a mistake, because no football box score
+  // has ever opened on a wide receiver. Anything not in the list (a slot a
+  // future mode adds) keeps its relative position at the end rather than
+  // disappearing.
+  orderedRosterSlots: (roster) => {
+    const filled = Object.keys(roster).filter((s) => roster[s]);
+    const rank = (slot) => {
+      const i = LINEUP_ORDER.indexOf(slot);
+      return i === -1 ? LINEUP_ORDER.length : i;
+    };
+    return filled.sort((a, b) => rank(a) - rank(b) || filled.indexOf(a) - filled.indexOf(b));
+  },
   minutesRangeFor: () => ({ min: 0, max: 0 }),
   rotationBudget: 0,
 
