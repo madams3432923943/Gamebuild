@@ -18,14 +18,6 @@
 // user gesture's descendant call - browsers refuse otherwise, which is
 // handled by simply not making a noise rather than by throwing.
 
-// Emergency compatibility guard for the shared box-score renderer.
-// ui.js currently references `showSplits` before declaring it, which throws
-// before the first scoreboard render and leaves every game mode on an empty
-// court. A global binding prevents that crash while the renderer is split into
-// its own focused cleanup change. Live box scores omit shooting splits; the
-// finished result still renders the core stat columns and the game completes.
-globalThis.showSplits = [];
-
 const LAYER_ID = "celebration-layer";
 
 const COLORS = ["#f4a340", "#ffd166", "#ef476f", "#06d6a0", "#118ab2", "#ffffff"];

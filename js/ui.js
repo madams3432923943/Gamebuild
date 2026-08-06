@@ -524,7 +524,7 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
   const ordered = final ? [...slots].sort((a, b) => (box[b][key] || 0) - (box[a][key] || 0)) : slots;
   for (const slot of ordered) {
     html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot],
-                   minutesMap && minutesMap[slot], columns, showMinutes, showSplits);
+                   minutesMap && minutesMap[slot], columns, showMinutes, splits);
   }
   html += "</tbody></table>";
   return html;
