@@ -1599,7 +1599,59 @@ export function renderMatchupPicker(container, myRoster, oppRoster, myStarters, 
  * offers - the catalog is larger than what any single game shows. */
 export function renderTacticPicker(container, tacticsToShow, selectedId, onSelect) {
   container.innerHTML = "";
+  // The same element serves both pickers, so the grouped layout has to come
+  // back off when a single-plan sport renders into it.
+  container.classList.remove("strategy-groups");
   for (const tactic of tacticsToShow) {
+    container.appendChild(tacticCard(tactic, selectedId, onSelect));
+  }
+}
+
+/**
+ * A sport whose strategy is more than one decision - football picks how it
+ * attacks AND how it defends - rendered a section per decision.
+ *
+ * Shared UI does not know what the groups are. It reads whatever the sport
+ * declared (see strategyGroups in js/sports/nfl/tactics.js) and lays each one
+ * out with the same card the single-plan picker uses, so both sports keep one
+ * visual language rather than football growing a second one.
+ *
+ * @param selection an object keyed by group, e.g. { offense: id, defense: id }
+ * @param onSelect  (groupKey, planId)
+ */
+export function renderStrategyGroups(container, groups, selection, onSelect) {
+  container.innerHTML = "";
+  container.classList.add("strategy-groups");
+  for (const group of groups || []) {
+    const section = document.createElement("section");
+    section.className = "strategy-group";
+
+    const heading = document.createElement("h4");
+    heading.className = "strategy-group-title";
+    heading.textContent = group.label;
+    section.appendChild(heading);
+
+    if (group.hint) {
+      const hint = document.createElement("p");
+      hint.className = "strategy-group-hint";
+      hint.textContent = group.hint;
+      section.appendChild(hint);
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "tactic-grid strategy-group-grid";
+    for (const plan of group.plans || []) {
+      grid.appendChild(tacticCard(plan, selection?.[group.key], (id) => onSelect(group.key, id)));
+    }
+    section.appendChild(grid);
+    container.appendChild(section);
+  }
+}
+
+/** One plan card. Shared by both pickers so a football gameplan and a
+ * basketball gamestyle are the same object on screen. */
+function tacticCard(tactic, selectedId, onSelect) {
+  {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "tactic-card" + (tactic.id === selectedId ? " active" : "");
@@ -1631,7 +1683,7 @@ export function renderTacticPicker(container, tacticsToShow, selectedId, onSelec
     btn.appendChild(blurb);
 
     btn.addEventListener("click", () => onSelect(tactic.id));
-    container.appendChild(btn);
+    return btn;
   }
 }
 

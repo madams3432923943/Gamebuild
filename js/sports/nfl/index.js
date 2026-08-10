@@ -34,7 +34,11 @@ let ratingCtx = null;
 import { rateEntry } from "./units.js";
 import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
-import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
+import {
+  OFFENSIVE_PLANS, DEFENSIVE_PLANS, STRATEGY_GROUPS, DEFAULT_STRATEGY,
+  planFor, normalizeStrategy, plansFor, randomStrategy, formatStrategy,
+  serializeStrategy, parseStrategy,
+} from "./tactics.js";
 import { buildTimeline, createLiveState, applyEvent, liveBox, liveScore } from "./playback.js";
 
 /** The order a football roster is READ in, which is not the order it is
@@ -399,10 +403,29 @@ export const NFL = {
   tiers: TIERS,
   howToPlay: HOW_TO_PLAY,
 
-  tactics: TACTICS,
-  defaultTactic: DEFAULT_TACTIC,
-  tacticById,
-  randomTacticChoices,
+  // TWO decisions, not one. Football asks how you attack and how you defend
+  // separately, so the sport declares GROUPS and shared UI renders a section
+  // per group. A sport with no strategyGroups keeps the single-card picker,
+  // which is what basketball still uses.
+  strategyGroups: STRATEGY_GROUPS,
+  defaultStrategy: DEFAULT_STRATEGY,
+  normalizeStrategy,
+  planFor,
+  plansFor,
+  randomStrategy,
+  formatStrategy,
+  serializeStrategy,
+  parseStrategy,
+
+  // The single-plan surface shared code still reaches for. Pointed at the
+  // OFFENSIVE catalogue rather than removed: a caller that has not learned
+  // about groups yet gets a real, coherent list of football plans instead of
+  // undefined. Anything that matters reads strategyGroups.
+  tactics: OFFENSIVE_PLANS,
+  defaultTactic: DEFAULT_STRATEGY.offense,
+  tacticById: (id) => planFor("offense", id),
+  randomTacticChoices: () => [...OFFENSIVE_PLANS],
+  defensivePlans: DEFENSIVE_PLANS,
 
   /** What still has to exist before `live` can flip. Rendered on the locked
    * tile in dev builds, so the remaining work is visible in the product

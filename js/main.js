@@ -84,6 +84,7 @@ import {
   renderEquippedBanner,
   renderMatchupSide,
   renderTacticPicker,
+  renderStrategyGroups,
   renderRotationPicker,
   renderMatchupPicker,
   pushPlayHeadline,
@@ -1156,6 +1157,10 @@ const btnConfirmMatchups = document.getElementById("btn-confirm-matchups");
 // basketball's as a default it never declared.
 strategy.offeredTactics = [sport().tacticById(sport().defaultTactic)].filter(Boolean);
 strategy.tactic = sport().defaultTactic;
+// A sport may run more than one strategy decision at once - football picks an
+// offensive AND a defensive gameplan. Held beside `tactic` rather than
+// replacing it so basketball's single choice keeps working untouched.
+strategy.strategy = sport().defaultStrategy ? { ...sport().defaultStrategy } : null;
 let tacticTimerInterval = null;
 
 function cleanupTacticTimer() {
@@ -1166,6 +1171,14 @@ function cleanupTacticTimer() {
 }
 
 function renderTactics() {
+  const groups = sport().strategyGroups;
+  if (groups && strategy.strategy) {
+    renderStrategyGroups(tacticGridEl, groups, strategy.strategy, (groupKey, id) => {
+      strategy.strategy = { ...strategy.strategy, [groupKey]: id };
+      renderTactics();
+    });
+    return;
+  }
   renderTacticPicker(tacticGridEl, strategy.offeredTactics, strategy.tactic, (id) => {
     strategy.tactic = id;
     renderTactics();
@@ -1183,8 +1196,16 @@ function renderTactics() {
 function startTacticPhase(onConfirm, { timed = true } = {}) {
   cleanupPickTimer();
   cleanupTacticTimer();
-  strategy.offeredTactics = sport().randomTacticChoices(3);
-  strategy.tactic = strategy.offeredTactics[0].id;
+  // A sport with groups offers ALL of each group's plans. Three-of-ten exists
+  // so a basketball gamestyle is a read on the hand you were dealt; with five
+  // per side the choice is small enough that hiding some of it would just be
+  // withholding the decision.
+  if (sport().strategyGroups) {
+    strategy.strategy = strategy.strategy || { ...sport().defaultStrategy };
+  } else {
+    strategy.offeredTactics = sport().randomTacticChoices(3);
+    strategy.tactic = strategy.offeredTactics[0].id;
+  }
   renderTactics();
 
   draftPoolPanel.classList.add("hidden");
@@ -3030,8 +3051,12 @@ function runLocalSimulation() {
   const draft = game.draft;
   // The bot commits to a plan too, chosen at random - a fixed opponent plan
   // would make one counter always correct and collapse the choice.
+  // The bot commits to a plan too. For a sport with groups it draws each side
+  // of the ball independently, so half its plan is never guessable from the
+  // other half.
   const tacticIds = sport().tactics.map((t) => t.id);
   const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
+  const botStrategy = sport().randomStrategy ? sport().randomStrategy() : null;
   // Resolve both rotations up front so the box score can show the same
   // minutes the simulation actually used, rather than a second guess at them.
   const minutesA = strategy.rotationMinutes || sport().defaultMinutes(draft.rosterA);
@@ -3041,6 +3066,8 @@ function runLocalSimulation() {
   const result = sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
     tacticA: strategy.tactic,
     tacticB: botTactic,
+    strategyA: strategy.strategy,
+    strategyB: botStrategy,
     minutesA,
     minutesB,
     matchupsA: strategy.matchups || undefined,

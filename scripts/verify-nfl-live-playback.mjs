@@ -175,17 +175,34 @@ async function main() {
     if (!(await pastDraft())) throw new Error("the NFL draft never completed");
 
     // ---- strategy --------------------------------------------------------
+    // Football asks two questions here, not one. Both groups have to be on
+    // screen and both have to be selectable, or half the gameplan is a
+    // decision the player was never offered.
+    let strategyGroups = 0;
+    let selectedPlans = [];
     for (const [panel, button] of [
       ["#rotation-phase", "#btn-confirm-rotation"],
       ["#matchup-phase", "#btn-confirm-matchups"],
       ["#tactic-phase", "#btn-confirm-tactic"],
     ]) {
-      if (await page.locator(panel).isVisible().catch(() => false)) {
-        // Whatever plan is offered; the choice is not what this test is about.
-        const option = page.locator(`${panel} .tactic-card, ${panel} .gameplan-card`).first();
+      if (!(await page.locator(panel).isVisible().catch(() => false))) continue;
+      const groups = page.locator(`${panel} .strategy-group`);
+      strategyGroups = await groups.count().catch(() => 0);
+      if (strategyGroups > 0) {
+        // Take the SECOND card in each group, so the run exercises a real
+        // selection rather than whatever happened to be the default.
+        for (let g = 0; g < strategyGroups; g++) {
+          const card = groups.nth(g).locator(".tactic-card").nth(1);
+          if (await card.isVisible().catch(() => false)) {
+            await card.click().catch(() => {});
+            selectedPlans.push((await card.textContent().catch(() => "") || "").trim().slice(0, 40));
+          }
+        }
+      } else {
+        const option = page.locator(`${panel} .tactic-card`).first();
         if (await option.isVisible().catch(() => false)) await option.click().catch(() => {});
-        await page.locator(button).click({ timeout: 10000 }).catch(() => {});
       }
+      await page.locator(button).click({ timeout: 10000 }).catch(() => {});
     }
     await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
     await page.locator("#screen-game:not(.hidden)").waitFor({ state: "visible", timeout: 60000 });
@@ -281,6 +298,8 @@ async function main() {
         detail: last?.canLeave ? "Play Again is reachable" : "no post-game controls - the routine threw before unhiding them" },
       { title: "A football MVP is named in football statistics", ok: !!last?.mvpShown && /\d/.test(last?.mvpText || ""),
         detail: last?.mvpText || "no MVP callout" },
+      { title: "Football offers both an offensive and a defensive gameplan", ok: strategyGroups === 2 && selectedPlans.length === 2,
+        detail: strategyGroups ? `${strategyGroups} groups: ${selectedPlans.join(" | ")}` : "no strategy groups rendered" },
       { title: "No JS errors during the game", ok: consoleErrors.length === 0,
         detail: consoleErrors.length ? consoleErrors.slice(0, 3).join(" | ") : "clean console" }
     );

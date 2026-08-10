@@ -2717,6 +2717,44 @@ table.box-table th, table.history-table th {
   margin-bottom: 0.9rem;
 }
 
+/* TWO GAMEPLANS, SIDE BY SIDE.
+   Football asks how you attack and how you defend at once, so the two
+   decisions sit next to each other on anything wide enough to read them that
+   way - seeing both at the same time is most of what makes them feel like one
+   plan rather than two unrelated questions. Below that they stack, because two
+   columns of cards on a phone is two unreadable columns. */
+.tactic-phase .strategy-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.strategy-group-title {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.strategy-group-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tactic-phase .strategy-group-grid {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .tactic-phase .strategy-groups {
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
+  }
+}
+
 .tactic-phase .tactic-card {
   min-height: 0;
   flex-direction: row;

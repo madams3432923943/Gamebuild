@@ -124,7 +124,7 @@ import {
   RUSH_CARRIER_WEIGHTS,
 } from "./constants.js";
 import { buildRatingContext, rateEntry, isUnit } from "./units.js";
-import { scaledModsFor } from "./tactics.js";
+import { composedModsFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
   return buildRatingContext(players, units);
@@ -348,9 +348,14 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   }
   // Explosive styles convert their scoring drives into touchdowns rather than
   // field goals - the difference between Vertical Attack and West Coast.
-  if (outcome === "fieldGoal" && mine.explosive > 1 && rand() < (mine.explosive - 1)) {
+  // Finishing a drive is a CONTEST, not a property of the offence. How hard you
+  // go for the touchdown is your explosiveness and your red-zone intent
+  // together; how well they hold you to three is theirs. A defence that keeps
+  // everything in front of it really does turn touchdowns into field goals.
+  const finish = (mine.explosive * mine.redZone) / (theirs.explosivePrevention || 1);
+  if (outcome === "fieldGoal" && finish > 1 && rand() < (finish - 1)) {
     outcome = "touchdown";
-  } else if (outcome === "touchdown" && mine.explosive < 1 && rand() < (1 - mine.explosive) * 0.6) {
+  } else if (outcome === "touchdown" && finish < 1 && rand() < (1 - finish) * 0.6) {
     outcome = "fieldGoal";
   }
   let endYard = Math.max(1, Math.min(100, startYard + driveYards(outcome, startYard, mult, rand)));
@@ -427,7 +432,15 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   return {
     drive: { team: side, quarter, startYard: from, endYard: to,
              outcome, points, scorer, scorerSlot, credit, kind, takeaway, text,
-             plays: buildPlays(from, to, outcome, kind, scorerSlot, roster, rand) },
+             // How you attack and how they rush the passer both change the
+             // SNAPS, not just the drive's outcome: a ground plan hands it off
+             // more, and a blitz against a thin line puts the quarterback on
+             // the floor. Passed in rather than read from a constant so the
+             // plan is visible in the box score, not only in the score.
+             plays: buildPlays(from, to, outcome, kind, scorerSlot, roster, rand, {
+               runShare: mine.runShare,
+               sackRate: (theirs.passRush || 1) / (mine.protection || 1),
+             }) },
     nextStart: nextStart(outcome, endYard),
   };
 }
@@ -517,7 +530,7 @@ const RUN_YARD_WEIGHT = 0.6;
  * line of scrimmage and a first-down marker, and none of it invented past
  * what the drive already committed to.
  */
-function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand) {
+function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand, plan = {}) {
   const net = endYard - startYard;
   // Longer drives get more snaps, with a floor of one: a drive exists because
   // somebody ran a play.
@@ -541,7 +554,10 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand)
   // Rounded PROBABILISTICALLY, not to nearest. A drive has about two dead
   // plays, so round-to-nearest turned 0.4 sacks into 0 every single time and
   // the whole league finished the season with none.
-  const sackFloat = dead * SACK_SHARE_OF_DEAD;
+  // Pressure against protection. Clamped because a plan should tilt a rate,
+  // never invent a game where every dead play is a sack.
+  const sackRate = Math.max(0.25, Math.min(3, Number(plan.sackRate) || 1));
+  const sackFloat = Math.min(dead, dead * SACK_SHARE_OF_DEAD * sackRate);
   const sacks = Math.floor(sackFloat) + (rand() < sackFloat % 1 ? 1 : 0);
   let sackLoss = 0;
   const deadPlays = [];
@@ -557,10 +573,13 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand)
   // a throw, so matching football's yardage split (about 66:34) forced the
   // play split to 71% passes - a league that threw it on nearly every down.
   // A run gains less than a pass, which is why both can be right at once.
+  // A ground plan really does hand it off more. Held inside a believable band
+  // so no plan produces a team that never throws or never runs.
+  const runShare = Math.max(0.12, Math.min(0.82, RUN_SHARE * (Number(plan.runShare) || 1)));
   const raw = [];
   const kinds = [];
   for (let i = 0; i < productive; i++) {
-    const isRun = rand() < RUN_SHARE;
+    const isRun = rand() < runShare;
     kinds[i] = isRun ? "run" : "pass";
     raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT : 1);
   }
@@ -757,8 +776,11 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
   // Scaled by roster fit, so a style is worth what your lineup makes it worth.
-  const modsA = scaledModsFor(opts.tacticA, rosterA);
-  const modsB = scaledModsFor(opts.tacticB, rosterB);
+  // Each side's bag is composed from BOTH of its plans - how it attacks and
+  // how it defends - so the opponent's defensive choice is felt on every drive
+  // you run, and yours on every drive they run.
+  const modsA = composedModsFor(opts.strategyA ?? opts.tacticA, rosterA);
+  const modsB = composedModsFor(opts.strategyB ?? opts.tacticB, rosterB);
 
   // Who won the toss and what they chose. Both default to random so an
   // automated or bot game still gets an unbiased one - a missing toss must
