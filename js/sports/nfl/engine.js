@@ -696,6 +696,67 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand)
 // coin toss worth more than the entire draft, and this game is about the
 // draft. Paired possessions repeat until somebody leads after both have had
 // the ball.
+// THE MAN OF THE MATCH.
+//
+// Football had no MVP at all. Basketball's engine returns one and every
+// consumer assumes it: main.js reads `result.mvp.side` when the final whistle
+// goes, and the Edge Function reads `result.mvp.player.name` before it writes
+// a match result. For football both were reading `undefined`, which threw -
+// and because the throw happened partway through the post-game routine, the
+// Play Again and Home buttons never came back. A finished football game left
+// the viewer on a dead screen.
+//
+// The weights below are the ordinary currency of football value - a passing
+// yard is worth a quarter of a rushing one, a touchdown is worth six - and
+// they are applied to the SAME box score the game prints, so the line beside
+// the MVP's name is the line in the table. Nothing here invents a statistic:
+// every input is a number some play already wrote.
+//
+// Deliberately modest. Issue #19 replaces this with football-specific MVP
+// reasoning that can explain WHY a player was chosen; this exists so that a
+// football game can be finished at all in the meantime.
+const MVP_WEIGHTS = {
+  pass_yds: 0.04, pass_tds: 4,
+  rush_yds: 0.1, rush_tds: 6,
+  rec_yds: 0.1, rec_tds: 6, rec: 0.5,
+  fgs: 3,
+  // A takeaway swings a possession, which is worth about what a score is.
+  ints: 6, fumbles: 5,
+  sacked: -0.5,
+};
+
+function mvpScore(line) {
+  let total = 0;
+  for (const key of Object.keys(MVP_WEIGHTS)) total += (Number(line[key]) || 0) * MVP_WEIGHTS[key];
+  return total;
+}
+
+/**
+ * The best individual line in the game, from either roster.
+ *
+ * Strictly greater-than, walking A before B and each roster in its own slot
+ * order, so an exact tie always resolves the same way rather than on
+ * whichever object key happened to come out first.
+ */
+function pickMvp(rosterA, boxA, rosterB, boxB) {
+  let best = null;
+  for (const [roster, box, side] of [
+    [rosterA, boxA, "A"],
+    [rosterB, boxB, "B"],
+  ]) {
+    for (const slot of Object.keys(box)) {
+      const player = roster[slot];
+      // TEAM is a bookkeeping line for points no drafted player can be
+      // credited with - it keeps the box score adding up to the scoreboard,
+      // and it is nobody, so it cannot be the MVP.
+      if (!player) continue;
+      const score = mvpScore(box[slot]);
+      if (!best || score > best.score) best = { player, line: box[slot], side, slot, score };
+    }
+  }
+  return best;
+}
+
 export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
@@ -1006,7 +1067,13 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       // Team totals travel beside the box score, not inside it: they are a
       // different shape (one object per side, not one per slot) and folding
       // them in would make every consumer guard against a fake roster slot.
-      return { boxA: a.box, boxB: b.box, teamStatsA: a.team, teamStatsB: b.team };
+      // The MVP is picked from these same two ledgers rather than from a
+      // third pass, so the man named cannot have a different line to the one
+      // the box score prints for him.
+      return {
+        boxA: a.box, boxB: b.box, teamStatsA: a.team, teamStatsB: b.team,
+        mvp: pickMvp(rosterA, a.box, rosterB, b.box),
+      };
     })(),
     quarterBoxScores, drives, overtimePeriods,
     coinToss: { winner: tossWinner, elected, firstHalfReceiver },

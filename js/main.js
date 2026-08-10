@@ -2411,6 +2411,17 @@ const whyCoachingEl = document.getElementById("why-coaching");
 const whyCoachingListEl = document.getElementById("why-coaching-list");
 
 function renderWhyBreakdown(result, ctx) {
+  // OPTIONAL, like buildTimeline. A sport that has not written its own
+  // analysis panel does not get one - it does not get basketball's, and it
+  // does not get an exception every game either. Football declares
+  // buildPostGameAnalysis instead, which is a different panel with a
+  // different signature, so calling this unconditionally logged a caught
+  // TypeError at the end of every single football game. That noise was
+  // invisible until the MVP crash above it was fixed.
+  if (typeof sport().buildWhyBreakdown !== "function") {
+    whyBreakdownEl.classList.add("hidden");
+    return;
+  }
   let breakdown;
   try {
     breakdown = sport().buildWhyBreakdown(result, ctx);
