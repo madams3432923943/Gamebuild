@@ -18,14 +18,37 @@ const NON_DEFENSIVE_UNIT_COMPOSITES = {
 };
 
 const DEFENSIVE_GROUPS = new Set(["DL", "LB", "CB", "S"]);
+
+// Responsibilities are equally weighted. Metrics inside a responsibility are
+// also equally weighted. The data therefore decides the ordering rather than
+// another hidden set of balance coefficients.
 const DEFENSIVE_RESPONSIBILITIES = {
-  DL: { passRush: ["sacks", "qbh"], runDefense: ["tfl", "tackles"] },
-  LB: { runDefense: ["tfl", "tackles"], tackling: ["tackles"], shortCoverage: ["pd", "ints"], takeaways: ["ff", "fr"] },
-  CB: { coverage: ["pd"], interceptions: ["ints"] },
-  S: { deepCoverage: ["pd"], explosivePlayPrevention: ["tfl", "tackles"], interceptions: ["ints"] },
+  DL: {
+    passRush: ["sacks", "qbh"],
+    runDefense: ["tfl", "tackles"],
+  },
+  LB: {
+    runDefense: ["tfl", "tackles"],
+    tackling: ["tackles"],
+    shortCoverage: ["pd", "ints"],
+    takeaways: ["ff", "fr"],
+  },
+  CB: {
+    coverage: ["pd"],
+    interceptions: ["ints"],
+  },
+  S: {
+    deepCoverage: ["pd"],
+    explosivePlayPrevention: ["tfl", "tackles"],
+    interceptions: ["ints"],
+  },
 };
 
-function n(value) { const number = Number(value); return Number.isFinite(number) ? number : 0; }
+function n(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function canonicalGroup(row) {
   const direct = String(row?.group || "").trim().toUpperCase();
   if (direct) return direct;
@@ -36,14 +59,65 @@ function canonicalGroup(row) {
   }
   return "";
 }
-function eraKey(row) { const season = Number(row?.season); return Number.isFinite(season) ? String(Math.floor(season / 10) * 10) : "all"; }
-function depthFactor(depth) { const value = Number(depth); if (!Number.isFinite(value) || value <= 0) return 0.85; return Math.min(1, 0.72 + 0.056 * value); }
-function perGame(row, metric) { return n(row?.[metric]) / Math.max(1, n(row?.games)); }
-function lowerBound(sorted, value) { let lo = 0, hi = sorted.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] < value) lo = mid + 1; else hi = mid; } return lo; }
-function upperBound(sorted, value) { let lo = 0, hi = sorted.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (sorted[mid] <= value) lo = mid + 1; else hi = mid; } return lo; }
-function percentile(sorted, value) { if (!sorted || sorted.length === 0) return 0.5; const low = lowerBound(sorted, value); const high = upperBound(sorted, value); return (low + high) / (2 * sorted.length); }
-const clamp = (v) => v <= 0.06 ? 0.06 : v < 0.92 ? v : 0.92 + (v - 0.92) * (0.05 / 0.08);
-function metricNames(group) { return [...new Set(Object.values(DEFENSIVE_RESPONSIBILITIES[group] || {}).flat())]; }
+
+function eraKey(row) {
+  const season = Number(row?.season);
+  return Number.isFinite(season) ? String(Math.floor(season / 10) * 10) : "all";
+}
+
+function depthFactor(depth) {
+  const value = Number(depth);
+  if (!Number.isFinite(value) || value <= 0) return 0.85;
+  return Math.min(1, 0.72 + 0.056 * value);
+}
+
+function perGame(row, metric) {
+  const games = Math.max(1, n(row?.games));
+  return n(row?.[metric]) / games;
+}
+
+function lowerBound(sorted, value) {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] < value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function upperBound(sorted, value) {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] <= value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// Tie-aware midrank percentile. An all-zero unavailable metric is neutral 0.5
+// instead of incorrectly rating every row as elite.
+function percentile(sorted, value) {
+  if (!sorted || sorted.length === 0) return 0.5;
+  const low = lowerBound(sorted, value);
+  const high = upperBound(sorted, value);
+  return (low + high) / (2 * sorted.length);
+}
+
+const clamp = (v) => {
+  if (v <= 0.06) return 0.06;
+  if (v < 0.92) return v;
+  return 0.92 + (v - 0.92) * (0.05 / 0.08);
+};
+
+function metricNames(group) {
+  const responsibilities = DEFENSIVE_RESPONSIBILITIES[group] || {};
+  return [...new Set(Object.values(responsibilities).flat())];
+}
+
 function pushDistribution(target, group, era, metric, value) {
   (((target[group] ||= {})[era] ||= {})[metric] ||= []).push(value);
   (((target[group].all ||= {})[metric]) ||= []).push(value);
@@ -51,6 +125,7 @@ function pushDistribution(target, group, era, metric, value) {
 
 export function buildRatingContext(players, units) {
   const ctx = { players: {}, units: {}, defensiveMetrics: {} };
+
   for (const row of players) {
     for (const pos of row.pos || []) {
       const composite = COMPOSITES[pos];
@@ -58,19 +133,31 @@ export function buildRatingContext(players, units) {
       (ctx.players[pos] ||= []).push(composite(row));
     }
   }
+
   for (const row of units) {
     const group = canonicalGroup(row);
     if (n(row.games) < MIN_RATED_GAMES) continue;
+
     if (DEFENSIVE_GROUPS.has(group)) {
       const era = eraKey(row);
-      for (const metric of metricNames(group)) pushDistribution(ctx.defensiveMetrics, group, era, metric, perGame(row, metric));
+      for (const metric of metricNames(group)) {
+        pushDistribution(ctx.defensiveMetrics, group, era, metric, perGame(row, metric));
+      }
       continue;
     }
+
     const composite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
     if (composite) (ctx.units[group] ||= []).push(composite(row));
   }
-  for (const bucket of [ctx.players, ctx.units]) for (const key of Object.keys(bucket)) bucket[key].sort((a, b) => a - b);
-  for (const group of Object.values(ctx.defensiveMetrics)) for (const era of Object.values(group)) for (const values of Object.values(era)) values.sort((a, b) => a - b);
+
+  for (const bucket of [ctx.players, ctx.units]) {
+    for (const key of Object.keys(bucket)) bucket[key].sort((a, b) => a - b);
+  }
+  for (const group of Object.values(ctx.defensiveMetrics)) {
+    for (const era of Object.values(group)) {
+      for (const values of Object.values(era)) values.sort((a, b) => a - b);
+    }
+  }
   return ctx;
 }
 
@@ -86,16 +173,22 @@ export function ratePlayer(row, ctx) {
 function defensiveMetricPercentile(row, group, metric, ctx) {
   const byGroup = ctx.defensiveMetrics?.[group];
   if (!byGroup) return 0.5;
-  const eraDistribution = byGroup[eraKey(row)]?.[metric];
+  const era = eraKey(row);
+  const eraDistribution = byGroup[era]?.[metric];
   const fallback = byGroup.all?.[metric];
   const distribution = eraDistribution?.length >= 8 ? eraDistribution : fallback;
-  return distribution?.length ? percentile(distribution, perGame(row, metric)) : 0.5;
+  if (!distribution?.length) return 0.5;
+  return percentile(distribution, perGame(row, metric));
 }
 
+/** Component scores used by both simulation grading and the visible draft
+ * explanation. Exported so tests/UI can audit exactly why a group rated where
+ * it did without reimplementing the formula. */
 export function defensiveUnitComponents(row, ctx) {
   const group = canonicalGroup(row);
   const responsibilities = DEFENSIVE_RESPONSIBILITIES[group];
   if (!responsibilities) return null;
+
   const components = {};
   for (const [name, metrics] of Object.entries(responsibilities)) {
     const values = metrics.map((metric) => defensiveMetricPercentile(row, group, metric, ctx));
@@ -126,4 +219,8 @@ export function rateUnit(row, ctx) {
 }
 
 export const isUnit = (entry) => typeof entry?.group === "string";
-export function rateEntry(entry, ctx) { if (!entry) return 0; return isUnit(entry) ? rateUnit(entry, ctx) : ratePlayer(entry, ctx); }
+
+export function rateEntry(entry, ctx) {
+  if (!entry) return 0;
+  return isUnit(entry) ? rateUnit(entry, ctx) : ratePlayer(entry, ctx);
+}
