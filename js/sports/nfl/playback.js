@@ -27,12 +27,12 @@
  * matters is that a touchdown is worth about three ordinary snaps.
  */
 export const EVENT_WEIGHTS = {
-  kickoff: 1300,
-  driveStart: 900,
+  kickoff: 1050,
+  driveStart: 720,
   // An ordinary snap. Most of a game is these, so this number sets the pace
   // more than any other - and at 650ms it was faster than a person can read
   // the description, the down and the ball's new position before it changed.
-  play: 850,
+  play: 760,
   // Enough of a gain to move the chains, or to be worth noticing.
   firstDown: 1200,
   bigGain: 1200,
@@ -44,7 +44,7 @@ export const EVENT_WEIGHTS = {
   touchdown: 2000,
   fieldGoal: 1900,
   turnover: 2000,
-  punt: 1000,
+  punt: 880,
   downs: 1500,
   // A drive's own epitaph - what it cost and what it produced. Worth more than
   // an ordinary snap because it is the one moment the viewer is being asked to
@@ -59,16 +59,19 @@ export const EVENT_WEIGHTS = {
  * follow it; above the ceiling it stops being a highlight and becomes a
  * broadcast.
  *
- * RAISED FROM 35-50s. At ~42s a regulation game was legible only if you
- * already knew what you were looking at: an ordinary snap held for about
- * 600ms once scaled, which is less time than it takes to read a description,
- * find the ball and check the down. The ratios below are unchanged and still
- * carry the pacing - what changed is how long the whole thing is given, which
- * is the one number that makes every event proportionally more readable
- * without flattening the difference between a touchdown and an incompletion. */
-export const TARGET_MIN_MS = 50000;
-export const TARGET_MAX_MS = 70000;
-const TARGET_MS = 60000;
+ * Raised from 35-50s first, because at ~42s an ordinary snap held for about
+ * 600ms - less time than it takes to read a description, find the ball and
+ * check the down. Then trimmed again, see below. */
+// TRIMMED FROM 50-70s, which measured 64.6s of real browser wall clock and
+// read as slightly too long. The reduction is deliberately NOT uniform: the
+// transition beats - kickoff, drive start, an ordinary snap, a punt - each
+// gave back about 10% of their weight, while touchdowns, turnovers, field
+// goals and the quarter breaks kept all of theirs. Every event is scaled by
+// target/rawTotal, so shrinking the ordinary weights RAISES that scale
+// factor - the moments worth watching lose less than the overhead does.
+export const TARGET_MIN_MS = 46000;
+export const TARGET_MAX_MS = 64000;
+const TARGET_MS = 53500;
 
 /**
  * Playback speed, as a divisor on every duration. 1 is the pace above; 2 is

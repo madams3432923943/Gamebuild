@@ -322,7 +322,7 @@ async function main() {
         detail: midpoint ? `${midpoint.boxTotal} of ${boxTotals[boxTotals.length - 1]} at the midpoint` : "no midpoint sample" },
       { title: "The final banner agrees with the scoreboard", ok: bannerAgrees,
         detail: last ? `banner "${last.finalText}" against ${last.scoreA}-${last.scoreB}` : "no final" },
-      { title: "Regulation playback lands in the readable 50-70s band", ok: elapsedMs >= 50000 && elapsedMs <= 70000,
+      { title: "Regulation playback lands in the readable 52-64s band", ok: elapsedMs >= 52000 && elapsedMs <= 64000,
         detail: `${(elapsedMs / 1000).toFixed(1)}s of browser wall clock` },
       { title: "Possession flips between attacking and defending, as state", ok: possessionStates.has("offense") && possessionStates.has("defense") && possessionFlips >= 4,
         detail: `${possessionFlips} changes across ${[...possessionStates].join("/")}` },

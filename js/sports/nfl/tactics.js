@@ -45,6 +45,14 @@
 //     runDef               run defence, which shortens the opponent's drives
 //     explosivePrevention  how well you keep a scoring drive to three points
 //
+// RE-SOLVED against TALENT_PARITY 0.95. The old values were solved - loosely -
+// against a parity of 0.42, and raising it amplified every multiplier at once:
+// Vertical Attack ran to a 65.7% win rate, which is precisely the auto-pick the
+// rule below forbids. The plans that leaned hardest on a single dimension
+// (explosiveness, red zone, explosive prevention, run defence) gave the most
+// back, and balanced offence was raised because a baseline that loses to
+// everything is not a baseline.
+//
 // PROVISIONAL NUMBERS, SAID PLAINLY. Like the ten styles before them, the
 // values below are authored placeholders that have NOT been through
 // tools/calibrate-gamestyles.mjs. scripts/verify-nfl-gameplans.mjs holds them
@@ -57,12 +65,12 @@ export const OFFENSIVE_PLANS = [
   { id: "balanced-offense", icon: "⚖️", name: "Balanced Offense",
     blurb: "No tilt either way.",
     up: ["+1 Offense", "+1 Ball Security"], down: ["-1 Explosive Plays"],
-    mods: { off: 1.04, explosive: 0.94, redZone: 1.00, security: 1.02, protection: 1.02, runShare: 1.00, pace: 1.00, fg: 1.00 } },
+    mods: { off: 1.07, explosive: 0.97, redZone: 1.02, security: 1.04, protection: 1.05, runShare: 1.00, pace: 1.00, fg: 1.00 } },
 
   { id: "ground-control", icon: "🐏", name: "Ground Control",
     blurb: "Run it, shorten the game, take the air out of the ball.",
     up: ["+2 Rushing", "+2 Ball Control"], down: ["-2 Explosive Plays", "-1 Comeback Ability"],
-    mods: { off: 1.05, explosive: 0.84, redZone: 1.05, security: 1.12, protection: 1.06, runShare: 1.50, pace: 0.88, fg: 1.00 } },
+    mods: { off: 1.02, explosive: 0.86, redZone: 1.03, security: 1.09, protection: 1.04, runShare: 1.50, pace: 0.88, fg: 1.00 } },
 
   { id: "west-coast", icon: "📋", name: "West Coast",
     blurb: "Short, accurate, keep the chains moving and the quarterback clean.",
@@ -72,12 +80,12 @@ export const OFFENSIVE_PLANS = [
   { id: "vertical-attack", icon: "🚀", name: "Vertical Attack",
     blurb: "Take the top off. Your quarterback will get hit.",
     up: ["+2 Deep Passing", "+2 Big Plays"], down: ["-2 Pass Protection", "-1 Ball Security"],
-    mods: { off: 1.08, explosive: 1.28, redZone: 1.02, security: 0.86, protection: 0.80, runShare: 0.55, pace: 1.04, fg: 1.00 } },
+    mods: { off: 1.01, explosive: 1.15, redZone: 1.00, security: 0.82, protection: 0.76, runShare: 0.55, pace: 1.04, fg: 1.00 } },
 
   { id: "power-red-zone", icon: "🎯", name: "Power Red Zone",
     blurb: "Grind it out inside the twenty. Touchdowns, not field goals.",
     up: ["+2 Red Zone Conversion", "+1 Rushing"], down: ["-1 Field Goal Reliance", "-1 Explosive Plays"],
-    mods: { off: 1.02, explosive: 0.90, redZone: 1.30, security: 1.04, protection: 1.04, runShare: 1.25, pace: 0.96, fg: 0.94 } },
+    mods: { off: 0.99, explosive: 0.92, redZone: 1.16, security: 1.03, protection: 1.02, runShare: 1.25, pace: 0.96, fg: 0.94 } },
 ];
 
 /** How you defend. */
@@ -85,7 +93,7 @@ export const DEFENSIVE_PLANS = [
   { id: "balanced-defense", icon: "🛡️", name: "Balanced Defense",
     blurb: "Sound everywhere, spectacular nowhere.",
     up: ["+1 Defense", "+1 Big Play Prevention"], down: ["-1 Takeaways"],
-    mods: { def: 1.04, takeaway: 0.98, passRush: 1.02, coverage: 1.02, runDef: 1.02, explosivePrevention: 1.02 } },
+    mods: { def: 1.02, takeaway: 0.98, passRush: 1.01, coverage: 1.01, runDef: 1.01, explosivePrevention: 1.01 } },
 
   { id: "blitz-pressure", icon: "💥", name: "Blitz Pressure",
     blurb: "Send pressure, leave the corners on an island.",
@@ -95,7 +103,7 @@ export const DEFENSIVE_PLANS = [
   { id: "run-wall", icon: "🧱", name: "Run Wall",
     blurb: "Wall off the run. Nothing through the middle.",
     up: ["+2 Run Defense", "+1 Defense"], down: ["-1 Coverage", "-1 Takeaways"],
-    mods: { def: 1.06, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.34, explosivePrevention: 1.00 } },
+    mods: { def: 1.01, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
 
   { id: "ball-hawks", icon: "🦅", name: "Ball Hawks",
     blurb: "Chase the ball. Miss more tackles doing it.",
@@ -105,7 +113,7 @@ export const DEFENSIVE_PLANS = [
   { id: "keep-it-in-front", icon: "🚧", name: "Keep It in Front",
     blurb: "Give up the short stuff. Nothing goes over your head.",
     up: ["+2 Big Play Prevention", "+1 Coverage"], down: ["-2 Takeaways", "-1 Pass Rush"],
-    mods: { def: 1.06, takeaway: 0.86, passRush: 0.90, coverage: 1.12, runDef: 1.02, explosivePrevention: 1.30 } },
+    mods: { def: 1.01, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
 ];
 
 /**

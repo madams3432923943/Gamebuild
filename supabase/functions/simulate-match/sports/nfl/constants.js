@@ -59,7 +59,13 @@ export const POINTS = { touchdown: 6.94, fieldGoal: 3, safety: 2 };
  * important position in team sport and the weights say so; the line is second,
  * because a passer under pressure stops being a passer. Sums to 1. */
 export const OFFENSE_WEIGHTS = {
-  QB: 0.36, OL: 0.2, RB: 0.11, WR1: 0.12, WR2: 0.08, WR3: 0.05, TE: 0.08,
+  // QB raised from 0.36. He is the most important position in team sport and
+  // the weights should say so louder than they did: at 0.36 a replacement-level
+  // passer moved his offence's rating by too little to show up as a
+  // replacement-level line. Everything else is scaled down proportionally so
+  // the weights still sum to 1 - this redistributes influence rather than
+  // inflating offence.
+  QB: 0.44, OL: 0.18, RB: 0.09, WR1: 0.11, WR2: 0.07, WR3: 0.045, TE: 0.065,
 };
 
 /** Same for the defence. The front seven outweighs the secondary because
@@ -93,11 +99,19 @@ export const RUSH_CARRIER_WEIGHTS = { RB: 1, QB: 1, FLEX: 0.6, WR: 0.12, TE: 0 }
  * regressed toward the mean. A three-game sample is noise wearing a name. */
 export const MIN_RATED_GAMES = 6;
 
-/** PROVISIONAL - see the header. Compresses the gap between a great offence
- * and a poor one, the job TALENT_PARITY does for basketball. Starts lower than
- * basketball's because football has more variance per possession, so a
- * mismatch should convert to points more slowly. Must be solved. */
-export const TALENT_PARITY = 0.42;
+/** How far talent separates a great offence from a poor one.
+ *
+ * SOLVED, at last, by tools/calibrate-nfl-variance.mjs. It was 0.42, which
+ * was measured as far too compressed: `edge` moved by only about ten percent
+ * across the entire talent range, so a replacement-level quarterback cost his
+ * offence roughly four yards a drive. That is what let a backup post a
+ * starter's line - Skylar Thompson 2022 threw for 76 yards a game in real
+ * life and 280 in this simulation.
+ *
+ * Raising it widens the SPREAD without moving the mean, because edge is 1 at
+ * parity. Two evenly matched teams play exactly the same game as before; a
+ * mismatch now looks like a mismatch. */
+export const TALENT_PARITY = 0.95;
 
 /** PROVISIONAL - see the header. Per-quarter multiplier on drive quality, so a
  * game can swing the way real ones do. Symmetric around 1 so it adds noise

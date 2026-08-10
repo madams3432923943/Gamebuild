@@ -127,7 +127,11 @@ import { buildRatingContext, rateEntry, isUnit } from "./units.js";
 import { composedModsFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
-  return buildRatingContext(players, units);
+  const ctx = buildRatingContext(players, units);
+  // Kept so the draft grade can sample real rosters to build its curve
+  // without re-reading the dataset. See js/gradecurve.js.
+  ctx.__allEntries = [...(players || []), ...(units || [])];
+  return ctx;
 }
 
 /** Weighted mean of the slots on one side of the ball. A forfeited slot is not
@@ -231,7 +235,11 @@ function pickStopper(roster, rand) {
  * definition; a punt that reached midfield hands over worse position than one
  * that went three and out, which is what makes field position compound. */
 function driveYards(outcome, startYard, mult, rand) {
-  const reach = 18 + 42 * mult * rand();
+  // The WHOLE reach scales with talent, not just the variable part. With the
+  // floor outside the multiplier a hopeless offence still marched 18 yards a
+  // drive for free, which is most of why a backup quarterback's yardage
+  // looked like a starter's.
+  const reach = (18 + 42 * rand()) * mult;
   if (outcome === "touchdown") return 100 - startYard;
   if (outcome === "fieldGoal") return Math.max(FG_RANGE_YARD - startYard, reach);
   return Math.max(-8, Math.min(100 - startYard - 1, reach - 14));
@@ -440,6 +448,10 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
              plays: buildPlays(from, to, outcome, kind, scorerSlot, roster, rand, {
                runShare: mine.runShare,
                sackRate: (theirs.passRush || 1) / (mine.protection || 1),
+               // The man actually throwing it. 0..1 from his OWN per-game
+               // production - nothing invented, just the rating the rest of
+               // the engine already trusts.
+               qbRating: roster.QB ? rateEntry(roster.QB, ctx) : 0.5,
              }) },
     nextStart: nextStart(outcome, endYard),
   };
@@ -499,8 +511,19 @@ const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sa
 
 /** How much of a drive is snaps that gained nothing - incompletions and
  * sacks. Carved out of the play count rather than added to it, so the count
- * stays at football's ~64 a side. */
-const DEAD_PLAY_SHARE = 0.28;
+ * stays at football's ~64 a side.
+ *
+ * THIS IS A BAND NOW, NOT A NUMBER. It was a single constant, which meant
+ * every quarterback who ever played completed the same share of his throws:
+ * measured across the whole dataset, a bottom-tier passer completed 62.2% and
+ * an elite one 62.1%. Player quality reached the drive model and stopped
+ * there, so the box score was always reconstructed at league-average
+ * efficiency however good the man throwing was.
+ *
+ * The band is real football's: a poor starter completes about 54%, an elite
+ * one about 71%. */
+const DEAD_PLAY_SHARE_POOR = 0.40;
+const DEAD_PLAY_SHARE_ELITE = 0.20;
 
 /** ...and how many of those are sacks rather than incompletions. */
 const SACK_SHARE_OF_DEAD = 0.13;
@@ -534,7 +557,11 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   const net = endYard - startYard;
   // Longer drives get more snaps, with a floor of one: a drive exists because
   // somebody ran a play.
-  const count = Math.max(1, Math.min(12, Math.round(Math.abs(net) / 9) + 1 + Math.floor(rand() * 2)));
+  // Snaps per drive. Loosened from /9 with a cap of 12: that produced a median
+  // of 40 pass attempts a game against real football's ~33, and put 12.5% of
+  // games at 50+ attempts. A drive covers more ground per snap now, which
+  // brings the tail down without capping anything.
+  const count = Math.max(1, Math.min(11, Math.round(Math.abs(net) / 11) + 1 + Math.floor(rand() * 2)));
   const plays = [];
 
   // Gains are drawn, then normalised so they sum to exactly `net`. Drawing
@@ -549,7 +576,11 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // was already right at about 64 a side - and a sack's lost yardage is added
   // back into the pool the productive plays share, so the drive still lands
   // exactly where the simulation said.
-  const dead = Math.min(count - 1, Math.round(count * DEAD_PLAY_SHARE));
+  // A good quarterback wastes fewer downs. Clamped to the band above so no
+  // plan and no rating can produce a passer who never misses or never hits.
+  const qbRating = Math.max(0, Math.min(1, Number(plan.qbRating) ?? 0.5));
+  const deadShare = DEAD_PLAY_SHARE_POOR - (DEAD_PLAY_SHARE_POOR - DEAD_PLAY_SHARE_ELITE) * qbRating;
+  const dead = Math.min(count - 1, Math.round(count * deadShare));
   const productive = Math.max(1, count - dead);
   // Rounded PROBABILISTICALLY, not to nearest. A drive has about two dead
   // plays, so round-to-nearest turned 0.4 sacks into 0 every single time and

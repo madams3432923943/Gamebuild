@@ -80,6 +80,8 @@ const fails = {
   rushTdNoYards: 0,
   recTdNoCatch: 0,
   negative: 0,
+  negativeYards: 0,
+  playerLines: 0,
   tightEndRushTd: 0,
   teamPassYards: 0,
   teamRushYards: 0,
@@ -123,7 +125,15 @@ for (let n = 0; n < GAMES; n++) {
       // A tight end does not take handoffs in a model that has no plays to
       // call. See RUSH_CARRIER_WEIGHTS in js/sports/nfl/constants.js.
       if (slot === "TE" && (line.rush_tds || 0) > 0) fails.tightEndRushTd += line.rush_tds;
-      if ((line.rec_yds || 0) < 0 || (line.rush_yds || 0) < 0 || (line.rec || 0) < 0) fails.negative++;
+      // A COUNTING stat can never be negative - nobody catches minus one pass.
+      // YARDAGE is signed, and a back stuffed twice for losses genuinely
+      // finishes a game below zero, so that is counted separately and held to
+      // a rate rather than forbidden outright. Lumping the two together made
+      // an honest football outcome look like a corrupt box score.
+      if ((line.rec || 0) < 0 || (line.carries || 0) < 0 || (line.comp || 0) < 0 ||
+          (line.att || 0) < 0 || (line.targets || 0) < 0) fails.negative++;
+      if ((line.rec_yds || 0) < 0 || (line.rush_yds || 0) < 0) fails.negativeYards++;
+      fails.playerLines++;
     }
 
     // Counted over every ball carrier, QB included - CATCHERS above does not
@@ -229,7 +239,14 @@ const checks = [
   {
     title: "No negative counting stats",
     ok: fails.negative === 0,
-    detail: `${fails.negative} negative values`,
+    detail: `${fails.negative} negative counts over ${fails.playerLines} player lines`,
+  },
+  {
+    // Real, but rare. A game full of players finishing below zero would mean
+    // drives were losing ground far too often.
+    title: "Negative yardage games are rare (under 2%)",
+    ok: fails.playerLines === 0 || fails.negativeYards / fails.playerLines < 0.02,
+    detail: `${fails.negativeYards} of ${fails.playerLines} player lines (${((fails.negativeYards / Math.max(1, fails.playerLines)) * 100).toFixed(2)}%)`,
   },
   {
     // The headline behaviour: everyone on the field touches the ball.
