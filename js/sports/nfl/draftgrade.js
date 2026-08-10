@@ -4,27 +4,39 @@
 
 import { OFFENSE_WEIGHTS, DEFENSE_WEIGHTS } from "./constants.js";
 import { rateEntry } from "./units.js";
-
 import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
 
+const canonicalSlot = (slot) => String(slot || "").replace(/\d+$/, "").toUpperCase();
+
+/** Units identify themselves with `group` (DL/LB/CB/S/OL/ST), while players
+ * expose `pos`. The old curve sampled only `pos`, so defensive unit slots had
+ * no candidate pool and the resulting curve was not representative of an NFL
+ * draft. Keep one eligibility rule for both shapes. */
+function eligibleForSlot(entry, slot) {
+  const wanted = canonicalSlot(slot);
+  if (!entry) return false;
+  if (String(entry.group || "").toUpperCase() === wanted) return true;
+  return (entry.pos || []).some((pos) => String(pos).toUpperCase() === wanted);
+}
+
 /** The grade curve for this dataset, built once. Fixed cutoffs were the old
- * approach and they drift the moment the data changes - see js/gradecurve.js.
- * Memoised on the rating context so it costs one pass per session. */
+ * approach and they drift the moment the data changes. Memoised on the rating
+ * context so it costs one pass per session. */
 function curveFor(ctx, slots) {
   if (!ctx.__gradeCurve) {
     const all = ctx.__allEntries || [];
     ctx.__gradeCurve = sampleRosterScores(
       slots,
-      (slot) => all.filter((p) => (p.pos || []).includes(slot.replace(/\d+$/, ""))),
+      (slot) => all.filter((entry) => eligibleForSlot(entry, slot)),
       (roster) => (sideScore(roster, OFFENSE_WEIGHTS, ctx) + sideScore(roster, DEFENSE_WEIGHTS, ctx)) / 2
     );
   }
   return ctx.__gradeCurve;
 }
 
-/** Weighted rating of one side of the ball, so a great quarterback counts for
- * more than a great third receiver - the same weights the engine simulates
- * with, which keeps the grade honest about what actually wins games. */
+/** Weighted rating of one side of the ball. These are the same slot weights
+ * the simulation consumes, so the grade cannot praise a roster for strengths
+ * the engine itself ignores. */
 function sideScore(roster, weights, ctx) {
   let total = 0;
   let weight = 0;
@@ -36,29 +48,41 @@ function sideScore(roster, weights, ctx) {
   return weight > 0 ? total / weight : 0.5;
 }
 
+function defensiveBreakdown(roster, ctx) {
+  const groups = {};
+  for (const slot of Object.keys(DEFENSE_WEIGHTS)) {
+    if (!roster[slot]) continue;
+    groups[slot] = rateEntry(roster[slot], ctx);
+  }
+  return groups;
+}
+
 export function draftGrade(roster, ctx, forfeits = []) {
   const offense = sideScore(roster, OFFENSE_WEIGHTS, ctx);
   const defense = sideScore(roster, DEFENSE_WEIGHTS, ctx);
+  const defenseGroups = defensiveBreakdown(roster, ctx);
+
   // Both halves count equally. A roster that drafted a superb offence and
-  // ignored its defence has not drafted well, it has drafted half a team.
+  // ignored its defence has drafted half a team, not a great full roster.
   const raw = (offense + defense) / 2;
-  // A forfeited slot is a hole, and the grade should say so plainly rather
-  // than quietly averaging over the pick that never happened.
   const penalty = forfeits.length * 0.05;
   const score = Math.max(0, raw - penalty);
-  const letter = curveLetter(score, curveFor(ctx, Object.keys(OFFENSE_WEIGHTS).concat(Object.keys(DEFENSE_WEIGHTS))));
+  const slots = Object.keys(OFFENSE_WEIGHTS).concat(Object.keys(DEFENSE_WEIGHTS));
+  const letter = curveLetter(score, curveFor(ctx, slots));
 
   const notes = [];
   notes.push(`Offence rates ${(100 * offense).toFixed(0)}, defence ${(100 * defense).toFixed(0)}.`);
+
+  const groupText = Object.keys(DEFENSE_WEIGHTS)
+    .filter((slot) => Number.isFinite(defenseGroups[slot]))
+    .map((slot) => `${slot} ${(100 * defenseGroups[slot]).toFixed(0)}`)
+    .join(" · ");
+  if (groupText) notes.push(`${groupText} · Overall Defense ${(100 * defense).toFixed(0)}.`);
+
   if (offense - defense > 0.15) notes.push("Offence-heavy - your defence will give it back.");
   else if (defense - offense > 0.15) notes.push("Defence-first. You will need to win low-scoring games.");
   if (forfeits.length) notes.push(`${forfeits.length} slot${forfeits.length === 1 ? "" : "s"} left empty.`);
 
-  // The shape shared code renders: letter, headline, reasons[]. It reads
-  // grade.letter and spreads grade.reasons directly, and only the CALL is
-  // wrapped in a try/catch - so returning a different shape threw at the
-  // render step, outside the guard, and killed the whole post-draft flow
-  // before the gamestyle picker. That is why NFL never simulated.
   return {
     letter,
     headline: offense - defense > 0.15
@@ -70,5 +94,6 @@ export function draftGrade(roster, ctx, forfeits = []) {
     score,
     offense,
     defense,
+    defenseGroups,
   };
 }
