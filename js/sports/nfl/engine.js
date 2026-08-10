@@ -750,30 +750,59 @@ function mvpScore(line) {
   return total;
 }
 
+/** One man's own yardage - passing plus rushing plus receiving. The first
+ * tie-break, and the same quantity the box score leads its offensive table
+ * with, so the MVP and the table rank a performance the same way. */
+function totalYards(line) {
+  return (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0);
+}
+
+function totalTouchdowns(line) {
+  return (Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0);
+}
+
 /**
  * The best individual line in the game, from either roster.
  *
- * Strictly greater-than, walking A before B and each roster in its own slot
- * order, so an exact tie always resolves the same way rather than on
- * whichever object key happened to come out first.
+ * TIE-BREAKS ARE EXPLICIT AND ORDERED, because "whichever object key came out
+ * first" is not a rule anyone can predict or reproduce: value, then total
+ * yards, then touchdowns, then side, then slot order. Every step is a fact
+ * about the game rather than about iteration order, so the same game always
+ * names the same player - which is what makes the MVP checkable at all.
  */
 function pickMvp(rosterA, boxA, rosterB, boxB) {
-  let best = null;
+  const candidates = [];
   for (const [roster, box, side] of [
     [rosterA, boxA, "A"],
     [rosterB, boxB, "B"],
   ]) {
-    for (const slot of Object.keys(box)) {
+    const slots = Object.keys(box);
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
       const player = roster[slot];
       // TEAM is a bookkeeping line for points no drafted player can be
       // credited with - it keeps the box score adding up to the scoreboard,
       // and it is nobody, so it cannot be the MVP.
       if (!player) continue;
-      const score = mvpScore(box[slot]);
-      if (!best || score > best.score) best = { player, line: box[slot], side, slot, score };
+      const line = box[slot];
+      candidates.push({
+        player, line, side, slot,
+        score: mvpScore(line),
+        yards: totalYards(line),
+        tds: totalTouchdowns(line),
+        order: i,
+      });
     }
   }
-  return best;
+  if (!candidates.length) return null;
+  candidates.sort((a, b) =>
+    b.score - a.score ||
+    b.yards - a.yards ||
+    b.tds - a.tds ||
+    (a.side === b.side ? 0 : a.side === "A" ? -1 : 1) ||
+    a.order - b.order
+  );
+  return candidates[0];
 }
 
 export function simulate(rosterA, rosterB, stats, opts = {}) {

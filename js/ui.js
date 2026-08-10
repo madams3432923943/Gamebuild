@@ -482,9 +482,14 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   // missing one shows a dash, because "nothing" and "did not do this" are
   // different claims - a cornerback with no passing yards has not thrown for
   // zero, he never dropped back.
+  // A column may DERIVE its value rather than read it. Total yards is the
+  // clearest case: it is pass + rush + receiving for one man, which is a real
+  // thing to rank offensive performances by and emphatically not a stat the
+  // ledger stores - storing it would put a second, addable copy of yardage
+  // next to the plays that produced it.
   const cells = columns
-    .map(([key]) => {
-      const v = line[key];
+    .map(([key, , derive]) => {
+      const v = typeof derive === "function" ? derive(line) : line[key];
       return `<td>${v === undefined || v === null ? "-" : r(v)}</td>`;
     })
     .join("");
@@ -499,8 +504,49 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   );
 }
 
+/**
+ * One team's box score, split into the groups the sport declares.
+ *
+ * A football box score is three different tables wearing one hat. A
+ * quarterback, a cornerback and a kicker share almost no columns, so a single
+ * flat table gives every one of them a row of dashes across the other two
+ * thirds - which is how football ended up with a table that was mostly empty
+ * no matter how well anyone played. A sport that declares `boxGroups` gets one
+ * sub-table per group with only that group's columns; one that does not keeps
+ * the single table, which is what basketball wants.
+ */
+function boxGroupTables(roster, box, teamLabel, final) {
+  const sport = activeSport();
+  let html = `<div class="team-heading">${teamLabel}</div>`;
+  for (const group of sport.boxGroups) {
+    const slots = rosterSlots(roster).filter(
+      (slot) => box[slot] && group.slots.includes(sport.basePosition(slot))
+    );
+    if (!slots.length) continue;
+    // Ranked only once the game is OVER. Mid-game the rows have to stay put or
+    // the table reorders itself under the reader every few seconds as it fills
+    // in; at the final whistle the leading performance belongs at the top.
+    const ordered = final && group.rank
+      ? [...slots].sort((a, b) => group.rank(box[b]) - group.rank(box[a]))
+      : slots;
+    html +=
+      `<div class="box-group-label">${escapeHtml(group.label)}</div>` +
+      `<table class="box-table"><thead><tr><th>Slot</th><th>Player</th>` +
+      group.columns.map(([, head]) => `<th>${head}</th>`).join("") +
+      `</tr></thead><tbody>`;
+    for (const slot of ordered) {
+      html += boxRow(slotLabel(slot), roster[slot], box[slot], null, null, group.columns, false, []);
+    }
+    html += "</tbody></table>";
+  }
+  return html;
+}
+
 function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
   const sport = activeSport();
+  if (Array.isArray(sport.boxGroups) && sport.boxGroups.length) {
+    return boxGroupTables(roster, box, teamLabel, final);
+  }
   const columns = sport.boxColumns;
   // MIN and the shooting splits are basketball's, and only basketball's - a
   // sport with no rotation has no minutes column and no three-point line.

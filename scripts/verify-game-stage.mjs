@@ -158,11 +158,22 @@ async function runInPage(page) {
       const sport = activeSport();
       const line = { pts: 0 };
       for (const key of sport.lineKeys) line[key] = 0;
-      const missing = sport.boxColumns.map(([key]) => key).filter((key) => !(key in line));
+      // Every column the sport draws, including the ones inside its box
+      // GROUPS - football splits its table into offence/defence/kicking, and a
+      // column that only appears in a group still needs somewhere to
+      // accumulate. Derived columns are skipped: they are computed from other
+      // keys at render time and deliberately have no stored key of their own.
+      const drawn = [
+        ...sport.boxColumns.map((col) => col),
+        ...(sport.boxGroups || []).flatMap((g) => g.columns),
+      ];
+      const missing = [...new Set(
+        drawn.filter(([, , derive]) => typeof derive !== "function").map(([key]) => key)
+      )].filter((key) => !(key in line));
       check(
         `${id.toUpperCase()} live box score has a key for every column it draws`,
         missing.length === 0,
-        missing.length ? `no key for: ${missing.join(" ")}` : `${sport.boxColumns.length} columns covered`
+        missing.length ? `no key for: ${missing.join(" ")}` : `${new Set(drawn.map(([k]) => k)).size} columns covered`
       );
     }
 

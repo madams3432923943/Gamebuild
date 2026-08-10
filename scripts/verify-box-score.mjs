@@ -130,7 +130,17 @@ async function runInPage(page) {
       const headers = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim());
       const bodyRows = [...table.querySelectorAll("tbody tr")];
       const cellCounts = [...new Set(bodyRows.map((tr) => tr.querySelectorAll("td").length))];
-      return { sport, headers, bodyRows, cellCounts, headerCount: headers.length };
+      // A sport may split its box score into GROUPS - football renders offence,
+      // defence and kicking as separate tables, because a quarterback and a
+      // cornerback share almost no columns. One team's worth of those tables is
+      // captured here so the contract check below can cover every one of them
+      // rather than only whichever happened to render first.
+      const groupLabels = [...host.querySelectorAll(".box-group-label")].map((el) => el.textContent.trim());
+      const groupTables = [...host.querySelectorAll(".box-table")].map((t) => ({
+        headers: [...t.querySelectorAll("thead th")].map((th) => th.textContent.trim()),
+        cellCounts: [...new Set([...t.querySelectorAll("tbody tr")].map((tr) => tr.querySelectorAll("td").length))],
+      }));
+      return { sport, headers, bodyRows, cellCounts, headerCount: headers.length, groupLabels, groupTables };
     };
 
     // ---- NBA: the shooting splits are back, with cells under them ---------
@@ -197,24 +207,42 @@ async function runInPage(page) {
         `rotationBudget=${nfl.sport.rotationBudget}`
       );
 
-      // The strongest form: the rendered header is exactly what the sport
+      // The strongest form: every rendered header is exactly what the sport
       // declares, in order. Any leakage from shared code shows up here
       // whatever it is called.
-      const expected = [
-        "Slot", "Player",
-        ...((nfl.sport.rotationBudget || 0) > 0 ? ["MIN"] : []),
-        ...nfl.sport.boxColumns.map(([, h]) => h),
-        ...(nfl.sport.splitColumns || []).map(([, h]) => h),
-      ];
+      //
+      // Football declares GROUPS, so the contract is one table per group with
+      // that group's columns - checked across all of them, both teams. A group
+      // whose slots are all empty renders nothing, which is why the rendered
+      // tables are matched against the groups that actually appeared rather
+      // than against the full declared list.
+      const groups = nfl.sport.boxGroups || [];
+      const declaredByLabel = new Map(groups.map((g) => [g.label, g.columns.map(([, h]) => h)]));
+      const groupContractHolds =
+        groups.length > 0 &&
+        nfl.groupTables.length === nfl.groupLabels.length &&
+        nfl.groupLabels.every((label, i) => {
+          const declared = declaredByLabel.get(label);
+          if (!declared) return false;
+          return JSON.stringify(nfl.groupTables[i].headers) === JSON.stringify(["Slot", "Player", ...declared]);
+        });
       check(
         "NFL header is exactly the sport's declared contract",
-        JSON.stringify(nfl.headers) === JSON.stringify(expected),
-        `rendered: ${nfl.headers.join(" ")}\n         declared: ${expected.join(" ")}`
+        groupContractHolds,
+        `${nfl.groupLabels.length} group tables: ${nfl.groupLabels.join(", ")}\n         first rendered: ${nfl.headers.join(" ")}`
       );
       check(
-        "NFL rows carry one cell per header column",
-        nfl.cellCounts.length === 1 && nfl.cellCounts[0] === nfl.headerCount,
-        `headers=${nfl.headerCount} row cell counts=[${nfl.cellCounts.join(",")}]`
+        "Every NFL group carries one cell per header column",
+        nfl.groupTables.every((t) => t.cellCounts.length === 1 && t.cellCounts[0] === t.headers.length),
+        nfl.groupTables.map((t, i) => `${nfl.groupLabels[i]}: ${t.headers.length}/${t.cellCounts.join(",")}`).join("  ")
+      );
+      // TOTAL YDS is display-only and must lead the offensive table - it is
+      // what a football performance is ranked by.
+      const offense = nfl.groupTables[nfl.groupLabels.indexOf("Offense")];
+      check(
+        "NFL offensive table leads with Total Yards and drops PTS",
+        !!offense && offense.headers[2] === "TOT YDS" && !nfl.groupTables.some((t) => t.headers.includes("PTS")),
+        offense ? `offense headers: ${offense.headers.join(" ")}` : "no offensive table"
       );
     }
 

@@ -2658,6 +2658,16 @@ table.box-table th, table.history-table th {
   min-height: 3.2rem;
 }
 
+/* Football's box score is three tables; each needs to say which one it is. */
+.box-group-label {
+  margin: 0.7rem 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .play-card {
   background: rgba(0, 0, 0, 0.45);
   border-left: 3px solid var(--accent);

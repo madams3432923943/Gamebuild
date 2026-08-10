@@ -219,8 +219,12 @@ export const NFL = {
   // Every column the box score draws needs a key here, or the live table has
   // nowhere to accumulate it and sits at zero all game while the header
   // promises a number. comp/att/rec were missing exactly that way.
-  lineKeys: ["comp", "att", "pass_yds", "pass_tds", "rush_yds", "rush_tds",
-             "rec", "rec_yds", "rec_tds", "ints", "fumbles", "fgs"],
+  // `carries` and `fga` accumulate but are NOT in statLabels, for the same
+  // reason `att` is not: these keys become personal bests, and a record for
+  // most carries or most field goals missed rewards volume and failure rather
+  // than anything anyone would want to chase.
+  lineKeys: ["comp", "att", "pass_yds", "pass_tds", "carries", "rush_yds", "rush_tds",
+             "rec", "rec_yds", "rec_tds", "ints", "fumbles", "fgs", "fga"],
 
   // Placeholders, and honestly so: no NFL game has been simulated, so every
   // one of these reads as a dash on the profile. They are declared now because
@@ -322,11 +326,73 @@ export const NFL = {
   // No made/attempted pairs - football's attempts already have their own
   // columns (COMP/ATT), so there is nothing to append.
   splitColumns: [],
+  // PTS IS GONE, deliberately. Points are a football statistic - the scoreboard
+  // is made of them - but they are a terrible way to read a football PLAYER.
+  // A quarterback who throws for 400 and four touchdowns scores none of them,
+  // so ranking a table by points put the kicker above him on any night he
+  // outkicked the offence. What a football player did is yardage and scores,
+  // which is what these columns are now.
+  //
+  // Used for personal records and for the MVP line (formatMvpStatLine reads
+  // this list), so removing PTS also stops the MVP being announced with a
+  // number nobody quotes about a quarterback.
   boxColumns: [
     ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
-    ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
+    ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
     ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
-    ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"], ["pts", "PTS"],
+    ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"],
+  ],
+
+  /**
+   * A football box score is THREE tables, not one.
+   *
+   * A quarterback, a cornerback and a kicker share almost no columns. Flat, the
+   * table gave each of them a row that was two-thirds dashes, which is why
+   * football's box score read as empty however well anyone played.
+   *
+   * TOTAL YDS leads the offensive table and is DERIVED, never stored: it is
+   * one man's passing plus rushing plus receiving. It is display-only and must
+   * never be summed into a team total - the team's passing yards already ARE
+   * its receivers' receiving yards, so adding these up would count every yard
+   * twice.
+   *
+   * The defensive table shows only what the ledger honestly produces. The
+   * simulation records interceptions and forced fumbles by unit; it does not
+   * model tackles or individual sacks, so there are no columns for them. An
+   * empty column would be a claim we cannot support.
+   */
+  boxGroups: [
+    {
+      key: "offense",
+      label: "Offense",
+      slots: ["QB", "RB", "WR", "TE", "OL", "FLEX"],
+      columns: [
+        ["total_yds", "TOT YDS", (line) =>
+          (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0)],
+        ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
+        ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
+        ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
+      ],
+      // Total yards first, touchdowns as the tie-break - scaled so a score is
+      // worth a hundred yards rather than swamping the yardage entirely.
+      rank: (line) =>
+        (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0) +
+        100 * ((Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0)),
+    },
+    {
+      key: "defense",
+      label: "Defense",
+      slots: ["DL", "LB", "CB", "S", "DEF"],
+      columns: [["ints", "INT"], ["fumbles", "FUM"]],
+      rank: (line) => (Number(line.ints) || 0) * 2 + (Number(line.fumbles) || 0),
+    },
+    {
+      key: "kicking",
+      label: "Kicking",
+      slots: ["ST"],
+      columns: [["fgs", "FG"], ["fga", "FGA"]],
+      rank: (line) => Number(line.fgs) || 0,
+    },
   ],
   // Deliberately none. A football box score is read by position - quarterback,
   // then backs, then receivers - not ranked by who scored most, and re-sorting
