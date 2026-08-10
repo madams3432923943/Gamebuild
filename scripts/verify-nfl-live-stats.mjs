@@ -29,6 +29,10 @@ import { NFL } from "../js/sports/nfl/index.js";
 import { DraftState } from "../js/draft.js";
 import { accumulatePeriodStats, liveStatKeys, formatMvpStatLine } from "../js/ui.js";
 
+// Football's dataset loads on demand now (see NFL.preload), so a script that
+// reads the player pool has to ask for it first.
+await NFL.preload();
+
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 /** Fills both rosters through the real draft and simulates, the way

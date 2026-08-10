@@ -14,7 +14,13 @@
 // cannot get from an empty roster to a final score, this fails - whichever
 // sport it is, and whichever sport the change was aimed at.
 
-import { SPORTS } from "../js/sports/index.js";
+import { SPORTS, ensureSportData } from "../js/sports/index.js";
+
+// A sport may load its dataset on demand - football does. Every live sport is
+// loaded before it is played here.
+for (const meta of SPORTS) {
+  if (meta.live) await ensureSportData(meta.id);
+}
 import { setActiveSport } from "../js/sports/index.js";
 import { DraftState, isEligible } from "../js/draft.js";
 import { groupBySeason } from "../js/ui.js";

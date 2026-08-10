@@ -14,7 +14,15 @@
 //
 // Add a hook to js/ui.js, add its name here.
 
-import { SPORTS } from "../js/sports/index.js";
+import { SPORTS, ensureSportData } from "../js/sports/index.js";
+
+// A sport may load its dataset on demand rather than on boot - football does,
+// because its data is larger than the rest of the app combined. The contract
+// is about the sport's SURFACE, so every live sport is loaded up front here
+// and then checked exactly as before.
+for (const meta of SPORTS) {
+  if (meta.live) await ensureSportData(meta.id);
+}
 
 /** Called by shared code on whatever sport is active. */
 const REQUIRED_FUNCTIONS = [

@@ -31,6 +31,9 @@ import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.
 const GAMES = Number(process.env.NFL_PLAYBACK_GAMES || 120);
 
 setActiveSport("nfl");
+// Football's dataset loads on demand now (see NFL.preload), so a script that
+// reads the player pool has to ask for it first.
+await NFL.preload();
 const rows = NFL.playersInEra(NFL.players(), NFL.defaultEra);
 const slots = NFL.slots.ranked;
 const ctx = NFL.computeDatasetStats(NFL.players(), NFL.units());

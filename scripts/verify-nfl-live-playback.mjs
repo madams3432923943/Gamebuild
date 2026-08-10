@@ -153,6 +153,9 @@ async function main() {
     const mode = page.locator('#mode-toggle [data-mode="practice-easy"]');
     await mode.waitFor({ state: "visible", timeout: 15000 });
     await mode.click();
+    // Football's data loads on selection, and the button says so while it
+    // does. Waiting for it to become enabled is exactly what a user does.
+    await page.locator("#btn-start-draft:not([disabled])").waitFor({ state: "visible", timeout: 60000 });
     await page.locator("#btn-start-draft").click();
     await page.locator("#screen-draft:not(.hidden)").waitFor({ state: "visible", timeout: 60000 });
 

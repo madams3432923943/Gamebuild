@@ -60,7 +60,10 @@ async function runInPage(page) {
     const checks = [];
     const check = (name, ok, detail = "") => checks.push({ name, ok: !!ok, detail: String(detail) });
 
-    const { setActiveSport, activeSport } = await import("/js/sports/index.js");
+    const { setActiveSport, activeSport, ensureSportData } = await import("/js/sports/index.js");
+    // Football loads its dataset on demand now, and this harness reads its
+    // columns and stage - so it has to be asked for before any of that.
+    await ensureSportData("nfl");
     const { renderScoreboard } = await import("/js/ui.js");
 
     // The real markup, lifted from index.html rather than mocked - the point

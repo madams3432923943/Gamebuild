@@ -69,7 +69,10 @@ async function runInPage(page) {
       }
     };
 
-    const { setActiveSport, activeSport } = await import("/js/sports/index.js");
+    const { setActiveSport, activeSport, ensureSportData } = await import("/js/sports/index.js");
+    // Football loads its dataset on demand; this harness renders its box
+    // score, so it has to be asked for first.
+    await ensureSportData("nfl");
     const { DraftState } = await import("/js/draft.js");
     const { renderFullBoxScore, buildShotLines } = await import("/js/ui.js");
     // Imported for its SIDE EFFECT, not its exports. The workaround this

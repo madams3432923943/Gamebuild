@@ -24,8 +24,53 @@
 // files because they are two shapes: a quarterback has a passing line, a
 // secondary has a unit line, and flattening them into one table would make
 // every reader guard against the other's columns.
-import { ROWS as NFL_PLAYERS } from "../../../data/nfl-players.js";
-import { ROWS as NFL_UNITS } from "../../../data/nfl-units.js";
+// LOADED ON DEMAND, NOT ON BOOT.
+//
+// These two files are 4.2MB between them - larger than everything else the app
+// loads put together. Imported at module scope they were fetched, parsed and
+// evaluated by every single page load, including the overwhelming majority
+// that only ever open basketball. Nobody drafting an NBA roster needs a list
+// of every defensive unit in football history.
+//
+// So they arrive when football is CHOSEN. `preload()` is idempotent and
+// returns the same promise to concurrent callers, so a double click on the
+// sport tile fetches once.
+//
+// Deliberately NOT falling back to an empty list when the data has not
+// arrived: an empty roster pool would look like a sport with no players
+// rather than a bug, and the whole point of CLAUDE.md's rule about silent
+// failures is that a plausible-looking wrong answer is the expensive kind.
+// Calling these before preload() is a programming error and says so.
+let NFL_PLAYERS = null;
+let NFL_UNITS = null;
+let loading = null;
+
+function loaded() {
+  if (!NFL_PLAYERS || !NFL_UNITS) {
+    throw new Error(
+      "NFL data has not been loaded. Call NFL.preload() (or ensureSportData('nfl')) before using football's players."
+    );
+  }
+}
+
+async function preload() {
+  if (NFL_PLAYERS && NFL_UNITS) return;
+  if (!loading) {
+    loading = Promise.all([
+      import("../../../data/nfl-players.js"),
+      import("../../../data/nfl-units.js"),
+    ]).then(([players, units]) => {
+      NFL_PLAYERS = players.ROWS;
+      NFL_UNITS = units.ROWS;
+    }).catch((error) => {
+      // A failed load must not leave a permanently poisoned promise - the next
+      // attempt should be able to try again rather than reject forever.
+      loading = null;
+      throw error;
+    });
+  }
+  return loading;
+}
 import { computeDatasetStats, simulate } from "./engine.js";
 
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
@@ -266,9 +311,11 @@ export const NFL = {
   // only individuals left every unit slot - OL, DL, LB, CB, S, and Quick
   // Play's DEF - with nothing eligible. The draft filled its skill positions
   // and then hung with two slots open and no legal pick on the board.
-  players: () => [...NFL_PLAYERS, ...NFL_UNITS],
-  individuals: () => NFL_PLAYERS,
-  units: () => NFL_UNITS,
+  preload,
+  isLoaded: () => !!(NFL_PLAYERS && NFL_UNITS),
+  players: () => (loaded(), [...NFL_PLAYERS, ...NFL_UNITS]),
+  individuals: () => (loaded(), NFL_PLAYERS),
+  units: () => (loaded(), NFL_UNITS),
 
   /** Everything draftable in one era: individuals and units together, since
    * the draft board offers them side by side. "all" is every season. */
@@ -279,6 +326,7 @@ export const NFL = {
   playersInEra: (players, eraId) => {
     const era = NFL.eraById(eraId);
     const inEra = (row) => !era?.decades || era.decades.includes(row.era);
+    if (!players) loaded();
     return (players ?? [...NFL_PLAYERS, ...NFL_UNITS]).filter(inEra);
   },
 
@@ -288,7 +336,7 @@ export const NFL = {
   // index - thousands of full sorts on one click, which froze the tab hard
   // enough that Quick Play never appeared. The dataset is generated and
   // immutable at runtime, so one build lasts the session.
-  computeDatasetStats: () => (ratingCtx ||= computeDatasetStats(NFL_PLAYERS, NFL_UNITS)),
+  computeDatasetStats: () => (loaded(), (ratingCtx ||= computeDatasetStats(NFL_PLAYERS, NFL_UNITS))),
   simulate: (rosterA, rosterB, stats, opts) => simulate(rosterA, rosterB, stats, opts),
 
   // Football has no minutes. Everyone on a drafted roster plays every snap of

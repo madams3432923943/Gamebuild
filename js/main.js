@@ -17,7 +17,7 @@ import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_M
 // DEFAULT_ERA only. Slot shapes come from sport().slots - shared code
 // importing basketball's roster is what dealt PG/SG/SF/PF/C in an NFL draft.
 import { DEFAULT_ERA } from "./sports/nba/constants.js";
-import { SPORTS, sportById, isLive, isSelectable, DEFAULT_SPORT_ID, activeSport, activeSportId, setActiveSport } from "./sports/index.js";
+import { SPORTS, sportById, isLive, isSelectable, DEFAULT_SPORT_ID, activeSport, activeSportId, setActiveSport, ensureSportData } from "./sports/index.js";
 import {
   loadProfile,
   loadRankInfo,
@@ -776,10 +776,25 @@ function renderModeChoice() {
  * pressing Start Draft would surface a stack trace as "the game is broken"
  * rather than "this sport isn't finished". Saying so plainly on the button is
  * both the honest answer and the thing that makes the tile safe to click. */
+/** True while a sport's dataset is still arriving. A sport whose data ships on
+ * boot is never in this state; football is, for about as long as 4.2MB takes. */
+let sportDataLoading = false;
+
 function renderPlayability() {
   const playable = isLive(getSport());
-  btnStartDraft.disabled = !playable;
-  btnStartDraft.textContent = playable ? "Start Draft" : `${sport().name} isn't playable yet`;
+  // A SPORT THAT IS STILL LOADING IS NOT YET PLAYABLE.
+  //
+  // Football's dataset now arrives when football is chosen rather than on
+  // boot, which opens a window - short on a desktop, not short on a phone -
+  // where the button looks ready and the player pool does not exist yet.
+  // Clicking through it produced a draft screen that never appeared, with
+  // nothing on screen to say why. The button now says what it is waiting for.
+  btnStartDraft.disabled = !playable || sportDataLoading;
+  btnStartDraft.textContent = !playable
+    ? `${sport().name} isn't playable yet`
+    : sportDataLoading
+      ? `Loading ${sport().name}…`
+      : "Start Draft";
   sportPreviewNoteEl.hidden = playable;
   if (!playable) {
     sportPreviewNoteEl.textContent =
@@ -833,9 +848,28 @@ function applyTheme(s) {
 const playSportIconEl = document.getElementById("play-sport-icon");
 const playSportNameEl = document.getElementById("play-sport-name");
 
-function setSport(id) {
+async function setSport(id) {
   if (!setActiveSport(id)) return;
   applyTheme(sport());
+  // Football's dataset is 4.2MB and is fetched the moment football is chosen,
+  // not on boot. Awaited HERE, before anything reads the player pool, so every
+  // screen below can stay synchronous - the alternative is every caller
+  // learning that one sport loads late.
+  sportDataLoading = true;
+  renderPlayability();
+  try {
+    await ensureSportData(id);
+  } catch (error) {
+    // Never silent: the button stays disabled and says so, and the reason is
+    // on the console for anyone debugging it.
+    console.error(`Could not load ${id} data:`, error);
+    sportDataLoading = false;
+    renderPlayability();
+    sportPreviewNoteEl.hidden = false;
+    sportPreviewNoteEl.textContent = `${sport().name} data could not be loaded. Check your connection and try again.`;
+    return;
+  }
+  sportDataLoading = false;
   // Era ids are only unique within a sport, so a bracket selected under the
   // previous sport may not exist here. Re-resolving through the new sport
   // snaps to its default rather than leaving a dangling id.

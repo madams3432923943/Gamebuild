@@ -93,6 +93,19 @@ export function activeSport() {
   return sportById(activeId);
 }
 
+/**
+ * Makes sure a sport's dataset is in memory.
+ *
+ * A sport whose data is small enough to ship on boot declares no `preload` and
+ * this resolves immediately; football declares one because its dataset is
+ * larger than the rest of the app combined. Shared code awaits this rather
+ * than knowing which sports are heavy.
+ */
+export async function ensureSportData(id) {
+  const sport = sportById(id);
+  if (typeof sport?.preload === "function") await sport.preload();
+}
+
 export function setActiveSport(id) {
   if (!isSelectable(id)) return false;
   activeId = id;
