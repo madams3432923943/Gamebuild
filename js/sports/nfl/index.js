@@ -35,7 +35,7 @@ import { rateEntry } from "./units.js";
 import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
-import { buildTimeline } from "./playback.js";
+import { buildTimeline, createLiveState, applyEvent, liveBox, liveScore } from "./playback.js";
 
 /** The order a football roster is READ in, which is not the order it is
  * drafted in. Offence before defence, and inside offence the skill positions
@@ -154,7 +154,12 @@ export const NFL = {
   // buildTimeline is optional in the contract: a sport that does not declare
   // one is revealed by whatever its stage already does, which is what
   // basketball's quarter reveal is.
-  presentation: { stage: "field", buildTimeline },
+  // createLiveState/applyEvent are what make the live table a LEDGER rather
+  // than a reveal: shared playback folds one event at a time into this state
+  // instead of accumulating a finished quarter line the moment the quarter
+  // starts. A sport that does not declare them keeps the period-reveal path,
+  // which is what basketball still uses.
+  presentation: { stage: "field", buildTimeline, createLiveState, applyEvent, liveBox, liveScore },
 
   // Seven individuals and five units. The provisional lineup this replaces
   // (QB, RB1, RB2, WR1, WR2, TE, FLEX, K, DEF, BENCH1) modelled fantasy

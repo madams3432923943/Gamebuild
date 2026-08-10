@@ -2820,6 +2820,8 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
   function finish() {
     for (const t of scoreTickIntervals) clearInterval(t);
+    // Nothing should still be waiting to draw on a field the game has left.
+    for (const t of fieldTimers) clearTimeout(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
     flashClass(courtStageEl, "final-flash");
 
@@ -2889,7 +2891,139 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     onComplete();
   }
 
-  setTimeout(step, QUARTER_REVEAL_DELAY_MS);
+  /**
+   * Playback for a sport that keeps a LIVE LEDGER - one event at a time,
+   * nothing revealed before the play that produced it.
+   *
+   * The period path above (`step`) reveals a whole quarter at once: it
+   * accumulates `result.quarterBoxScores[i]` into the running totals the
+   * moment quarter i begins, and only then starts playing that quarter's
+   * events. For basketball that is exactly right - the quarter reveal IS the
+   * presentation. For football it meant the scoreboard showed the quarter's
+   * final score at its first snap and the box score showed every yard still
+   * to be gained, so the plays that followed were a replay of a result the
+   * viewer had already been given.
+   *
+   * Here the state is a fold of the events shown so far and nothing else, so
+   * a viewer knows exactly as much as the play feed has told them. The sport
+   * owns the folding (see js/sports/nfl/playback.js); this function only
+   * decides when each event is shown and what on screen reacts to it.
+   */
+  function playEventDriven() {
+    const presentation = sport().presentation;
+    const live = presentation.createLiveState({ rosterA, rosterB });
+    // A quarter's summary is published once, by whichever event ends it.
+    const published = new Set();
+    let leader = null;
+
+    const labelForQuarter = (quarter) => {
+      const idx = result.quarterBoxScores.findIndex((q) => q.period === quarter);
+      if (idx < 0) return null;
+      return { idx, label: idx >= REGULATION_PERIODS ? `OT${idx - REGULATION_PERIODS + 1}` : `Q${idx + 1}` };
+    };
+
+    const paint = (statusLabel) => {
+      const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
+      renderScoreboard(
+        liveScoreboard,
+        labelA,
+        labelB,
+        periodsSoFar,
+        Math.max(0, REGULATION_PERIODS - regulationPlayed),
+        runningA,
+        runningB,
+        statusLabel,
+        true
+      );
+    };
+
+    /**
+     * A quarter's line goes up when the quarter ENDS, which is the whole
+     * point: the summary is a report of something the viewer has now watched
+     * rather than a preview of something they have not.
+     *
+     * The score comes from the live ledger, not from quarterBoxScores, so the
+     * column can never disagree with the running total beside it.
+     */
+    const publishPeriod = (quarter) => {
+      if (quarter == null || published.has(quarter)) return;
+      const named = labelForQuarter(quarter);
+      if (!named) return;
+      published.add(quarter);
+      const points = live.quarterScores[quarter] || { A: 0, B: 0 };
+      periodsSoFar.push({ label: named.label, a: Math.round(points.A), b: Math.round(points.B) });
+      paint(`End of ${named.label}`);
+      flashClass(liveScoreboard, "period-flash");
+      announcePeriod(named.idx, named.label);
+    };
+
+    for (const event of timeline.events) {
+      fieldTimers.push(
+        setTimeout(() => {
+          presentation.applyEvent(live, event);
+          const score = presentation.liveScore(live);
+          const scoreMoved = score.A !== runningA || score.B !== runningB;
+          runningA = score.A;
+          runningB = score.B;
+
+          if (fieldRefs) showFootballEvent(fieldRefs, event, { clock: event.clock });
+          // Only the moments worth reading go to the feed - every snap would
+          // be a wall of text nobody follows, and the ball already showed the
+          // ordinary ones.
+          if (event.scoring > 0 || event.turnover) {
+            pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
+          }
+
+          // Only a play that produced something changes the table. Kickoffs
+          // and drive starts carry no player production, and rebuilding the
+          // box score for them would be pure churn.
+          if (event.playerDeltas) {
+            renderFullBoxScore(
+              fullBoxScore, rosterA, presentation.liveBox(live, "A"), labelA,
+              rosterB, presentation.liveBox(live, "B"), labelB, null, null, minutesA, minutesB
+            );
+          }
+
+          // A lead change is now caught on the SCORING PLAY rather than at the
+          // quarter break, which is when it actually happens.
+          if (scoreMoved) {
+            const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
+            if (newLeader && leader && newLeader !== leader) {
+              const leaderLabel = newLeader === "A" ? labelA : labelB;
+              pushPlayHeadline(
+                playFeedEl,
+                `${leaderLabel} ${subjectVerb(leaderLabel, "takes", "take")} the lead`,
+                "lead-change"
+              );
+              flashClass(liveScoreboard, "lead-flash");
+            }
+            if (newLeader) leader = newLeader;
+          }
+
+          if (event.type === "quarterEnd" || event.type === "halfEnd" || event.type === "gameEnd") {
+            publishPeriod(event.quarter);
+          } else {
+            const named = labelForQuarter(event.quarter);
+            paint(named ? `${named.label} in progress` : openingLabel());
+          }
+        }, event.atMs)
+      );
+    }
+
+    // The whistle goes after the last event has had its time on screen, not
+    // at the moment it appears.
+    const last = timeline.events[timeline.events.length - 1];
+    fieldTimers.push(setTimeout(finish, last.atMs + last.durationMs + 250));
+  }
+
+  // A sport that declares a live ledger is played back event by event;
+  // everything else keeps the period reveal.
+  const hasLiveLedger = !!(
+    sport().presentation.createLiveState &&
+    sport().presentation.applyEvent &&
+    timeline.events.length
+  );
+  setTimeout(hasLiveLedger ? playEventDriven : step, QUARTER_REVEAL_DELAY_MS);
 }
 
 function runLocalSimulation() {
