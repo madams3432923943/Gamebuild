@@ -2171,7 +2171,10 @@ export function renderFootballField(container, labelA, labelB) {
     `<span class="ff-quarter"></span>` +
     `<span class="ff-clock"></span>` +
     `<span class="ff-score"></span>` +
-    `<span class="ff-downdist"></span>`;
+    `<span class="ff-downdist"></span>` +
+    // Whose ball it is, said in a chip rather than only in prose. The colour
+    // and the side it sits on carry it for anyone not reading the words.
+    `<span class="ff-possession"></span>`;
 
   const field = document.createElement("div");
   field.className = "ff-field";
@@ -2222,11 +2225,12 @@ export function renderFootballField(container, labelA, labelB) {
 
   container.append(status, field, call);
   return {
-    turf, trail, ball, call, scrimmage, firstDown, arrow,
+    container, turf, trail, ball, call, scrimmage, firstDown, arrow,
     quarter: status.querySelector(".ff-quarter"),
     clock: status.querySelector(".ff-clock"),
     score: status.querySelector(".ff-score"),
     downDist: status.querySelector(".ff-downdist"),
+    possession: status.querySelector(".ff-possession"),
     labelA, labelB,
   };
 }
@@ -2245,6 +2249,28 @@ function ordinalDown(down) {
  */
 export function showFootballEvent(refs, event, opts = {}) {
   if (!refs || !event) return;
+
+  // WHOSE BALL IT IS, WITHOUT READING ANYTHING.
+  //
+  // The viewer is always side A, so possession is also the answer to "am I
+  // attacking or defending right now" - which is the single most important
+  // thing to know while watching and was previously only inferable from the
+  // wording of the play description. The state goes on the container so the
+  // field, the endzones and the status bar can all respond to one class
+  // rather than each being told separately.
+  if (refs.container) {
+    const hasBall = event.possession === "A" || event.possession === "B";
+    refs.container.classList.toggle("ff-user-offense", event.possession === "A");
+    refs.container.classList.toggle("ff-user-defense", event.possession === "B");
+    refs.container.classList.toggle("ff-no-possession", !hasBall);
+  }
+  if (refs.possession) {
+    refs.possession.textContent = event.possession === "A"
+      ? `▶ ${refs.labelA} ball`
+      : event.possession === "B"
+        ? `${refs.labelB} ball ◀`
+        : "";
+  }
   // A drives left to right, B right to left. Both are reported from their own
   // goal line, so B's are mirrored to place them on one shared field.
   const toPct = (yard) => (event.possession === "B" ? 100 - yard : yard);

@@ -2667,6 +2667,14 @@ table.box-table th, table.history-table th {
   animation: play-in 0.35s ease;
 }
 
+/* A drive's summary is bookkeeping, not a highlight - it should be legible
+   without competing with a touchdown for attention. */
+.play-card.drive-summary {
+  opacity: 0.82;
+  font-size: 0.82rem;
+}
+
+
 .play-card.hot {
   border-left-color: var(--buzzer);
   color: var(--text);
@@ -4424,6 +4432,55 @@ html, body {
 
 .ff-downdist {
   font-weight: 600;
+}
+
+/* POSSESSION, CARRIED BY THE FIELD ITSELF.
+   Knowing whether you are attacking or defending is the most important thing
+   a viewer needs while watching, and it was only ever inferable from the
+   wording of the play description. Colour and direction say it instead:
+   the attacking end zone lights up, and the field takes a coloured edge on
+   the side with the ball. Never colour ALONE - the chip carries an arrow and
+   the team name too, so this reads the same without colour vision. */
+.ff-possession {
+  margin-left: auto;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ff-user-offense .ff-possession {
+  color: var(--accent-contrast, #fff);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ff-user-defense .ff-possession {
+  color: var(--text);
+  background: transparent;
+  border-color: var(--line);
+}
+
+/* The edge of the field the ball is heading toward. */
+.ff-user-offense .ff-field {
+  box-shadow: inset 4px 0 0 -1px var(--accent);
+}
+
+.ff-user-defense .ff-field {
+  box-shadow: inset -4px 0 0 -1px var(--muted);
+}
+
+/* The end zone being attacked. */
+.ff-user-offense .ff-endzone.right,
+.ff-user-defense .ff-endzone.left {
+  filter: brightness(1.25) saturate(1.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ff-field { transition: none; }
 }
 
 .ff-field {

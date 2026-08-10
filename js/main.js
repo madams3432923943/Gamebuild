@@ -2930,6 +2930,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
    * owns the folding (see js/sports/nfl/playback.js); this function only
    * decides when each event is shown and what on screen reacts to it.
    */
+  /** Whose drive it was, in the names actually on screen. */
+  function possessionLabel(side) {
+    return side === "A" ? labelA : side === "B" ? labelB : "";
+  }
+
   function playEventDriven() {
     const presentation = sport().presentation;
     const live = presentation.createLiveState({ rosterA, rosterB });
@@ -2993,6 +2998,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           // ordinary ones.
           if (event.scoring > 0 || event.turnover) {
             pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
+          } else if (event.driveSummary) {
+            // Every drive gets its epitaph, not just the ones that scored. A
+            // twelve-play march that stalled on the 4 used to look exactly
+            // like a three-and-out, because the feed only spoke about points.
+            pushPlayHeadline(playFeedEl, `${possessionLabel(event.possession)}: ${event.text}`, "drive-summary");
           }
 
           // Only a play that produced something changes the table. Kickoffs

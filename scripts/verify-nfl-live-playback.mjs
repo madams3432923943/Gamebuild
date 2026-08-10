@@ -91,6 +91,17 @@ const SAMPLE = () => {
     // post-game routine, so anything that throws partway through leaves them
     // hidden and the viewer with nowhere to go - which is exactly what a
     // missing MVP used to do to every football game.
+    // Possession as STATE, not as words: which way the field is currently
+    // leaning, and whether the viewer is attacking or defending.
+    possession: (() => {
+      const f = document.querySelector("#football-field");
+      if (!f) return "none";
+      if (f.classList.contains("ff-user-offense")) return "offense";
+      if (f.classList.contains("ff-user-defense")) return "defense";
+      return "none";
+    })(),
+    possessionText: document.querySelector("#football-field .ff-possession")?.textContent?.trim() || "",
+    driveSummaries: document.querySelectorAll("#play-feed .play-card.drive-summary").length,
     canLeave: !document.querySelector("#btn-play-again")?.classList.contains("hidden"),
     mvpShown: !document.querySelector("#mvp-callout")?.classList.contains("hidden"),
     mvpText: text("#mvp-callout"),
@@ -277,6 +288,20 @@ async function main() {
 
     const elapsedMs = last && first ? last.t - first.t : 0;
 
+    // State transitions, per #18: possession has to CHANGE, repeatedly, and be
+    // readable without relying on colour.
+    const possessionStates = new Set(samples.map((s) => s.possession).filter((p) => p !== "none"));
+    let possessionFlips = 0;
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i].possession !== samples[i - 1].possession && samples[i].possession !== "none") possessionFlips += 1;
+    }
+    const possessionTextSample = samples.find((s) => s.possessionText)?.possessionText || "";
+    const sawPossessionText = /ball/.test(possessionTextSample);
+    // The feed holds four cards, so the count is a high-water mark rather than
+    // a total - it only has to prove non-scoring drives are being reported.
+    const maxDriveSummaries = samples.reduce((m, s) => Math.max(m, s.driveSummaries || 0), 0);
+    const sawManyDriveSummaries = maxDriveSummaries >= 2;
+
     checks.push(
       { title: "A football game plays to a final score in the browser", ok: reachedFinal,
         detail: reachedFinal ? `${last.finalText} after ${(elapsedMs / 1000).toFixed(1)}s` : "no final banner appeared" },
@@ -294,6 +319,14 @@ async function main() {
         detail: midpoint ? `${midpoint.boxTotal} of ${boxTotals[boxTotals.length - 1]} at the midpoint` : "no midpoint sample" },
       { title: "The final banner agrees with the scoreboard", ok: bannerAgrees,
         detail: last ? `banner "${last.finalText}" against ${last.scoreA}-${last.scoreB}` : "no final" },
+      { title: "Regulation playback lands in the readable 50-70s band", ok: elapsedMs >= 50000 && elapsedMs <= 70000,
+        detail: `${(elapsedMs / 1000).toFixed(1)}s of browser wall clock` },
+      { title: "Possession flips between attacking and defending, as state", ok: possessionStates.has("offense") && possessionStates.has("defense") && possessionFlips >= 4,
+        detail: `${possessionFlips} changes across ${[...possessionStates].join("/")}` },
+      { title: "Possession is not carried by colour alone", ok: sawPossessionText,
+        detail: sawPossessionText ? `e.g. "${possessionTextSample}"` : "no possession chip text" },
+      { title: "Every drive gets a summary, not just the scoring ones", ok: (last?.driveSummaries || 0) > 0 && sawManyDriveSummaries,
+        detail: `${maxDriveSummaries} drive summaries seen in the feed` },
       { title: "The post-game screen offers a way out", ok: !!last?.canLeave,
         detail: last?.canLeave ? "Play Again is reachable" : "no post-game controls - the routine threw before unhiding them" },
       { title: "A football MVP is named in football statistics", ok: !!last?.mvpShown && /\d/.test(last?.mvpText || ""),

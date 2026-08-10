@@ -46,6 +46,10 @@ export const EVENT_WEIGHTS = {
   turnover: 2000,
   punt: 1000,
   downs: 1500,
+  // A drive's own epitaph - what it cost and what it produced. Worth more than
+  // an ordinary snap because it is the one moment the viewer is being asked to
+  // read several numbers at once.
+  driveEnd: 1600,
   quarterEnd: 1500,
   halfEnd: 1700,
   gameEnd: 2200,
@@ -53,10 +57,18 @@ export const EVENT_WEIGHTS = {
 
 /** The band a whole game's playback has to land in. Below the floor nobody can
  * follow it; above the ceiling it stops being a highlight and becomes a
- * broadcast. */
-export const TARGET_MIN_MS = 35000;
-export const TARGET_MAX_MS = 50000;
-const TARGET_MS = 42000;
+ * broadcast.
+ *
+ * RAISED FROM 35-50s. At ~42s a regulation game was legible only if you
+ * already knew what you were looking at: an ordinary snap held for about
+ * 600ms once scaled, which is less time than it takes to read a description,
+ * find the ball and check the down. The ratios below are unchanged and still
+ * carry the pacing - what changed is how long the whole thing is given, which
+ * is the one number that makes every event proportionally more readable
+ * without flattening the difference between a touchdown and an incompletion. */
+export const TARGET_MIN_MS = 50000;
+export const TARGET_MAX_MS = 70000;
+const TARGET_MS = 60000;
 
 /**
  * Playback speed, as a divisor on every duration. 1 is the pace above; 2 is
@@ -333,9 +345,16 @@ export function buildTimeline(drives, opts = {}) {
 
     // Counted once per drive however many snaps are taken inside the twenty.
     let enteredRedZone = false;
+    // What the drive cost and what it produced, accumulated as it is walked so
+    // the summary is the SAME plays the box score read - not a second pass
+    // that could disagree with them.
+    let drivePlays = 0;
+    let driveSeconds = 0;
 
     const plays = Array.isArray(drive.plays) ? drive.plays : [];
     for (const play of plays) {
+      drivePlays += 1;
+      driveSeconds += play.seconds || 0;
       const playerDeltas = { A: {}, B: {} };
       const teamDeltas = { A: {}, B: {} };
       if (accumulatePlay(playerDeltas, teamDeltas, drive.team, play, enteredRedZone)) {
@@ -411,6 +430,29 @@ export function buildTimeline(drives, opts = {}) {
       // score rather than the old one.
       events[events.length - 1].scoreA = score.A;
       events[events.length - 1].scoreB = score.B;
+
+      // THE DRIVE, IN ONE LINE. A football game is a sequence of drives, and
+      // until now the feed only ever mentioned the ones that scored - so a
+      // twelve-play march that stalled on the 4 looked exactly like a
+      // three-and-out. Carries no deltas: everything it describes has already
+      // been applied by the plays above, and adding it again would double the
+      // whole drive.
+      push("driveEnd", "driveEnd", {
+        quarter: drive.quarter,
+        possession: drive.team,
+        yard: play.endYard,
+        down: null,
+        distance: null,
+        driveSummary: {
+          plays: drivePlays,
+          yards: Math.round(drive.endYard - drive.startYard),
+          seconds: driveSeconds,
+          outcome: drive.outcome,
+          startYard: drive.startYard,
+          endYard: drive.endYard,
+        },
+        text: describeDrive(drive, drivePlays, driveSeconds),
+      });
     }
   }
 
@@ -568,6 +610,31 @@ export function liveBox(state, side) {
 /** The running score, as a scoreboard shows it. */
 export function liveScore(state) {
   return { A: Math.round(state?.score?.A || 0), B: Math.round(state?.score?.B || 0) };
+}
+
+/** m:ss for a duration rather than a countdown - a drive lasts 3:24, it does
+ * not read 3:24 on the clock. */
+function formatDuration(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** How a drive is summed up once it is over: what it took, what it gained and
+ * how it ended. Written here rather than in the UI because it is the same
+ * sentence wherever a drive is shown. */
+const DRIVE_OUTCOME_WORDS = {
+  touchdown: "Touchdown",
+  fieldGoal: "Field goal",
+  punt: "Punt",
+  turnover: "Turnover",
+  downs: "Turnover on downs",
+};
+
+function describeDrive(drive, plays, seconds) {
+  const yards = Math.round(drive.endYard - drive.startYard);
+  const outcome = DRIVE_OUTCOME_WORDS[drive.outcome] || "Drive over";
+  const gained = yards >= 0 ? `${yards} yards` : `${Math.abs(yards)} yards lost`;
+  return `${outcome} - ${plays} ${plays === 1 ? "play" : "plays"}, ${gained}, ${formatDuration(seconds)}`;
 }
 
 /** One line of plain football for the feed. The engine writes the drive's own
