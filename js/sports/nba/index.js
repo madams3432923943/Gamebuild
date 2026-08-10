@@ -204,6 +204,11 @@ export const NBA = {
   // should not reshuffle itself game to game just because somebody had four
   // steals. A sport that declares none gets its top nonzero stats instead.
   mvpStatKeys: ["pts", "reb", "ast"],
+
+  /** Basketball's own headline record. Declared rather than hardcoded in the
+   * profile screen, so a sport without one simply does not get the row -
+   * football has no triple-double and never will. */
+  signatureRecord: { key: "tripleDoubles", label: "Most Triple-Doubles" },
   cardStatLine: (p) =>
     `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`,
   basePosition,

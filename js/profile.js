@@ -210,8 +210,23 @@ export const HISTORY_LIMIT = 50;
  * history is newest-first, which doesn't matter for the longest run but does
  * for the current one: that is the streak at the FRONT of the list.
  */
-export function winStreaks(profile) {
-  const games = profile.history || [];
+/**
+ * One sport's games, newest first.
+ *
+ * Entries written before history was stamped with a sport are EXCLUDED, not
+ * assigned to basketball. Assigning them would be a guess dressed as a fact:
+ * the profile has no way to tell whether an unstamped row was a basketball
+ * game or one of the football games that caused this bug. An honest gap beats
+ * a confident wrong answer, and the count is surfaced so the UI can say so.
+ */
+export function historyFor(profile, sportId = DEFAULT_SPORT_ID) {
+  const all = profile.history || [];
+  const scoped = all.filter((game) => game.sport === sportId);
+  return { games: scoped, unattributed: all.filter((game) => !game.sport).length };
+}
+
+export function winStreaks(profile, sportId = null) {
+  const games = sportId ? historyFor(profile, sportId).games : profile.history || [];
   let longest = 0;
   let run = 0;
   for (const game of games) {
@@ -416,7 +431,12 @@ export async function recordPracticeResult({
     careerTotals[key] = (careerTotals[key] || 0) + gameTotal;
   }
 
-  const history = [{ date, mode, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
+  // STAMPED WITH ITS SPORT. Without this a football result sits in the same
+  // undifferentiated list as a basketball one, so Recent Games under the NBA
+  // tab showed NFL scores and every win streak counted both. Entries written
+  // before this existed carry no sport and are EXCLUDED rather than guessed at
+  // - see historyFor.
+  const history = [{ date, mode, sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
     0,
     HISTORY_LIMIT
   );

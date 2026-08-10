@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "bundle": "esbuild js/main.js --bundle --format=iife --outfile=dist/bundle.js",
-    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable && npm run verify:ranked-search && npm run verify:box-score && npm run verify:nfl-box-score && npm run verify:nfl-defense-grade && npm run verify:game-stage && npm run verify:nfl-playback && npm run verify:nfl-live-stats && npm run verify:nfl-live-playback && npm run verify:nfl-gameplans && npm run verify:simulation",
+    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable && npm run verify:ranked-search && npm run verify:box-score && npm run verify:nfl-box-score && npm run verify:nfl-defense-grade && npm run verify:game-stage && npm run verify:nfl-playback && npm run verify:nfl-live-stats && npm run verify:nfl-live-playback && npm run verify:nfl-gameplans && npm run verify:profile-history && npm run verify:simulation",
     "verify:parity": "node scripts/verify-parity.mjs",
     "verify:simulation": "node scripts/verify-simulation-statistics.mjs",
     "verify:online": "node scripts/verify-build.js --online",
@@ -28,6 +28,7 @@
     "verify:nfl-event-ledger": "node scripts/verify-nfl-event-ledger.mjs",
     "verify:nfl-live-playback": "node scripts/verify-nfl-live-playback.mjs",
     "verify:nfl-gameplans": "node scripts/verify-nfl-gameplans.mjs",
+    "verify:profile-history": "node scripts/verify-profile-history.mjs",
     "stamp": "node tools/stamp-build.mjs",
     "data:nfl:fetch": "node tools/fetch-nfl-seasons.mjs",
     "data:nfl:manifest": "node tools/write-nfl-source-manifest.mjs",

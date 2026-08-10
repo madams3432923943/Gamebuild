@@ -11,6 +11,7 @@ import {
   mostDraftedPlayer,
   mostTripleDoubles,
   winStreaks,
+  historyFor,
   mostMVPs,
   personalBestsFor,
   gameRecordFor,
@@ -1448,12 +1449,24 @@ export function renderProfileScreen(
     )
   );
 
-  const tripleDoubles = mostTripleDoubles(profile, sport.id);
-  refs.mostTripleDoubles.innerHTML = tripleDoubles
-    ? `<div class="performance-row"><span>Most Triple-Doubles — ${escapeHtml(tripleDoubles.name)}</span><span class="performance-line">${tripleDoubles.count}x</span></div>`
-    : `<div class="performance-row"><span>Most Triple-Doubles</span><span class="performance-line">—</span></div>`;
+  // A TRIPLE-DOUBLE IS BASKETBALL'S. It was rendered unconditionally, so the
+  // football tab carried a row for a thing football does not have and can
+  // never record - permanently a dash, and a dash that reads as "you have not
+  // done this yet" rather than "this does not exist here". The sport says
+  // whether it has a signature record; one that does not gets no row.
+  if (sport.signatureRecord) {
+    const holder = mostTripleDoubles(profile, sport.id);
+    refs.mostTripleDoubles.hidden = false;
+    refs.mostTripleDoubles.innerHTML = holder
+      ? `<div class="performance-row"><span>${escapeHtml(sport.signatureRecord.label)} — ${escapeHtml(holder.name)}</span><span class="performance-line">${holder.count}x</span></div>`
+      : `<div class="performance-row"><span>${escapeHtml(sport.signatureRecord.label)}</span><span class="performance-line">—</span></div>`;
+  } else {
+    refs.mostTripleDoubles.innerHTML = "";
+    refs.mostTripleDoubles.hidden = true;
+  }
 
-  const streaks = winStreaks(profile);
+  // Scoped to this sport: a football win did not extend a basketball streak.
+  const streaks = winStreaks(profile, sport.id);
   const streakScope = streaks.complete ? "" : ` (last ${streaks.sampled})`;
   const streakLine =
     streaks.longest > 0
@@ -1470,7 +1483,8 @@ export function renderProfileScreen(
     : `<div class="performance-row"><span>Most MVPs</span><span class="performance-line">—</span></div>`;
 
   refs.historyBody.innerHTML = "";
-  for (const entry of profile.history) {
+  const scopedHistory = historyFor(profile, sport.id);
+  for (const entry of scopedHistory.games) {
     const tr = document.createElement("tr");
     tr.className = entry.won ? "win-row" : "loss-row";
     const date = new Date(entry.date).toLocaleDateString();
@@ -1489,6 +1503,22 @@ export function renderProfileScreen(
       `<span class="history-mode">${modeTag}</span></td>` +
       `<td class="history-score">${entry.scoreFor}-${entry.scoreAgainst}</td>` +
       `<td>${escapeHtml(entry.mvpName)}</td>`;
+    refs.historyBody.appendChild(tr);
+  }
+  if (!scopedHistory.games.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="4" class="empty-note">No ${escapeHtml(sport.name)} games played yet.</td>`;
+    refs.historyBody.appendChild(tr);
+  }
+  // Said out loud rather than quietly dropped. These are games from before
+  // history recorded which sport it was, and there is no honest way to assign
+  // them - so they are counted and named instead of being guessed into one
+  // sport's list.
+  if (scopedHistory.unattributed > 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td colspan="4" class="empty-note">${scopedHistory.unattributed} earlier game` +
+      `${scopedHistory.unattributed === 1 ? "" : "s"} predate per-sport history and are not shown under any sport.</td>`;
     refs.historyBody.appendChild(tr);
   }
 }

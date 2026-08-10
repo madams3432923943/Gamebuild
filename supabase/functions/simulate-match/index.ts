@@ -166,7 +166,11 @@ function buildMatchOutcome(
     personal_bests: personalBests,
     draft_counts: draftCounts,
     history: [
-      { date, mode: friendly ? "friendly" : "online", won, opponentLabel, scoreFor, scoreAgainst, mvpName },
+      // Stamped with the sport, exactly as the client does for practice games
+      // (see recordPracticeResult). Without it an online football result lands
+      // in the same undifferentiated list as a basketball one, and the profile
+      // has no honest way to tell them apart afterwards.
+      { date, mode: friendly ? "friendly" : "online", sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName },
       ...(profile.history || []),
     ].slice(0, 50),
     highest_scoring_game: highestScoringGame,
