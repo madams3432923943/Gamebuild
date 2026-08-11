@@ -26,6 +26,7 @@ import { DraftState, isEligible } from "../js/draft.js";
 import { groupBySeason } from "../js/ui.js";
 
 let failures = 0;
+const grades = [];
 
 for (const meta of SPORTS) {
   if (!meta.live) continue;
@@ -95,9 +96,20 @@ for (const meta of SPORTS) {
         throw new Error(`${mode}: simulated a scoreless game`);
       }
 
-      // Everything the post-game screens call, in the order they call it.
-      const grade = sport.gradeDraft(draft.rosterA, ctx, []);
+      // Everything the post-game screens call, in the order they call it - and
+      // with the ARGUMENTS they call it with. This passed an empty array where
+      // js/main.js passes `{ oppRoster, forfeits }`, so football's third
+      // parameter (declared as the array) received an object, `.length` was
+      // undefined, the penalty was NaN, and every football roster ever drafted
+      // graded F. A test that invents its own arguments proves nothing about
+      // whether the app can call it.
+      const grade = sport.gradeDraft(draft.rosterA, ctx, {
+        oppRoster: draft.rosterB,
+        forfeits: [],
+      });
       if (!grade?.letter || !Array.isArray(grade.reasons)) throw new Error(`${mode}: gradeDraft shape`);
+      if (!Number.isFinite(grade.score)) throw new Error(`${mode}: gradeDraft scored ${grade.score}`);
+      grades.push(`${label}/${mode}:${grade.letter}`);
       sport.rotationHint(draft.rosterA);
       sport.buildRecap(result, draft.rosterA, draft.rosterB, "A", "B");
       // Called exactly as js/main.js calls it - (periods, labelA, labelB) -
@@ -121,4 +133,14 @@ if (failures) {
   console.error(`\n${failures} sport(s) cannot play a full game.`);
   process.exit(1);
 }
+
+// A grade that is the SAME LETTER everywhere is the shape of a broken grade,
+// not a strict one - football graded every roster F for weeks and each
+// individual F looked like a considered verdict. Real drafts across two sports
+// and several rulesets have to disagree with each other at least once.
+if (new Set(grades.map((g) => g.split(":")[1])).size < 2) {
+  console.error(`\nEvery draft graded the same letter: ${grades.join("  ")}`);
+  process.exit(1);
+}
+console.log(`\n  grades: ${grades.join("  ")}`);
 console.log("\nEvery live sport plays start to finish.");
