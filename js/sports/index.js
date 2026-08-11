@@ -18,6 +18,12 @@ import NFL from "./nfl/index.js";
 import NHL from "./nhl.js";
 import SOCCER from "./soccer.js";
 
+// Online readiness is a server capability, separate from whether the local
+// sport is playable. NFL now has its own authoritative server draft pool,
+// sport/mode-scoped matchmaking, roster contract, pick validation, and the
+// already-deployed football strategy/simulation path.
+NFL.onlineReady = true;
+
 export const SPORTS = [NBA, NFL, NHL, SOCCER];
 
 const BY_ID = new Map(SPORTS.map((s) => [s.id, s]));
