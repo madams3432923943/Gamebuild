@@ -90,12 +90,38 @@ function playOneGame(seed) {
   }
 }
 
-/** Every column the ledger writes, so a check cannot silently skip one. */
+/** Every column the ledger writes, so a check cannot silently skip one. The
+ * reconciliation against the engine runs over all of them - that is the
+ * guarantee this file exists for, and it is exact. */
 const LINE_KEYS = [
   "comp", "att", "pass_yds", "pass_tds", "rush_yds", "rush_tds", "carries",
   "targets", "sacked", "rec", "rec_yds", "rec_tds", "ints", "fumbles",
   "fgs", "fga", "td", "pts",
 ];
+
+/**
+ * ...but only these COUNT. Two checks below - "nothing runs ahead of the feed"
+ * and "nothing goes negative" - were written over the whole list, and both are
+ * only true of a counter.
+ *
+ * YARDAGE IS SIGNED. A sack is negative passing yardage in the NFL's own books
+ * and a run for a loss is negative rushing yardage, so a player's yards can go
+ * DOWN as a game proceeds and a man who was only ever stuffed finishes below
+ * zero. Neither is a spoiler and neither is a bug; the checks simply could not
+ * tell the difference between a stat moving backwards and a stat leaking from
+ * the future. They passed until drives that lose ground became common enough
+ * to trip them, which is the wrong reason for a check to hold.
+ *
+ * A completion, a carry, a target, a touchdown and a point only ever go up.
+ */
+const COUNTING_KEYS = LINE_KEYS.filter(
+  (key) => !["pass_yds", "rush_yds", "rec_yds"].includes(key)
+);
+
+/** How far below zero one man's yardage can plausibly finish a whole game.
+ * Deep enough that ordinary losses pass, shallow enough that a sign error in
+ * the ledger would not. */
+const YARDAGE_FLOOR = -40;
 const TEAM_KEYS = [
   "passYards", "rushYards", "totalYards", "firstDowns", "turnovers",
   "thirdDownAttempts", "thirdDownConversions", "redZoneTrips",
@@ -154,12 +180,13 @@ for (let seed = 1; seed <= GAMES; seed++) {
       }
     }
 
-    // Production still to come must not be in any player's line yet.
+    // Production still to come must not be in any player's line yet. Counters
+    // only - see COUNTING_KEYS.
     for (const side of ["A", "B"]) {
       const partialBox = liveBox(partial, side);
       const laterBox = liveBox(fullQ1, side);
       for (const slot of Object.keys(laterBox)) {
-        for (const key of LINE_KEYS) {
+        for (const key of COUNTING_KEYS) {
           if ((partialBox[slot]?.[key] || 0) > (laterBox[slot]?.[key] || 0)) {
             fail.spoiledPlayer++;
             examples.push(`seed ${seed}: ${side} ${slot} ${key} ran ahead of the quarter`);
@@ -214,7 +241,7 @@ for (let seed = 1; seed <= GAMES; seed++) {
           fail.playerLine++;
           examples.push(`seed ${seed}: ${side} ${slot} ${key} ledger ${Math.round(mine)} vs engine ${Math.round(theirs)}`);
         }
-        if (mine < 0) fail.negative++;
+        if (COUNTING_KEYS.includes(key) ? mine < 0 : mine < YARDAGE_FLOOR) fail.negative++;
       }
     }
     for (const key of TEAM_KEYS) {
@@ -265,7 +292,7 @@ const checks = [
     detail: `${fail.spoiledQuarter} summaries published early`,
   },
   {
-    title: "No statistic ever goes negative",
+    title: "No counter goes negative, and no yardage runs off the bottom",
     ok: fail.negative === 0,
     detail: `${fail.negative} negative values`,
   },

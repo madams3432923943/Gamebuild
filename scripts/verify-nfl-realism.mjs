@@ -277,6 +277,67 @@ console.log(
   ])
 );
 
+// ---- the rate sheet --------------------------------------------------------
+//
+// THE SCOREBOARD WAS RIGHT AND EVERYTHING UNDER IT WAS WRONG.
+//
+// A live game produced a running back with 297 rushing yards and another with
+// 285. Nothing above catches that, because everything above measures the
+// PASSING game and the final score - and the final score was fine, 21 points a
+// game against football's 22. The rates underneath it were not: 8.4 yards a
+// play against 5.4, 9.8 a carry against 4.3, 438 yards a game against 340, on
+// 52 snaps against 63. A game of very few, very long plays adds up to the
+// right score and looks nothing like football on the way there.
+//
+// These are the numbers a fan would check, so they are the numbers that get
+// asserted. Bands are generous - a simulation is not a season average - but
+// they are tight enough that the failure above could not pass any of them.
+const RATE_GAMES = 400;
+const rate = { plays: [], yards: [], rush: [], drives: [], carries: [], seconds: [], backYards: [], backCarries: [] };
+for (let i = 0; i < RATE_GAMES; i++) {
+  const rosterA = rosterWith({ QB: qbPool[i % qbPool.length], RB: rbPool[i % rbPool.length] });
+  const rosterB = rosterWith({ QB: qbPool[(i * 7) % qbPool.length], RB: rbPool[(i * 3) % rbPool.length] });
+  const result = NFL.simulate(rosterA, rosterB, ctx, {
+    strategyA: BAL, strategyB: BAL, rand: mulberry32(i * 15486071 + 3),
+  });
+  for (const [box, team] of [[result.boxA, result.teamStatsA], [result.boxB, result.teamStatsB]]) {
+    rate.plays.push(team.plays);
+    rate.yards.push(team.totalYards);
+    rate.rush.push(team.rushYards);
+    rate.drives.push(team.drives);
+    // Every carry on the roster, not just the back's - the run share of a
+    // team's offence is a team number.
+    rate.carries.push(Object.values(box).reduce((sum, line) => sum + (line.carries || 0), 0));
+    // The drafted back's own line - the one the player reads, and the one that
+    // came back at 297 yards.
+    rate.backYards.push((box.RB || {}).rush_yds || 0);
+    rate.backCarries.push((box.RB || {}).carries || 0);
+  }
+  rate.seconds.push(result.teamStatsA.possessionSeconds + result.teamStatsB.possessionSeconds);
+}
+const mean = (list) => list.reduce((a, b) => a + b, 0) / Math.max(1, list.length);
+const yardsPerPlay = mean(rate.yards) / mean(rate.plays);
+const yardsPerCarry = mean(rate.rush) / mean(rate.carries);
+const yardsPerDrive = mean(rate.yards) / mean(rate.drives);
+const gameMinutes = mean(rate.seconds) / 60;
+const back = summarise(rate.backYards);
+const backCarries = summarise(rate.backCarries);
+
+console.log(
+  renderTable([
+    ["rate (per team per game)", "simulated", "real NFL"],
+    ["offensive plays", mean(rate.plays).toFixed(1), "63"],
+    ["total yards", mean(rate.yards).toFixed(0), "340"],
+    ["yards per play", yardsPerPlay.toFixed(2), "5.4"],
+    ["rush attempts", mean(rate.carries).toFixed(1), "27"],
+    ["yards per carry", yardsPerCarry.toFixed(2), "4.3"],
+    ["yards per drive", yardsPerDrive.toFixed(1), "31"],
+    ["clock used, both sides", `${gameMinutes.toFixed(1)} min`, "60 min"],
+    ["the back's carries (median)", String(backCarries.median), "18"],
+    ["the back's rushing yards (median)", String(back.median), "80"],
+  ])
+);
+
 // ---- the play after the touchdown ------------------------------------------
 //
 // A team that scores to go from eight down to two down and kicks the extra
@@ -411,8 +472,14 @@ const checks = [
     // league's most pass-heavy TEAMS average about 40 attempts and 60+ is a
     // handful of games a season, so the ceiling is a rare outlier rather than
     // the middle of the distribution.
+    //
+    // Widened once, on purpose and on the record. The first thresholds were cut
+    // against an engine running 52 snaps a game against football's 63; fixing
+    // that lifted every volume number about eight percent, attempts included.
+    // The bands below are the same claim about football measured against an
+    // engine that now plays the right number of downs.
     title: "The most pass-heavy gameplan still throws a real number of times",
-    ok: vertical.median <= 42 && vertical.p95 <= 52 && vertical.max < 60,
+    ok: vertical.median <= 44 && vertical.p95 <= 55 && vertical.max <= 64,
     detail: `Vertical Attack median ${vertical.median}, p95 ${vertical.p95}, max ${vertical.max}`,
   },
   {
@@ -436,6 +503,44 @@ const checks = [
     title: "Two-point tries stay as rare as they really are (4-14% of TDs)",
     ok: twoPointRate >= 0.04 && twoPointRate <= 0.14,
     detail: `${(twoPointRate * 100).toFixed(1)}% of ${touchdowns} touchdowns`,
+  },
+  {
+    // 9.8 was the reported figure, by way of a 297-yard rushing game.
+    title: "Yards per carry is a football number (3.8-5.0)",
+    ok: yardsPerCarry >= 3.8 && yardsPerCarry <= 5.0,
+    detail: `${yardsPerCarry.toFixed(2)} a carry over ${mean(rate.carries).toFixed(1)} attempts`,
+  },
+  {
+    title: "Yards per play is a football number (4.8-6.2)",
+    ok: yardsPerPlay >= 4.8 && yardsPerPlay <= 6.2,
+    detail: `${yardsPerPlay.toFixed(2)} on ${mean(rate.plays).toFixed(1)} plays for ${mean(rate.yards).toFixed(0)} yards`,
+  },
+  {
+    title: "A team runs a football number of plays (56-70)",
+    ok: mean(rate.plays) >= 56 && mean(rate.plays) <= 70,
+    detail: `${mean(rate.plays).toFixed(1)} plays over ${mean(rate.drives).toFixed(1)} drives`,
+  },
+  {
+    title: "A drive gains a football number of yards (26-36)",
+    ok: yardsPerDrive >= 26 && yardsPerDrive <= 36,
+    detail: `${yardsPerDrive.toFixed(1)} yards per drive`,
+  },
+  {
+    // A game is sixty minutes. The engine models drives, not a clock, so this
+    // is the one place the two are checked against each other - and it caught
+    // an eighty-minute game hiding behind a plausible scoreboard.
+    title: "Both sides' possession adds up to a football game (54-66 min)",
+    ok: gameMinutes >= 54 && gameMinutes <= 66,
+    detail: `${gameMinutes.toFixed(1)} minutes of game clock`,
+  },
+  {
+    // The report was 297 rushing yards, and a second back at 285 in the same
+    // game. A bell-cow's line is the most-read row in the box score.
+    title: "The drafted back posts a bell-cow's line, not a record one",
+    ok: back.median >= 60 && back.median <= 110 &&
+        backCarries.median >= 14 && backCarries.median <= 24 &&
+        back.p95 <= 240,
+    detail: `${back.median} yards on ${backCarries.median} carries (p95 ${back.p95}, max ${back.max})`,
   },
   {
     title: "The drives still add up to the scoreboard",

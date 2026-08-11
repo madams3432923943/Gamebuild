@@ -200,22 +200,38 @@ async function main() {
     // Football asks two questions here, not one. Both groups have to be on
     // screen and both have to be selectable, or half the gameplan is a
     // decision the player was never offered.
-    let strategyGroups = 0;
     let groupCardCounts = [];
     let selectedPlans = [];
+    let strategyRounds = 0;
     for (const [panel, button] of [
       ["#rotation-phase", "#btn-confirm-rotation"],
       ["#matchup-phase", "#btn-confirm-matchups"],
-      ["#tactic-phase", "#btn-confirm-tactic"],
     ]) {
       if (!(await page.locator(panel).isVisible().catch(() => false))) continue;
-      const groups = page.locator(`${panel} .strategy-group`);
-      strategyGroups = await groups.count().catch(() => 0);
-      if (strategyGroups > 0) {
-        // Take the SECOND card in each group, so the run exercises a real
-        // selection rather than whatever happened to be the default.
-        for (let g = 0; g < strategyGroups; g++) {
+      await page.locator(button).click({ timeout: 10000 }).catch(() => {});
+    }
+
+    // THE GAMEPLAN IS ROUNDS NOW, NOT A SCREEN. Offence and defence became
+    // separate rounds behind the same #tactic-phase panel, each advanced by
+    // #btn-play-game - so a harness that clicked through once locked the
+    // offence, left the defensive round on screen, and then waited sixty
+    // seconds for a game that could not start. It reported the timeout rather
+    // than the cause, which is the worst way for a browser test to fail.
+    //
+    // Driven as a loop over whatever rounds the sport declares, so this does
+    // not have to be rewritten again if a third one is ever added.
+    const MAX_ROUNDS = 4;
+    while (
+      strategyRounds < MAX_ROUNDS &&
+      (await page.locator("#tactic-phase").isVisible().catch(() => false))
+    ) {
+      const groups = page.locator("#tactic-phase .strategy-group");
+      const count = await groups.count().catch(() => 0);
+      if (count > 0) {
+        for (let g = 0; g < count; g++) {
           groupCardCounts.push(await groups.nth(g).locator(".tactic-card").count().catch(() => 0));
+          // The SECOND card, so the run exercises a real selection rather than
+          // whatever happened to be the default.
           const card = groups.nth(g).locator(".tactic-card").nth(1);
           if (await card.isVisible().catch(() => false)) {
             await card.click().catch(() => {});
@@ -223,12 +239,13 @@ async function main() {
           }
         }
       } else {
-        const option = page.locator(`${panel} .tactic-card`).first();
+        const option = page.locator("#tactic-phase .tactic-card").first();
         if (await option.isVisible().catch(() => false)) await option.click().catch(() => {});
       }
-      await page.locator(button).click({ timeout: 10000 }).catch(() => {});
+      strategyRounds += 1;
+      await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
+      await sleep(400);
     }
-    await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
     await page.locator("#screen-game:not(.hidden)").waitFor({ state: "visible", timeout: 60000 });
 
     // ---- watch it ---------------------------------------------------------
@@ -277,7 +294,26 @@ async function main() {
     // quarters even with overtime, so this number is what separates the two
     // designs rather than merely observing that the table changed at all.
     const boxTotals = samples.map((s) => s.boxTotal);
-    const monotonicBox = boxTotals.every((n, i) => i === 0 || n >= boxTotals[i - 1]);
+    // THE BOX SCORE CAN GO DOWN A LITTLE, AND SHOULD.
+    //
+    // This asserted the summed box score never decreases, which is only true
+    // if every column is a counter. Rushing and receiving yards are SIGNED - a
+    // run for a loss and a sack both take yards off a line - so a live box
+    // score genuinely dips on a bad play. It held only while drives that lose
+    // ground were rare, and started failing about one run in three once the
+    // engine produced them at football's rate: the check was passing for the
+    // wrong reason.
+    //
+    // What it is actually here to prove is that the table is FOLDED IN from
+    // events rather than pasted in from the finished game, and boxSteps and
+    // the midpoint check below are what prove that. So the guard becomes a
+    // ceiling on how far it can fall in one sampling window - a few yards is a
+    // tackle for loss, a large drop would be a re-render from stale state.
+    const maxBoxBackstep = boxTotals.reduce(
+      (worst, n, i) => (i === 0 ? worst : Math.max(worst, boxTotals[i - 1] - n)),
+      0
+    );
+    const monotonicBox = maxBoxBackstep <= 30;
     const boxSteps = new Set(boxTotals).size;
     const boxGrew = boxTotals[boxTotals.length - 1] > 0;
 
@@ -329,7 +365,7 @@ async function main() {
       { title: "The score only climbs, and in more than one step", ok: monotonicScore && scoreSteps >= 3,
         detail: `${scoreSteps} distinct scores over ${samples.length} readings` },
       { title: "The box score fills in play by play, not quarter by quarter", ok: monotonicBox && boxSteps >= 25 && boxGrew,
-        detail: `${boxSteps} distinct totals (a quarter-at-a-time reveal gives 5), ending at ${boxTotals[boxTotals.length - 1]}` },
+        detail: `${boxSteps} distinct totals (a quarter-at-a-time reveal gives 5), ending at ${boxTotals[boxTotals.length - 1]}, worst dip ${maxBoxBackstep}` },
       { title: "The box score moves repeatedly within the first quarter", ok: q1BoxSteps >= 8,
         detail: `${q1BoxSteps} distinct totals over ${duringQ1.length} readings before Q1 was published` },
       { title: "Half the game is still unwritten at the halfway point", ok: midwayIncomplete,
@@ -348,10 +384,10 @@ async function main() {
         detail: last?.canLeave ? "Play Again is reachable" : "no post-game controls - the routine threw before unhiding them" },
       { title: "A football MVP is named in football statistics", ok: !!last?.mvpShown && /\d/.test(last?.mvpText || ""),
         detail: last?.mvpText || "no MVP callout" },
-      { title: "Football offers both an offensive and a defensive gameplan", ok: strategyGroups === 2 && selectedPlans.length === 2,
-        detail: strategyGroups ? `${strategyGroups} groups: ${selectedPlans.join(" | ")}` : "no strategy groups rendered" },
-      { title: "Each gameplan group offers three of its five plans", ok: groupCardCounts.length === 2 && groupCardCounts.every((n) => n === 3),
-        detail: `cards per group: ${groupCardCounts.join(", ") || "none"}` },
+      { title: "Offence and defence are two separate gameplan rounds", ok: strategyRounds === 2 && selectedPlans.length === 2,
+        detail: `${strategyRounds} rounds, chose: ${selectedPlans.join(" | ") || "nothing"}` },
+      { title: "Each gameplan round offers three of its five plans", ok: groupCardCounts.length === 2 && groupCardCounts.every((n) => n === 3),
+        detail: `cards per round: ${groupCardCounts.join(", ") || "none"}` },
       { title: "No JS errors during the game", ok: consoleErrors.length === 0,
         detail: consoleErrors.length ? consoleErrors.slice(0, 3).join(" | ") : "clean console" }
     );

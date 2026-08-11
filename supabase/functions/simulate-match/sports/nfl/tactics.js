@@ -53,6 +53,21 @@
 // back, and balanced offence was raised because a baseline that loses to
 // everything is not a baseline.
 //
+// RE-SOLVED AGAIN, against the yardage calibration. Making a drive that does
+// not score gain twelve yards instead of twenty-five - which is what real ones
+// gain - changed the field-position economy underneath every plan, because a
+// punt from your own 38 hands the ball over near the opponent 24 rather than
+// their 12. That is right, and it is worth about twelve yards a punt to the
+// receiving team. The plans that pay for their edge in POSSESSIONS felt it
+// hardest: Ground Control fell to a 33.5% win rate, which is a trap by the
+// rule at the top of this file, so it was re-solved to 45% by paying for its
+// slow pace in efficiency - red zone, ball security and protection - rather
+// than by giving the pace back, which would have deleted what the plan is.
+//
+// Hand-solved, not calibrated. tools/calibrate-nfl-gamestyles.mjs still does
+// not exist; scripts/verify-nfl-gameplans.mjs holds every plan to a 40-60%
+// band, and a band is not a calibration.
+//
 // PROVISIONAL NUMBERS, SAID PLAINLY. Like the ten styles before them, the
 // values below are authored placeholders that have NOT been through
 // tools/calibrate-gamestyles.mjs. scripts/verify-nfl-gameplans.mjs holds them
@@ -70,7 +85,7 @@ export const OFFENSIVE_PLANS = [
   { id: "ground-control", icon: "🐏", name: "Ground Control",
     blurb: "Run it, shorten the game, take the air out of the ball.",
     up: ["+2 Rushing", "+2 Ball Control"], down: ["-2 Explosive Plays", "-1 Comeback Ability"],
-    mods: { off: 1.02, explosive: 0.86, redZone: 1.03, security: 1.09, protection: 1.04, runShare: 1.50, pace: 0.88, fg: 1.00 } },
+    mods: { off: 1.14, explosive: 0.88, redZone: 1.20, security: 1.14, protection: 1.10, runShare: 1.50, pace: 0.96, fg: 1.00 } },
 
   { id: "west-coast", icon: "📋", name: "West Coast",
     blurb: "Short, accurate, keep the chains moving and the quarterback clean.",

@@ -274,7 +274,13 @@ function driveYards(outcome, startYard, mult, rand) {
   const reach = (18 + 42 * rand()) * mult;
   if (outcome === "touchdown") return 100 - startYard;
   if (outcome === "fieldGoal") return Math.max(FG_RANGE_YARD - startYard, reach);
-  return Math.max(-8, Math.min(100 - startYard - 1, reach - 14));
+  // A DRIVE THAT DID NOT SCORE DID NOT GO FAR. This was `reach - 14`, about 25
+  // yards, which is roughly double what a real punting drive gains - and since
+  // three drives in five end this way it was most of why the simulation
+  // produced 438 yards a game against football's 340. Scaled rather than
+  // shifted, so a good offence still out-gains a poor one on the drives it
+  // fails to finish instead of both clamping at the floor.
+  return Math.max(-8, Math.min(100 - startYard - 1, reach * 0.55 - 10));
 }
 
 /** Where the opponent starts after a drive ends. A punt from deep pins them
@@ -550,8 +556,41 @@ function usageWeights(roster) {
     // Carries are gated by POSITION before production weights them, the same
     // way scoring runs are. A quarterback's rushing yards can rival a back's
     // without him being the man the ball is handed to twenty times a game.
-    rushers: build(skill, "rush_yds", CARRY_SHARE),
+    rushers: capBellCow(build(skill, "rush_yds", CARRY_SHARE)),
   };
+}
+
+/** The most of a team's carries one man can take.
+ *
+ * NO BACK CARRIES EVERY SNAP. A roster drafts one running back, and weighting
+ * carries by rushing production alone handed him essentially all of them - the
+ * receivers have no rushing yards to speak of and most quarterbacks little, so
+ * he came out at 95% and drew 27 carries a game. Real bell-cows top out near
+ * three quarters: the rest goes to a second back, quarterback scrambles and
+ * sneaks, and the occasional jet sweep.
+ *
+ * There is no second back on this roster to give them to, so the other skill
+ * slots stand in for the whole of that work. That is the honest reading of a
+ * twelve-slot roster - the drafted back is the backfield, but he is not the
+ * entire running game. */
+const BELL_COW_CEILING = 0.74;
+
+function capBellCow(items) {
+  if (items.length < 2) return items;
+  let top = items[0];
+  for (const item of items) if (item.weight > top.weight) top = item;
+  if (top.weight <= BELL_COW_CEILING) return items;
+  const spare = top.weight - BELL_COW_CEILING;
+  const rest = items.filter((item) => item !== top);
+  const restTotal = rest.reduce((sum, item) => sum + item.weight, 0);
+  // Redistributed in proportion to what each already had, so a mobile
+  // quarterback picks up more of the slack than a receiver does. An even split
+  // would hand a tight end carries the position gate just took away.
+  return items.map((item) => {
+    if (item === top) return { ...item, weight: BELL_COW_CEILING };
+    const share = restTotal > 0 ? item.weight / restTotal : 1 / Math.max(1, rest.length);
+    return { ...item, weight: item.weight + spare * share };
+  });
 }
 
 /** Who the ball is handed to on an ordinary carry, as a multiplier on that
@@ -595,9 +634,23 @@ const DEAD_PLAY_SHARE_ELITE = 0.20;
 /** ...and how many of those are sacks rather than incompletions. */
 const SACK_SHARE_OF_DEAD = 0.13;
 
-/** How much of a productive drive is carried on the ground. Solved against a
- * real team's ~120 rushing yards a game, not chosen. */
-const RUN_SHARE = 0.45;
+/** The snaps a drive spends before any ground is counted, by how it ended.
+ *
+ * A scoring drive buys its yards more cheaply than a failing one - it is
+ * finding chunk plays, not grinding - so it pays LESS overhead per snap and
+ * more of its count comes from the distance. A drive that stalls pays the
+ * overhead and gets nothing for it, which is what a three-and-out is. */
+const SNAPS_BASE = { touchdown: 1, fieldGoal: 2, punt: 3, downs: 3, turnover: 3 };
+
+/** How much of a PRODUCTIVE drive is carried on the ground.
+ *
+ * Note the word productive: incompletions and sacks are carved out before this
+ * applies, and every one of them is a pass. So this is not the run share of a
+ * team's snaps, it is the run share of the snaps that did something - which
+ * runs higher. Real football is 27 carries against 21 completions, or 56%,
+ * while the same team's run share of ALL its plays is 43%. Reading this as the
+ * latter is why the simulation handed the ball off 16 times a game. */
+const RUN_SHARE = 0.63;
 
 /** The extremes a GAMEPLAN may push that to.
  *
@@ -606,12 +659,14 @@ const RUN_SHARE = 0.45;
  * snaps and the most committed ground teams on about 68%. A team outside that
  * pair of numbers is not running a plan, it is playing from four scores down -
  * which is a game state, not a gameplan, and this band is about gameplans. */
-const RUN_SHARE_MIN = 0.35;
-const RUN_SHARE_MAX = 0.68;
+const RUN_SHARE_MIN = 0.44;
+const RUN_SHARE_MAX = 0.70;
 
-/** What a carry is worth against a throw, as a multiplier on the yardage it
- * draws. Real football is about 4.3 a carry against 7.2 an attempt. */
-const RUN_YARD_WEIGHT = 0.6;
+/** What a carry is worth against a COMPLETION, as a multiplier on the yardage
+ * it draws. Not against an attempt: the incompletions are already carved out,
+ * so the throws this competes with are the ones that were caught. Real football
+ * is about 4.3 a carry against 11 a completion. */
+const RUN_YARD_WEIGHT = 0.30;
 
 /**
  * The plays inside one drive.
@@ -634,16 +689,25 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   const net = endYard - startYard;
   // Longer drives get more snaps, with a floor of one: a drive exists because
   // somebody ran a play.
-  // Snaps per drive, from the ground the drive covered. Loosened twice: from
-  // /9 with a cap of 12, which gave a median of 40 pass attempts against real
-  // football's ~33, and then from /11, which left the tail intact - the cap was
-  // never what bound it. The runaway games were not long drives, they were
-  // teams with eleven long drives, and at /11 one of those ran 84 offensive
-  // snaps and 67 minutes of game clock. A football game is sixty minutes, so a
-  // model that spends eighty is wrong about something more basic than pace:
-  // both sides' possession now totals about 57 minutes, and the quarter clock
-  // stops running out before the quarter does.
-  const count = Math.max(1, Math.min(11, Math.round(Math.abs(net) / 12) + 1 + Math.floor(rand() * 2)));
+  // SNAPS PER DRIVE, from how the drive ended as much as from how far it went.
+  //
+  // This was yardage alone - net/9, then /11, then /12 - and yardage alone
+  // cannot get this right, because the relationship is not the same for a
+  // drive that scored and a drive that did not. Real football: a touchdown
+  // drive covers about 70 yards in 7.5 snaps (nearly ten a play), while a
+  // punting drive covers about 12 in 4.3 (under three). One divisor has to
+  // split the difference, and splitting it gave 52 snaps a game against
+  // football's 63, each worth 8.4 yards against football's 5.4 - a game of
+  // very few, very long plays, which is what put 9.8 yards on every carry.
+  //
+  // The base is the overhead every drive pays whatever it achieves: you do not
+  // go three-and-out in one snap. The yardage term is what marching adds on
+  // top. Weighted across the outcome chart these come to 5.4 snaps a drive,
+  // which over eleven drives is football's 60.
+  const count = Math.max(
+    1,
+    Math.min(14, SNAPS_BASE[outcome] ?? 3) + Math.round(Math.abs(net) / 12) + Math.floor(rand() * 3)
+  );
   const plays = [];
 
   // Gains are drawn, then normalised so they sum to exactly `net`. Drawing
