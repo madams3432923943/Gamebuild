@@ -22,12 +22,10 @@
 <body>
   <header class="top-nav">
     <button class="brand" id="btn-brand" type="button">
-      <!-- The mark is optional by design. If assets/brand/draft-nova-logo.png
-           is absent the image removes itself and the wordmark stands alone,
-           so a missing asset degrades to clean text rather than a broken-image
-           icon. The basketball emoji that used to sit here was retired with
-           the rename: this is a multi-sport app and the mark says so. -->
-      <img class="brand-mark" src="assets/brand/draft-nova-logo.png" alt=""
+      <!-- The ICON here, not the full lockup: this bar is on every screen and
+           needs to stay short. The name rides beside it as text. Optional by
+           design - a missing file removes itself and leaves clean text. -->
+      <img class="brand-mark" src="assets/brand/draft-nova-icon.png" alt=""
            onerror="this.remove()" />
       <span class="brand-word">Draft Nova</span>
     </button>
@@ -45,11 +43,12 @@
 
     <section id="screen-auth" class="screen hidden">
       <div class="card auth-card">
-        <!-- Same optional-mark treatment as the header: if the file is not
-             there the image removes itself and the name carries the screen. -->
+        <!-- The LOCKUP here - it already carries the name, so the text below
+             it is a fallback rather than a caption: onload removes it once the
+             image is really there, onerror keeps it when the file is not. -->
         <div class="auth-brand">
-          <img class="auth-brand-mark" src="assets/brand/draft-nova-logo.png" alt=""
-               onerror="this.remove()" />
+          <img class="auth-brand-mark" src="assets/brand/draft-nova-lockup.png" alt="Draft Nova"
+               onerror="this.remove()" onload="this.nextElementSibling?.remove()" />
           <span class="auth-brand-word">Draft Nova</span>
         </div>
         <h2 id="auth-heading">Sign In</h2>
@@ -550,6 +549,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=c1a2d06"></script>
+  <script type="module" src="js/main.js?v=ade6e4b"></script>
 </body>
 </html>

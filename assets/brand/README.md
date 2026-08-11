@@ -1,17 +1,16 @@
 # Brand assets
 
-`draft-nova-logo.png` is the header mark, referenced by `index.html`.
+Two files, two jobs. Both are optional: the `<img>` tags carry
+`onerror="this.remove()"`, so a missing file degrades to the text name rather
+than a broken-image icon.
 
-It is deliberately OPTIONAL. The `<img>` in the header carries
-`onerror="this.remove()"`, so if the file is missing the mark disappears and
-the "Draft Nova" wordmark stands on its own - a missing asset degrades to
-clean text rather than a broken-image icon.
+  draft-nova-icon.png     the mark on its own. Used in the top bar, which is on
+                          every screen, with "Draft Nova" as text beside it.
+                          Square-ish, transparent background. Rendered 1.6em tall.
 
-Drop the logo in here as `draft-nova-logo.png` and it appears with no code
-change. A wide, transparent-background PNG works best: the header sizes it to
-`1.6em` tall and caps it at `8rem` wide.
+  draft-nova-lockup.png   the full logo INCLUDING the name. Used on the sign-in
+                          card. Because it already carries the name, the text
+                          underneath removes itself once the image loads.
+                          Wide, transparent background. Rendered up to 12rem wide.
 
-Still to add, if you want them (none are wired yet):
-  - `favicon.ico` / `favicon.png`  - browser tab icon
-  - `apple-touch-icon.png`         - iOS home screen
-  - `og-image.png`                 - link previews
+Not wired yet, if you want them later: favicon, apple-touch-icon, og:image.
