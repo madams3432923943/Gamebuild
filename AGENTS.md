@@ -1,4 +1,4 @@
-# BallKnowledge Engineering Rules
+# DraftNova Engineering Rules
 
 These rules apply to every human or AI agent working in this repository.
 

@@ -50,8 +50,14 @@ function serve(root, port) {
         res.writeHead(403).end("forbidden");
         return;
       }
+      // Read BEFORE writing headers. The other way round, a request for a file
+      // that does not exist sends 200, then throws, then tries to send 404 on
+      // top of it - ERR_HTTP_HEADERS_SENT, which kills the whole harness
+      // rather than returning a 404. A single optional asset in index.html was
+      // enough to take the run down.
+      const body = await readFile(file);
       res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
-      res.end(await readFile(file));
+      res.end(body);
     } catch {
       res.writeHead(404).end("not found");
     }

@@ -132,8 +132,16 @@ async function main() {
     );
     const page = await context.newPage();
     page.on("pageerror", (e) => consoleErrors.push(String(e)));
+    // The brand mark is optional by design - index.html carries
+    // onerror="this.remove()" so a missing file degrades to the wordmark. Its
+    // 404 is therefore expected behaviour, not a fault. Ignored by PATH rather
+    // than by status, so a 404 on anything else still fails this check.
+    const OPTIONAL_ASSET = /assets\/brand\//;
     page.on("console", (m) => {
-      if (m.type() === "error") consoleErrors.push(m.text());
+      if (m.type() !== "error") return;
+      const text = m.text();
+      if (/404/.test(text) && OPTIONAL_ASSET.test(m.location()?.url || "")) return;
+      consoleErrors.push(text);
     });
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });

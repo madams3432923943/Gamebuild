@@ -73,6 +73,11 @@ function attachDiagnostics(page, label, sink) {
     if (msg.type() !== "error") return;
     const text = msg.text();
     if (isIgnorableConsole(text)) return;
+    // The brand mark is optional BY DESIGN: index.html carries
+    // onerror="this.remove()" so a missing logo degrades to the wordmark
+    // rather than a broken image. Matched on URL, not on the word "404", so a
+    // missing resource anywhere else still fails the run.
+    if (/404/.test(text) && /assets\/brand\//.test(msg.location()?.url || "")) return;
     sink.push({ kind: "console", label, text, at: new Date().toISOString() });
   });
   page.on("pageerror", (err) => {
@@ -81,6 +86,7 @@ function attachDiagnostics(page, label, sink) {
   page.on("requestfailed", (req) => {
     const failure = req.failure()?.errorText || "unknown";
     if (failure.includes("ERR_ABORTED")) return; // navigations the app cancelled itself
+    if (/assets\/brand\//.test(req.url())) return; // optional brand mark, see above
     sink.push({ kind: "requestfailed", label, text: `${req.method()} ${req.url()} - ${failure}`, at: new Date().toISOString() });
   });
   page.on("response", (res) => {

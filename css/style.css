@@ -1,4 +1,4 @@
-/* ---- Ball Knowledge design tokens ----
+/* ---- Draft Nova design tokens ----
    Arena-at-night palette: cool dark grey surfaces with an electric blue as the
    primary brand/identity color, a scoreboard-gold reserved strictly for live
    score digits, and a buzzer-red reserved for reveals/alerts. Win/loss keep
@@ -84,6 +84,39 @@ button, input {
   align-items: center;
   gap: 0.4rem;
   padding: 0;
+}
+
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.auth-brand-mark {
+  max-width: 12rem;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.auth-brand-word {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.brand-mark {
+  height: 1.6em;
+  width: auto;
+  max-width: 8rem;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.brand-word {
+  vertical-align: middle;
 }
 
 .brand-ball {

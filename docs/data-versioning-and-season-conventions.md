@@ -1,8 +1,8 @@
-# BallKnowledge Data Versioning and Season Conventions
+# DraftNova Data Versioning and Season Conventions
 
 ## Purpose
 
-This document defines how seasons, source data, simulation inputs, and historical match reproducibility must work across every sport in BallKnowledge.
+This document defines how seasons, source data, simulation inputs, and historical match reproducibility must work across every sport in DraftNova.
 
 ## Canonical season rules
 
@@ -62,7 +62,7 @@ All sports data must move through these stages:
 
 1. `raw` - untouched source files and source metadata
 2. `validated` - schema, required fields, duplicates, ranges, and identifiers checked
-3. `normalized` - converted to BallKnowledge canonical fields
+3. `normalized` - converted to DraftNova canonical fields
 4. `rated` - simulation attributes generated
 5. `staging` - loaded into a non-production dataset for QA
 6. `approved` - data-quality report reviewed

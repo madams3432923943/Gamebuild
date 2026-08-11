@@ -1,4 +1,4 @@
-# Ball Knowledge
+# Draft Nova
 
 An NBA draft-battle game. Each round rolls a shared team-and-decade squad
 (e.g. "Chicago Bulls 1990s"); both sides draft from that same squad into open

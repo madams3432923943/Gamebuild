@@ -106,7 +106,7 @@ async function main() {
   const startedAt = Date.now();
   const sections = [];
 
-  console.log(renderSection("Ball Knowledge - build verification"));
+  console.log(renderSection("Draft Nova - build verification"));
   console.log(`  site:   ${args.baseUrl}`);
   console.log(`  mode:   ${args.mode}${args.browser ? "" : " (browser leg disabled)"}`);
   console.log(`  budget: ${formatMs(TOTAL_BUDGET_MS)}`);

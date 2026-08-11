@@ -1,4 +1,4 @@
-// Ball Knowledge - NFL draftable units (OL/DL/LB/CB/S/ST)
+// Draft Nova - NFL draftable units (OL/DL/LB/CB/S/ST)
 // 4779 unit records
 // Derived, never hand-authored - see tools/build-nfl-data.mjs.
 export const ROWS = [

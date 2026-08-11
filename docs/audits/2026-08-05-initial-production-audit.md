@@ -1,4 +1,4 @@
-# BallKnowledge Initial Production Audit
+# DraftNova Initial Production Audit
 
 Date: 2026-08-05
 Scope: GitHub `main` and live Supabase project, read-only review
@@ -6,7 +6,7 @@ Status: Findings only; no production database or live-site changes applied
 
 ## Executive summary
 
-BallKnowledge has a stronger foundation than a typical prototype: ranked results are simulated in a JWT-protected Supabase Edge Function, key draft actions validate the authenticated participant, RLS is enabled on exposed tables, sport-specific client modules exist, and the repository contains verification and calibration scripts.
+DraftNova has a stronger foundation than a typical prototype: ranked results are simulated in a JWT-protected Supabase Edge Function, key draft actions validate the authenticated participant, RLS is enabled on exposed tables, sport-specific client modules exist, and the repository contains verification and calibration scripts.
 
 The main launch risks are not that the whole app is client-trusted. They are narrower and fixable:
 
@@ -178,7 +178,7 @@ Required remediation:
 
 ### NFL-4: Derived ratings contain documented judgment calls
 
-The builder explicitly derives offensive-line value from sacks allowed and rushing efficiency, defines special teams primarily from kicking data, maps positions into units, and sets participation floors. These can be reasonable design choices, but they are BallKnowledge ratings—not raw nflverse facts.
+The builder explicitly derives offensive-line value from sacks allowed and rushing efficiency, defines special teams primarily from kicking data, maps positions into units, and sets participation floors. These can be reasonable design choices, but they are DraftNova ratings—not raw nflverse facts.
 
 Required remediation:
 

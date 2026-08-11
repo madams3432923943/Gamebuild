@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Ball Knowledge: an NBA draft-battle game. Draft a shared team-and-decade squad from memory and play out the result." />
+  <meta name="description" content="Draft Nova: an NBA draft-battle game. Draft a shared team-and-decade squad from memory and play out the result." />
   <!-- The default sport's accent, kept in step with the sport picker by
        applyTheme() in js/main.js. Set here too so the phone address bar is the
        right color on the very first paint. -->
   <meta name="theme-color" content="#d9741f" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
-  <title>Ball Knowledge</title>
+  <title>Draft Nova</title>
   <script type="importmap">
   {
     "imports": {
@@ -22,7 +22,14 @@
 <body>
   <header class="top-nav">
     <button class="brand" id="btn-brand" type="button">
-      <span class="brand-ball">🏀</span> Ball Knowledge
+      <!-- The mark is optional by design. If assets/brand/draft-nova-logo.png
+           is absent the image removes itself and the wordmark stands alone,
+           so a missing asset degrades to clean text rather than a broken-image
+           icon. The basketball emoji that used to sit here was retired with
+           the rename: this is a multi-sport app and the mark says so. -->
+      <img class="brand-mark" src="assets/brand/draft-nova-logo.png" alt=""
+           onerror="this.remove()" />
+      <span class="brand-word">Draft Nova</span>
     </button>
     <nav class="nav-tabs" id="nav-tabs" hidden>
       <button class="nav-tab active" id="nav-play" type="button">Play</button>
@@ -38,6 +45,13 @@
 
     <section id="screen-auth" class="screen hidden">
       <div class="card auth-card">
+        <!-- Same optional-mark treatment as the header: if the file is not
+             there the image removes itself and the name carries the screen. -->
+        <div class="auth-brand">
+          <img class="auth-brand-mark" src="assets/brand/draft-nova-logo.png" alt=""
+               onerror="this.remove()" />
+          <span class="auth-brand-word">Draft Nova</span>
+        </div>
         <h2 id="auth-heading">Sign In</h2>
         <p class="hint-text" id="auth-subheading">Sign in to keep your record, badges, and rank.</p>
 
@@ -81,7 +95,7 @@
              two sports there is no such thing as "the" rules or "the" ladder.
              Live count of players with the game open. Hidden until the first
              successful read so a failed fetch shows nothing rather than "0". -->
-        <div class="online-ticker hidden" id="online-ticker" title="Players with Ball Knowledge open right now">
+        <div class="online-ticker hidden" id="online-ticker" title="Players with Draft Nova open right now">
           <span class="online-dot" aria-hidden="true"></span>
           <span id="online-ticker-count">—</span>
         </div>
@@ -536,6 +550,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=e367c47"></script>
+  <script type="module" src="js/main.js?v=0191e4f"></script>
 </body>
 </html>

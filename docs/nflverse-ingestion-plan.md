@@ -2,7 +2,7 @@
 
 ## Decision
 
-BallKnowledge will consume official nflverse release assets through a controlled import pipeline. It will not copy the full nflverse repository into the frontend and will not treat downloaded source files as production-ready game ratings.
+DraftNova will consume official nflverse release assets through a controlled import pipeline. It will not copy the full nflverse repository into the frontend and will not treat downloaded source files as production-ready game ratings.
 
 ## Preferred upstream sources
 
@@ -13,7 +13,7 @@ Use official nflverse datasets for source facts:
 - nflverse team summary stats when team/unit context is needed
 - nflverse schedules for game and season context
 - weekly rosters when team membership by week is required
-- play-by-play only when a BallKnowledge rating cannot be responsibly derived from summary data
+- play-by-play only when a DraftNova rating cannot be responsibly derived from summary data
 
 Prefer Parquet assets where practical because they are compact, typed, and efficient for batch processing. CSV may be retained as a debugging/export format, but should not be the primary production artifact.
 
@@ -35,7 +35,7 @@ schema and quality validation
 identity and roster normalization
         |
         v
-BallKnowledge football feature generation
+DraftNova football feature generation
         |
         v
 simulation rating generation
@@ -52,7 +52,7 @@ production data version promotion
 
 ## Do not ship upstream files directly to browsers
 
-The website should not download complete nflverse datasets. The import process must produce a purpose-built BallKnowledge dataset containing only the fields needed for drafting, display, validation, and simulation.
+The website should not download complete nflverse datasets. The import process must produce a purpose-built DraftNova dataset containing only the fields needed for drafting, display, validation, and simulation.
 
 ## Canonical NFL entities
 
@@ -64,7 +64,7 @@ The normalized model should separate:
 - position and position group
 - offense, defense, and kicking statistics
 - team-season context
-- BallKnowledge simulation ratings
+- DraftNova simulation ratings
 - source and data version
 
 Stable IDs should be used internally whenever available. Player names must not be the sole join key.

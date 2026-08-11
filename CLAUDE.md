@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-# BallKnowledge Engineering Constitution
+# DraftNova Engineering Constitution
 
 ## Mission
 
-BallKnowledge is a production-quality sports platform designed to provide accurate,
+DraftNova is a production-quality sports platform designed to provide accurate,
 fast, and modern sports information across multiple leagues. Every engineering
 decision should prioritize maintainability, scalability, consistency, performance,
 and data accuracy over short-term convenience.
@@ -18,11 +18,11 @@ architectural rewrites.
 # WHAT THIS CODEBASE ACTUALLY IS, TODAY
 
 Read this before applying anything below it. The Constitution describes where
-BallKnowledge is going; this section describes where it is, and the gap between
+DraftNova is going; this section describes where it is, and the gap between
 them is real. Applying a standard that assumes infrastructure we do not have
 produces worse code, not better.
 
-**Ball Knowledge is a static site with no build step.** The browser loads ES
+**Draft Nova is a static site with no build step.** The browser loads ES
 modules directly. Serve the root over HTTP (`python3 -m http.server 8000`);
 opening `index.html` from disk will not work.
 
@@ -362,7 +362,7 @@ sport-specific.
 
 # Primary Objective
 
-Every decision should make BallKnowledge easier to maintain, scale, understand,
+Every decision should make DraftNova easier to maintain, scale, understand,
 expand, test, debug, and update. The codebase should become cleaner after every
 feature. Future developers — including future AI agents — should immediately
 understand how the application works.
