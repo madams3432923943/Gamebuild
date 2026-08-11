@@ -111,18 +111,84 @@ function isIgnorableConsole(text) {
  * app ships. Under the ranked ruleset the pool only reveals a player once his
  * name is typed, so the harness has to know the names - it cannot read them
  * off the screen, by design. */
-async function loadSquadIndex() {
-  const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "data", "nba-players.js")}`).href);
+/**
+ * Every squad the draft can roll, keyed the way the squad banner names it.
+ *
+ * PER SPORT, because the sports do not share a dataset OR a grouping. This
+ * read data/nba-players.js unconditionally and keyed on `decade`, so pointing
+ * the run at football produced "no local squad data for Cleveland Browns
+ * 2010s" on every single round - the harness could not type a name it did not
+ * have, the draft never advanced, and it failed as a timeout rather than as a
+ * missing dataset. Football groups by ERA and its draftable entries include
+ * UNITS as well as people, which have no ppg to sort by.
+ */
+async function loadSquadIndex(sportId = "nba") {
+  const source = sportId === "nfl"
+    ? [
+        [path.join(ROOT, "data", "nfl-players.js"), "ROWS"],
+        [path.join(ROOT, "data", "nfl-units.js"), "ROWS"],
+      ]
+    : [[path.join(ROOT, "data", "nba-players.js"), "PLAYERS"]];
+
+  const rows = [];
+  for (const [file, exportName] of source) {
+    const mod = await import(new URL(`file://${file}`).href);
+    rows.push(...(mod[exportName] || []));
+  }
+
+  const groupKey = sportId === "nfl" ? "era" : "decade";
   const index = new Map();
-  for (const p of PLAYERS) {
-    const key = `${p.team}|${p.decade}`;
+  for (const p of rows) {
+    const key = `${p.team}|${p[groupKey]}`;
     if (!index.has(key)) index.set(key, []);
     index.get(key).push(p);
   }
   // Best players first: a draft that always takes the top available name
-  // finishes in the fewest attempts and produces a realistic roster.
-  for (const list of index.values()) list.sort((a, b) => b.ppg - a.ppg);
+  // finishes in the fewest attempts and produces a realistic roster. The
+  // ranking is per sport for the same reason the dataset is - football has no
+  // ppg, and a unit has no per-game scoring at all.
+  const rank = sportId === "nfl"
+    ? (p) => (Number(p.pass_yds) || 0) * 0.25 + (Number(p.rush_yds) || 0) +
+             (Number(p.rec_yds) || 0) + (Number(p.rating) || 0) + (Number(p.tackles) || 0)
+    : (p) => Number(p.ppg) || 0;
+  for (const [key, list] of index) {
+    list.sort((a, b) => rank(b) - rank(a));
+    if (sportId === "nfl") index.set(key, interleaveByPosition(list));
+  }
   return index;
+}
+
+/**
+ * Best-first WITHIN each position, then one position at a time.
+ *
+ * makeOnePick tries candidates in order and pays up to 2.5 seconds for each
+ * one that does not turn into a pick. A straight best-first list is fine for
+ * basketball, where almost any guard fits almost any open slot, and badly
+ * wrong for football: a twelve-slot roster with one QB and one TE means a list
+ * headed by six receivers wastes most of a round's budget before it offers
+ * anything the open slot can take. Round-robin means whatever slot is open,
+ * something eligible for it shows up in the first handful of tries.
+ */
+function interleaveByPosition(list) {
+  const byPosition = new Map();
+  for (const p of list) {
+    const key = String(p.group || (p.pos || [])[0] || "?").toUpperCase();
+    if (!byPosition.has(key)) byPosition.set(key, []);
+    byPosition.get(key).push(p);
+  }
+  const queues = [...byPosition.values()];
+  const out = [];
+  for (let i = 0; out.length < list.length; i++) {
+    let moved = false;
+    for (const q of queues) {
+      if (i < q.length) {
+        out.push(q[i]);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return out;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -261,15 +327,35 @@ async function driveStrategyPhases(page, label, log, deadline) {
     log(`  ${label}: confirmed ${phase.name}`);
   }
 
-  const tactic = await page
+  // THE GAMEPLAN IS ROUNDS, NOT A SCREEN.
+  //
+  // Basketball asks one question here. Football asks two - offence, then
+  // defence - behind the same #tactic-phase panel, each advanced by
+  // #btn-play-game. Clicking through once locked the offence, left the
+  // defensive round on screen and reported "gamestyle chosen, game started"
+  // for a game that had not started, so the failure surfaced much later as
+  // "the game screen never appeared" with no hint of the cause.
+  //
+  // Driven as a loop over whatever rounds the sport puts up, so a third one
+  // would not need this written again.
+  const MAX_STRATEGY_ROUNDS = 4;
+  let rounds = 0;
+  const firstRound = await page
     .locator("#tactic-phase:not(.hidden)")
     .waitFor({ state: "visible", timeout: Math.max(1000, deadline - Date.now()) })
     .then(() => true)
     .catch(() => false);
-  if (tactic) {
-    await page.locator("#tactic-grid .tactic-card, #tactic-grid button").first().click().catch(() => {});
-    await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
-    log(`  ${label}: gamestyle chosen, game started`);
+  if (firstRound) {
+    while (
+      rounds < MAX_STRATEGY_ROUNDS &&
+      (await page.locator("#tactic-phase:not(.hidden)").isVisible().catch(() => false))
+    ) {
+      await page.locator("#tactic-grid .tactic-card, #tactic-grid button").first().click().catch(() => {});
+      rounds += 1;
+      await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(400);
+    }
+    log(`  ${label}: gameplan chosen over ${rounds} round${rounds === 1 ? "" : "s"}, game started`);
   }
 }
 
@@ -326,7 +412,22 @@ export async function runBrowserChecks(opts = {}) {
     accounts = [],
     artifactDir = path.join(ROOT, "verify-artifacts"),
     headless = true,
-    budgetMs = 210000,
+    // A HANG GUARD, NOT A PERFORMANCE ASSERTION - real responsiveness is
+    // measured by the frame budgets above. Football needs more of it than
+    // basketball for reasons that are not about speed: twelve draft rounds
+    // instead of ten, and names like "Cleveland Browns Offensive Line" typed a
+    // character at a time - twelve rounds of that runs about 150 seconds on
+    // its own before a down has been played.
+    //
+    // KNOWN GAP: `SELFTEST_SPORT=nfl` still does not finish. It now signs in,
+    // drafts all twelve rounds, drives both gameplan rounds and starts the
+    // game - everything below the final-score wait, which is clamped to 120s
+    // independently of this budget and which football's playback does not
+    // beat under this harness. scripts/verify-nfl-live-playback.mjs plays the
+    // same football game to a final score in real Chromium in 53s, so this is
+    // something about this harness rather than about the app. Basketball, the
+    // default, is unaffected and green.
+    budgetMs = (process.env.SELFTEST_SPORT || "nba") === "nba" ? 210000 : 420000,
     // Optional request interception, used only by the self-test to stand in
     // for the Supabase CDN module. A real run against a real site passes
     // nothing here and talks to the real backend.
@@ -467,7 +568,16 @@ export async function runBrowserChecks(opts = {}) {
       // toggle only exists once you are inside a sport, so this test sat on
       // the hub clicking at a button that was not on the page yet. It is not
       // that the app broke; the test was written before the hub existed.
-      const sportRow = page.locator(`[data-sport="${(typeof sportId !== "undefined" && sportId) || "nba"}"]`).first();
+      //
+      // WHICH sport comes from SELFTEST_SPORT, defaulting to basketball. It
+      // used to read an identifier that was never defined anywhere, so the
+      // expression always fell through to "nba" - except that a restored
+      // session remembers the sport it was last on, so the run silently tested
+      // whichever sport the previous run happened to leave behind. Two
+      // consecutive runs covered different sports and neither said so, which
+      // made a real football failure look like it came and went.
+      const wantedSport = process.env.SELFTEST_SPORT || "nba";
+      const sportRow = page.locator(`[data-sport="${wantedSport}"]`).first();
       if (await sportRow.count()) await sportRow.click();
       const modeBtn = mode === "online" ? '[data-mode="online"]' : '[data-mode="practice-hard"]';
       await page.locator(`#mode-toggle ${modeBtn}`).waitFor({ state: "visible", timeout: 15000 });
@@ -509,7 +619,7 @@ export async function runBrowserChecks(opts = {}) {
 
     // ---- draft ------------------------------------------------------------
     const draftStart = Date.now();
-    const squadIndex = await loadSquadIndex();
+    const squadIndex = await loadSquadIndex(process.env.SELFTEST_SPORT || "nba");
     const picks = await Promise.all(
       sessions.map(({ page, label }) => driveDraft(page, squadIndex, label, log, deadline))
     );

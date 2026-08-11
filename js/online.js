@@ -136,7 +136,31 @@ export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
  * NBA => public.players + decade. NFL => public.nfl_players + era.
  * NFL rows keep the exact generated Ranked Practice object in `payload`.
  */
+const squadCache = new Map();
+
 export async function fetchSquadPlayers(team, groupValue) {
+  // CACHED FOR THE SESSION, keyed by sport as well as squad. A season that has
+  // already happened does not change, so a squad fetched in round 3 is still
+  // correct in round 11 - and the draft asks for the same squads repeatedly:
+  // the current one every time the round re-renders, and every earlier one
+  // again whenever the rosters are rehydrated. The PROMISE is cached rather
+  // than the result, so two callers racing on the same squad share one
+  // request instead of both issuing it.
+  const key = `${activeSport().id}|${team}|${groupValue}`;
+  const hit = squadCache.get(key);
+  if (hit) return hit;
+  const pending = loadSquadPlayers(team, groupValue);
+  squadCache.set(key, pending);
+  try {
+    return await pending;
+  } catch (e) {
+    // A failed fetch must not be remembered as an empty squad.
+    squadCache.delete(key);
+    throw e;
+  }
+}
+
+async function loadSquadPlayers(team, groupValue) {
   const supabase = await getSupabase();
   const s = activeSport();
   const groupKey = s.groupKey || "decade";

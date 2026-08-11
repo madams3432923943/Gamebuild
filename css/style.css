@@ -2537,6 +2537,43 @@ table.box-table th, table.history-table th {
   line-height: 1.3;
 }
 
+/* WHAT THE PLAN BUYS AND WHAT IT COSTS.
+   These chips had no rules at all, so they rendered as inline text with
+   nothing between them and a card read "+2 Rushing+2 Ball Control-2 Explosive
+   Plays-1 Comeback Ability" as one unbroken run. Pills, wrapped, with the
+   gains and the costs coloured apart - the whole point is that a player can
+   see the trade at a glance rather than parse it. */
+.tactic-trade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: auto;
+  padding-top: 0.45rem;
+}
+
+.tactic-trade-item {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.25;
+  padding: 0.14rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.tactic-trade-item.up {
+  color: var(--win);
+  background: rgba(63, 207, 142, 0.13);
+  border-color: rgba(63, 207, 142, 0.32);
+}
+
+.tactic-trade-item.down {
+  color: var(--buzzer);
+  background: rgba(232, 67, 61, 0.11);
+  border-color: rgba(232, 67, 61, 0.3);
+}
+
 /* ---- Rotation phase ----
    One row per player against a single 240-minute budget: minutes belong to
    players, not positions, so the list reads as one set of trade-offs. */
@@ -2780,7 +2817,14 @@ table.box-table th, table.history-table th {
    columns of cards on a phone is two unreadable columns. */
 .tactic-phase .strategy-groups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* AS MANY COLUMNS AS THERE ARE GROUPS, not always two.
+     This was a hard `repeat(2, 1fr)`, written when offence and defence were
+     shown together. They are separate ROUNDS now, so one group renders at a
+     time - and it sat in the left half of a two-column grid with the right
+     half empty, which is what made the cards look squeezed and off-centre
+     against a panel twice their width. auto-fit collapses the empty track, so
+     one group fills the panel and two still sit side by side. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   gap: 1rem;
   align-items: start;
 }
@@ -2797,10 +2841,27 @@ table.box-table th, table.history-table th {
   color: var(--muted);
 }
 
+/* EVERY CARD IN A ROUND IS THE SAME HEIGHT. They are one set of options, and
+   a column of three different-sized boxes reads as three unrelated things -
+   the shortest blurb should not produce the smallest button. `1fr` rows size
+   them all to the tallest, and `margin-top: auto` on the trade chips pins the
+   tradeoff to the bottom of each, so the pills line up across the round. */
 .tactic-phase .strategy-group-grid {
   grid-template-columns: 1fr;
+  grid-auto-rows: 1fr;
   gap: 0.4rem;
   margin-bottom: 0;
+  align-items: stretch;
+}
+
+/* The gameplan round is the only thing being decided, so it gets more of the
+   width while it is up - the flanking rosters are reference, not the task. At
+   the default 1.4fr the cards were narrow enough to wrap "BALANCED OFFENSE"
+   onto two lines. Progressive: a browser without :has() keeps the old split. */
+@media (min-width: 861px) {
+  .draft-body:has(.tactic-phase:not(.hidden)) {
+    grid-template-columns: 1fr 1.85fr 1fr;
+  }
 }
 
 @media (max-width: 760px) {

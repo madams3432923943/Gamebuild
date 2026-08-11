@@ -269,7 +269,7 @@ export const NFL = {
   // most carries or most field goals missed rewards volume and failure rather
   // than anything anyone would want to chase.
   lineKeys: ["comp", "att", "pass_yds", "pass_tds", "carries", "rush_yds", "rush_tds",
-             "rec", "rec_yds", "rec_tds", "ints", "fumbles", "fgs", "fga"],
+             "rec", "rec_yds", "rec_tds", "ints", "fumbles", "sacks", "fgs", "fga"],
 
   // Placeholders, and honestly so: no NFL game has been simulated, so every
   // one of these reads as a dash on the profile. They are declared now because
@@ -290,6 +290,7 @@ export const NFL = {
     rec_tds: "Receiving TDs",
     ints: "Interceptions",
     fumbles: "Fumbles Recovered",
+    sacks: "Sacks",
     fgs: "Field Goals",
     comp: "Completions",
     rec: "Receptions",
@@ -431,8 +432,9 @@ export const NFL = {
       key: "defense",
       label: "Defense",
       slots: ["DL", "LB", "CB", "S", "DEF"],
-      columns: [["ints", "INT"], ["fumbles", "FUM"]],
-      rank: (line) => (Number(line.ints) || 0) * 2 + (Number(line.fumbles) || 0),
+      columns: [["sacks", "SACK"], ["ints", "INT"], ["fumbles", "FUM"]],
+      rank: (line) =>
+        (Number(line.ints) || 0) * 2 + (Number(line.fumbles) || 0) + (Number(line.sacks) || 0) * 0.5,
     },
     {
       key: "kicking",

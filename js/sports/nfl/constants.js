@@ -73,10 +73,19 @@ export const POINTS = { touchdown: 6, fieldGoal: 3, safety: 2 };
 export const EXTRA_POINT_SUCCESS = 0.94;
 export const TWO_POINT_SUCCESS = 0.48;
 
-/** How often a coach goes for two when the score does not demand it. Real, and
- * small: on the order of one conversion attempt in twelve, most of which are
- * the chart above rather than this. */
-export const TWO_POINT_BASELINE_RATE = 0.05;
+/** How often a coach goes for two when the score does not demand it.
+ *
+ * ZERO, DELIBERATELY. Real coaches do this at a low rate and the first version
+ * modelled that, at one attempt in twenty touchdowns. It reads as a bug rather
+ * than as colour: a viewer who sees a team go for two while up eleven in the
+ * second quarter does not think "interesting call", they think the simulation
+ * is broken - and from the outside those look identical, because the reasoning
+ * behind a real off-chart try is not visible in a box score.
+ *
+ * So the conversion is a DECISION or it is a kick. Every two-point try in this
+ * game can be explained by pointing at the scoreboard, which is the property
+ * that makes it read as football rather than as noise. */
+export const TWO_POINT_BASELINE_RATE = 0;
 
 /**
  * The margins - AFTER the six points, from the scoring team's side - at which

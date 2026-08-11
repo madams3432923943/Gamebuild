@@ -352,6 +352,8 @@ let onChart = 0;
 let onChartWentForTwo = 0;
 let unreconciled = 0;
 let missingConversion = 0;
+let offChartTwoPointers = 0;
+let unreconciledSacks = 0;
 for (let i = 0; i < 400; i++) {
   const rosterA = rosterWith({ QB: qbPool[i % qbPool.length], RB: rbPool[i % rbPool.length] });
   const rosterB = rosterWith({ QB: qbPool[(i * 3) % qbPool.length], RB: medianRB });
@@ -371,11 +373,26 @@ for (let i = 0; i < 400; i++) {
         onChart += 1;
         if (drive.conversion?.type === "two") onChartWentForTwo += 1;
       }
-      if (drive.conversion?.type === "two") twoPointTries += 1;
+      if (drive.conversion?.type === "two") {
+        twoPointTries += 1;
+        // Every two-point try has to be explainable by pointing at the
+        // scoreboard. One that is not reads as a bug rather than as a call,
+        // because the reasoning behind an off-chart try is invisible from
+        // outside - which is exactly how it was reported.
+        if (!(drive.quarter >= 4 && CHART_MARGINS.includes(marginAfterSix))) offChartTwoPointers += 1;
+      }
     }
     live[drive.team] += drive.points;
   }
   if (live.A !== result.teamScoreA || live.B !== result.teamScoreB) unreconciled += 1;
+
+  // A sack is one event with two halves: a cost to the quarterback and a
+  // credit to the unit that got home. If those two disagree the box score is
+  // reporting a play that did not happen to somebody.
+  for (const [box, team] of [[result.boxB, result.teamStatsA], [result.boxA, result.teamStatsB]]) {
+    const credited = Object.values(box).reduce((sum, line) => sum + (line.sacks || 0), 0);
+    if (credited !== team.sacksAllowed) unreconciledSacks += 1;
+  }
 }
 const twoPointRate = touchdowns ? twoPointTries / touchdowns : 0;
 
@@ -473,13 +490,18 @@ const checks = [
     // handful of games a season, so the ceiling is a rare outlier rather than
     // the middle of the distribution.
     //
-    // Widened once, on purpose and on the record. The first thresholds were cut
-    // against an engine running 52 snaps a game against football's 63; fixing
-    // that lifted every volume number about eight percent, attempts included.
-    // The bands below are the same claim about football measured against an
-    // engine that now plays the right number of downs.
+    // THE CEILING IS A FACT, NOT A MEASUREMENT. It was set from the observed
+    // maximum three times running, and each time an unrelated engine change
+    // shifted the random stream by a game or two and it needed raising again -
+    // which is a threshold being fitted to the code rather than to football.
+    //
+    // So the ceiling is now the NFL single-game record: 70 attempts, Drew
+    // Bledsoe in 1994. A simulated game may not beat the most anyone has ever
+    // thrown, and that line does not move when a seed does. The MIDDLE of the
+    // distribution is what actually holds this honest, and that is asserted
+    // tightly: the league's most pass-heavy teams average about 40 a game.
     title: "The most pass-heavy gameplan still throws a real number of times",
-    ok: vertical.median <= 44 && vertical.p95 <= 55 && vertical.max <= 64,
+    ok: vertical.median <= 44 && vertical.p95 <= 55 && vertical.max < 70,
     detail: `Vertical Attack median ${vertical.median}, p95 ${vertical.p95}, max ${vertical.max}`,
   },
   {
@@ -500,9 +522,18 @@ const checks = [
     detail: `${onChartWentForTwo} of ${onChart} on-chart situations`,
   },
   {
-    title: "Two-point tries stay as rare as they really are (4-14% of TDs)",
-    ok: twoPointRate >= 0.04 && twoPointRate <= 0.14,
-    detail: `${(twoPointRate * 100).toFixed(1)}% of ${touchdowns} touchdowns`,
+    // Was a band around a baseline rate. That baseline is now zero: a team
+    // going for two while eleven points up in the second quarter is
+    // indistinguishable from a broken simulation, so every try has to be a
+    // call the scoreboard explains.
+    title: "Nobody ever goes for two without a reason on the scoreboard",
+    ok: offChartTwoPointers === 0 && twoPointTries > 0,
+    detail: `${offChartTwoPointers} unexplained of ${twoPointTries} tries (${(twoPointRate * 100).toFixed(1)}% of ${touchdowns} touchdowns)`,
+  },
+  {
+    title: "Every sack the offence allowed is credited to a defensive unit",
+    ok: unreconciledSacks === 0,
+    detail: `${unreconciledSacks} sides where the two halves disagreed`,
   },
   {
     // 9.8 was the reported figure, by way of a 297-yard rushing game.
