@@ -2812,12 +2812,24 @@ table.box-table th, table.history-table th {
 
 .tactic-phase .tactic-card {
   min-height: 0;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.6rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  padding: 0.75rem 0.8rem;
 }
 
-.tactic-phase .tactic-head { flex: 0 0 9.5rem; }
+.tactic-phase .tactic-head {
+  flex: none;
+  width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.tactic-phase .tactic-blurb {
+  width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
 
 /* ---- Rotation phase ---- */
 .rotation-grid {
