@@ -1,0 +1,104 @@
+name: Patch NFL online activation
+
+on:
+  push:
+    branches:
+      - fix/enable-nfl-online
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[nfl-online-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/enable-nfl-online
+          fetch-depth: 0
+
+      - name: Restore NFL online game data and enable matchmaking
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main_path = Path('js/main.js')
+          text = main_path.read_text()
+          pattern = re.compile(r'function normalizeServerResult\(dbResult, iAmA, serverWinner\) \{.*?\n\}\n\nasync function runOnlineSimulationFlow', re.S)
+          replacement = r'''function normalizeServerResult(dbResult, iAmA, serverWinner) {
+            const dbSideIsMe = (side) => side === (iAmA ? "A" : "B");
+            const remapSide = (side) => {
+              if (side !== "A" && side !== "B") return side;
+              return dbSideIsMe(side) ? "A" : "B";
+            };
+            const winnerSide = serverWinner || (dbResult.score_a > dbResult.score_b ? "A" : "B");
+            const gameData = dbResult.game_data || {};
+            const drives = Array.isArray(gameData.drives)
+              ? gameData.drives.map((drive) => ({ ...drive, team: remapSide(drive.team) }))
+              : [];
+            const coinToss = gameData.coinToss
+              ? {
+                  ...gameData.coinToss,
+                  winner: remapSide(gameData.coinToss.winner),
+                  firstHalfReceiver: remapSide(gameData.coinToss.firstHalfReceiver),
+                }
+              : null;
+
+            return {
+              teamScoreA: iAmA ? dbResult.score_a : dbResult.score_b,
+              teamScoreB: iAmA ? dbResult.score_b : dbResult.score_a,
+              boxA: iAmA ? dbResult.box_a : dbResult.box_b,
+              boxB: iAmA ? dbResult.box_b : dbResult.box_a,
+              quarterBoxScores: (dbResult.period_scores || []).map((q) => ({
+                period: q.period,
+                a: iAmA ? q.a : q.b,
+                b: iAmA ? q.b : q.a,
+                overtime: q.overtime,
+              })),
+              overtimePeriods: dbResult.overtime_periods,
+              winner: dbSideIsMe(winnerSide) ? "A" : "B",
+              mvp: {
+                player: { name: dbResult.mvp.name },
+                side: remapSide(dbResult.mvp.side),
+                line: dbResult.mvp.line,
+                score: dbResult.mvp.score,
+              },
+              // Football's trusted server simulation stores its event/drive
+              // ledger separately from the common score columns. Restore it
+              // here so online NFL uses the same event-driven field playback
+              // as Ranked Practice instead of falling back to period totals.
+              drives,
+              teamStatsA: iAmA ? gameData.teamStatsA : gameData.teamStatsB,
+              teamStatsB: iAmA ? gameData.teamStatsB : gameData.teamStatsA,
+              coinToss,
+              analysis: gameData.analysis || null,
+            };
+          }
+
+          async function runOnlineSimulationFlow'''
+          updated, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected one normalizeServerResult block, replaced {count}')
+          main_path.write_text(updated)
+
+          nfl_path = Path('js/sports/nfl/index.js')
+          nfl = nfl_path.read_text()
+          if 'onlineReady: false,' not in nfl:
+              raise SystemExit('Expected NFL onlineReady:false guard')
+          nfl = nfl.replace('onlineReady: false,', 'onlineReady: true,', 1)
+          nfl = nfl.replace(
+              '/** NOT YET. The strategy half of online football is done - submit_nfl_strategy\n   * is deployed and the two engines are byte-identical - but the DRAFT half is\n   * not: there is no nfl_players table on the server, so matchmaking cannot\n   * seed a football squad and submit_pick cannot validate a football pick.\n   * Both `matchmaking_queue` and `matches` still CHECK (sport = \'nba\'), which\n   * is what was bouncing players back to the home screen. */',
+              '/** Online football is server-authoritative end to end: matchmaking is\n   * scoped by sport + game mode, the NFL draft uses its own generated pool,\n   * picks are validated against football roster slots, and simulate-match\n   * runs the NFL engine and returns its event ledger for playback. */',
+              1,
+          )
+          nfl_path.write_text(nfl)
+          PY
+
+          git config user.name "Draft Nova Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add js/main.js js/sports/nfl/index.js
+          git diff --cached --check
+          git commit -m "Enable NFL online matchmaking and playback [nfl-online-patched]"
+          git push origin HEAD:fix/enable-nfl-online
