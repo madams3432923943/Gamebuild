@@ -230,7 +230,11 @@ async function main() {
       const sample = await page.evaluate(SAMPLE);
       samples.push({ t: Date.now(), ...sample });
       if (sample.finalShown) break;
-      await sleep(300);
+      // 220ms, not 300. Playback was shortened to ~58s, and at 300ms the
+      // sample count fell far enough that a short, low-scoring game could
+      // miss box-score changes and fail a threshold it actually meets. This
+      // is measurement resolution, not the bar.
+      await sleep(220);
     }
 
     const first = samples[0];

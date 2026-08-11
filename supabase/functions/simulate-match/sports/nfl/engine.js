@@ -162,19 +162,50 @@ function edge(off, def) {
 /** Picks a drive's ending from the league-average chart, tilted by the edge.
  * Scoring outcomes scale up with a good offence and punts/turnovers take the
  * difference, so the four still sum to 1 and no probability can go negative. */
-function driveOutcome(mult, rand) {
+/**
+ * How a drive ends - and, when it matters, whether punting is even a choice.
+ *
+ * NOTHING TO LOSE. This used to take no game state at all, so a team trailing
+ * by three in overtime punted 49% of the time exactly like the opening drive
+ * of the game. That is not a football decision, it is a coin flip that hands
+ * the ball back when handing the ball back loses. A team that must score does
+ * not punt: it goes for it, and either converts or turns it over on downs
+ * where the drive died.
+ *
+ * The punt share is redistributed rather than deleted, so the drive count and
+ * the pace of the game are unchanged - what changes is that the ball stays on
+ * the field.
+ */
+function driveOutcome(mult, rand, mustScore = false) {
   const td = DRIVE_OUTCOMES.touchdown * mult;
   const fg = DRIVE_OUTCOMES.fieldGoal * mult;
-  const scoring = Math.min(0.92, td + fg);
-  const remaining = 1 - scoring;
+  let scoring = Math.min(0.92, td + fg);
+  let remaining = 1 - scoring;
   const puntShare = DRIVE_OUTCOMES.punt / (DRIVE_OUTCOMES.punt + DRIVE_OUTCOMES.turnover);
+
+  if (mustScore) {
+    // Fourth down, going for it. Some of those attempts convert and the drive
+    // goes on to score; the rest end where they stood.
+    scoring = Math.min(0.95, scoring + remaining * puntShare * FOURTH_DOWN_CONVERSION);
+    remaining = 1 - scoring;
+  }
 
   const roll = rand();
   if (roll < td / (td + fg) * scoring) return "touchdown";
   if (roll < scoring) return "fieldGoal";
+  if (mustScore) {
+    // No punt exists in this situation. What is left is a failed fourth down
+    // or a genuine takeaway, and a failed fourth is much the more common.
+    return roll < scoring + remaining * 0.72 ? "downs" : "turnover";
+  }
   if (roll < scoring + remaining * puntShare) return "punt";
   return "turnover";
 }
+
+/** How often a fourth-down attempt by a desperate offence converts AND the
+ * drive goes on to score. Real fourth-down conversion runs near 50%, and not
+ * every conversion produces points. */
+const FOURTH_DOWN_CONVERSION = 0.34;
 
 /** Who scored. Weighted by each player's real share of the roster's touchdowns,
  * so the popup is a claim the box score can back - a drafted Randy Moss shows
@@ -337,7 +368,7 @@ function pickTakeawayMan(entry, kindOfTakeaway, rand) {
 
 /** One team's drive. Returns the record the UI animates and the field position
  * the opponent inherits. */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false) {
   // The gamestyle acts on BOTH sides: yours lifts your offence, theirs lifts
   // the defence you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
@@ -345,7 +376,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   const defAdj = def * theirs.def * ((theirs.passRush + theirs.coverage + theirs.runDef) / 3);
   const mult = edge(offAdj, defAdj) * (TEAM_QUARTER_VARIANCE_MIN +
     rand() * (TEAM_QUARTER_VARIANCE_MAX - TEAM_QUARTER_VARIANCE_MIN));
-  let outcome = driveOutcome(mult, rand);
+  let outcome = driveOutcome(mult, rand, mustScore);
 
   // Ball Hawks and Blitz Brigade turn stops into takeaways; Ground & Pound's
   // ball control resists them. Applied as a re-roll of a stop rather than as
@@ -873,16 +904,26 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   };
   const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
 
+  // A RUNNING SCORE. The engine used to derive the score only after every
+  // drive had been played, which meant no drive could know whether its team
+  // was ahead or behind - and a team that does not know it is losing punts
+  // like a team that is winning.
+  const live = { A: 0, B: 0 };
+
   for (let i = 0; i < possessions; i++) {
     const quarter = Math.min(4, Math.floor((i / possessions) * 4) + 1);
     // Second half flips who opens, so each side receives exactly one half.
     const receiver = quarter <= 2 ? firstHalfReceiver : other(firstHalfReceiver);
+    // The last pair of possessions is when punting stops being free.
+    const late = i >= possessions - 2;
     for (const side of [receiver, other(receiver)]) {
       const foe = other(side);
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods);
+                         cfg[side].mods, cfg[foe].mods,
+                         late && live[side] < live[foe]);
       drives.push(r.drive);
+      live[side] += r.drive.points;
       start[foe] = r.nextStart;
     }
   }
@@ -929,9 +970,12 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     start.B = DRIVE_START_YARD;
     for (const side of [receiver, other(receiver)]) {
       const foe = other(side);
+      // In overtime a trailing team has no next possession to punt for. This
+      // is the case that was reported: down three, and the offence punted.
+      const trailing = side === "A" ? teamScoreA < teamScoreB : teamScoreB < teamScoreA;
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods);
+                         cfg[side].mods, cfg[foe].mods, trailing);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;
