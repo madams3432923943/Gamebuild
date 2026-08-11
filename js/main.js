@@ -987,13 +987,17 @@ async function endOnlineSearch(message) {
     console.error("Failed to leave the matchmaking queue:", e);
   }
 
-  showScreen("home");
-  setActiveNav("play");
+  // STAY WHERE THE MESSAGE IS. This used to navigate home and then write the
+  // reason into an element on the Play screen it had just left, so every
+  // matchmaking failure looked like the app bouncing you to the home screen
+  // for no stated reason. Only a clean cancel goes home.
   if (message) {
     searchStatusEl.classList.remove("hidden");
     searchStatusEl.textContent = message;
   } else {
     searchStatusEl.classList.add("hidden");
+    showScreen("home");
+    setActiveNav("play");
   }
 }
 
@@ -1056,6 +1060,18 @@ btnStartDraft.addEventListener("click", async () => {
   game.ruleset = config.ruleset;
 
   if (config.mode === "online") {
+    // A sport whose SERVER cannot run an online match must say so here rather
+    // than queue and fail. Football's matchmaking insert violates a CHECK
+    // constraint, and the failure path used to navigate home while writing the
+    // reason onto the screen it was leaving - so it read as the app silently
+    // giving up.
+    if (!sport().onlineReady) {
+      searchStatusEl.classList.remove("hidden");
+      searchStatusEl.textContent =
+        `Online ${sport().name} isn't open yet - the server has no ${sport().name} draft pool. ` +
+        `Ranked Practice against the bot plays the same game.`;
+      return;
+    }
     startOnlineSearch();
     return;
   }

@@ -209,6 +209,12 @@ export const NBA = {
    * profile screen, so a sport without one simply does not get the row -
    * football has no triple-double and never will. */
   signatureRecord: { key: "tripleDoubles", label: "Most Triple-Doubles" },
+
+  /** Online play needs a SERVER-SIDE pool: matchmaking seeds a squad from it
+   * and submit_pick validates every pick against it. Basketball has one
+   * (public.players); football does not, which is why football declares this
+   * false rather than offering a button that fails. */
+  onlineReady: true,
   cardStatLine: (p) =>
     `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`,
   basePosition,
