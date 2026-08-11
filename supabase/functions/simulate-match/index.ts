@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { computeDatasetStats } from "./sports/nba/engine.js";
 import { engineFor } from "./sports/index.ts";
 import { applyRatingExchange } from "./rating.js";
 import { normalizeSeed, withSeededMathRandom } from "./seeded-rng.ts";
@@ -9,28 +8,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const ENGINE_VERSION = "nba-engine-2026-08-05.1";
-const RULES_VERSION = "ranked-rules-2026-08-05.1";
-const STAT_LABELS = ["pts", "reb", "ast", "stl", "blk"];
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-/** The stored gameplan pair, or undefined for anything that is not one. */
-function parseFootballStrategy(stored: unknown): { offense: string; defense: string } | undefined {
-  if (typeof stored !== "string" || !stored.startsWith("{")) return undefined;
-  try {
-    const parsed = JSON.parse(stored);
-    if (parsed && typeof parsed.offense === "string" && typeof parsed.defense === "string") {
-      return { offense: parsed.offense, defense: parsed.defense };
-    }
-  } catch {
-    // A column that does not hold JSON is a basketball tactic id, not an error.
-  }
-  return undefined;
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -39,52 +21,19 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function normalizePlayerRow(p: Record<string, unknown>) {
-  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-  return {
-    ...p,
-    ppg: Number(p.ppg),
-    rpg: Number(p.rpg),
-    apg: Number(p.apg),
-    spg: Number(p.spg),
-    bpg: Number(p.bpg),
-    tov: Number(p.tov),
-    fga: num(p.fga),
-    fgp: num(p.fgp),
-    tpa: num(p.tpa),
-    tpp: num(p.tpp),
-    fta: num(p.fta),
-    ftp: num(p.ftp),
-  };
-}
-
-function normalizeRoster(roster: Record<string, any>) {
-  const out: Record<string, any> = {};
-  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-  for (const slot of Object.keys(roster || {})) {
-    const p = roster[slot];
-    if (!p) continue;
-    out[slot] = {
-      name: p.name,
-      team: p.team,
-      decade: p.decade,
-      season: p.season ?? null,
-      pos: p.pos,
-      ppg: Number(p.ppg),
-      rpg: Number(p.rpg),
-      apg: Number(p.apg),
-      spg: Number(p.spg),
-      bpg: Number(p.bpg),
-      tov: Number(p.tov),
-      fga: num(p.fga),
-      fgp: num(p.fgp),
-      tpa: num(p.tpa),
-      tpp: num(p.tpp),
-      fta: num(p.fta),
-      ftp: num(p.ftp),
-    };
+/** Football stores an offensive + defensive plan pair as JSON in the tactic
+ * column. Basketball stores one ordinary tactic id there. */
+function parseFootballStrategy(stored: unknown): { offense: string; defense: string } | undefined {
+  if (typeof stored !== "string" || !stored.startsWith("{")) return undefined;
+  try {
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed.offense === "string" && typeof parsed.defense === "string") {
+      return { offense: parsed.offense, defense: parsed.defense };
+    }
+  } catch {
+    // Not a football strategy pair.
   }
-  return out;
+  return undefined;
 }
 
 function eraRecordKey(sportId: string, eraId: string) {
@@ -99,23 +48,24 @@ function bumpEraRecord(records: Record<string, any>, eraKey: string, won: boolea
 }
 
 const ownLinesFor = (roster: Record<string, any>, box: Record<string, any>) =>
-  Object.keys(roster).map((slot) => ({
-    playerName: roster[slot].name,
-    season: roster[slot].season ?? null,
-    line: box[slot],
+  Object.keys(roster || {}).map((slot) => ({
+    playerName: roster[slot]?.name || slot,
+    season: roster[slot]?.season ?? null,
+    line: box?.[slot] || {},
   }));
 
 function snapshotRoster(roster: Record<string, any>) {
   const out: Record<string, any> = {};
   for (const [slot, player] of Object.entries(roster || {})) {
-    if (player) {
-      out[slot] = {
-        name: (player as any).name,
-        team: (player as any).team,
-        decade: (player as any).decade,
-        season: (player as any).season ?? null,
-      };
-    }
+    if (!player) continue;
+    out[slot] = {
+      name: (player as any).name,
+      team: (player as any).team,
+      decade: (player as any).decade ?? (player as any).era ?? null,
+      era: (player as any).era ?? null,
+      season: (player as any).season ?? null,
+      group: (player as any).group ?? null,
+    };
   }
   return out;
 }
@@ -128,6 +78,7 @@ function buildMatchOutcome(
   scoreAgainst: number,
   mvpName: string,
   ownLines: { playerName: string; season?: number | null; line: Record<string, number> }[],
+  statKeys: string[],
   friendly: boolean,
   sport: string,
   era: string,
@@ -137,15 +88,16 @@ function buildMatchOutcome(
 ) {
   const key = (k: string) => (sport === "nba" ? k : `${sport}:${k}`);
   const game = snapshot
-    ? { date, mode: friendly ? "friendly" : "online", era, opponentLabel, scoreFor, scoreAgainst, ...snapshot }
+    ? { date, mode: friendly ? "friendly" : "online", sport, era, opponentLabel, scoreFor, scoreAgainst, ...snapshot }
     : null;
 
   const personalBests: Record<string, any> = { ...(profile.personal_bests || {}) };
-  for (const statKey of STAT_LABELS) {
+  for (const statKey of statKeys) {
     for (const { playerName, season, line } of ownLines) {
-      const value = line[statKey];
+      const value = Number(line?.[statKey]);
+      if (!Number.isFinite(value)) continue;
       const current = personalBests[key(statKey)];
-      if (!current || value > current.value) {
+      if (!current || value > Number(current.value || 0)) {
         personalBests[key(statKey)] = { value, playerName, season: season ?? null, date, game };
       }
     }
@@ -180,10 +132,6 @@ function buildMatchOutcome(
     personal_bests: personalBests,
     draft_counts: draftCounts,
     history: [
-      // Stamped with the sport, exactly as the client does for practice games
-      // (see recordPracticeResult). Without it an online football result lands
-      // in the same undifferentiated list as a basketball one, and the profile
-      // has no honest way to tell them apart afterwards.
       { date, mode: friendly ? "friendly" : "online", sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName },
       ...(profile.history || []),
     ].slice(0, 50),
@@ -199,12 +147,6 @@ function buildMatchOutcome(
   }
 
   return update;
-}
-
-function datasetVersion(playerRows: Record<string, any>[]) {
-  let maxSeason = 0;
-  for (const row of playerRows) maxSeason = Math.max(maxSeason, Number(row.season || 0));
-  return `nba-players-${playerRows.length}-${maxSeason || "legacy"}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -238,15 +180,19 @@ Deno.serve(async (req: Request) => {
     return json({ error: "match is not ready to simulate", status: match.status }, 409);
   }
 
-  const sportEngine = engineFor(match.sport);
-  if (!sportEngine) return json({ error: `no server engine for sport '${match.sport}'` }, 501);
+  const sportId = match.sport ?? "nba";
+  const sportEngine = engineFor(sportId);
+  if (!sportEngine) return json({ error: `no server engine for sport '${sportId}'` }, 501);
 
   const { data: playerRows, error: playersErr } = await admin.from(sportEngine.table).select("*");
-  if (playersErr || !playerRows) return json({ error: "failed to load player dataset" }, 500);
+  if (playersErr || !playerRows) return json({ error: `failed to load ${sportId} player dataset` }, 500);
 
-  const rosterA = normalizeRoster(match.roster_a);
-  const rosterB = normalizeRoster(match.roster_b);
-  const datasetStats = computeDatasetStats(playerRows.map(normalizePlayerRow));
+  // Every sport owns these conversions. This is the critical boundary that
+  // prevents a shared online shell from turning an NFL roster into basketball
+  // fields or feeding football data through the NBA stats preprocessor.
+  const rosterA = sportEngine.normalizeRoster(match.roster_a);
+  const rosterB = sportEngine.normalizeRoster(match.roster_b);
+  const datasetStats = sportEngine.computeDatasetStats(playerRows);
 
   const { data: pickRows } = await admin
     .from("match_picks")
@@ -262,27 +208,35 @@ Deno.serve(async (req: Request) => {
   const forfeitsB = [...new Set([...forfeitedSlots("B"), ...unfilled(rosterB, rosterA)])];
 
   const seed = normalizeSeed(matchId);
-  const result = withSeededMathRandom(seed, () =>
-    sportEngine.simulate(rosterA, rosterB, datasetStats, {
-      tacticA: match.tactic_a ?? undefined,
-      tacticB: match.tactic_b ?? undefined,
-      // Football stores an offence/defence PAIR as JSON in the same column
-      // basketball stores a single id in. Parsed here rather than trusted:
-      // whatever is in the column, the engine receives either a well-formed
-      // pair or nothing, and composedModsFor() falls back to balanced for
-      // anything it does not recognise. A row written before this shipped
-      // holds a bare id and simply yields no pair, which is the correct
-      // reading of it.
-      strategyA: parseFootballStrategy(match.tactic_a),
-      strategyB: parseFootballStrategy(match.tactic_b),
-      minutesA: match.rotation_a ?? undefined,
-      minutesB: match.rotation_b ?? undefined,
-      matchupsA: match.matchups_a ?? undefined,
-      matchupsB: match.matchups_b ?? undefined,
-      forfeitsA,
-      forfeitsB,
-    })
-  );
+  let result: any;
+  try {
+    result = withSeededMathRandom(seed, () =>
+      sportEngine.simulate(rosterA, rosterB, datasetStats, {
+        tacticA: match.tactic_a ?? undefined,
+        tacticB: match.tactic_b ?? undefined,
+        strategyA: parseFootballStrategy(match.tactic_a),
+        strategyB: parseFootballStrategy(match.tactic_b),
+        minutesA: match.rotation_a ?? undefined,
+        minutesB: match.rotation_b ?? undefined,
+        matchupsA: match.matchups_a ?? undefined,
+        matchupsB: match.matchups_b ?? undefined,
+        forfeitsA,
+        forfeitsB,
+      })
+    );
+  } catch (error) {
+    console.error(`${sportId} simulation failed`, error);
+    return json({ error: `${sportId} simulation failed` }, 500);
+  }
+
+  // Ranked head-to-head needs a winner for the existing ELO contract. The NFL
+  // engine already runs paired overtime possessions up to its safety cap; if a
+  // pathological game is still tied after that, refuse to write a fake winner
+  // rather than silently awarding a tied game to one side.
+  if (result.winner !== "A" && result.winner !== "B") {
+    return json({ error: `${sportId} simulation ended tied after overtime safety cap` }, 409);
+  }
+  if (!result.mvp?.player?.name) return json({ error: `${sportId} simulation produced no MVP` }, 500);
 
   const [{ data: profileA }, { data: profileB }, { data: profileRows }] = await Promise.all([
     admin.from("profiles").select("*").eq("id", match.player_a).single(),
@@ -292,7 +246,6 @@ Deno.serve(async (req: Request) => {
   if (!profileA || !profileB) return json({ error: "participant profile missing" }, 500);
 
   const usernameOf = (id: string) => profileRows?.find((p) => p.id === id)?.username || "Opponent";
-  const sportId = match.sport ?? "nba";
   const eraId = match.era ?? "all";
   const exchange = match.is_friendly
     ? null
@@ -307,6 +260,7 @@ Deno.serve(async (req: Request) => {
     result.teamScoreB,
     result.mvp.player.name,
     ownLinesFor(rosterA, result.boxA),
+    sportEngine.statKeys,
     match.is_friendly,
     sportId,
     eraId,
@@ -332,6 +286,7 @@ Deno.serve(async (req: Request) => {
     result.teamScoreA,
     result.mvp.player.name,
     ownLinesFor(rosterB, result.boxB),
+    sportEngine.statKeys,
     match.is_friendly,
     sportId,
     eraId,
@@ -349,6 +304,20 @@ Deno.serve(async (req: Request) => {
     date,
   );
 
+  // Common result columns stay common. Sport-owned presentation data travels
+  // in game_data so football can replay its drive/event ledger while NBA keeps
+  // using the period reveal it always has.
+  const gameData = {
+    drives: result.drives ?? null,
+    teamStatsA: result.teamStatsA ?? null,
+    teamStatsB: result.teamStatsB ?? null,
+    coinToss: result.coinToss ?? null,
+    analysis: result.analysis ?? null,
+  };
+  const engineVersion = `${sportId}-engine-2026-08-11.1`;
+  const rulesVersion = `${match.game_mode || "ranked"}-rules-2026-08-11.1`;
+  const datasetVersion = sportEngine.datasetVersion(playerRows);
+
   const { data: finalized, error: finalizeErr } = await admin.rpc("finalize_match_result", {
     p_match_id: matchId,
     p_result: {
@@ -364,14 +333,15 @@ Deno.serve(async (req: Request) => {
       },
       period_scores: result.quarterBoxScores,
       overtime_periods: result.overtimePeriods,
+      game_data: gameData,
     },
     p_winner: result.winner,
     p_profile_a: profileUpdateA,
     p_profile_b: profileUpdateB,
     p_seed: seed,
-    p_engine_version: ENGINE_VERSION,
-    p_dataset_version: datasetVersion(playerRows),
-    p_rules_version: RULES_VERSION,
+    p_engine_version: engineVersion,
+    p_dataset_version: datasetVersion,
+    p_rules_version: rulesVersion,
   });
 
   if (finalizeErr) return json({ error: "failed to finalize result: " + finalizeErr.message }, 500);
@@ -382,8 +352,8 @@ Deno.serve(async (req: Request) => {
     scoreB: result.teamScoreB,
     result: finalized,
     simulationSeed: seed,
-    engineVersion: ENGINE_VERSION,
-    datasetVersion: datasetVersion(playerRows),
-    rulesVersion: RULES_VERSION,
+    engineVersion,
+    datasetVersion,
+    rulesVersion,
   });
 });

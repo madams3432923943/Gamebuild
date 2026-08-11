@@ -15,10 +15,19 @@ import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 const defaultSlots = () => activeSport().slots.quickPlay;
 const defaultStarters = () => activeSport().slots.starters;
 
-export async function joinQueue(sport = DEFAULT_SPORT_ID, era = null) {
+/**
+ * Matchmaking scope is SPORT + GAME MODE + ERA. Ranked is the only public
+ * online mode today, but gameMode is part of the wire contract now so adding a
+ * casual/friendly queue later cannot accidentally mix it with Ranked.
+ */
+export async function joinQueue(sport = DEFAULT_SPORT_ID, era = null, gameMode = "ranked") {
   await requireSession();
   const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc("join_queue", { p_sport: sport, p_era: era ?? activeSport().defaultEra ?? activeSport().defaultEra });
+  const { data, error } = await supabase.rpc("join_queue", {
+    p_sport: sport,
+    p_era: era ?? activeSport().defaultEra,
+    p_game_mode: gameMode,
+  });
   if (error) throw error;
   return data; // { status: "waiting" } | { status: "matched", match_id }
 }
@@ -69,12 +78,9 @@ export async function getVisiblePicks(matchId) {
 }
 
 /** A new squad is rolled every round (see advance_round_if_ready), so a
- * match's picks can span many different team/decade squads by the time the
- * draft is done - a single "current squad" lookup only ever covers the
- * last one rolled. This fetches every distinct squad actually picked from
- * across the whole match and returns a name|team|decade -> stats map, which
- * is what buildVisibleState needs to enrich EVERY pick, not just the most
- * recent round's. */
+ * match's picks can span many different team/group squads by the time the
+ * draft is done. `decade` remains the legacy wire-field name in match_picks;
+ * for NFL it carries the football era value. */
 export async function fetchStatsForPicks(picks) {
   const pairs = new Map();
   for (const p of picks) {
@@ -86,10 +92,6 @@ export async function fetchStatsForPicks(picks) {
   for (const squad of squads) {
     for (const p of squad) {
       statsByKey.set(`${p.name}|${p.team}|${p.decade}|${p.season}`, p);
-      // Also under the season-less key, for picks made before match_picks
-      // recorded a season. Those rows cannot say which year they meant, so the
-      // first season seen is the only answer available - the old behaviour,
-      // reached only by old data.
       const loose = `${p.name}|${p.team}|${p.decade}`;
       if (!statsByKey.has(loose)) statsByKey.set(loose, p);
     }
@@ -97,19 +99,11 @@ export async function fetchStatsForPicks(picks) {
   return statsByKey;
 }
 
-/** Folds pick rows into per-side, per-slot roster objects (same shape the
- * existing UI/engine code already expects), plus which slots each side has
- * committed (revealed or not) this round.
- *
- * `statsByKey` (optional, from fetchStatsForPicks) keys stats by
- * name|team|decade|season. Every part earns its place: the same player appears
- * in more than one squad (traded mid-career), and since the dataset went
- * per-season a name|team|decade key covers up to ten different rows - so
- * without the season a lookup grabs an arbitrary year and prints one player's
- * stat line under another's pick.
- * Without it, a roster slot only carries name/team/decade/pos, which is
- * enough to render a draft board but not enough for shotLine() to produce a
- * shooting split on the post-game box score. */
+/** Folds pick rows into per-side, per-slot roster objects. The authoritative
+ * object comes back from the active sport's server pool. Do not hand-pick NBA
+ * stats here: NFL units need members/group data and football skill players need
+ * their passing/rushing/receiving fields. Spreading the trusted pool object
+ * keeps online and Ranked Practice on the same roster shape. */
 export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
   const rosterA = {};
   const rosterB = {};
@@ -122,58 +116,75 @@ export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
     const stats =
       statsByKey.get(`${p.player_name}|${p.team}|${p.decade}|${p.season}`) ??
       statsByKey.get(`${p.player_name}|${p.team}|${p.decade}`);
+
+    const fallbackPos = p.slot === "6TH" ? ["6TH"] : [p.slot.replace(/\d+$/, "")];
     roster[p.slot] = {
+      ...(stats || {}),
       name: p.player_name,
       team: p.team,
       decade: p.decade,
       season: p.season ?? stats?.season ?? null,
-      pos: [p.slot === "6TH" ? "6TH" : p.slot],
-      ...(stats && {
-        ppg: stats.ppg,
-        rpg: stats.rpg,
-        apg: stats.apg,
-        spg: stats.spg,
-        bpg: stats.bpg,
-        tov: stats.tov,
-        fga: stats.fga,
-        fgp: stats.fgp,
-        tpa: stats.tpa,
-        tpp: stats.tpp,
-        fta: stats.fta,
-        ftp: stats.ftp,
-      }),
+      pos: stats?.pos ?? fallbackPos,
     };
   }
 
   return { rosterA, rosterB, actedThisRound };
 }
 
-export async function fetchSquadPlayers(team, decade) {
+/**
+ * Fetch the rolled squad from the ACTIVE SPORT'S OWN TABLE and grouping key.
+ * NBA => public.players + decade. NFL => public.nfl_players + era.
+ * NFL rows keep the exact generated Ranked Practice object in `payload`.
+ */
+export async function fetchSquadPlayers(team, groupValue) {
   const supabase = await getSupabase();
-  const { data, error } = await supabase.from("players").select("*").eq("team", team).eq("decade", decade);
+  const s = activeSport();
+  const groupKey = s.groupKey || "decade";
+  const { data, error } = await supabase
+    .from(s.table)
+    .select("*")
+    .eq("team", team)
+    .eq(groupKey, groupValue);
   if (error) throw error;
-  return data.map((p) => ({
-    name: p.name,
-    team: p.team,
-    decade: p.decade,
-    season: p.season ?? null,
-    pos: p.pos,
-    ppg: Number(p.ppg),
-    rpg: Number(p.rpg),
-    apg: Number(p.apg),
-    spg: Number(p.spg),
-    bpg: Number(p.bpg),
-    tov: Number(p.tov),
-    // Null for the 1960s/70s placeholder squads (no shooting-split data) -
-    // Number(null) is 0, which would wrongly claim a shooting profile, so
-    // these stay null exactly like the offline dataset's missing fields do.
-    fga: p.fga === null ? null : Number(p.fga),
-    fgp: p.fgp === null ? null : Number(p.fgp),
-    tpa: p.tpa === null ? null : Number(p.tpa),
-    tpp: p.tpp === null ? null : Number(p.tpp),
-    fta: p.fta === null ? null : Number(p.fta),
-    ftp: p.ftp === null ? null : Number(p.ftp),
-  }));
+
+  return data.map((p) => {
+    if (p.payload) {
+      const raw = p.payload;
+      return {
+        ...raw,
+        name: raw.name ?? p.name,
+        team: raw.team ?? p.team,
+        era: raw.era ?? p.era,
+        // `decade` is the shared online protocol's historical field name.
+        // For NFL it carries the era value so existing pick RPCs stay stable.
+        decade: raw.decade ?? raw.era ?? p[groupKey],
+        season: raw.season ?? p.season ?? null,
+        pos: raw.pos ?? p.pos ?? [],
+      };
+    }
+
+    // Basketball numeric columns are Postgres numerics and arrive as strings;
+    // preserve the existing conversion so the NBA engine sees numbers.
+    return {
+      name: p.name,
+      team: p.team,
+      decade: p.decade,
+      season: p.season ?? null,
+      pos: p.pos,
+      ppg: Number(p.ppg),
+      rpg: Number(p.rpg),
+      apg: Number(p.apg),
+      spg: Number(p.spg),
+      bpg: Number(p.bpg),
+      tov: Number(p.tov),
+      fga: p.fga === null ? null : Number(p.fga),
+      fgp: p.fgp === null ? null : Number(p.fgp),
+      tpa: p.tpa === null ? null : Number(p.tpa),
+      tpp: p.tpp === null ? null : Number(p.tpp),
+      fta: p.fta === null ? null : Number(p.fta),
+      ftp: p.ftp === null ? null : Number(p.ftp),
+    };
+  });
 }
 
 /** PostgREST resolves an RPC by the exact set of argument NAMES it is given,
@@ -186,13 +197,6 @@ const NO_SUCH_FUNCTION = "PGRST202";
  * themselves. Recorded server-side (match_picks.forfeited) because that is
  * where the simulation reads it from - the Edge Function charges a real cost
  * for a forfeited pick, and it can only charge what was stored.
- *
- * Falls back to the five-argument call if the database hasn't had
- * 20260803_01_forfeited_picks.sql applied yet. Deploying the site and
- * migrating the database are two separate actions that cannot be made
- * simultaneous, and the window between them must not be one where nobody can
- * make a draft pick. The fallback loses the forfeit penalty for that window
- * and nothing else; it disappears on its own once the migration lands.
  */
 export async function submitPick(matchId, player, slot, forfeited = false) {
   const supabase = await getSupabase();
@@ -200,23 +204,17 @@ export async function submitPick(matchId, player, slot, forfeited = false) {
     p_match_id: matchId,
     p_player_name: player.name,
     p_team: player.team,
-    p_decade: player.decade,
+    // Shared protocol name. NFL players expose decade=era above.
+    p_decade: player.decade ?? player.era,
     p_slot: slot,
   };
 
-  // The chosen year. Rows are per season now, so without it the server picks
-  // whichever season sorts first and you get a different player from the one
-  // on your screen - which is exactly what online did before this.
   const withSeason = player.season ? { ...args, p_season: player.season } : args;
 
   const { error } = await supabase.rpc("submit_pick", { ...withSeason, p_forfeited: forfeited });
   if (!error) return;
   if (error.code !== NO_SUCH_FUNCTION) throw error;
 
-  // PostgREST resolves an RPC by ARGUMENT NAMES, so an unmatched set is a
-  // missing function rather than a type error. Falling back drops the newest
-  // arguments in turn, which keeps a client working against a database that
-  // hasn't caught up - the deploy order this project cannot control.
   console.warn("submit_pick is missing p_season/p_forfeited - apply the latest db/migrations.");
   const retry = await supabase.rpc("submit_pick", { ...args, p_forfeited: forfeited });
   if (!retry.error) return;
@@ -234,18 +232,9 @@ export async function submitSkip(matchId) {
 /** Submits this side's rotation/matchups/tactic once, after locally running
  * the same rotation -> matchups -> tactic sequence offline Ranked Practice
  * uses (see startRotationPhase/startMatchupPhase/startTacticPhase in
- * main.js). The server flips the match to ready_to_simulate once BOTH
- * sides have called this - see submit_strategy in the matches migration. */
+ * main.js). */
 export async function submitStrategy(matchId, rotation, matchups, tactic) {
   const supabase = await getSupabase();
-  // FOOTBALL SUBMITS A PAIR, and to its own function.
-  //
-  // submit_strategy() validates basketball and hard-rejects any other sport -
-  // a 240-minute rotation across five starters, five unique matchups, one
-  // gamestyle id. Football has no rotation and no matchups, and it commits an
-  // offensive AND a defensive plan. Detected on the SHAPE of what the strategy
-  // phase produced rather than on the active sport, so a sport that has not
-  // been told about this cannot accidentally take the football path.
   const isPair = tactic && typeof tactic === "object" && "offense" in tactic && "defense" in tactic;
   if (isPair) {
     const { error } = await supabase.rpc("submit_nfl_strategy", {
@@ -280,8 +269,7 @@ export async function getMatchResult(matchId) {
 
 /** Everything the pre-draft matchup intro needs about the opponent -
  * username, online record (for their rank tier via loadRankInfo), and
- * equipped banner - in one query, since `profiles` is publicly readable
- * (see loadRankInfo's own comment on that) and none of this is sensitive. */
+ * equipped banner - in one query. */
 export async function getOpponentSummary(userId) {
   const supabase = await getSupabase();
   const { data, error } = await supabase
@@ -297,8 +285,6 @@ export async function getOpponentSummary(userId) {
     onlineWins: data.online_wins || 0,
     onlineLosses: data.online_losses || 0,
     equippedBanner: data.equipped_banner || null,
-    // Their ELO in each sport, so the matchup intro can show the rank they
-    // actually hold in the sport being played rather than a global win rate.
     sportRatings: data.sport_ratings || {},
   };
 }
@@ -306,28 +292,7 @@ export async function getOpponentSummary(userId) {
 /**
  * Polls a match every `intervalMs` and calls `onChange(match)` whenever
  * status/round_number changes. No realtime here on purpose: Postgres
- * logical replication (what Supabase Realtime's postgres_changes streams)
- * sends the FULL row on every change, including roster_a/roster_b - the
- * same leak the matches_public view exists to prevent. A column-limited
- * poll keeps that guarantee intact; 2-3s of latency on a turn-based draft
- * is imperceptible. Returns a stop() function.
- *
- * `initialMatch` should be the match state the caller already rendered
- * before starting the watcher (enterOnlineMatch always fetches and handles
- * one first). Without it, `last` starts null, so the FIRST tick - which
- * fires immediately, no delay - always looks like a change and re-fires
- * onChange for state the caller already handled, running two concurrent
- * handlers over the same match. That's harmless while drafting, but for
- * ready_to_simulate/complete it means two concurrent
- * runOnlineSimulationFlow() calls fighting over the same scoreboard
- * intervals and DOM - a real cause of a "frozen" game screen.
- *
- * `onError` fires once the poll has failed WATCH_ERROR_STREAK times in a
- * row. Swallowing every failure silently (what this used to do) means a
- * genuinely broken connection is indistinguishable from a quiet match: the
- * screen just sits there forever with no explanation. One-off hiccups still
- * pass silently - only a sustained streak, which the player cannot recover
- * from on their own, gets surfaced.
+ * logical replication sends the full row, including hidden roster state.
  */
 const WATCH_ERROR_STREAK = 5;
 
@@ -341,9 +306,6 @@ export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = 
     try {
       const match = await getMatch(matchId);
       failures = 0;
-      // The match is gone - the opponent cancelled, or it was swept as stale.
-      // Terminal, so the poll stops rather than sitting on a row that will
-      // never come back while the player is told to wait for it.
       if (!match) {
         stopped = true;
         if (onGone) onGone();
