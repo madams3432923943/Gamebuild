@@ -1250,16 +1250,17 @@ function renderTactics() {
 function startTacticPhase(onConfirm, { timed = true } = {}) {
   cleanupPickTimer();
   cleanupTacticTimer();
-  // A sport with groups offers ALL of each group's plans. Three-of-ten exists
-  // so a basketball gamestyle is a read on the hand you were dealt; with five
-  // per side the choice is small enough that hiding some of it would just be
-  // withholding the decision.
-  if (sport().strategyGroups) {
-    // Three of each group's five, drawn fresh. Showing all five made the
-    // decision a menu rather than a read on what you were offered.
-    const perGroup = sport().strategyChoices || 3;
+
+  const groups = sport().strategyGroups;
+  const perGroup = sport().strategyChoices || 3;
+  let groupIndex = 0;
+
+  // Grouped sports (NFL) make each side of the ball its own round.
+  // Draw all offers once so advancing from offense to defense never
+  // rerolls either hand, then show only the current group.
+  if (groups && groups.length) {
     strategy.offeredPlans = {};
-    for (const group of sport().strategyGroups) {
+    for (const group of groups) {
       const pool = [...group.plans];
       const picked = [];
       while (picked.length < Math.min(perGroup, pool.length)) {
@@ -1267,23 +1268,23 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
       }
       strategy.offeredPlans[group.key] = picked;
     }
-    // Default to something actually on offer - a selection the player cannot
-    // see is a selection they cannot change.
     strategy.strategy = Object.fromEntries(
-      sport().strategyGroups.map((g) => [g.key, strategy.offeredPlans[g.key][0].id])
+      groups.map((g) => [g.key, strategy.offeredPlans[g.key][0].id])
     );
   } else {
+    // Basketball keeps the original single-round 3-card gamestyle.
     strategy.offeredTactics = sport().randomTacticChoices(3);
     strategy.tactic = strategy.offeredTactics[0].id;
   }
-  renderTactics();
 
   draftPoolPanel.classList.add("hidden");
   tacticPhaseEl.classList.remove("hidden");
   pickTimerEl.hidden = !timed;
 
-  let remaining = sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS;
-  if (timed) {
+  function startRoundTimer() {
+    cleanupTacticTimer();
+    if (!timed) return;
+    let remaining = sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS;
     renderPickTimer(pickTimerEl, remaining);
     tacticTimerInterval = setInterval(() => {
       remaining -= 1;
@@ -1296,17 +1297,62 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
     }, 1000);
   }
 
+  function renderCurrentRound() {
+    if (!groups || !groups.length) {
+      renderTactics();
+      startRoundTimer();
+      return;
+    }
+
+    const group = groups[groupIndex];
+    const plans = strategy.offeredPlans[group.key] || group.plans;
+    const isOffense = group.key === "offense";
+    const roundName = isOffense ? "Offensive Gameplan" : group.key === "defense" ? "Defensive Gameplan" : (group.label || "Gameplan");
+
+    draftTurnBanner.textContent = `${roundName} — Round ${groupIndex + 1} of ${groups.length}`;
+    tacticPhaseHintEl.textContent = timed
+      ? `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds — choose 1 of ${plans.length} ${roundName.toLowerCase()} options.`
+      : `Choose 1 of ${plans.length} ${roundName.toLowerCase()} options.`;
+
+    renderStrategyGroups(
+      tacticGridEl,
+      [{ ...group, plans }],
+      strategy.strategy,
+      (groupKey, id) => {
+        strategy.strategy = { ...strategy.strategy, [groupKey]: id };
+        renderCurrentRound();
+      }
+    );
+
+    btnPlayGame.textContent = groupIndex < groups.length - 1
+      ? "Lock Offense & Continue"
+      : "Lock Defense & Continue";
+    startRoundTimer();
+  }
+
   function confirm() {
     cleanupTacticTimer();
+
+    // NFL offense confirms into a brand-new defensive round with a
+    // fresh clock and its own three random choices. Nothing from the
+    // defensive hand is visible while offense is being chosen.
+    if (groups && groupIndex < groups.length - 1) {
+      groupIndex += 1;
+      renderCurrentRound();
+      return;
+    }
+
     tacticPhaseEl.classList.add("hidden");
     draftPoolPanel.classList.remove("hidden");
     pickTimerEl.hidden = true;
     pickTimerEl.textContent = "";
     btnPlayGame.onclick = null;
+    btnPlayGame.textContent = "Play Game";
     onConfirm();
   }
 
   btnPlayGame.onclick = confirm;
+  renderCurrentRound();
 }
 
 // Rotation phase: minutes-per-player, shared by Offline Ranked Practice (6
@@ -3235,13 +3281,30 @@ function runLocalSimulation() {
  * the two scores so a missing/blank winner still resolves correctly. */
 function normalizeServerResult(dbResult, iAmA, serverWinner) {
   const dbSideIsMe = (side) => side === (iAmA ? "A" : "B");
+  const remapSide = (side) => {
+    if (side !== "A" && side !== "B") return side;
+    return dbSideIsMe(side) ? "A" : "B";
+  };
   const winnerSide = serverWinner || (dbResult.score_a > dbResult.score_b ? "A" : "B");
+  const gameData = dbResult.game_data || {};
+  const drives = Array.isArray(gameData.drives)
+    ? gameData.drives.map((drive) => ({ ...drive, team: remapSide(drive.team) }))
+    : [];
+  const coinToss = gameData.coinToss
+    ? {
+        ...gameData.coinToss,
+        winner: remapSide(gameData.coinToss.winner),
+        firstHalfReceiver: remapSide(gameData.coinToss.firstHalfReceiver),
+      }
+    : null;
+
   return {
     teamScoreA: iAmA ? dbResult.score_a : dbResult.score_b,
     teamScoreB: iAmA ? dbResult.score_b : dbResult.score_a,
     boxA: iAmA ? dbResult.box_a : dbResult.box_b,
     boxB: iAmA ? dbResult.box_b : dbResult.box_a,
-    quarterBoxScores: dbResult.period_scores.map((q) => ({
+    quarterBoxScores: (dbResult.period_scores || []).map((q) => ({
+      period: q.period,
       a: iAmA ? q.a : q.b,
       b: iAmA ? q.b : q.a,
       overtime: q.overtime,
@@ -3250,9 +3313,19 @@ function normalizeServerResult(dbResult, iAmA, serverWinner) {
     winner: dbSideIsMe(winnerSide) ? "A" : "B",
     mvp: {
       player: { name: dbResult.mvp.name },
-      side: dbSideIsMe(dbResult.mvp.side) ? "A" : "B",
+      side: remapSide(dbResult.mvp.side),
       line: dbResult.mvp.line,
+      score: dbResult.mvp.score,
     },
+    // Football's trusted server simulation stores its event/drive
+    // ledger separately from the common score columns. Restore it
+    // here so online NFL uses the same event-driven field playback
+    // as Ranked Practice instead of falling back to period totals.
+    drives,
+    teamStatsA: iAmA ? gameData.teamStatsA : gameData.teamStatsB,
+    teamStatsB: iAmA ? gameData.teamStatsB : gameData.teamStatsA,
+    coinToss,
+    analysis: gameData.analysis || null,
   };
 }
 

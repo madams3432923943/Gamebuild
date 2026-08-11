@@ -528,13 +528,11 @@ export const NFL = {
   /** Roster rows show "P. Mahomes" with the season underneath - a football
    * name plus a season plus a team wrapped to three lines on a phone, which
    * is exactly when you most need to read an opponent's roster at a glance. */
-  /** NOT YET. The strategy half of online football is done - submit_nfl_strategy
-   * is deployed and the two engines are byte-identical - but the DRAFT half is
-   * not: there is no nfl_players table on the server, so matchmaking cannot
-   * seed a football squad and submit_pick cannot validate a football pick.
-   * Both `matchmaking_queue` and `matches` still CHECK (sport = 'nba'), which
-   * is what was bouncing players back to the home screen. */
-  onlineReady: false,
+  /** Online football is server-authoritative end to end: matchmaking is
+   * scoped by sport + game mode, the NFL draft uses its own generated pool,
+   * picks are validated against football roster slots, and simulate-match
+   * runs the NFL engine and returns its event ledger for playback. */
+  onlineReady: true,
   compactRoster: true,
   tacticTimerSeconds: 60,
   /** How many of each group's plans are offered. Three of five, drawn fresh
