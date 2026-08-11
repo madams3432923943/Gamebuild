@@ -3281,13 +3281,30 @@ function runLocalSimulation() {
  * the two scores so a missing/blank winner still resolves correctly. */
 function normalizeServerResult(dbResult, iAmA, serverWinner) {
   const dbSideIsMe = (side) => side === (iAmA ? "A" : "B");
+  const remapSide = (side) => {
+    if (side !== "A" && side !== "B") return side;
+    return dbSideIsMe(side) ? "A" : "B";
+  };
   const winnerSide = serverWinner || (dbResult.score_a > dbResult.score_b ? "A" : "B");
+  const gameData = dbResult.game_data || {};
+  const drives = Array.isArray(gameData.drives)
+    ? gameData.drives.map((drive) => ({ ...drive, team: remapSide(drive.team) }))
+    : [];
+  const coinToss = gameData.coinToss
+    ? {
+        ...gameData.coinToss,
+        winner: remapSide(gameData.coinToss.winner),
+        firstHalfReceiver: remapSide(gameData.coinToss.firstHalfReceiver),
+      }
+    : null;
+
   return {
     teamScoreA: iAmA ? dbResult.score_a : dbResult.score_b,
     teamScoreB: iAmA ? dbResult.score_b : dbResult.score_a,
     boxA: iAmA ? dbResult.box_a : dbResult.box_b,
     boxB: iAmA ? dbResult.box_b : dbResult.box_a,
-    quarterBoxScores: dbResult.period_scores.map((q) => ({
+    quarterBoxScores: (dbResult.period_scores || []).map((q) => ({
+      period: q.period,
       a: iAmA ? q.a : q.b,
       b: iAmA ? q.b : q.a,
       overtime: q.overtime,
@@ -3296,9 +3313,19 @@ function normalizeServerResult(dbResult, iAmA, serverWinner) {
     winner: dbSideIsMe(winnerSide) ? "A" : "B",
     mvp: {
       player: { name: dbResult.mvp.name },
-      side: dbSideIsMe(dbResult.mvp.side) ? "A" : "B",
+      side: remapSide(dbResult.mvp.side),
       line: dbResult.mvp.line,
+      score: dbResult.mvp.score,
     },
+    // Football's trusted server simulation stores its event/drive
+    // ledger separately from the common score columns. Restore it
+    // here so online NFL uses the same event-driven field playback
+    // as Ranked Practice instead of falling back to period totals.
+    drives,
+    teamStatsA: iAmA ? gameData.teamStatsA : gameData.teamStatsB,
+    teamStatsB: iAmA ? gameData.teamStatsB : gameData.teamStatsA,
+    coinToss,
+    analysis: gameData.analysis || null,
   };
 }
 
