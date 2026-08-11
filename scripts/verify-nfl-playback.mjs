@@ -76,6 +76,7 @@ const fail = {
   missingKickoff: 0,
   badClock: 0,
   clockRose: 0,
+  clockAtWhistle: 0,
 };
 let games = 0;
 let minMs = Infinity;
@@ -132,6 +133,15 @@ for (let n = 0; n < GAMES; n++) {
     lastClock = secs;
   }
   if (!sawKickoff) fail.missingKickoff++;
+
+  // A period ends at 0:00, by definition. The drives inside one rarely burn a
+  // full fifteen minutes, and whatever was left used to be carried straight
+  // into the break event - so the final screen read "Q4 5:28" beside the word
+  // FINAL, a game simultaneously over and still running.
+  for (const e of list) {
+    if (e.type !== "gameEnd" && e.type !== "quarterEnd" && e.type !== "halfEnd") continue;
+    if (clockSeconds(e.clock) !== 0) fail.clockAtWhistle++;
+  }
 
   // The timeline's running score must arrive at the game's real final score.
   const last = list[list.length - 1];
@@ -231,6 +241,11 @@ const checks = [
     title: "Each drive's plays start and end exactly where the drive did",
     ok: fail.driveEndpoint === 0 && fail.playEndpoint === 0,
     detail: `${fail.driveEndpoint} bad starts, ${fail.playEndpoint} bad ends, over ${drives} drives`,
+  },
+  {
+    title: "Every period ends at 0:00",
+    ok: fail.clockAtWhistle === 0,
+    detail: `${fail.clockAtWhistle} breaks announced with time still on the clock`,
   },
   {
     title: "The game clock reads m:ss and never runs backwards in a quarter",

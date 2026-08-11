@@ -84,6 +84,11 @@ const TARGET_MS = 49000;
  */
 export const DEFAULT_SPEED = 1;
 
+/** No event is worth less than this at normal speed - below it a snap is gone
+ * before it can be read. Divided by the speed multiplier, not applied under
+ * it; see buildTimeline. */
+const MIN_EVENT_MS = 90;
+
 /** Seconds in a quarter. Football's, not this playback's - the game clock the
  * field shows is the one inside the fiction. */
 const QUARTER_SECONDS = 15 * 60;
@@ -307,6 +312,10 @@ export function buildTimeline(drives, opts = {}) {
         // Half-time is a bigger beat than a quarter break, because the ball
         // changes hands and the field flips.
         const half = lastQuarter === 2;
+        // A quarter ends at 0:00 by definition. The drives inside it rarely burn
+        // the full fifteen minutes, so whatever was left has to be spent here or
+        // the break is announced with time still on the clock.
+        clockLeft = 0;
         push(half ? "halfEnd" : "quarterEnd", half ? "halfEnd" : "quarterEnd", {
           quarter: lastQuarter,
           possession: null,
@@ -460,6 +469,10 @@ export function buildTimeline(drives, opts = {}) {
     }
   }
 
+  // Same reason as the quarter break above: the whistle goes at 0:00. The final
+  // screen was showing whatever the last drive left behind - "Q4 5:28" beside
+  // the word FINAL, a game simultaneously over and still running.
+  clockLeft = 0;
   push("gameEnd", "gameEnd", {
     quarter: lastQuarter,
     possession: null,
@@ -478,7 +491,13 @@ export function buildTimeline(drives, opts = {}) {
   const scale = rawTotal > 0 ? target / rawTotal : 1;
   let totalMs = 0;
   for (const e of events) {
-    e.durationMs = Math.max(90, Math.round((e.weight * scale) / speed));
+    // The floor SCALES with speed, rather than sitting under it. A fixed 90ms
+    // is a legibility guarantee at normal pace, and at normal pace nothing
+    // comes near it - the shortest event runs about 190ms. At 2x it started
+    // clipping the shortest events, so asking for twice as fast returned a
+    // game 1.9 times as fast, which quietly makes `speed` a suggestion. If the
+    // viewer asks for double, they get double.
+    e.durationMs = Math.max(MIN_EVENT_MS / speed, Math.round((e.weight * scale) / speed));
     e.atMs = totalMs;
     totalMs += e.durationMs;
   }
@@ -596,9 +615,9 @@ export function applyEvent(state, event) {
  * The live state as a box score, in the shape the renderers already expect.
  *
  * Rounding happens HERE, at the boundary between accumulating and printing,
- * for the same reason the engine rounds at that boundary: a touchdown is
- * worth 6.94 points internally - the extra point folded in at its real rate -
- * which is right for simulating and wrong for reading. Nobody scored 20.82.
+ * for the same reason the engine rounds at that boundary. Points are integers
+ * now that the conversion after a touchdown is played out rather than folded
+ * into it at 6.94, but the boundary is still where printing begins.
  */
 export function liveBox(state, side) {
   const source = state?.players?.[side] || {};
