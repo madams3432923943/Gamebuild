@@ -23,6 +23,123 @@ const career = (key) => (p) => (p.careerTotals && p.careerTotals[key]) || 0;
 const bestInGame = (key) => (p) => (p.personalBests[key] && p.personalBests[key].value) || 0;
 
 export const BADGES = [
+  // ---- FOOTBALL ------------------------------------------------------------
+  // Named after the Madden ability/X-Factor idiom the user asked for, but each
+  // one is earned by a REAL career total accumulated by the players you drafted
+  // - nothing here is cosmetic or hand-awarded. The keys are football's own
+  // (see NFL.statLabels); a badge cannot exist for a statistic the ledger does
+  // not honestly produce, which is why there is no tackle or coverage badge.
+  {
+    id: "gunslinger",
+    name: "Gunslinger",
+    sport: "nfl",
+    icon: "🔫",
+    blurb: "Career passing yards by your drafted quarterbacks",
+    unit: "passing yards",
+    value: career("pass_yds"),
+    thresholds: [2500, 12000, 35000, 80000],
+  },
+  {
+    id: "deadeye",
+    name: "Deadeye",
+    sport: "nfl",
+    icon: "🎯",
+    blurb: "Career passing touchdowns",
+    unit: "passing TDs",
+    value: career("pass_tds"),
+    thresholds: [15, 80, 250, 600],
+  },
+  {
+    id: "surgeon",
+    name: "Surgeon",
+    sport: "nfl",
+    icon: "🩺",
+    blurb: "Career completions - volume and accuracy both",
+    unit: "completions",
+    value: career("comp"),
+    thresholds: [200, 1000, 3000, 7000],
+  },
+  {
+    id: "bulldozer",
+    name: "Bulldozer",
+    sport: "nfl",
+    icon: "🚜",
+    blurb: "Career rushing yards by your drafted backs",
+    unit: "rushing yards",
+    value: career("rush_yds"),
+    thresholds: [1000, 5000, 15000, 35000],
+  },
+  {
+    id: "goal-line-stalker",
+    name: "Goal Line Stalker",
+    sport: "nfl",
+    icon: "🐂",
+    blurb: "Career rushing touchdowns",
+    unit: "rushing TDs",
+    value: career("rush_tds"),
+    thresholds: [10, 50, 150, 350],
+  },
+  {
+    id: "yac-em-up",
+    name: "YAC 'Em Up",
+    sport: "nfl",
+    icon: "💨",
+    blurb: "Career receiving yards by your pass-catchers",
+    unit: "receiving yards",
+    value: career("rec_yds"),
+    thresholds: [1500, 7000, 20000, 50000],
+  },
+  {
+    id: "end-zone-magnet",
+    name: "End Zone Magnet",
+    sport: "nfl",
+    icon: "🧲",
+    blurb: "Career receiving touchdowns",
+    unit: "receiving TDs",
+    value: career("rec_tds"),
+    thresholds: [12, 60, 180, 420],
+  },
+  {
+    id: "sure-hands",
+    name: "Sure Hands",
+    sport: "nfl",
+    icon: "🧤",
+    blurb: "Career receptions",
+    unit: "receptions",
+    value: career("rec"),
+    thresholds: [150, 800, 2400, 6000],
+  },
+  {
+    id: "ball-hawk",
+    name: "Ball Hawk",
+    sport: "nfl",
+    icon: "🦅",
+    blurb: "Career interceptions by your drafted secondary",
+    unit: "interceptions",
+    value: career("ints"),
+    thresholds: [10, 45, 130, 300],
+  },
+  {
+    id: "strip-specialist",
+    name: "Strip Specialist",
+    sport: "nfl",
+    icon: "🪓",
+    blurb: "Career fumbles forced by your front seven",
+    unit: "forced fumbles",
+    value: career("fumbles"),
+    thresholds: [8, 35, 100, 240],
+  },
+  {
+    id: "ice-in-veins",
+    name: "Ice In Veins",
+    sport: "nfl",
+    icon: "🧊",
+    blurb: "Career field goals by your drafted kickers",
+    unit: "field goals",
+    value: career("fgs"),
+    thresholds: [20, 100, 300, 700],
+  },
+
   // ---- Career volume: the "keep playing" spine of the system ----
   {
     id: "dimer",

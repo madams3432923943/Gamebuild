@@ -2659,6 +2659,10 @@ table.box-table th, table.history-table th {
 }
 
 /* Football's box score is three tables; each needs to say which one it is. */
+/* Compact roster rows (football). The name leads, the season sits under it. */
+.slot-name { font-weight: 600; }
+.slot-season { font-size: 0.78rem; color: var(--muted); }
+
 .box-group-label {
   margin: 0.7rem 0 0.25rem;
   font-size: 0.72rem;

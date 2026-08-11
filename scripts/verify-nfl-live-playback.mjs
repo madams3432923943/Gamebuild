@@ -193,6 +193,7 @@ async function main() {
     // screen and both have to be selectable, or half the gameplan is a
     // decision the player was never offered.
     let strategyGroups = 0;
+    let groupCardCounts = [];
     let selectedPlans = [];
     for (const [panel, button] of [
       ["#rotation-phase", "#btn-confirm-rotation"],
@@ -206,6 +207,7 @@ async function main() {
         // Take the SECOND card in each group, so the run exercises a real
         // selection rather than whatever happened to be the default.
         for (let g = 0; g < strategyGroups; g++) {
+          groupCardCounts.push(await groups.nth(g).locator(".tactic-card").count().catch(() => 0));
           const card = groups.nth(g).locator(".tactic-card").nth(1);
           if (await card.isVisible().catch(() => false)) {
             await card.click().catch(() => {});
@@ -326,7 +328,7 @@ async function main() {
         detail: midpoint ? `${midpoint.boxTotal} of ${boxTotals[boxTotals.length - 1]} at the midpoint` : "no midpoint sample" },
       { title: "The final banner agrees with the scoreboard", ok: bannerAgrees,
         detail: last ? `banner "${last.finalText}" against ${last.scoreA}-${last.scoreB}` : "no final" },
-      { title: "Regulation playback lands in the readable 52-64s band", ok: elapsedMs >= 52000 && elapsedMs <= 64000,
+      { title: "Regulation playback lands in the readable 48-60s band", ok: elapsedMs >= 48000 && elapsedMs <= 60000,
         detail: `${(elapsedMs / 1000).toFixed(1)}s of browser wall clock` },
       { title: "Possession flips between attacking and defending, as state", ok: possessionStates.has("offense") && possessionStates.has("defense") && possessionFlips >= 4,
         detail: `${possessionFlips} changes across ${[...possessionStates].join("/")}` },
@@ -340,6 +342,8 @@ async function main() {
         detail: last?.mvpText || "no MVP callout" },
       { title: "Football offers both an offensive and a defensive gameplan", ok: strategyGroups === 2 && selectedPlans.length === 2,
         detail: strategyGroups ? `${strategyGroups} groups: ${selectedPlans.join(" | ")}` : "no strategy groups rendered" },
+      { title: "Each gameplan group offers three of its five plans", ok: groupCardCounts.length === 2 && groupCardCounts.every((n) => n === 3),
+        detail: `cards per group: ${groupCardCounts.join(", ") || "none"}` },
       { title: "No JS errors during the game", ok: consoleErrors.length === 0,
         detail: consoleErrors.length ? consoleErrors.slice(0, 3).join(" | ") : "clean console" }
     );

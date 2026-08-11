@@ -62,16 +62,17 @@ export const EVENT_WEIGHTS = {
  * Raised from 35-50s first, because at ~42s an ordinary snap held for about
  * 600ms - less time than it takes to read a description, find the ball and
  * check the down. Then trimmed again, see below. */
-// TRIMMED FROM 50-70s, which measured 64.6s of real browser wall clock and
-// read as slightly too long. The reduction is deliberately NOT uniform: the
+// TRIMMED TWICE against real browser wall clock: 50-70s measured 64.6s and
+// read long; 46-64s measured 58.0s and still read a touch long. Now aiming
+// near 53s. Neither reduction is uniform: the
 // transition beats - kickoff, drive start, an ordinary snap, a punt - each
 // gave back about 10% of their weight, while touchdowns, turnovers, field
 // goals and the quarter breaks kept all of theirs. Every event is scaled by
 // target/rawTotal, so shrinking the ordinary weights RAISES that scale
 // factor - the moments worth watching lose less than the overhead does.
-export const TARGET_MIN_MS = 46000;
-export const TARGET_MAX_MS = 64000;
-const TARGET_MS = 53500;
+export const TARGET_MIN_MS = 42000;
+export const TARGET_MAX_MS = 60000;
+const TARGET_MS = 49000;
 
 /**
  * Playback speed, as a divisor on every duration. 1 is the pace above; 2 is

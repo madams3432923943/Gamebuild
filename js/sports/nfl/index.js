@@ -521,6 +521,17 @@ export const NFL = {
   // separately, so the sport declares GROUPS and shared UI renders a section
   // per group. A sport with no strategyGroups keeps the single-card picker,
   // which is what basketball still uses.
+  /** Football gets longer to decide than basketball, because it is TWO
+   * decisions rather than one. Declared per sport so basketball keeps its 45. */
+  /** Roster rows show "P. Mahomes" with the season underneath - a football
+   * name plus a season plus a team wrapped to three lines on a phone, which
+   * is exactly when you most need to read an opponent's roster at a glance. */
+  compactRoster: true,
+  tacticTimerSeconds: 60,
+  /** How many of each group's plans are offered. Three of five, drawn fresh
+   * each game, so the choice is a read on the hand you were dealt rather than
+   * the same menu every time - the same rule basketball uses for its ten. */
+  strategyChoices: 3,
   strategyGroups: STRATEGY_GROUPS,
   defaultStrategy: DEFAULT_STRATEGY,
   normalizeStrategy,

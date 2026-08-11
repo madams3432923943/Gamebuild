@@ -1207,7 +1207,11 @@ function cleanupTacticTimer() {
 function renderTactics() {
   const groups = sport().strategyGroups;
   if (groups && strategy.strategy) {
-    renderStrategyGroups(tacticGridEl, groups, strategy.strategy, (groupKey, id) => {
+    // Only what this game offered, not the whole catalogue.
+    const offered = strategy.offeredPlans
+      ? groups.map((g) => ({ ...g, plans: strategy.offeredPlans[g.key] || g.plans }))
+      : groups;
+    renderStrategyGroups(tacticGridEl, offered, strategy.strategy, (groupKey, id) => {
       strategy.strategy = { ...strategy.strategy, [groupKey]: id };
       renderTactics();
     });
@@ -1235,7 +1239,23 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
   // per side the choice is small enough that hiding some of it would just be
   // withholding the decision.
   if (sport().strategyGroups) {
-    strategy.strategy = strategy.strategy || { ...sport().defaultStrategy };
+    // Three of each group's five, drawn fresh. Showing all five made the
+    // decision a menu rather than a read on what you were offered.
+    const perGroup = sport().strategyChoices || 3;
+    strategy.offeredPlans = {};
+    for (const group of sport().strategyGroups) {
+      const pool = [...group.plans];
+      const picked = [];
+      while (picked.length < Math.min(perGroup, pool.length)) {
+        picked.push(...pool.splice(Math.floor(Math.random() * pool.length), 1));
+      }
+      strategy.offeredPlans[group.key] = picked;
+    }
+    // Default to something actually on offer - a selection the player cannot
+    // see is a selection they cannot change.
+    strategy.strategy = Object.fromEntries(
+      sport().strategyGroups.map((g) => [g.key, strategy.offeredPlans[g.key][0].id])
+    );
   } else {
     strategy.offeredTactics = sport().randomTacticChoices(3);
     strategy.tactic = strategy.offeredTactics[0].id;
@@ -1246,7 +1266,7 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
   tacticPhaseEl.classList.remove("hidden");
   pickTimerEl.hidden = !timed;
 
-  let remaining = TACTIC_TIMER_SECONDS;
+  let remaining = sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS;
   if (timed) {
     renderPickTimer(pickTimerEl, remaining);
     tacticTimerInterval = setInterval(() => {
@@ -1770,7 +1790,7 @@ function renderDraftComplete() {
     `Lower someone to free ${sport().labels.unit} before raising someone else.`;
   const toTactic = () => {
     draftTurnBanner.textContent = "Final round — set your game plan";
-    tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
+    tacticPhaseHintEl.textContent = `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
     startTacticPhase(runLocalSimulation);
   };
   const afterRotationOffline = () => {
@@ -2282,7 +2302,7 @@ async function beginOnlineStrategyPhase(match) {
   }
   const onlineTactic = () => {
       draftTurnBanner.textContent = "Final round — set your game plan";
-      tacticPhaseHintEl.textContent = `${TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
+      tacticPhaseHintEl.textContent = `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
       startTacticPhase(async () => {
         draftTurnBanner.textContent = "Submitting your game plan…";
         try {

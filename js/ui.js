@@ -127,6 +127,20 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
  * @param opts.revealSlots slots that should play the flip-reveal animation
  *   on this render pass (the round that just resolved).
  */
+/**
+ * "Patrick Mahomes" -> "P. Mahomes".
+ *
+ * Only for PEOPLE. A drafted unit's name is a team and a position group
+ * ("Carolina Panthers Defensive Line") and initialising that would produce
+ * "C. Panthers Defensive Line", which is worse than the problem.
+ */
+function shortPlayerName(player) {
+  if (Array.isArray(player.members) && player.members.length) return player.name;
+  const parts = String(player.name || "").trim().split(/\s+/);
+  if (parts.length < 2) return player.name;
+  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
+}
+
 export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
   const { pendingSlots = [], revealSlots = [], slots = defaultSlots() } = opts;
   container.innerHTML = "";
@@ -152,7 +166,26 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       // A bench slot doesn't say what the player is, so his position rides
       // next to his name - that's the information you need to judge depth.
       const pos = activeSport().isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
-      value.textContent = `${player.name}${pos} — ${seasonLabel(player)}`;
+      // COMPACT, when the sport asks for it. Football's rows carry a full name,
+      // a season and a team, and on a phone that wrapped to three lines and
+      // became unreadable at a glance - which matters most when you are trying
+      // to size up an opponent's roster. The first name becomes an initial and
+      // the season drops to its own line, so the eye gets "P. Mahomes" then
+      // "2020 Chiefs" instead of one long wrap. Declared per sport, so
+      // basketball's rows are untouched.
+      if (activeSport().compactRoster) {
+        const head = document.createElement("span");
+        head.className = "slot-name";
+        head.textContent = `${shortPlayerName(player)}${pos}`;
+        value.appendChild(head);
+        const when = document.createElement("span");
+        when.className = "slot-season";
+        when.textContent = seasonLabel(player);
+        value.appendChild(document.createElement("br"));
+        value.appendChild(when);
+      } else {
+        value.textContent = `${player.name}${pos} — ${seasonLabel(player)}`;
+      }
       // A drafted unit says WHO it contains. "Seattle Seahawks Cornerbacks"
       // names a slot; Sherman and Maxwell are what you actually took, and
       // after the pick is made the roster is the only place left to see it.
