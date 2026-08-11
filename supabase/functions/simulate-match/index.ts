@@ -18,6 +18,20 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+/** The stored gameplan pair, or undefined for anything that is not one. */
+function parseFootballStrategy(stored: unknown): { offense: string; defense: string } | undefined {
+  if (typeof stored !== "string" || !stored.startsWith("{")) return undefined;
+  try {
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed.offense === "string" && typeof parsed.defense === "string") {
+      return { offense: parsed.offense, defense: parsed.defense };
+    }
+  } catch {
+    // A column that does not hold JSON is a basketball tactic id, not an error.
+  }
+  return undefined;
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -252,6 +266,15 @@ Deno.serve(async (req: Request) => {
     sportEngine.simulate(rosterA, rosterB, datasetStats, {
       tacticA: match.tactic_a ?? undefined,
       tacticB: match.tactic_b ?? undefined,
+      // Football stores an offence/defence PAIR as JSON in the same column
+      // basketball stores a single id in. Parsed here rather than trusted:
+      // whatever is in the column, the engine receives either a well-formed
+      // pair or nothing, and composedModsFor() falls back to balanced for
+      // anything it does not recognise. A row written before this shipped
+      // holds a bare id and simply yields no pair, which is the correct
+      // reading of it.
+      strategyA: parseFootballStrategy(match.tactic_a),
+      strategyB: parseFootballStrategy(match.tactic_b),
       minutesA: match.rotation_a ?? undefined,
       minutesB: match.rotation_b ?? undefined,
       matchupsA: match.matchups_a ?? undefined,

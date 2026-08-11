@@ -2306,7 +2306,14 @@ async function beginOnlineStrategyPhase(match) {
       startTacticPhase(async () => {
         draftTurnBanner.textContent = "Submitting your game plan…";
         try {
-          await submitStrategy(o.matchId, strategy.rotationMinutes, strategy.matchups, strategy.tactic);
+          // A sport with strategy groups commits the whole pair; one without
+          // commits its single gamestyle id, exactly as before.
+          await submitStrategy(
+            o.matchId,
+            strategy.rotationMinutes,
+            strategy.matchups,
+            sport().strategyGroups ? strategy.strategy : strategy.tactic
+          );
           draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
           awaitSimulationStart();
         } catch (e) {

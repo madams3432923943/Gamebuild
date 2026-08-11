@@ -238,6 +238,23 @@ export async function submitSkip(matchId) {
  * sides have called this - see submit_strategy in the matches migration. */
 export async function submitStrategy(matchId, rotation, matchups, tactic) {
   const supabase = await getSupabase();
+  // FOOTBALL SUBMITS A PAIR, and to its own function.
+  //
+  // submit_strategy() validates basketball and hard-rejects any other sport -
+  // a 240-minute rotation across five starters, five unique matchups, one
+  // gamestyle id. Football has no rotation and no matchups, and it commits an
+  // offensive AND a defensive plan. Detected on the SHAPE of what the strategy
+  // phase produced rather than on the active sport, so a sport that has not
+  // been told about this cannot accidentally take the football path.
+  const isPair = tactic && typeof tactic === "object" && "offense" in tactic && "defense" in tactic;
+  if (isPair) {
+    const { error } = await supabase.rpc("submit_nfl_strategy", {
+      p_match_id: matchId,
+      p_strategy: tactic,
+    });
+    if (error) throw error;
+    return;
+  }
   const { error } = await supabase.rpc("submit_strategy", {
     p_match_id: matchId,
     p_rotation: rotation,
