@@ -136,7 +136,7 @@ export function emptyPlayerLine() {
   return {
     comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
     carries: 0, targets: 0, sacked: 0,
-    rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0, fga: 0,
+    rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, sacks: 0, fgs: 0, fga: 0,
     td: 0, pts: 0,
   };
 }
@@ -199,6 +199,9 @@ function accumulatePlay(playerDeltas, teamDeltas, side, play, enteredRedZone) {
       // table drift below the final one by exactly the sack yardage.
       bump(playerDeltas, side, "QB", "sacked", 1);
       bumpTeam(teamDeltas, side, "sacksAllowed", 1);
+      // The sack belongs to the DEFENCE, which is the other side's ledger -
+      // the same reason a takeaway is written to other(side) below.
+      bump(playerDeltas, other(side), play.sackBy, "sacks", 1);
       break;
     case "incompletion":
       bump(playerDeltas, side, "QB", "att", 1);

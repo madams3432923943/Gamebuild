@@ -2197,10 +2197,21 @@ async function renderOnlineDraftRound(match) {
   ]);
   o.currentSquad = { team: match.current_squad_team, decade: match.current_squad_decade, players };
 
-  // Stats enrichment isn't needed mid-draft (the roster panels don't show
-  // stats under the strict ruleset) - only the post-game box score needs
-  // it, via fetchStatsForPicks in runOnlineSimulationFlow.
-  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number);
+  // ENRICHED MID-DRAFT, not only at the end.
+  //
+  // This used to skip enrichment on the grounds that the roster panels show no
+  // stats under the strict ruleset. True for basketball, where a roster row is
+  // a name and a season. Not true for football: a drafted unit's row names the
+  // MEN in it - "Grady Jarrett, Jonathan Babineaux, Courtney Upshaw" - and
+  // that list lives in the pool payload, not on the pick row. Without it the
+  // defensive picks sat as bare unit names for the whole draft and the names
+  // appeared all at once at the final screen, which is where they matter
+  // least.
+  //
+  // Costs nothing: every squad this needs was already fetched as the current
+  // squad in the round it was offered, and fetchSquadPlayers caches.
+  const statsByKey = await fetchStatsForPicks(picks);
+  const { rosterA, rosterB } = buildVisibleState(picks, match.round_number, statsByKey);
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 

@@ -241,6 +241,38 @@ function pickScorer(roster, kind, rand) {
   return candidates[candidates.length - 1];
 }
 
+/**
+ * WHICH UNIT GOT HOME. Weighted by each unit's real sack production, so the
+ * front that actually rushed the passer is the one that shows up in the box
+ * score - which is the point of drafting it.
+ *
+ * The same shape as pickStopper below, and next to it on purpose: both answer
+ * "who on defence did this", and a sack is exactly as much of a defensive play
+ * as a takeaway. It was the one that had no answer at all - a sack existed
+ * only as a cost to the quarterback, so a drafted pass rush was invisible in
+ * the table however often it got there.
+ */
+function pickSacker(roster, rand) {
+  const candidates = [];
+  let total = 0;
+  for (const slot of Object.keys(DEFENSE_WEIGHTS)) {
+    const entry = roster?.[slot];
+    if (!entry) continue;
+    // The small floor keeps a secondary that never recorded a sack able to
+    // produce the occasional coverage sack, rather than making it impossible.
+    const share = (Number(entry.sacks) || 0) + 0.04;
+    candidates.push({ slot, share });
+    total += share;
+  }
+  if (!candidates.length) return null;
+  let roll = rand() * total;
+  for (const c of candidates) {
+    roll -= c.share;
+    if (roll <= 0) return c;
+  }
+  return candidates[0];
+}
+
 /** Which defensive unit gets credit for ending a drive. Weighted by takeaway
  * production, because somebody drafted the 2013 Seahawks secondary precisely
  * so it would take the ball away - a bare "turnover" hides that payoff. */
@@ -381,8 +413,9 @@ function pickTakeawayMan(entry, kindOfTakeaway, rand) {
  */
 function runConversion(margin, quarter, rand) {
   const chart = quarter >= TWO_POINT_CHART_QUARTER && TWO_POINT_MARGINS.includes(margin);
-  // The roll happens either way, so a coach who goes for two off the chart is
-  // drawing from the same stream as one who goes for two because of it.
+  // The roll happens either way, so the random stream does not depend on
+  // whether the chart fired - which keeps a replay of the same seed identical
+  // however the baseline rate is set.
   const goForTwo = chart || rand() < TWO_POINT_BASELINE_RATE;
   const good = rand() < (goForTwo ? TWO_POINT_SUCCESS : EXTRA_POINT_SUCCESS);
   return { type: goForTwo ? "two" : "xp", good, points: good ? (goForTwo ? 2 : 1) : 0 };
@@ -510,22 +543,26 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
 
   const from = Math.round(startYard);
   const to = Math.round(endYard);
+  const plays = buildPlays(from, to, outcome, kind, scorerSlot, roster, rand, {
+    runShare: mine.runShare,
+    sackRate: (theirs.passRush || 1) / (mine.protection || 1),
+    // The man actually throwing it. 0..1 from his OWN per-game production -
+    // nothing invented, just the rating the rest of the engine already trusts.
+    qbRating: roster.QB ? rateEntry(roster.QB, ctx) : 0.5,
+  });
+  // Credited AFTER the snaps exist, next to where a takeaway is credited,
+  // rather than inside buildPlays - that function reconstructs one offence's
+  // downs and has no business knowing who lined up across from it.
+  for (const play of plays) {
+    if (play.type === "sack") play.sackBy = pickSacker(oppRoster, rand)?.slot ?? null;
+  }
   return {
+    // How you attack and how they rush the passer both change the SNAPS, not
+    // just the drive's outcome: a ground plan hands it off more, and a blitz
+    // against a thin line puts the quarterback on the floor.
     drive: { team: side, quarter, startYard: from, endYard: to,
              outcome, points, scorer, scorerSlot, credit, kind, takeaway, conversion, text,
-             // How you attack and how they rush the passer both change the
-             // SNAPS, not just the drive's outcome: a ground plan hands it off
-             // more, and a blitz against a thin line puts the quarterback on
-             // the floor. Passed in rather than read from a constant so the
-             // plan is visible in the box score, not only in the score.
-             plays: buildPlays(from, to, outcome, kind, scorerSlot, roster, rand, {
-               runShare: mine.runShare,
-               sackRate: (theirs.passRush || 1) / (mine.protection || 1),
-               // The man actually throwing it. 0..1 from his OWN per-game
-               // production - nothing invented, just the rating the rest of
-               // the engine already trusts.
-               qbRating: roster.QB ? rateEntry(roster.QB, ctx) : 0.5,
-             }) },
+             plays },
     nextStart: nextStart(outcome, endYard),
   };
 }
@@ -1146,7 +1183,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     const emptyLine = () => ({
       comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
       carries: 0, targets: 0, sacked: 0,
-      rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, fgs: 0, fga: 0,
+      rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, sacks: 0, fgs: 0, fga: 0,
       td: 0, pts: 0,
     });
     // Every slot gets a line, filled or not. A quiet receiver had a quiet
@@ -1285,13 +1322,17 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     // additions, so they cannot drift.
     if (box.QB) box.QB.pass_yds = team.passYards;
 
-    // Turnovers land on the defensive unit credited with them, so a drafted
-    // ball-hawking secondary shows up in the box score as well as the recap.
-    for (const d of drives.filter((x) => x.team !== side && x.outcome === "turnover" && x.credit && (onlyQuarter == null || x.quarter === onlyQuarter))) {
-      const unit = box[d.credit];
-      if (!unit) continue;
-      if (d.takeaway === "fumble") unit.fumbles += 1;
-      else unit.ints += 1;
+    // What this defence DID, over on the other side's drives - so a drafted
+    // ball-hawking secondary and a drafted pass rush both show up in the box
+    // score rather than only in the recap.
+    for (const d of drives.filter((x) => x.team !== side && (onlyQuarter == null || x.quarter === onlyQuarter))) {
+      if (d.outcome === "turnover" && d.credit && box[d.credit]) {
+        if (d.takeaway === "fumble") box[d.credit].fumbles += 1;
+        else box[d.credit].ints += 1;
+      }
+      for (const play of d.plays || []) {
+        if (play.type === "sack" && play.sackBy && box[play.sackBy]) box[play.sackBy].sacks += 1;
+      }
     }
 
     return { box, team };

@@ -1773,11 +1773,19 @@ function tacticCard(tactic, selectedId, onSelect) {
     const blurb = document.createElement("span");
     blurb.className = "tactic-blurb";
     blurb.textContent = tactic.blurb || "";
+    btn.appendChild(blurb);
+
     // What a plan BUYS and what it COSTS, side by side. A tradeoff you cannot
     // see is a guess rather than a decision, and these are the numbers the
     // simulation actually applies.
+    //
+    // A SIBLING OF THE BLURB, not a child of it. This was a <div> appended
+    // inside a <span>, which is not valid nesting - a span is phrasing
+    // content - and it inherited the blurb's line box, so every chip ran
+    // together into "+2 Rushing+2 Ball Control-2 Explosive Plays". The
+    // tradeoff was on screen and unreadable, which is the same as absent.
     if (tactic.up || tactic.down) {
-      const trade = document.createElement("div");
+      const trade = document.createElement("span");
       trade.className = "tactic-trade";
       for (const [items, cls] of [[tactic.up, "up"], [tactic.down, "down"]]) {
         for (const item of items || []) {
@@ -1787,9 +1795,8 @@ function tacticCard(tactic, selectedId, onSelect) {
           trade.appendChild(chip);
         }
       }
-      blurb.appendChild(trade);
+      btn.appendChild(trade);
     }
-    btn.appendChild(blurb);
 
     btn.addEventListener("click", () => onSelect(tactic.id));
     return btn;
