@@ -121,7 +121,8 @@ import {
   DRIVES_PER_TEAM, BASE_POINTS_PER_DRIVE, DRIVE_START_YARD, FG_RANGE_YARD,
   DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY,
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
-  RUSH_CARRIER_WEIGHTS,
+  RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
+  TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
 } from "./constants.js";
 import { buildRatingContext, rateEntry, isUnit } from "./units.js";
 import { composedModsFor } from "./tactics.js";
@@ -366,9 +367,38 @@ function pickTakeawayMan(entry, kindOfTakeaway, rand) {
   return members[0]?.name ?? null;
 }
 
+/**
+ * What to do after a touchdown, and whether it worked.
+ *
+ * @param margin the score difference AFTER the six points, from the scoring
+ *   team's side - which is the number the chart is written in terms of.
+ */
+function runConversion(margin, quarter, rand) {
+  const chart = quarter >= TWO_POINT_CHART_QUARTER && TWO_POINT_MARGINS.includes(margin);
+  // The roll happens either way, so a coach who goes for two off the chart is
+  // drawing from the same stream as one who goes for two because of it.
+  const goForTwo = chart || rand() < TWO_POINT_BASELINE_RATE;
+  const good = rand() < (goForTwo ? TWO_POINT_SUCCESS : EXTRA_POINT_SUCCESS);
+  return { type: goForTwo ? "two" : "xp", good, points: good ? (goForTwo ? 2 : 1) : 0 };
+}
+
+/** How the conversion reads in the feed. A made extra point is not news and
+ * says nothing; the other three are all worth a sentence. */
+function describeConversion(conversion) {
+  if (!conversion) return "";
+  if (conversion.type === "two") {
+    return conversion.good ? " - two-point conversion good" : " - two-point try no good";
+  }
+  return conversion.good ? "" : " - extra point missed";
+}
+
 /** One team's drive. Returns the record the UI animates and the field position
- * the opponent inherits. */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false) {
+ * the opponent inherits.
+ *
+ * @param margin this team's score minus the opponent's, entering the drive.
+ *   Only the conversion decision reads it; a drive itself does not care.
+ */
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0) {
   // The gamestyle acts on BOTH sides: yours lifts your offence, theirs lifts
   // the defence you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
@@ -411,6 +441,10 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   // reason `kind` is: the box score needs the fact, and recovering it later
   // would mean guessing at something we already knew.
   let takeaway = null;
+  // The play after the touchdown. Kept on the drive rather than only spent on
+  // the points, so the box score, the feed and any future replay all read the
+  // same decision instead of three of them inferring it from a total.
+  let conversion = null;
 
   if (outcome === "touchdown") {
     // Rushing scores are rarer than receiving ones and go to backs and
@@ -427,11 +461,13 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       who = pickScorer(roster, kind, rand);
     }
     points = POINTS.touchdown;
+    conversion = runConversion(margin + POINTS.touchdown, quarter, rand);
+    points += conversion.points;
     scorer = who ? who.entry.name : null;
     scorerSlot = who?.slot ?? null;
-    text = scorer
+    text = (scorer
       ? `${scorer} ${kind === "rush" ? "rushing" : "receiving"} touchdown`
-      : "Touchdown";
+      : "Touchdown") + describeConversion(conversion);
   } else if (outcome === "fieldGoal") {
     const kicker = kickingEntry(roster);
     if (fieldGoalGood(kicker, endYard, rand, mine.fg)) {
@@ -470,7 +506,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   const to = Math.round(endYard);
   return {
     drive: { team: side, quarter, startYard: from, endYard: to,
-             outcome, points, scorer, scorerSlot, credit, kind, takeaway, text,
+             outcome, points, scorer, scorerSlot, credit, kind, takeaway, conversion, text,
              // How you attack and how they rush the passer both change the
              // SNAPS, not just the drive's outcome: a ground plan hands it off
              // more, and a blitz against a thin line puts the quarterback on
@@ -563,6 +599,16 @@ const SACK_SHARE_OF_DEAD = 0.13;
  * real team's ~120 rushing yards a game, not chosen. */
 const RUN_SHARE = 0.45;
 
+/** The extremes a GAMEPLAN may push that to.
+ *
+ * These are measured off real seasons rather than picked as guard rails: the
+ * most pass-happy offences in the league run the ball on about 35% of their
+ * snaps and the most committed ground teams on about 68%. A team outside that
+ * pair of numbers is not running a plan, it is playing from four scores down -
+ * which is a game state, not a gameplan, and this band is about gameplans. */
+const RUN_SHARE_MIN = 0.35;
+const RUN_SHARE_MAX = 0.68;
+
 /** What a carry is worth against a throw, as a multiplier on the yardage it
  * draws. Real football is about 4.3 a carry against 7.2 an attempt. */
 const RUN_YARD_WEIGHT = 0.6;
@@ -588,11 +634,16 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   const net = endYard - startYard;
   // Longer drives get more snaps, with a floor of one: a drive exists because
   // somebody ran a play.
-  // Snaps per drive. Loosened from /9 with a cap of 12: that produced a median
-  // of 40 pass attempts a game against real football's ~33, and put 12.5% of
-  // games at 50+ attempts. A drive covers more ground per snap now, which
-  // brings the tail down without capping anything.
-  const count = Math.max(1, Math.min(11, Math.round(Math.abs(net) / 11) + 1 + Math.floor(rand() * 2)));
+  // Snaps per drive, from the ground the drive covered. Loosened twice: from
+  // /9 with a cap of 12, which gave a median of 40 pass attempts against real
+  // football's ~33, and then from /11, which left the tail intact - the cap was
+  // never what bound it. The runaway games were not long drives, they were
+  // teams with eleven long drives, and at /11 one of those ran 84 offensive
+  // snaps and 67 minutes of game clock. A football game is sixty minutes, so a
+  // model that spends eighty is wrong about something more basic than pace:
+  // both sides' possession now totals about 57 minutes, and the quarter clock
+  // stops running out before the quarter does.
+  const count = Math.max(1, Math.min(11, Math.round(Math.abs(net) / 12) + 1 + Math.floor(rand() * 2)));
   const plays = [];
 
   // Gains are drawn, then normalised so they sum to exactly `net`. Drawing
@@ -637,7 +688,16 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // A run gains less than a pass, which is why both can be right at once.
   // A ground plan really does hand it off more. Held inside a believable band
   // so no plan produces a team that never throws or never runs.
-  const runShare = Math.max(0.12, Math.min(0.82, RUN_SHARE * (Number(plan.runShare) || 1)));
+  //
+  // THE BAND IS REAL FOOTBALL'S, NOT A GUARD RAIL. It was 0.12 to 0.82, which
+  // is wide enough not to be a limit at all: Vertical Attack at full fit lands
+  // on 0.26 before clamping, so a well-built deep-passing roster ran the ball
+  // on one snap in eight and its quarterback threw 61 times. No NFL team has
+  // ever played a season anywhere near that, and the games that get close are
+  // the ones spent two scores behind. The narrowed band still leaves Ground
+  // Control and Vertical Attack at opposite ends of the league - about 70% runs
+  // against about 70% throws - which is the whole point of the choice.
+  const runShare = Math.max(RUN_SHARE_MIN, Math.min(RUN_SHARE_MAX, RUN_SHARE * (Number(plan.runShare) || 1)));
   const raw = [];
   const kinds = [];
   for (let i = 0; i < productive; i++) {
@@ -921,7 +981,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods,
-                         late && live[side] < live[foe]);
+                         late && live[side] < live[foe],
+                         live[side] - live[foe]);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -972,10 +1033,11 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       const foe = other(side);
       // In overtime a trailing team has no next possession to punt for. This
       // is the case that was reported: down three, and the offence punted.
-      const trailing = side === "A" ? teamScoreA < teamScoreB : teamScoreB < teamScoreA;
+      const margin = side === "A" ? teamScoreA - teamScoreB : teamScoreB - teamScoreA;
+      const trailing = margin < 0;
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods, trailing);
+                         cfg[side].mods, cfg[foe].mods, trailing, margin);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;
@@ -1141,9 +1203,10 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       for (const key of ["rec_yds", "rush_yds", "pass_yds", "rec", "att", "comp", "carries", "targets"]) {
         line[key] = Math.round(line[key] || 0);
       }
-      // Points are whole numbers on a scoreboard. POINTS.touchdown carries
-      // 6.94 - the extra point folded in at its real rate - which is right for
-      // simulating and wrong for reading: nobody scored 20.82.
+      // Whole numbers on a scoreboard. Points are integers now that the
+      // conversion is played out rather than folded into the touchdown at
+      // 6.94, but the rounding stays: it costs nothing and it is the boundary
+      // where simulating stops and printing starts.
       line.pts = Math.round(line.pts);
     }
 

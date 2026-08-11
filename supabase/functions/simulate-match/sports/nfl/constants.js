@@ -50,10 +50,55 @@ export const DRIVE_OUTCOMES = {
   turnover: 0.13,
 };
 
-/** Points by scoring type. The extra point is folded into the touchdown at its
- * real conversion rate rather than simulated - a 94% kick is not a decision
- * anyone makes, and rolling for it would add a coin flip nobody would feel. */
-export const POINTS = { touchdown: 6.94, fieldGoal: 3, safety: 2 };
+/** Points by scoring type. A touchdown is six; what comes after it is played
+ * out rather than folded in - see the conversion constants below. */
+export const POINTS = { touchdown: 6, fieldGoal: 3, safety: 2 };
+
+/**
+ * THE PLAY AFTER THE TOUCHDOWN.
+ *
+ * This used to be a constant: a touchdown was worth 6.94, the extra point
+ * folded in at its real rate, on the reasoning that a 94% kick is not a
+ * decision anyone makes. That reasoning is right about the kick and wrong about
+ * the moment, because the decision is not "will this kick go through" - it is
+ * "should we be kicking at all". A team that scores to go from eight down to
+ * two down and takes the extra point has declined to tie the game, and folding
+ * the conversion into the touchdown made that the only thing it could ever do.
+ * It was reported from a real game, and it is the kind of thing a viewer
+ * notices immediately because it is the whole point of the drive.
+ *
+ * Scoring is unchanged in aggregate - six plus a 94% kick is the 6.94 this
+ * replaces - so nothing above needs recalibrating for it.
+ */
+export const EXTRA_POINT_SUCCESS = 0.94;
+export const TWO_POINT_SUCCESS = 0.48;
+
+/** How often a coach goes for two when the score does not demand it. Real, and
+ * small: on the order of one conversion attempt in twelve, most of which are
+ * the chart above rather than this. */
+export const TWO_POINT_BASELINE_RATE = 0.05;
+
+/**
+ * The margins - AFTER the six points, from the scoring team's side - at which
+ * the two-point play is the right call, and the reason for each.
+ *
+ * This is the standard chart every NFL staff carries, not an invention:
+ *   -2   the try TIES it. This is the case that was reported.
+ *   -5   makes it a field goal game instead of needing a touchdown.
+ *   -10  sets up tying with a touchdown and a field goal rather than two scores.
+ *   -16  the same logic a touchdown earlier: get inside two scores.
+ *   +1   makes it a field goal game the other way rather than a one-point lead.
+ *   +4   pushes the lead past a field goal to a touchdown.
+ *   +5   pushes it to a touchdown-and-a-two rather than a touchdown.
+ *  +12   makes it three scores instead of two.
+ *
+ * Applied only late, because earlier in a game the arithmetic has too many
+ * possessions left in it to mean anything.
+ */
+export const TWO_POINT_MARGINS = [-2, -5, -10, -16, 1, 4, 5, 12];
+
+/** The quarter from which the chart above starts applying. */
+export const TWO_POINT_CHART_QUARTER = 4;
 
 /** How much each roster slot feeds the offence rating. Quarterback is the most
  * important position in team sport and the weights say so; the line is second,
