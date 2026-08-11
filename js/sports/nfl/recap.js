@@ -49,9 +49,10 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB) {
 export function buildGameScript(periods, labelA, labelB) {
   const rows = Array.isArray(periods) ? periods : [];
   const total = (key) => rows.reduce((sum, p) => sum + (Number(p[key]) || 0), 0);
-  // Rounded before anything reads them. POINTS.touchdown carries 6.94 - the
-  // extra point folded in at its real rate - which is right for simulating and
-  // wrong for saying out loud: nobody finished level at 15.940000000000001.
+  // Rounded before anything reads them. Kept after the conversion became a
+  // real play rather than 6.94 folded into the touchdown: this reads periods
+  // supplied by the caller, and it must not print 15.940000000000001 whatever
+  // an older stored result carries.
   const a = Math.round(total("a"));
   const b = Math.round(total("b"));
   const winner = a === b ? null : a > b ? labelA : labelB;

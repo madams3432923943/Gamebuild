@@ -57,7 +57,22 @@ function defensiveBreakdown(roster, ctx) {
   return groups;
 }
 
-export function draftGrade(roster, ctx, forfeits = []) {
+/** The forfeited slots, whatever shape the caller uses.
+ *
+ * Shared code calls `gradeDraft(roster, stats, opts)` with an OPTIONS OBJECT -
+ * that is basketball's signature and therefore the contract - while football's
+ * own draftAnalysis hands over a bare array. This declared the third parameter
+ * as the array, so the object arrived instead, `.length` was undefined, the
+ * penalty was NaN and every football draft graded F. Normalise once, here,
+ * rather than at each call site. */
+function forfeitList(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.forfeits)) return value.forfeits;
+  return [];
+}
+
+export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
+  const forfeits = forfeitList(forfeitsOrOpts);
   const offense = sideScore(roster, OFFENSE_WEIGHTS, ctx);
   const defense = sideScore(roster, DEFENSE_WEIGHTS, ctx);
   const defenseGroups = defensiveBreakdown(roster, ctx);

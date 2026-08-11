@@ -502,8 +502,10 @@ export const NFL = {
   // Nothing to hint at - football has no rotation to advise on. Returns null
   // rather than being absent, because shared code calls it unconditionally.
   rotationHint: () => null,
-  gradeDraft: (roster, ctx, forfeits) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
-  rotationHint: () => null,
+  // Third argument is shared code's OPTIONS OBJECT ({ oppRoster, forfeits }),
+  // not a bare array - draftGrade normalises both, and must, because
+  // draftAnalysis below passes the array.
+  gradeDraft: (roster, ctx, opts) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), opts),
   // Football's counterpart to basketball's counterplay read: how your roster
   // stacks against theirs, side of the ball by side of the ball.
   draftAnalysis: (roster, oppRoster, ctx, forfeits) =>

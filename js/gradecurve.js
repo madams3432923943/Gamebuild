@@ -33,6 +33,16 @@ export function buildGradeCurve(sampleScores) {
 /** The letter for a score, by where it falls among those samples. A roster at
  * the 90th percentile of what could have been drafted gets an A. */
 export function letterFor(score, curve) {
+  // A NaN score is not a bad draft, it is a broken caller - and it grades as F,
+  // silently, because every comparison against it is false so the binary search
+  // never advances and the percentile comes out 0. Football shipped exactly
+  // that: an options object reached a parameter expecting an array, `.length`
+  // was undefined, the penalty was NaN, and every roster ever drafted got an F
+  // that looked like a considered verdict. Fail loudly instead - the caller
+  // hides the grade and logs, which is a missing grade rather than a lie.
+  if (!Number.isFinite(score)) {
+    throw new TypeError(`letterFor needs a finite score, got ${score}`);
+  }
   if (!curve || curve.length === 0) return "C";
   let lo = 0;
   let hi = curve.length;
