@@ -149,6 +149,39 @@ function buildMatchOutcome(
   return update;
 }
 
+/**
+ * EVERY row of a pool, not the first page of it.
+ *
+ * `.select("*")` goes through PostgREST, which caps a response at its
+ * `max-rows` setting - 1000 by default. Football's pool is 13,874 rows and
+ * basketball's is 9,417, so the trusted simulation was building its rating
+ * context from about seven percent of the dataset. That is not a crash and it
+ * does not look wrong: the game still simulates, the box score still adds up,
+ * and the score is plausible. It is simply a DIFFERENT game from the one the
+ * same rosters play offline, because every rating in this engine is a
+ * percentile against the pool it was computed from.
+ *
+ * It left a fingerprint rather than an error - the dataset_version recorded
+ * against real finished matches reads `nfl-generated-1000-2024`, where the
+ * 1000 is the row count. Exactly the cap, for a table with 13,874 rows.
+ *
+ * scripts/verify-nfl-parity.mjs guarantees the two ENGINES agree given the
+ * same dataset; nothing was checking that the server had the same dataset.
+ */
+async function loadWholeTable(admin: any, table: string): Promise<any[] | null> {
+  const PAGE = 1000;
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from(table).select("*").range(from, from + PAGE - 1);
+    if (error || !data) return null;
+    rows.push(...data);
+    if (data.length < PAGE) return rows;
+    // A pool that never stops paging is a bug somewhere else; refuse rather
+    // than loop forever inside a request.
+    if (rows.length > 200000) return rows;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -184,8 +217,8 @@ Deno.serve(async (req: Request) => {
   const sportEngine = engineFor(sportId);
   if (!sportEngine) return json({ error: `no server engine for sport '${sportId}'` }, 501);
 
-  const { data: playerRows, error: playersErr } = await admin.from(sportEngine.table).select("*");
-  if (playersErr || !playerRows) return json({ error: `failed to load ${sportId} player dataset` }, 500);
+  const playerRows = await loadWholeTable(admin, sportEngine.table);
+  if (!playerRows) return json({ error: `failed to load ${sportId} player dataset` }, 500);
 
   // Every sport owns these conversions. This is the critical boundary that
   // prevents a shared online shell from turning an NFL roster into basketball

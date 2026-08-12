@@ -193,6 +193,25 @@ function interleaveByPosition(list) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * How long to wait for one step, given the run's remaining budget.
+ *
+ * THE FLOOR IS THE POINT. Every call site used to clamp with
+ * `Math.max(5000, deadline - Date.now())`, which looks like a safety net and is
+ * really a trap: once the budget is spent, every later wait silently collapses
+ * to five seconds and its step fails. The run then reports "the simulation
+ * never reached a final score" about a game that was playing perfectly and had
+ * simply not been given time to finish - a budget overrun wearing a product
+ * bug's clothes. That cost a full investigation twice, most recently for
+ * football, whose longer draft pushes everything after it past the deadline.
+ *
+ * The floor is now the minimum time the step genuinely needs, so overrunning
+ * the budget produces an honest overrun instead of a false failure. The budget
+ * is still a hang guard, because `max` bounds every wait.
+ */
+const waitBudget = (deadline, minMs, maxMs) =>
+  Math.min(maxMs, Math.max(minMs, deadline - Date.now()));
+
 /** Makes one pick. Returns the player taken, or null if the round moved on
  * without us (an opponent timeout, or our own pick clock firing - both are
  * legitimate and the draft continues either way). */
@@ -227,7 +246,12 @@ async function makeOnePick(page, squadIndex, log) {
     // over the board, and every later pick clicked into a backdrop.
     const modal = page.locator("#modal-backdrop:not(.hidden)");
     if (await modal.isVisible().catch(() => false)) {
-      const season = page.locator("#modal-backdrop .season-option").first();
+      // The first SELECTABLE year, not the first year. Seasons a player
+      // cannot be placed in are offered but disabled - Allen Iverson's
+      // shooting-guard years are greyed out once SG is filled - and clicking
+      // a disabled button leaves the modal open, which then swallows every
+      // later click on the board.
+      const season = page.locator("#modal-backdrop .season-option:not([disabled])").first();
       if (await season.isVisible().catch(() => false)) {
         await season.click().catch(() => {});
       }
@@ -316,7 +340,7 @@ async function driveStrategyPhases(page, label, log, deadline) {
   for (const phase of phases) {
     const shown = await page
       .locator(`${phase.panel}:not(.hidden)`)
-      .waitFor({ state: "visible", timeout: Math.max(1000, deadline - Date.now()) })
+      .waitFor({ state: "visible", timeout: waitBudget(deadline, 10000, 60000) })
       .then(() => true)
       .catch(() => false);
     if (!shown) {
@@ -342,7 +366,7 @@ async function driveStrategyPhases(page, label, log, deadline) {
   let rounds = 0;
   const firstRound = await page
     .locator("#tactic-phase:not(.hidden)")
-    .waitFor({ state: "visible", timeout: Math.max(1000, deadline - Date.now()) })
+    .waitFor({ state: "visible", timeout: waitBudget(deadline, 10000, 60000) })
     .then(() => true)
     .catch(() => false);
   if (firstRound) {
@@ -479,6 +503,7 @@ export async function runBrowserChecks(opts = {}) {
   await mkdir(artifactDir, { recursive: true });
   const deadline = Date.now() + budgetMs;
 
+
   const browser = await chromium.launch({
     headless,
     args: ["--disable-dev-shm-usage"],
@@ -579,7 +604,12 @@ export async function runBrowserChecks(opts = {}) {
       const wantedSport = process.env.SELFTEST_SPORT || "nba";
       const sportRow = page.locator(`[data-sport="${wantedSport}"]`).first();
       if (await sportRow.count()) await sportRow.click();
-      const modeBtn = mode === "online" ? '[data-mode="online"]' : '[data-mode="practice-hard"]';
+      // WHICH MODE, likewise. Offline runs only ever drove Ranked Practice, so
+      // Quick Play - a mode with its own roster shape, its own ruleset and no
+      // strategy phases at all - had no browser coverage in either sport.
+      // SELFTEST_MODE selects it; the default is unchanged.
+      const offlineMode = process.env.SELFTEST_MODE === "quick" ? "practice-easy" : "practice-hard";
+      const modeBtn = mode === "online" ? '[data-mode="online"]' : `[data-mode="${offlineMode}"]`;
       await page.locator(`#mode-toggle ${modeBtn}`).waitFor({ state: "visible", timeout: 15000 });
       await page.locator(`#mode-toggle ${modeBtn}`).click();
     }
@@ -592,7 +622,7 @@ export async function runBrowserChecks(opts = {}) {
       sessions.map(({ page }) =>
         page
           .locator("#screen-draft:not(.hidden)")
-          .waitFor({ state: "visible", timeout: Math.min(90000, Math.max(5000, deadline - Date.now())) })
+          .waitFor({ state: "visible", timeout: waitBudget(deadline, 20000, 90000) })
           .then(() => true)
           .catch(() => false)
       )
@@ -642,25 +672,56 @@ export async function runBrowserChecks(opts = {}) {
       sessions.map(({ page }) =>
         page
           .locator("#screen-game:not(.hidden)")
-          .waitFor({ state: "visible", timeout: Math.min(90000, Math.max(5000, deadline - Date.now())) })
+          .waitFor({ state: "visible", timeout: waitBudget(deadline, 30000, 90000) })
           .then(() => true)
           .catch(() => false)
       )
     );
     if (reachedGame.some((r) => !r)) throw new Error("the game screen never appeared after the strategy phase");
 
+    // Long enough for the slowest sport's playback. Football's is a ~55s event
+    // timeline against basketball's quarter animation, and it is the whole
+    // point of the check that it be watched to the end rather than sampled.
+    // Floor above football's ~55s playback, so a long run cannot turn a
+    // healthy game into a reported failure.
+    const finalWaitMs = waitBudget(deadline, 120000, 240000);
     const finals = await Promise.all(
       sessions.map(({ page }) =>
         page
           .locator("#final-banner:not(.hidden)")
-          .waitFor({ state: "visible", timeout: Math.min(120000, Math.max(5000, deadline - Date.now())) })
+          .waitFor({ state: "visible", timeout: finalWaitMs })
           .then(() => page.locator("#final-banner").textContent())
           .catch(() => null)
       )
     );
     const simPerf = await sessions[0].page.evaluate(() => window.__bkPerfStop("simulation"));
 
-    if (finals.some((f) => !f)) throw new Error("the simulation never reached a final score");
+    if (finals.some((f) => !f)) {
+      // WHERE IT GOT TO, not just that it did not arrive. "The simulation never
+      // reached a final score" is true of a game that stalled on the first snap
+      // and of one that was one play short, and those are completely different
+      // bugs - the message sent every investigation back to the screenshot.
+      const where = await Promise.all(
+        sessions.map(({ page, label }) =>
+          page
+            .evaluate(() => {
+              const t = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
+              const nums = (t("#live-scoreboard .scoreboard-score") || "").trim();
+              return {
+                clock: t(".ff-clock"),
+                score: nums || t("#live-scoreboard"),
+                feed: document.querySelectorAll("#play-feed .play-card").length,
+                gameVisible: !document.querySelector("#screen-game")?.classList.contains("hidden"),
+              };
+            })
+            .then((s) => `${label}: clock ${s.clock || "-"}, ${s.feed} feed cards, game screen ${s.gameVisible ? "up" : "gone"}, board "${String(s.score).replace(/\s+/g, " ").slice(0, 90)}"`)
+            .catch(() => `${label}: unreadable`)
+        )
+      );
+      throw new Error(
+        `the simulation never reached a final score after ${(finalWaitMs / 1000).toFixed(0)}s - ${where.join(" | ")}`
+      );
+    }
 
     // Both clients must be told the same story. In online play they read the
     // result from the same match_results row, so a disagreement here is a

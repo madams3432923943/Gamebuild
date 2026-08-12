@@ -33,11 +33,22 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
+// BOTH OF THESE MOVED, AND THIS FILE DID NOT FOLLOW.
+//
+// The per-sport refactor put the basketball engine under js/sports/nba/ and
+// took the roster shape off js/constants.js - a slot list is a fact about one
+// sport, not about the app. This kept importing js/engine.js and
+// constants.RANKED_SLOTS, so it threw ERR_MODULE_NOT_FOUND on startup and took
+// BOTH online harnesses down with it: verify:online-selftest and
+// verify:abandon-selftest are the only end-to-end coverage online play and
+// reconnect have, and neither is part of `npm run verify`. They had been
+// failing to start rather than failing a check, so nothing reported it.
 const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "data", "nba-players.js")}`).href);
 const { computeDatasetStats, simulateGame } = await import(
-  new URL(`file://${path.join(ROOT, "js", "engine.js")}`).href
+  new URL(`file://${path.join(ROOT, "js", "sports", "nba", "engine.js")}`).href
 );
-const { RANKED_SLOTS } = await import(new URL(`file://${path.join(ROOT, "js", "constants.js")}`).href);
+const { NBA } = await import(new URL(`file://${path.join(ROOT, "js", "sports", "nba", "index.js")}`).href);
+const RANKED_SLOTS = NBA.slots.ranked;
 
 const datasetStats = computeDatasetStats(PLAYERS);
 

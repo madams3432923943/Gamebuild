@@ -76,6 +76,39 @@ export function eligibleOpenSlots(player, roster, slots = defaultSlots()) {
   return openSlots(roster, slots).filter((s) => isEligible(player, s));
 }
 
+/**
+ * What a click on this player actually resolves to.
+ *
+ * Three outcomes, and the caller needs to tell them apart:
+ *   { slot }              place him here, no question worth asking
+ *   { choices }           a real decision - open the slot picker
+ *   { slot: null }        he cannot be placed at all
+ *
+ * WHY THIS IS HERE RATHER THAN IN THE TWO HANDLERS. It was written twice, once
+ * for the offline board and once for the online one, as:
+ *
+ *     if (slots.length === 1 || slots.every((s) => s.startsWith("BENCH")))
+ *       finalizePick(player, slots[0]);
+ *
+ * `[].every(...)` is TRUE, so a player who could not be placed anywhere fell
+ * into the shortcut and was drafted into `slots[0]` - which is `undefined`.
+ * Offline that loses the pick; online it reaches the server as a slotless pick
+ * the RPC then rejects. Two copies of a rule is how the rule ends up with a
+ * hole in it, so there is one copy now and it lives with the draft rules
+ * rather than with the screens that draw them.
+ *
+ * Bench spots are deliberately collapsed: five interchangeable bench buttons
+ * are noise dressed up as a decision.
+ */
+export function resolvePickSlot(player, roster, slots = defaultSlots()) {
+  const open = eligibleOpenSlots(player, roster, slots);
+  if (open.length === 0) return { slot: null, choices: [] };
+  if (open.length === 1 || open.every((s) => activeSport().isBenchSlot(s))) {
+    return { slot: open[0], choices: open };
+  }
+  return { slot: null, choices: open };
+}
+
 /** Every legal (player, slot) combo for `roster` in `squad`, each scored by
  * activeSport().rate() - the shared building block behind both the bot's best-pick
  * logic and the pick-timer's worst-pick timeout penalty. */
