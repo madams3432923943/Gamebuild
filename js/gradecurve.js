@@ -59,11 +59,23 @@ export function letterFor(score, curve) {
  * slot, drawn from across the era - and scores each. The spread of those
  * scores IS the curve. */
 export function sampleRosterScores(slots, poolFor, scoreRoster, count = 240) {
+  // ONE POOL PER SLOT, not one per slot per sample.
+  //
+  // poolFor filters the whole dataset, and it was being called inside both
+  // loops - 240 samples x 11 football slots x 13,874 entries is about 36
+  // million eligibility tests for an answer that depends only on the slot. The
+  // curve is built lazily on the FIRST graded draft, which is the moment the
+  // last roster spot is filled, so the whole cost landed as a dead screen
+  // right at the end of the draft: 9.2 seconds for football, 1.4 for
+  // basketball. Hoisting it is a pure speed-up - the sampling below indexes
+  // into exactly the same arrays in exactly the same order, so the curve, and
+  // therefore every letter, is unchanged.
+  const pools = new Map(slots.map((slot) => [slot, poolFor(slot)]));
   const scores = [];
   for (let i = 0; i < count; i++) {
     const roster = {};
     for (const [n, slot] of slots.entries()) {
-      const pool = poolFor(slot);
+      const pool = pools.get(slot);
       if (!pool.length) continue;
       // Deterministic spread rather than Math.random, so the same dataset
       // always produces the same curve and a grade is reproducible.

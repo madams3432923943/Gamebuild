@@ -41,8 +41,17 @@ for(const a of accts){
   await p.locator("#screen-home:not(.hidden)").waitFor({timeout:20000});
   pages.push({p,ctx,errs});
 }
-// both queue -> matched with each other
-for(const {p} of pages){ await p.locator('#mode-toggle [data-mode="online"]').click(); }
+// both queue -> matched with each other.
+// The home screen is a SPORT HUB: the mode toggle only exists once a sport is
+// chosen, so this sat on the hub clicking at a button that was not on the page
+// yet and timed out. verify-browser hit the same thing and was fixed; this file
+// was missed, and because it is not part of `npm run verify` nothing said so.
+for(const {p} of pages){
+  const sportRow = p.locator('[data-sport="nba"]').first();
+  if(await sportRow.count()) await sportRow.click();
+  await p.locator('#mode-toggle [data-mode="online"]').waitFor({state:"visible",timeout:15000});
+  await p.locator('#mode-toggle [data-mode="online"]').click();
+}
 await Promise.all(pages.map(({p})=>p.locator("#btn-start-draft").click()));
 await Promise.all(pages.map(({p})=>p.locator("#screen-draft:not(.hidden)").waitFor({timeout:60000})));
 console.log("PASS  both players reached the draft");

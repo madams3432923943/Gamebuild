@@ -9,7 +9,7 @@ import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
-import { DraftState, eligibleOpenSlots, worstEligiblePick } from "./draft.js";
+import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
@@ -549,7 +549,25 @@ function sportCardAction(label, onClick) {
  * table without knowing a thing about it. Quick Play shows them, because Quick
  * Play exists to teach the pool and hiding numbers there teaches nothing. Same
  * split the player board itself already makes (`showStats`). */
-function openSeasonPicker(player, seasons, onChoose, showStats = false) {
+/**
+ * Which year of this player you are drafting.
+ *
+ * @param placement { roster, slots } - what the pick has to fit into. Seasons
+ *   that cannot be placed are offered but not selectable, with the reason
+ *   shown, rather than silently accepting a choice that cannot become a pick.
+ *
+ * WHY THIS FILTERS AT ALL. A player card is enabled from the UNION of the
+ * positions he held across every draftable season - a man who was a power
+ * forward one year and a centre another is offered while either slot is open.
+ * The pick handler then evaluates the ONE season you chose. Pick the year he
+ * was a power forward when only centre is open and the two disagree: the card
+ * said yes, the handler finds no eligible slot, and what reached the draft was
+ * a pick with `undefined` for a slot. Offline that is a lost pick; online the
+ * server rejects it, and against the test double it crashed the draft outright.
+ * The card is not wrong - he really is draftable - so the fix belongs here,
+ * where the year is chosen.
+ */
+function openSeasonPicker(player, seasons, onChoose, showStats = false, placement = null) {
   const wrap = document.createElement("div");
 
   const intro = document.createElement("p");
@@ -576,10 +594,22 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false) {
     row.querySelector(".season-line").textContent = showStats
       ? `${typeof line === "function" ? line(s) : ""} · ${s.games} games`
       : "";
-    row.addEventListener("click", () => {
-      closeModal();
-      onChoose(s);
-    });
+
+    const placeable = !placement || eligibleOpenSlots(s, placement.roster, placement.slots).length > 0;
+    if (!placeable) {
+      row.disabled = true;
+      row.classList.add("disabled");
+      // Says WHY, because "that year is greyed out" with no reason reads as a
+      // bug. Positions only - no stats - so this cannot leak numbers into the
+      // ranked ruleset, which is the whole point of hiding them.
+      row.querySelector(".season-line").textContent =
+        `${(s.pos || []).join(" / ")} - no open slot`;
+    } else {
+      row.addEventListener("click", () => {
+        closeModal();
+        onChoose(s);
+      });
+    }
     list.appendChild(row);
   }
   wrap.appendChild(list);
@@ -1662,7 +1692,11 @@ function renderPoolForCurrentState() {
     sport().players(),
     game.ruleset,
     draft.slots,
-    (player, seasons, showStats) => openSeasonPicker(player, seasons, onPoolPick, showStats)
+    (player, seasons, showStats) =>
+      openSeasonPicker(player, seasons, onPoolPick, showStats, {
+        roster: rosterFor(game.round.activeSide),
+        slots: game.draft.slots,
+      })
   );
   // The pool told the player it is broken; running the clock down and
   // forfeiting their pick on top of that would be charging them for our bug.
@@ -1671,13 +1705,21 @@ function renderPoolForCurrentState() {
 
 function onPoolPick(player) {
   const roster = rosterFor(game.round.activeSide);
-  const slots = eligibleOpenSlots(player, roster, game.draft.slots);
-  // One eligible slot, or every eligible slot is bench (interchangeable, so
-  // asking which one isn't a real decision) - place him without a popup.
-  if (slots.length === 1 || slots.every((s) => s.startsWith("BENCH"))) {
-    finalizePick(player, slots[0]);
+  const { slot, choices } = resolvePickSlot(player, roster, game.draft.slots);
+  // Nothing fits: re-render so the board reflects reality rather than
+  // swallowing the click. See resolvePickSlot for why this is not a shortcut.
+  if (!slot && choices.length === 0) {
+    game.round.pendingPlayer = null;
+    renderDraftRound();
     return;
   }
+  // One eligible slot, or every eligible slot is bench (interchangeable, so
+  // asking which one isn't a real decision) - place him without a popup.
+  if (slot) {
+    finalizePick(player, slot);
+    return;
+  }
+  const slots = choices;
   // A genuine choice exists (a real position, alone or alongside bench), so
   // ask - in a popup rather than by re-rendering the board and hoping the
   // position strip is noticed. Dismissing puts the player back rather than
@@ -2248,7 +2290,11 @@ function renderOnlinePositionAndPool() {
     sport().players(),
     game.ruleset,
     sport().slots.ranked,
-    (player, seasons, showStats) => openSeasonPicker(player, seasons, onOnlinePoolPick, showStats)
+    (player, seasons, showStats) =>
+      openSeasonPicker(player, seasons, onOnlinePoolPick, showStats, {
+        roster: game.online.myRoster,
+        slots: sport().slots.ranked,
+      })
   );
   // Same contract as offline. The server still holds the turn clock, so this
   // only stops the local countdown from pressuring a player who cannot search.
@@ -2257,14 +2303,21 @@ function renderOnlinePositionAndPool() {
 
 function onOnlinePoolPick(player) {
   const o = game.online;
-  const slots = eligibleOpenSlots(player, o.myRoster, sport().slots.ranked);
-  // Mirrors onPoolPick (offline) exactly: one eligible slot, or every
-  // eligible slot is bench (interchangeable, not a real decision) - place
-  // him without a popup.
-  if (slots.length === 1 || slots.every((s) => s.startsWith("BENCH"))) {
-    finalizeOnlinePick(player, slots[0]);
+  const { slot, choices } = resolvePickSlot(player, o.myRoster, sport().slots.ranked);
+  // Same rule as offline, from the same function - and it matters more here:
+  // an undefined slot reached the server as `p_slot: undefined`, which the real
+  // RPC rejects with "slot is not valid", a confusing error for a click the
+  // interface had allowed.
+  if (!slot && choices.length === 0) {
+    o.pendingPlayer = null;
+    renderOnlinePositionAndPool();
     return;
   }
+  if (slot) {
+    finalizeOnlinePick(player, slot);
+    return;
+  }
+  const slots = choices;
   // A genuine choice exists - same popup offline uses, not a different
   // online-only pattern.
   o.pendingPlayer = player;

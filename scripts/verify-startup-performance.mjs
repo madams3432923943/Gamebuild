@@ -199,6 +199,38 @@ async function main() {
       detail: reachedDraft ? `draft screen in ${draftMs}ms, pool painted: ${poolPainted}` : "draft never appeared",
     });
 
+    // THE MOMENT THE DRAFT ENDS. The grade curve is built lazily on the first
+    // graded roster, which is exactly when the last slot is filled - so its
+    // cost lands as a frozen screen at the end of the draft rather than
+    // anywhere a loading state would be expected. It was 9.2 seconds for
+    // football and 1.4 for basketball, because the per-slot candidate pool was
+    // being re-filtered inside the sampling loop: 240 samples x 11 slots x
+    // 13,874 entries.
+    //
+    // Measured in the page, not in Node, because that is where the player
+    // waits. A budget rather than a printout - the whole point of this file.
+    const gradeMs = await page.evaluate(async () => {
+      const { NFL } = await import("/js/sports/nfl/index.js");
+      await NFL.preload();
+      const ctx = NFL.computeDatasetStats();
+      const rows = NFL.playersInEra(NFL.players(), NFL.defaultEra);
+      const roster = {};
+      for (const slot of NFL.slots.ranked) {
+        const base = NFL.basePosition(slot);
+        const hit = rows.find((p) => (p.pos || []).includes(base) || (p.group || "") === base);
+        if (hit) roster[slot] = hit;
+      }
+      const t0 = performance.now();
+      NFL.gradeDraft(roster, ctx, { oppRoster: roster, forfeits: [] });
+      return Math.round(performance.now() - t0);
+    }).catch(() => null);
+
+    checks.push({
+      title: "Grading the first finished football roster is not a freeze (< 1.5s)",
+      ok: gradeMs != null && gradeMs < 1500,
+      detail: gradeMs == null ? "could not be measured" : `${gradeMs}ms to build the curve and grade`,
+    });
+
     await context.close();
   } finally {
     await browser.close();

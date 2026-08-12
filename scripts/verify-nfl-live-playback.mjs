@@ -185,7 +185,12 @@ async function main() {
       await card.click().catch(() => {});
       const modal = page.locator("#modal-backdrop:not(.hidden)");
       if (await modal.isVisible().catch(() => false)) {
-        const season = page.locator("#modal-backdrop .season-option").first();
+        // The first SELECTABLE year, not the first year. Seasons a player
+      // cannot be placed in are offered but disabled - Allen Iverson's
+      // shooting-guard years are greyed out once SG is filled - and clicking
+      // a disabled button leaves the modal open, which then swallows every
+      // later click on the board.
+      const season = page.locator("#modal-backdrop .season-option:not([disabled])").first();
         if (await season.isVisible().catch(() => false)) await season.click().catch(() => {});
       }
       if (await modal.isVisible().catch(() => false)) {
