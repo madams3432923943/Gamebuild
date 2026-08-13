@@ -206,3 +206,60 @@ export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
+
+/**
+ * Why a name would be refused, or null if it's fine.
+ *
+ * Sign-up creates the profile through a trigger on auth.users, so a username
+ * the server rejects comes back as "Database error saving new user" - true,
+ * and no help at all to the person typing. Asking first turns that into a
+ * sentence they can act on.
+ *
+ * This is a courtesy, not the enforcement: the trigger on profiles is what
+ * actually decides, and it runs whether or not anyone called this. A network
+ * failure here therefore returns null (let the attempt proceed and be judged
+ * server-side) rather than blocking sign-up on a check that is only advice.
+ */
+export async function usernameRejectionReason(username) {
+  try {
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.rpc("username_rejection_reason", { p_username: username });
+    if (error) {
+      console.error("Username pre-check failed:", error);
+      return null;
+    }
+    return data || null;
+  } catch (e) {
+    console.error("Username pre-check failed:", e);
+    return null;
+  }
+}
+
+/**
+ * Deletes the signed-in account and everything personal attached to it. See
+ * db/migrations/20260813_01_account_deletion.sql for exactly what goes and
+ * what stays, and legal/privacy.html for the promise this keeps.
+ *
+ * Irreversible, and the caller is responsible for confirming that with the
+ * player before calling.
+ */
+export async function deleteOwnAccount() {
+  const supabase = await getSupabase();
+  const { error } = await supabase.rpc("delete_own_account");
+  if (error) {
+    // PostgREST resolves an RPC by its exact argument names, so a server that
+    // hasn't had the migration applied reports a MISSING FUNCTION rather than
+    // a type error. Saying "try again later" there would be a lie; the honest
+    // answer is that the button isn't live yet and email works today.
+    if (error.code === "PGRST202" || /function .*delete_own_account.* does not exist/i.test(error.message || "")) {
+      throw new Error(
+        "Account deletion isn't available on this server yet. Email maxwell@gurrbrothers.com and we'll delete it for you."
+      );
+    }
+    throw new Error(error.message || "Couldn't delete the account.");
+  }
+  // The session outlives the user row it points at, so sign out explicitly -
+  // otherwise the app keeps a token for an account that no longer exists and
+  // every subsequent request fails in a confusing way.
+  await supabase.auth.signOut();
+}

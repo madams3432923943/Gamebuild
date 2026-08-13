@@ -16,7 +16,7 @@
 
 import {
   squadRankInfo, myMembership, loadSquadRoster, loadMySquad, listPublicSquads,
-  watchSquadChat, sendSquadMessage, createSquad, joinPublicSquad, joinSquadByCode,
+  watchSquadChat, sendSquadMessage, reportSquadMessage, createSquad, joinPublicSquad, joinSquadByCode,
   leaveSquad, kickMember, setMemberRole, transferLeadership, regenerateInviteCode,
   updateSquadSettings, disbandSquad,
 } from "../squads.js";
@@ -29,6 +29,7 @@ import {
   renderSquadEmojiPalette, renderSquadBrowseList, renderSquadHeader,
   renderSquadRoster, renderSquadChat, renderSquadsTopTabs,
   renderFriendChallenges, renderFriendRequests, renderFriendsLeaderboard,
+  escapeHtml,
 } from "../ui.js";
 import { getSession } from "../supabaseClient.js";
 import { showScreen, openModal, closeModal } from "../shell.js";
@@ -213,7 +214,7 @@ async function loadSquadDetail() {
   } else if (activeSquadsTab === "chat") {
     cleanupSquadChatWatcher();
     squadChatStop = watchSquadChat(detail.squad.id, (messages) => {
-      renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId);
+      renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId, openReportMessageModal);
     });
   }
 }
@@ -324,7 +325,65 @@ async function sendSquadChatFromInput() {
   } catch (e) {
     console.error("Failed to send squad chat:", e);
     setSquadStatus(e.message || "Couldn't send that message.", "error");
+    // A rejected message is usually one word away from an allowed one - the
+    // moderation filter and the rate limiter both refuse text worth editing
+    // rather than retyping - so put it back in the box.
+    squadChatInput.value = body;
   }
+}
+
+/** Report a message. A short reason is optional: making it mandatory buys
+ * worse reports, not fewer. */
+function openReportMessageModal(message) {
+  const wrap = document.createElement("div");
+  wrap.innerHTML =
+    `<p class="hint-text">Reporting <strong>${escapeHtml(message.username)}</strong>:</p>` +
+    `<blockquote class="report-quote">${escapeHtml(message.body)}</blockquote>`;
+
+  const field = document.createElement("div");
+  field.className = "field-row";
+  field.innerHTML = `<label for="input-report-reason">What's wrong with it? (optional)</label>`;
+  const reasonInput = document.createElement("input");
+  reasonInput.id = "input-report-reason";
+  reasonInput.type = "text";
+  reasonInput.maxLength = 300;
+  reasonInput.placeholder = "Harassment, slurs, spam…";
+  field.appendChild(reasonInput);
+  wrap.appendChild(field);
+
+  const note = document.createElement("p");
+  note.className = "hint-text";
+  note.innerHTML =
+    "Moderators see the message and your reason. The player is not told who reported them. " +
+    '<a href="legal/community.html" target="_blank" rel="noopener">Community Guidelines</a>.';
+  wrap.appendChild(note);
+
+  const errorEl = document.createElement("div");
+  errorEl.className = "auth-status hidden";
+  wrap.appendChild(errorEl);
+
+  const sendBtn = document.createElement("button");
+  sendBtn.type = "button";
+  sendBtn.className = "btn btn-primary btn-block";
+  sendBtn.textContent = "Send Report";
+  sendBtn.addEventListener("click", async () => {
+    sendBtn.disabled = true;
+    try {
+      await reportSquadMessage(message.id, reasonInput.value.trim());
+    } catch (e) {
+      console.error("Failed to report message:", e);
+      errorEl.textContent = e.message || "Couldn't send that report.";
+      errorEl.classList.remove("hidden");
+      errorEl.classList.add("auth-error");
+      sendBtn.disabled = false;
+      return;
+    }
+    closeModal();
+    setSquadStatus("Report sent. Thanks - we'll take a look.");
+  });
+  wrap.appendChild(sendBtn);
+
+  openModal("Report Message", wrap);
 }
 
 // ---- Friends panel ----

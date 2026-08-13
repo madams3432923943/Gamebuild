@@ -378,6 +378,18 @@ input[type="text"]:focus-visible {
   border-color: var(--accent);
 }
 
+/* Reserved for actions that destroy something - account deletion is the only
+   one today. Buzzer red is already the "this is serious" colour everywhere
+   else in the app, so it carries the meaning without a new token. */
+.btn-danger {
+  background: var(--buzzer);
+  color: var(--text);
+}
+
+.btn-danger:hover {
+  filter: brightness(1.08);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent-bright);
   outline-offset: 2px;
@@ -1676,6 +1688,14 @@ table.box-table th, table.history-table th {
 }
 
 .auth-status.auth-error {
+  color: var(--buzzer);
+}
+
+/* The inline statuses beside the profile's name and recovery-email fields are
+   .hint-text, and both already added .auth-error on failure - against a rule
+   that only existed for .auth-status, so a rejected save turned the message
+   grey and looked like a confirmation. */
+.hint-text.auth-error {
   color: var(--buzzer);
 }
 
@@ -3542,6 +3562,38 @@ table.box-table th, table.history-table th {
   word-break: break-word;
 }
 
+/* Deliberately quiet: reporting should be available on every message without
+   the chat looking like a moderation console. It comes up to full contrast on
+   hover and on keyboard focus. */
+.squad-chat-report {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0;
+  margin-top: 0.2rem;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.squad-chat-report:hover,
+.squad-chat-report:focus-visible {
+  color: var(--buzzer);
+  opacity: 1;
+}
+
+.report-quote {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--line);
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
 .squad-chat-input-row {
   display: flex;
   gap: 0.5rem;
@@ -4772,4 +4824,101 @@ html, body {
     font-size: 0.72rem;
     gap: 0.25rem 0.6rem;
   }
+}
+
+/* ---- Legal chrome: consent, footer, danger zone -------------------------
+   The parts of the app the legal documents point at. Kept together because
+   they arrived together and are maintained together; each is small enough
+   that a separate section per element would be noise. */
+
+/* Sign-up consent. The checkbox is a real checkbox and the label is a real
+   label, so it is keyboard-operable and screen-reader-announced without any
+   help - which matters more here than anywhere else in the app, because this
+   control is the record that the player agreed. */
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.9rem 0 1rem;
+}
+
+.consent-row input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.consent-row label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.consent-row a {
+  color: var(--accent-bright);
+}
+
+/* Site footer. Sits outside the screen swapper, so it is the one piece of
+   chrome present on every screen including sign-in. */
+.app-footer {
+  border-top: 1px solid var(--line);
+  padding: 1.5rem var(--page-gutter) 2rem;
+  margin-top: 3rem;
+  text-align: center;
+}
+
+.app-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.app-footer-links a {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.app-footer-links a:hover {
+  color: var(--accent-bright);
+  text-decoration: underline;
+}
+
+.app-footer-note {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+/* Account deletion. Red-edged rather than red-filled: it should read as
+   consequential from across the screen without shouting over the profile. */
+.danger-zone {
+  border-color: rgba(232, 67, 61, 0.45);
+  margin-top: 2rem;
+}
+
+.danger-zone h3 {
+  color: var(--buzzer);
+}
+
+.danger-zone .btn-danger {
+  margin-top: 0.5rem;
+}
+
+/* The "this wasn't a real game" line. Quiet but always present under a box
+   score and at the end of the rules - a disclaimer nobody can find is not a
+   disclaimer, and one that shouts over the result ruins the result. */
+.simulation-notice {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 40rem;
+  margin: 1rem auto 0;
 }

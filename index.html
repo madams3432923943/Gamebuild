@@ -75,6 +75,20 @@
           <input id="input-auth-password" type="password" placeholder="At least 6 characters" autocomplete="current-password" />
         </div>
 
+        <!-- Clickwrap, not browsewrap: a checkbox the player actually ticks
+             is the difference between "they agreed" and "the text was on the
+             page somewhere". Sign-up only - it says nothing about signing in
+             to an account that already accepted. -->
+        <div class="consent-row" id="field-auth-consent" hidden>
+          <input id="input-auth-consent" type="checkbox" />
+          <label for="input-auth-consent">
+            I'm at least 13 years old and I agree to the
+            <a href="legal/terms.html" target="_blank" rel="noopener">Terms of Service</a>,
+            the <a href="legal/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>
+            and the <a href="legal/community.html" target="_blank" rel="noopener">Community Guidelines</a>.
+          </label>
+        </div>
+
         <button id="btn-auth-submit" class="btn btn-primary btn-block">Sign In</button>
         <div id="auth-status" class="auth-status hidden"></div>
         <p class="hint-text auth-switch">
@@ -323,6 +337,12 @@
 
       <div id="full-box-score" class="hidden"></div>
 
+      <!-- Sits with the box score, which is the thing most likely to be
+           screenshotted and passed off as real. Text comes from
+           js/legal/config.js so the game screen, the how-to-play modal and
+           legal/ai-disclosure.html cannot drift into three different claims. -->
+      <p class="simulation-notice" id="game-simulation-notice"></p>
+
       <div class="game-actions">
         <button id="btn-to-profile" class="btn btn-secondary hidden">View Profile</button>
         <button id="btn-play-again" class="btn btn-primary hidden">Play Again</button>
@@ -335,6 +355,10 @@
         <div class="field-row">
           <label for="input-profile-username">Your name</label>
           <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
+          <!-- The server can refuse a name (format or Community Guidelines),
+               and a refusal that only reaches the console leaves the box
+               showing a name that was never saved. -->
+          <span id="profile-username-status" class="hint-text"></span>
         </div>
         <!-- Accounts made before email sign-up existed have a synthetic
              address nobody can read, so they can't be recovered. This is how
@@ -412,6 +436,21 @@
           </thead>
           <tbody id="history-body"></tbody>
         </table>
+      </div>
+
+      <!-- Last thing on the screen, on purpose: the privacy policy promises
+           this exists, and a promise nobody can find is not much of a
+           promise - but it is also irreversible, so it sits below everything
+           rather than beside "Save Email". -->
+      <div class="card danger-zone">
+        <h3>Delete Account</h3>
+        <p class="hint-text">
+          Deletes your account, username, record, rank, badges, banners and friendships for
+          good. Completed matches stay in your opponents' history and your squad messages stay
+          in the squad, both with your name removed. This cannot be undone.
+        </p>
+        <button type="button" id="btn-delete-account" class="btn btn-danger">Delete my account</button>
+        <span id="delete-account-status" class="hint-text"></span>
       </div>
     </section>
 
@@ -524,6 +563,24 @@
     </section>
   </main>
 
+  <!-- Outside <main> so it survives every screen swap - showScreen() toggles
+       sections inside main, and the legal links have to be reachable from
+       wherever the player happens to be, including the sign-in screen. -->
+  <footer class="app-footer">
+    <div class="app-footer-links">
+      <a href="legal/index.html">Legal</a>
+      <a href="legal/privacy.html">Privacy</a>
+      <a href="legal/terms.html">Terms</a>
+      <a href="legal/community.html">Community Guidelines</a>
+      <a href="legal/ai-disclosure.html">AI &amp; Simulation</a>
+      <a href="legal/accessibility.html">Accessibility</a>
+    </div>
+    <p class="app-footer-note">
+      Every game here is simulated by a computer model - none of it is a real game.
+      Draft Nova is not affiliated with the NBA, NFL, NBPA, NFLPA or any of their teams.
+    </p>
+  </footer>
+
   <!-- One modal serves both the draft's position picker and How to Play:
        same shell, different body, so there is a single set of open/close and
        focus rules rather than two that drift apart. -->
@@ -549,6 +606,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=8a0babb"></script>
+  <script type="module" src="js/main.js?v=52d787a"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, rep
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
+import { SIMULATION_NOTICE } from "./legal/config.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
@@ -46,6 +47,8 @@ import {
   getAuthUser,
   onPasswordRecovery,
   isPlaceholderEmail,
+  usernameRejectionReason,
+  deleteOwnAccount,
   USERNAME_PATTERN,
   EMAIL_PATTERN,
 } from "./supabaseClient.js";
@@ -281,8 +284,17 @@ function openHowToPlay(sportId = activeSportId()) {
     section.appendChild(p);
     wrap.appendChild(section);
   }
+  // Last thing in the rules, where "what this game is" belongs.
+  const notice = document.createElement("p");
+  notice.className = "simulation-notice";
+  notice.textContent = SIMULATION_NOTICE;
+  wrap.appendChild(notice);
   openModal(`How to Play: ${s.name}`, wrap);
 }
+
+// Written once at load. The element is inside the game screen, which is only
+// hidden rather than unmounted, so there is nothing to re-run per game.
+document.getElementById("game-simulation-notice").textContent = SIMULATION_NOTICE;
 
 // ---- Auth screen ----
 // The whole app sits behind this: no anonymous play, so a player's record,
@@ -298,6 +310,8 @@ const inputAuthPassword = document.getElementById("input-auth-password");
 const fieldAuthEmail = document.getElementById("field-auth-email");
 const fieldAuthIdentifier = document.getElementById("field-auth-identifier");
 const fieldAuthUsername = document.getElementById("field-auth-username");
+const fieldAuthConsent = document.getElementById("field-auth-consent");
+const inputAuthConsent = document.getElementById("input-auth-consent");
 const btnAuthSubmit = document.getElementById("btn-auth-submit");
 const btnAuthToggle = document.getElementById("btn-auth-toggle");
 const btnAuthForgot = document.getElementById("btn-auth-forgot");
@@ -325,6 +339,10 @@ function renderAuthMode() {
 
   fieldAuthEmail.hidden = !isSignup;
   fieldAuthUsername.hidden = !isSignup;
+  fieldAuthConsent.hidden = !isSignup;
+  // Unticked every time the card becomes a sign-up card again, so agreement
+  // is always something the player did on this attempt.
+  if (!isSignup) inputAuthConsent.checked = false;
   fieldAuthIdentifier.hidden = isSignup || isRecover;
   authForgotRow.hidden = isSignup || isRecover;
   btnAuthToggle.parentElement.hidden = isRecover;
@@ -678,10 +696,23 @@ btnAuthSubmit.addEventListener("click", async () => {
       setAuthStatus("Usernames are 3-20 characters: letters, numbers or underscores.", "error");
       return;
     }
+    if (!inputAuthConsent.checked) {
+      setAuthStatus("Tick the box to accept the Terms and Privacy Policy before creating an account.", "error");
+      return;
+    }
 
     btnAuthSubmit.disabled = true;
     setAuthStatus("Creating your account…");
     try {
+      // Ask the server about the name before minting an account around it.
+      // The profiles trigger is what actually enforces this; without the
+      // question, its refusal reaches the player as "Database error saving
+      // new user", which tells them nothing about what to change.
+      const rejection = await usernameRejectionReason(username);
+      if (rejection) {
+        setAuthStatus(rejection, "error");
+        return;
+      }
       const { session, needsConfirmation } = await signUp(email, username, password);
       // No session means the project has email confirmation on. That is now a
       // sensible configuration rather than a broken one - the address is real
@@ -3655,6 +3686,79 @@ btnSaveEmail.addEventListener("click", async () => {
   }
 });
 
+// ---- Delete account ----
+// The mechanism behind the promise in legal/privacy.html. Two gates before
+// the irreversible call: a modal that says what goes and what stays, and a
+// typed confirmation - a misclicked "Yes" on a window.confirm() is not a
+// good enough basis for deleting somebody's account.
+
+const btnDeleteAccount = document.getElementById("btn-delete-account");
+const deleteAccountStatusEl = document.getElementById("delete-account-status");
+
+btnDeleteAccount.addEventListener("click", () => {
+  const wrap = document.createElement("div");
+
+  const warning = document.createElement("p");
+  warning.className = "hint-text";
+  warning.innerHTML =
+    "This deletes your account, email, username, record, rank, badges, banners, friendships " +
+    "and squad membership. Completed matches stay in your opponents' history and your squad " +
+    "messages stay in the squad, both with your name removed. " +
+    '<strong>It cannot be undone.</strong> See the ' +
+    '<a href="legal/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.';
+  wrap.appendChild(warning);
+
+  const field = document.createElement("div");
+  field.className = "field-row";
+  field.innerHTML = `<label for="input-delete-confirm">Type DELETE to confirm</label>`;
+  const confirmInput = document.createElement("input");
+  confirmInput.id = "input-delete-confirm";
+  confirmInput.type = "text";
+  confirmInput.autocomplete = "off";
+  confirmInput.placeholder = "DELETE";
+  field.appendChild(confirmInput);
+  wrap.appendChild(field);
+
+  const errorEl = document.createElement("div");
+  errorEl.className = "auth-status hidden";
+  wrap.appendChild(errorEl);
+
+  const confirmBtn = document.createElement("button");
+  confirmBtn.type = "button";
+  confirmBtn.className = "btn btn-danger btn-block";
+  confirmBtn.textContent = "Delete My Account Permanently";
+  confirmBtn.addEventListener("click", async () => {
+    if (confirmInput.value.trim().toUpperCase() !== "DELETE") {
+      errorEl.textContent = "Type DELETE in the box to confirm.";
+      errorEl.classList.remove("hidden");
+      errorEl.classList.add("auth-error");
+      return;
+    }
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Deleting…";
+    try {
+      await deleteOwnAccount();
+    } catch (e) {
+      console.error("Account deletion failed:", e);
+      errorEl.textContent = e.message || "Couldn't delete the account.";
+      errorEl.classList.remove("hidden");
+      errorEl.classList.add("auth-error");
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Delete My Account Permanently";
+      return;
+    }
+    closeModal();
+    deleteAccountStatusEl.textContent = "";
+    // A reload rather than showing the auth screen in place: half this
+    // module's state is about a player who no longer exists, and there is no
+    // reason to be clever about tearing it down one variable at a time.
+    window.location.reload();
+  });
+  wrap.appendChild(confirmBtn);
+
+  openModal("Delete Account", wrap);
+});
+
 // ---- Rank ladder ----
 // Ranked is a percentile ladder (see loadRankInfo), which is fair but
 // invisible: without this a player can only ever see the one rung they are
@@ -3978,17 +4082,29 @@ async function onEquipBanner(franchiseId) {
   await openBadgesScreen();
 }
 
+const profileUsernameStatusEl = document.getElementById("profile-username-status");
+
 profileRefs.usernameInput.addEventListener("change", async () => {
   const name = profileRefs.usernameInput.value.trim();
+  const previous = game.nameA;
   if (!name) return;
+  profileUsernameStatusEl.classList.remove("auth-error");
+  profileUsernameStatusEl.textContent = "";
   try {
     await setUsername(name);
   } catch (e) {
     console.error("Failed to save username:", e);
+    // The username trigger raises text written for a player to read, so it is
+    // shown as-is. Putting the old name back matters as much as the message:
+    // a box still showing the rejected name reads as "saved".
+    profileUsernameStatusEl.textContent = e.message || "Couldn't save that name.";
+    profileUsernameStatusEl.classList.add("auth-error");
+    if (previous) profileRefs.usernameInput.value = previous;
     return;
   }
   game.nameA = name;
   signedInAsEl.textContent = name;
+  profileUsernameStatusEl.textContent = "Saved.";
 });
 
 // Squads reaches back into the game only to join a challenge, and needs to

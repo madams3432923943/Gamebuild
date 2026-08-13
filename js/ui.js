@@ -1631,7 +1631,10 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
   sync();
 }
 
-function escapeHtml(s) {
+/** Exported because the squads screen builds a couple of innerHTML fragments
+ * of its own out of player-supplied text - a second copy of the escaper is
+ * exactly the kind of duplication that ends with one of them being wrong. */
+export function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
@@ -2092,20 +2095,33 @@ export function renderSquadRoster(container, roster, myUserId, myRole, callbacks
 /** Chat pane. Preserves scroll position unless the reader was already at
  * the bottom, so a poll landing while they've scrolled up to read history
  * doesn't yank the view back down. */
-export function renderSquadChat(container, messages, myUserId) {
+export function renderSquadChat(container, messages, myUserId, onReport) {
   const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 20;
   container.innerHTML = "";
   if (!messages.length) {
     renderNote(container, "No messages yet - say hello!");
   } else {
     for (const msg of messages) {
+      const mine = msg.user_id === myUserId;
       const row = document.createElement("div");
-      row.className = "squad-chat-message" + (msg.user_id === myUserId ? " mine" : "");
+      row.className = "squad-chat-message" + (mine ? " mine" : "");
       const time = new Date(msg.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       row.innerHTML =
         `<span class="squad-chat-author">${escapeHtml(msg.username)}</span>` +
         `<span class="squad-chat-time">${time}</span>` +
         `<div class="squad-chat-body">${escapeHtml(msg.body)}</div>`;
+      // No report button on your own messages - there is nobody to report -
+      // and none when the caller hasn't wired up a handler.
+      if (onReport && !mine) {
+        const report = document.createElement("button");
+        report.type = "button";
+        report.className = "squad-chat-report";
+        report.textContent = "Report";
+        report.title = "Report this message to the moderators";
+        report.setAttribute("aria-label", `Report the message from ${msg.username}`);
+        report.addEventListener("click", () => onReport(msg));
+        row.appendChild(report);
+      }
       container.appendChild(row);
     }
   }

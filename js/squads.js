@@ -237,7 +237,19 @@ export async function sendSquadMessage(squadId, body) {
     username: (profile && profile.username) || "Player",
     body: trimmed.slice(0, 300),
   });
-  if (error) throw error;
+  // The moderation triggers (20260813_02_content_moderation.sql) raise with
+  // text already written for a player to read - "That message breaks the
+  // Community Guidelines", "Slow down" - so it is passed through rather than
+  // replaced with something vaguer.
+  if (error) throw new Error(error.message || "Couldn't send that message.");
+}
+
+/** Flags a message for review. Deliberately says nothing back about what
+ * happens next: whether a report was actioned is not the reporter's business,
+ * and telling them would tell the reported player too. */
+export async function reportSquadMessage(messageId, reason) {
+  await requireSession();
+  return callRpc("report_squad_message", { p_message_id: messageId, p_reason: reason || "" });
 }
 
 // ---- RPC wrappers ----
