@@ -59,7 +59,11 @@ Then open http://localhost:8000.
 
 ```
 index.html        markup + import map; loads js/main.js
+legal/            the legal documents, one static page each - text lives in the
+                  markup so it renders with JS off; only the header, document
+                  switcher and footer are built by js/legal/chrome.js
 css/style.css     all styling
+css/legal.css     long-form document typography, on top of the same tokens
 data/
   nba-players.js  the player dataset - GENERATED, and deliberately outside js/
                   so a search of the app code never has to wade through 2,542
@@ -78,6 +82,10 @@ js/                 shared app code - never imports a sport directly
   banners.js      earnable team banners
   progress.js     diffs your profile before/after a game, so gains announce themselves
   celebrate.js    confetti, buzzer and fanfare (DOM + WebAudio, no assets)
+  legal/
+    config.js     operator, contact addresses, governing law, document version -
+                  the one place any of that is written down
+    chrome.js     shared header/footer/nav for the legal pages
   sports/
     index.js      the registry: which sports exist, which is active
     nba/          engine, constants, tactics, shooting, recap, draftgrade
@@ -220,6 +228,33 @@ players can attach a real address from the Profile tab and become recoverable.
 Password recovery needs the project's Site URL and redirect allow-list
 (Authentication > URL Configuration) to include wherever the game is served
 from, or Supabase refuses to mail a link back to it.
+
+Sign-up requires a ticked consent box (13+, Terms, Privacy Policy, Community
+Guidelines) and asks `username_rejection_reason()` about the name before
+creating the account — the trigger on `profiles` is what actually enforces it,
+but its refusal would otherwise reach the player as "Database error saving new
+user". Deleting an account is self-serve from the Profile tab and runs
+`delete_own_account()`.
+
+## Legal and moderation
+
+The documents live in `legal/`, one static page each, and every name, address
+and date in them comes from `js/legal/config.js`. Several of those values are
+placeholders until a company and a domain exist — `docs/legal-checklist.md`
+lists what has to be filled in, plus the DMCA agent registration that
+`legal/dmca.html` depends on.
+
+Content rules are enforced in the database, not the browser. Squad chat is a
+direct table insert from the client, so a filter in `js/` would be a
+suggestion; `db/migrations/20260813_02_content_moderation.sql` puts triggers on
+`profiles.username`, `squads` and `squad_messages`, backed by a `blocked_terms`
+table that no client can read. The list is deliberately narrow and substring
+matching is rationed, because this game is full of real surnames — the check in
+`docs/legal-checklist.md` returns zero false positives across every NBA and NFL
+player name in the database, and should be re-run after adding a term.
+
+Reports from the chat's Report button land in `public.message_reports`, readable
+only through the Supabase dashboard. Nothing notifies anyone when one arrives.
 
 ## Era brackets
 

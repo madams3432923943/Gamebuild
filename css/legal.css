@@ -1,0 +1,179 @@
+/* Legal document typography.
+   Loaded AFTER css/style.css, which supplies every color, font and surface
+   token used here - this file adds only what a long-form document needs and
+   the game screens don't: a reading measure, a numbered clause scale, and a
+   definition-list treatment for the privacy tables. Nothing here redefines a
+   token; a legal page must look like the same product, not a second one. */
+
+.legal-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2rem var(--page-gutter) 4rem;
+  line-height: 1.65;
+}
+
+.legal-page h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0 0 0.5rem;
+}
+
+.legal-page h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.legal-page h3 {
+  font-size: 1rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.legal-page p,
+.legal-page li {
+  color: var(--text);
+}
+
+.legal-page ul,
+.legal-page ol {
+  padding-left: 1.25rem;
+}
+
+.legal-page li {
+  margin-bottom: 0.4rem;
+}
+
+.legal-page a {
+  color: var(--accent-bright);
+}
+
+.legal-updated {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 1.5rem;
+}
+
+/* The plain-English gloss that opens each document. Not a substitute for the
+   text below it, and says so - but a policy nobody reads protects nobody. */
+.legal-summary {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 2rem;
+}
+
+.legal-summary p:last-child {
+  margin-bottom: 0;
+}
+
+.legal-summary .legal-summary-label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Clauses that carry real consequence - liability, arbitration, deletion -
+   are called out rather than hidden in a wall of grey. Emphasis is also the
+   conspicuousness some of these clauses need to be enforceable at all. */
+.legal-callout {
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+}
+
+.legal-table th,
+.legal-table td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.legal-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* A wide table must scroll inside itself; the page never scrolls sideways. */
+.legal-scroll {
+  overflow-x: auto;
+}
+
+.legal-doc-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.legal-doc-link {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.legal-doc-link:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.legal-doc-link.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.legal-index-list {
+  list-style: none;
+  padding: 0;
+}
+
+.legal-index-list li {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  background: var(--panel);
+}
+
+.legal-index-list a {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+
+.legal-index-list p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+  .legal-page {
+    padding-top: 1.25rem;
+  }
+
+  .legal-page h1 {
+    font-size: 1.6rem;
+  }
+}

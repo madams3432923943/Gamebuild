@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Draft Nova's accessibility commitment, the standard we build to, what we have verified, known gaps, and how to report a barrier." />
+  <meta name="theme-color" content="#d9741f" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
+  <title>Accessibility — Draft Nova</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/legal.css" />
+</head>
+<body>
+  <main class="legal-page" data-legal-page="accessibility">
+    <h1>Accessibility</h1>
+    <p class="legal-updated" data-legal-updated>Version 1.0 — last updated August 13, 2026</p>
+
+    <p>
+      We want Draft Nova to be playable by as many people as possible, and we treat
+      accessibility as part of building a feature rather than something added afterwards.
+    </p>
+
+    <h2>The standard we build to</h2>
+    <p>
+      We aim to conform to the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA.
+      That is a target we work toward continuously, not a certification we hold.
+    </p>
+
+    <h2>What we do</h2>
+    <ul>
+      <li>Semantic HTML, with headings, landmarks, labelled form fields and buttons that are actual buttons.</li>
+      <li>Keyboard operation, with visible focus states, and dialogs that close on Escape.</li>
+      <li>Colour contrast: each sport's accent colour is required to clear a 4.5:1 ratio against the text placed on it, and that requirement is checked as part of our build.</li>
+      <li>Layout verified down to a 360-pixel-wide screen, in an automated browser test, with no horizontal page scrolling and no clipped content.</li>
+      <li>Colour is not the only way information is conveyed — win/loss, ranks and results carry text as well.</li>
+    </ul>
+
+    <h2>Known gaps</h2>
+    <p>We would rather list these than imply they do not exist:</p>
+    <ul>
+      <li>Draft Nova has not had a formal third-party accessibility audit, and has not been comprehensively tested with screen readers. We cannot claim full WCAG 2.1 AA conformance today.</li>
+      <li>Live game playback animates scores and events as they happen. Announcements to assistive technology during playback are incomplete, and there is no setting yet to reduce motion or to skip straight to the final box score.</li>
+      <li>The draft board is dense, and on small screens it depends on scrolling and tapping small targets. It is usable by keyboard but was designed mouse- and touch-first.</li>
+      <li>Some dynamic status messages update in place without announcing themselves.</li>
+      <li>There is no text-size or high-contrast setting inside the game; browser and OS zoom is the current answer.</li>
+    </ul>
+
+    <h2>Tell us about a barrier</h2>
+    <p>
+      If any part of Draft Nova is difficult or impossible for you to use, email
+      <a href="mailto:maxwell@gurrbrothers.com" data-legal-field="CONTACT_EMAIL">maxwell@gurrbrothers.com</a>
+      with what you were trying to do, what got in the way, and the browser and assistive
+      technology you use. We read every one of these, we will reply, and we will tell you
+      honestly whether and when we can fix it.
+    </p>
+    <p>
+      If you need help with something the interface will not let you do — recovering an account,
+      changing a username, deleting an account — email us and we will do it for you.
+    </p>
+  </main>
+  <script type="module" src="../js/legal/chrome.js?v=52d787a"></script>
+</body>
+</html>
