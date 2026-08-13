@@ -5,9 +5,16 @@
 // which it can't, because main.js imports the screens. Nothing here knows
 // anything about basketball; it is the frame the screens hang in.
 
+import { initBrandImages } from "./brand-image.js";
+
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// The brand mark and the sign-in lockup are both optional files that degrade
+// to plain text. That used to be an inline onerror attribute on each; the
+// Content-Security-Policy in index.html blocks those, so it happens here.
+initBrandImages();
 
 const screens = {
   auth: document.getElementById("screen-auth"),

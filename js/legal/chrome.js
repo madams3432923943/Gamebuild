@@ -12,6 +12,7 @@
 // address in one file changes it everywhere without leaving the no-JS reader
 // looking at a placeholder.
 import { LEGAL, LEGAL_DOCUMENTS } from "./config.js";
+import { initBrandImages } from "../brand-image.js";
 
 const root = document.querySelector("[data-legal-page]");
 
@@ -23,6 +24,8 @@ if (root) {
   if (nav) root.prepend(nav);
   stampUpdated();
   document.body.append(buildFooter());
+  // After the header is in the document, so the image it built is findable.
+  initBrandImages();
 }
 
 /** Literal addresses in the markup are the no-JS fallback; config wins. */
@@ -50,8 +53,10 @@ function buildHeader() {
   const brand = document.createElement("a");
   brand.className = "brand";
   brand.href = "../index.html";
+  // No inline onerror here either: these pages carry the same CSP the app
+  // does. initBrandImages() runs after the header is in the document.
   brand.innerHTML =
-    '<img class="brand-mark" src="../assets/brand/draft-nova-icon.png" alt="" onerror="this.remove()" />' +
+    '<img class="brand-mark" src="../assets/brand/draft-nova-icon.png" alt="" data-brand-fallback="hide" />' +
     '<span class="brand-word">Draft Nova</span>';
 
   const back = document.createElement("a");

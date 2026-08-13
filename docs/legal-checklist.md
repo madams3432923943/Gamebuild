@@ -64,6 +64,24 @@ Monetisation changes the analysis, not just the paperwork.
       `legal/disclaimers.html` credits it; keep that credit accurate if the
       source changes.
 
+## Security, before launch
+
+- [ ] **Enable bot protection** in the Supabase dashboard (Authentication →
+      Settings → Bot and Abuse Protection: Turnstile or hCaptcha). Supabase
+      already rate-limits auth by default, so the gap this closes is bulk
+      account creation against the ranked ladder, not password guessing.
+      **Sequence matters:** the client must send `options.captchaToken` before
+      the setting is switched on, or sign-up breaks the moment you enable it.
+      That client change is not written yet — it needs a site key from the
+      dashboard first.
+- [ ] Re-check the CSP after adding anything that loads from a new origin (a
+      payment processor, a font, an analytics tag). A blocked resource shows up
+      as a console error and as a `securitypolicyviolation` event; `npm run
+      verify:legal` and `npm run verify:selftest` both fail on one.
+- [ ] Consider self-hosting `supabase-js` instead of pinning the esm.sh URL.
+      Pinning stops the version moving under you; only self-hosting removes
+      esm.sh from the trust path.
+
 ## Operational, once there are players
 
 - [ ] Watch the inbox for reports. Squad chat is switched off, so there is no

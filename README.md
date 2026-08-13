@@ -52,13 +52,27 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000.
 
-`@supabase/supabase-js` loads from a CDN via the import map in `index.html`, so
-`npm install` is only needed for the tooling in `tools/`.
+`@supabase/supabase-js` loads from esm.sh, pinned to an exact version in
+`js/supabaseClient.js`, so `npm install` is only needed for the tooling in
+`tools/`. The pin is deliberate — that module runs with access to every
+signed-in player's auth token, and a floating `@2` lets a third party choose
+which code that is on every page load. Upgrading is: read the changelog, change
+`SUPABASE_MODULE_URL`, `npm run verify:selftest`, then load the real site once
+(the self-test serves a stub in place of the CDN, so it proves the app works,
+not that esm.sh served what you asked for).
+
+Both `index.html` and every page under `legal/` carry a
+`Content-Security-Policy` meta tag with **no `unsafe-inline`** — which is only
+possible because the app has no inline `<style>`, no `style=""` attributes and
+no inline event handlers. Two consequences worth knowing before you edit the
+markup: an inline `onclick`/`onerror` will be silently blocked (put it in a
+module — `js/brand-image.js` is the pattern), and an import map cannot come
+back, because an import map *is* an inline script.
 
 ## Layout
 
 ```
-index.html        markup + import map; loads js/main.js
+index.html        markup + CSP; loads js/main.js
 legal/            the legal documents, one static page each - text lives in the
                   markup so it renders with JS off; only the header, document
                   switcher and footer are built by js/legal/chrome.js
@@ -82,6 +96,8 @@ js/                 shared app code - never imports a sport directly
   banners.js      earnable team banners
   progress.js     diffs your profile before/after a game, so gains announce themselves
   celebrate.js    confetti, buzzer and fanfare (DOM + WebAudio, no assets)
+  brand-image.js  the optional brand images' degrade-to-text fallback, shared
+                  by the app shell and the legal pages (CSP bans inline onerror)
   legal/
     config.js     operator, contact addresses, governing law, document version -
                   the one place any of that is written down

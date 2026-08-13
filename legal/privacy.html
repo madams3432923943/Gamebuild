@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Draft Nova Privacy Policy: exactly what data the game stores, why, who processes it, how long it is kept, and how to export or delete it." />
   <meta name="theme-color" content="#d9741f" />
+  <!-- Same reasoning as index.html's policy, tighter: these pages load no
+       third-party code and talk to nothing. Their text is static markup, so
+       nothing here needs a network at all. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    connect-src 'none';
+    img-src 'self' data:;
+    style-src 'self';
+    font-src 'self';
+    base-uri 'self';
+    object-src 'none';
+    form-action 'none';
+    frame-src 'none'" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
   <title>Privacy Policy — Draft Nova</title>
   <link rel="stylesheet" href="../css/style.css" />
@@ -229,6 +243,6 @@
       <a href="mailto:maxwell@gurrbrothers.com" data-legal-field="PRIVACY_EMAIL">maxwell@gurrbrothers.com</a>
     </p>
   </main>
-  <script type="module" src="../js/legal/chrome.js?v=b212b7d"></script>
+  <script type="module" src="../js/legal/chrome.js?v=61d9f72"></script>
 </body>
 </html>

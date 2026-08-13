@@ -43,7 +43,7 @@
     "verify:server-dataset": "node scripts/verify-server-dataset.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2"
+    "@supabase/supabase-js": "2.112.3"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

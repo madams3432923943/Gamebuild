@@ -147,6 +147,33 @@ export async function loadMySquad() {
   return { squad: normalizeSquad(squadRow), myRole: membership.role, roster, inviteCode };
 }
 
+/**
+ * Strips the characters that mean something to PostgREST's filter grammar.
+ *
+ * `.or()` takes a filter EXPRESSION, not a bound parameter: the string below
+ * is parsed, so a search box that reaches it unedited can add conditions to
+ * the query rather than being matched by it. Commas separate conditions,
+ * parentheses group them, dots separate column.operator.value, and `*` is
+ * PostgREST's wildcard. None of them can appear in a squad name or tag
+ * anyway - the CHECK constraints in the squads migration allow letters,
+ * digits and spaces - so dropping them costs nothing a real search would want.
+ *
+ * This is not SQL injection: PostgREST parameterises the values it parses
+ * out, and RLS still hides private squads however the filter is written. What
+ * it prevents is a query the caller did not intend, which is worth preventing
+ * on its own.
+ *
+ * `%` and `_` are left alone deliberately - they are ilike wildcards, they
+ * cannot change the SHAPE of the query, and someone typing "50_cent" should
+ * still find their squad.
+ */
+function sanitizeFilterTerm(searchTerm) {
+  return String(searchTerm || "")
+    .replace(/[(),.*"\\]/g, " ")
+    .trim()
+    .slice(0, 30);
+}
+
 /** Browsable public squads, optionally filtered by a name/tag substring.
  * Private squads never appear here - they're only reachable by invite code
  * (join_squad_by_code) or once you're already a member. */
@@ -158,8 +185,8 @@ export async function listPublicSquads(searchTerm = "") {
     .eq("visibility", "public")
     .order("created_at", { ascending: false })
     .limit(50);
-  if (searchTerm.trim()) {
-    const q = searchTerm.trim();
+  const q = sanitizeFilterTerm(searchTerm);
+  if (q) {
     query = query.or(`name.ilike.%${q}%,tag.ilike.%${q}%`);
   }
   const { data, error } = await query;

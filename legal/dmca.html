@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="How to report copyright infringement on Draft Nova, how to file a counter-notice, and our repeat-infringer policy." />
   <meta name="theme-color" content="#d9741f" />
+  <!-- Same reasoning as index.html's policy, tighter: these pages load no
+       third-party code and talk to nothing. Their text is static markup, so
+       nothing here needs a network at all. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    connect-src 'none';
+    img-src 'self' data:;
+    style-src 'self';
+    font-src 'self';
+    base-uri 'self';
+    object-src 'none';
+    form-action 'none';
+    frame-src 'none'" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
   <title>Copyright / DMCA — Draft Nova</title>
   <link rel="stylesheet" href="../css/style.css" />
@@ -82,6 +96,6 @@
       <a href="community.html">Community Guidelines</a>.
     </p>
   </main>
-  <script type="module" src="../js/legal/chrome.js?v=b212b7d"></script>
+  <script type="module" src="../js/legal/chrome.js?v=61d9f72"></script>
 </body>
 </html>

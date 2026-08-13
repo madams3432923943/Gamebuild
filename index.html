@@ -8,15 +8,42 @@
        applyTheme() in js/main.js. Set here too so the phone address bar is the
        right color on the very first paint. -->
   <meta name="theme-color" content="#d9741f" />
+  <!-- GitHub Pages serves no response headers we control, so the policy rides
+       in the markup. A meta CSP cannot express frame-ancestors or a reporting
+       endpoint - moving to a host with header control is what fixes that - but
+       it does constrain what a compromised dependency can reach, which is the
+       threat that matters here: supabase-js runs with access to every signed-in
+       player's auth token.
+
+       No 'unsafe-inline' anywhere, which is only possible because the app has
+       no inline <style>, no style="" attributes and (as of this policy) no
+       inline event handlers - see js/brand-image.js for the three that moved.
+       Element.style writes from applyTheme() and the banner code are CSSOM and
+       are not governed by style-src.
+
+       connect-src covers https only, because nothing here opens a socket -
+       presence and squad state are polled deliberately (see js/presence.js).
+       Adding Supabase Realtime later means adding wss://<project>.supabase.co
+       here, or every subscription fails with a policy violation. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://esm.sh;
+    connect-src 'self' https://aauvgiygwrwdbtruhxta.supabase.co;
+    img-src 'self' data:;
+    style-src 'self';
+    font-src 'self';
+    base-uri 'self';
+    object-src 'none';
+    form-action 'none';
+    frame-src 'none'" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
   <title>Draft Nova</title>
-  <script type="importmap">
-  {
-    "imports": {
-      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
-    }
-  }
-  </script>
+  <!-- The import map that used to sit here is gone: an import map IS an inline
+       script, so the policy above would have to allow inline script to keep
+       it, which gives back most of what the policy is for. It mapped exactly
+       one bare specifier for exactly one dynamic import, so that import now
+       names the pinned CDN URL directly - see SUPABASE_MODULE_URL in
+       js/supabaseClient.js, which is also where the version is pinned. -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -26,7 +53,7 @@
            needs to stay short. The name rides beside it as text. Optional by
            design - a missing file removes itself and leaves clean text. -->
       <img class="brand-mark" src="assets/brand/draft-nova-icon.png" alt=""
-           onerror="this.remove()" />
+           data-brand-fallback="hide" />
       <span class="brand-word">Draft Nova</span>
     </button>
     <nav class="nav-tabs" id="nav-tabs" hidden>
@@ -48,7 +75,7 @@
              image is really there, onerror keeps it when the file is not. -->
         <div class="auth-brand">
           <img class="auth-brand-mark" src="assets/brand/draft-nova-lockup.png" alt="Draft Nova"
-               onerror="this.remove()" onload="this.nextElementSibling?.remove()" />
+               data-brand-fallback="replaces-text" />
           <span class="auth-brand-word">Draft Nova</span>
         </div>
         <h2 id="auth-heading">Sign In</h2>
@@ -605,6 +632,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=b212b7d"></script>
+  <script type="module" src="js/main.js?v=61d9f72"></script>
 </body>
 </html>

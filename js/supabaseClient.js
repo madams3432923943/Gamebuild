@@ -13,11 +13,35 @@
 const SUPABASE_URL = "https://aauvgiygwrwdbtruhxta.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_yJtcNBYtXPcH-rS0is_8Sw_p8Z7967a";
 
+// PINNED, and pinned on purpose. This used to resolve through an import map
+// in index.html that pointed at ".../@supabase/supabase-js@2" - whatever v2
+// build esm.sh felt like serving that day, running with full access to every
+// signed-in player's auth token. That is the largest single piece of trust in
+// the app, and it should not be re-decided by a third party on every page
+// load.
+//
+// The import map is gone rather than pinned in place: an import map is an
+// inline script, and index.html's Content-Security-Policy allows no inline
+// script. It existed to map one bare specifier for the one dynamic import
+// below, so the URL simply moved here.
+//
+// Keep this in step with the pin in package.json. Nothing at runtime reads
+// that one - the browser never touches node_modules - but `npm audit` does,
+// and until both were pinned it was auditing 2.110.8 while the browser ran
+// whatever esm.sh called latest. An audit of a version you don't ship is not
+// an audit.
+//
+// To upgrade: read the changelog, change BOTH, run `npm install` and
+// `npm run verify:selftest`, then load the real site once - the self-test
+// serves a stub in place of this URL, so it proves the app works, not that
+// the CDN serves what you asked for.
+const SUPABASE_MODULE_URL = "https://esm.sh/@supabase/supabase-js@2.112.3";
+
 let clientPromise = null;
 
 export function getSupabase() {
   if (!clientPromise) {
-    clientPromise = import("@supabase/supabase-js").then(({ createClient }) =>
+    clientPromise = import(SUPABASE_MODULE_URL).then(({ createClient }) =>
       createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
     );
   }
