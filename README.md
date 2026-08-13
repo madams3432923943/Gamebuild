@@ -244,17 +244,23 @@ placeholders until a company and a domain exist — `docs/legal-checklist.md`
 lists what has to be filled in, plus the DMCA agent registration that
 `legal/dmca.html` depends on.
 
-Content rules are enforced in the database, not the browser. Squad chat is a
-direct table insert from the client, so a filter in `js/` would be a
-suggestion; `db/migrations/20260813_02_content_moderation.sql` puts triggers on
+Content rules are enforced in the database, not the browser — a filter in `js/`
+is a suggestion when the client can write to the table directly.
+`db/migrations/20260813_02_content_moderation.sql` puts triggers on
 `profiles.username`, `squads` and `squad_messages`, backed by a `blocked_terms`
 table that no client can read. The list is deliberately narrow and substring
 matching is rationed, because this game is full of real surnames — the check in
 `docs/legal-checklist.md` returns zero false positives across every NBA and NFL
 player name in the database, and should be re-run after adding a term.
 
-Reports from the chat's Report button land in `public.message_reports`, readable
-only through the Supabase dashboard. Nothing notifies anyone when one arrives.
+**Squad chat is switched off.** It re-downloaded the last fifty messages every
+four seconds whether or not anything had changed, which was the app's single
+largest bandwidth cost and would have exhausted the database plan's monthly
+egress on its own at a few hundred players. The Chat subtab is a "coming soon"
+card; the table, the triggers and `report_squad_message()` all remain, so
+turning it back on is client work — with a poll that asks only for messages
+newer than the last id it saw. Reporting is by email in the meantime, which is
+what `legal/community.html` now says.
 
 ## Era brackets
 

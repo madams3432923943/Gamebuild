@@ -66,9 +66,16 @@ Monetisation changes the analysis, not just the paperwork.
 
 ## Operational, once there are players
 
-- [ ] Decide who watches `public.message_reports`. Reports are written by
-      `report_squad_message()` and readable only through the Supabase dashboard
-      (RLS on, zero policies). Nobody is notified when one arrives.
+- [ ] Watch the inbox for reports. Squad chat is switched off, so there is no
+      in-app report button today and `legal/community.html` points people at
+      email instead. `public.message_reports` and `report_squad_message()` are
+      still in place for when chat returns; nothing notifies anyone when a row
+      arrives.
+- [ ] Before switching squad chat back on: restore the client (see
+      `js/squads.js`), give the poll an incremental query rather than the
+      last-fifty-every-four-seconds one it had, and update
+      `legal/privacy.html`, `legal/community.html`, `legal/terms.html` and
+      `legal/ai-disclosure.html` — all four currently say chat is off.
 - [ ] Set a retention job for `message_reports`. The Privacy Policy says
       moderation records are kept up to 12 months; nothing currently deletes
       them.

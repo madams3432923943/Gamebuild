@@ -3513,6 +3513,9 @@ table.box-table th, table.history-table th {
   flex-wrap: wrap;
 }
 
+/* Squad chat's styles, kept while the panel itself is a "coming soon" card:
+   the feature is switched off rather than abandoned, and these are what it
+   comes back to. See the Chat panel in index.html. */
 .squad-chat-card {
   display: flex;
   flex-direction: column;
@@ -3559,38 +3562,6 @@ table.box-table th, table.history-table th {
 .squad-chat-body {
   font-size: 0.88rem;
   margin-top: 0.15rem;
-  word-break: break-word;
-}
-
-/* Deliberately quiet: reporting should be available on every message without
-   the chat looking like a moderation console. It comes up to full contrast on
-   hover and on keyboard focus. */
-.squad-chat-report {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.15rem 0;
-  margin-top: 0.2rem;
-  cursor: pointer;
-  opacity: 0.6;
-}
-
-.squad-chat-report:hover,
-.squad-chat-report:focus-visible {
-  color: var(--buzzer);
-  opacity: 1;
-}
-
-.report-quote {
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  border-left: 3px solid var(--line);
-  background: var(--bg);
-  border-radius: 6px;
-  font-size: 0.88rem;
   word-break: break-word;
 }
 

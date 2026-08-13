@@ -8,7 +8,7 @@ import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
 import { SIMULATION_NOTICE } from "./legal/config.js";
-import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
+import { initSquadsScreen, openSquadsScreen } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
@@ -97,7 +97,6 @@ import {
   renderSquadBrowseList,
   renderSquadHeader,
   renderSquadRoster,
-  renderSquadChat,
   renderSquadsTopTabs,
   renderFriendChallenges,
   renderFriendRequests,
@@ -1150,7 +1149,6 @@ function goToTab(tab, onArrive) {
   cleanupTacticTimer();
   cleanupRotationTimer();
   cleanupMatchupTimer();
-  cleanupSquadChatWatcher();
   setActiveNav(tab);
   onArrive();
 }

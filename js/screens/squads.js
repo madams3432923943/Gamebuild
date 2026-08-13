@@ -2,7 +2,10 @@
 //
 // Four subtabs sharing one screen: Friends (add/accept, leaderboard,
 // challenges), Home (browse/create when squad-less, or squad info + roster
-// once in one), Chat (squad chat, needs a squad), Tournaments (placeholder).
+// once in one), Chat and Tournaments (both "coming soon" placeholders).
+//
+// Chat was built and then switched off before launch - see the panel in
+// index.html for why, and js/squads.js for the client half that went with it.
 //
 // Split out of main.js because it is the largest block there with almost no
 // connection to the game loop - none of it runs during a draft, and keeping it
@@ -16,7 +19,7 @@
 
 import {
   squadRankInfo, myMembership, loadSquadRoster, loadMySquad, listPublicSquads,
-  watchSquadChat, sendSquadMessage, reportSquadMessage, createSquad, joinPublicSquad, joinSquadByCode,
+  createSquad, joinPublicSquad, joinSquadByCode,
   leaveSquad, kickMember, setMemberRole, transferLeadership, regenerateInviteCode,
   updateSquadSettings, disbandSquad,
 } from "../squads.js";
@@ -27,25 +30,12 @@ import {
 } from "../friends.js";
 import {
   renderSquadEmojiPalette, renderSquadBrowseList, renderSquadHeader,
-  renderSquadRoster, renderSquadChat, renderSquadsTopTabs,
+  renderSquadRoster, renderSquadsTopTabs,
   renderFriendChallenges, renderFriendRequests, renderFriendsLeaderboard,
-  escapeHtml,
 } from "../ui.js";
 import { getSession } from "../supabaseClient.js";
 import { showScreen, openModal, closeModal } from "../shell.js";
 import { game } from "../state.js";
-
-// The squad chat subscription. Lives here rather than in main.js because this
-// is the only screen that ever opens one - main.js only ever needed to close
-// it, which it now does through cleanupSquadChatWatcher().
-let squadChatStop = null;
-
-export function cleanupSquadChatWatcher() {
-  if (squadChatStop) {
-    squadChatStop();
-    squadChatStop = null;
-  }
-}
 
 // Supplied by main.js at boot - see the header comment.
 let onJoinMatch = () => {};
@@ -70,10 +60,6 @@ const squadSearchInput = document.getElementById("input-squad-search");
 const squadsListEl = document.getElementById("squads-list");
 const squadHeaderEl = document.getElementById("squad-header");
 const squadRosterEl = document.getElementById("squad-roster");
-const squadChatNoneEl = document.getElementById("squad-chat-none");
-const squadChatActiveEl = document.getElementById("squad-chat-active");
-const squadChatMessagesEl = document.getElementById("squad-chat-messages");
-const squadChatInput = document.getElementById("input-squad-chat");
 
 const friendUsernameInput = document.getElementById("input-friend-username");
 const friendChallengesListEl = document.getElementById("friend-challenges-list");
@@ -142,7 +128,6 @@ async function refreshSquadBrowseList(search = "") {
 
 export async function openSquadsScreen() {
   showScreen("squads");
-  cleanupSquadChatWatcher();
   renderSquadsTopTabs(squadsTabsEl, activeSquadsTab, (tab) => {
     activeSquadsTab = tab;
     openSquadsScreen();
@@ -154,40 +139,31 @@ export async function openSquadsScreen() {
   squadsPanelChatEl.classList.toggle("hidden", activeSquadsTab !== "chat");
   squadsPanelTournamentsEl.classList.toggle("hidden", activeSquadsTab !== "tournaments");
 
+  // Chat and Tournaments are both static "coming soon" panels - no membership
+  // lookup, no network call, nothing to load.
   if (activeSquadsTab === "friends") {
     await loadFriendsPanel();
     return;
   }
-  if (activeSquadsTab === "tournaments") {
+  if (activeSquadsTab === "tournaments" || activeSquadsTab === "chat") {
     return;
   }
 
-  // Home and Chat both hinge on squad membership.
   squadDetailData = null;
   squadEditing = false;
   try {
     const membership = await myMembership();
     if (!membership) {
-      if (activeSquadsTab === "home") {
-        squadsBrowseEl.classList.remove("hidden");
-        squadsDetailEl.classList.add("hidden");
-        await refreshSquadBrowseList(squadSearchInput.value);
-      } else {
-        squadChatNoneEl.classList.remove("hidden");
-        squadChatActiveEl.classList.add("hidden");
-      }
+      squadsBrowseEl.classList.remove("hidden");
+      squadsDetailEl.classList.add("hidden");
+      await refreshSquadBrowseList(squadSearchInput.value);
       return;
     }
-    if (activeSquadsTab === "home") {
-      squadsBrowseEl.classList.add("hidden");
-      squadsDetailEl.classList.remove("hidden");
-      // Needed before the roster renders, so Add Friend is hidden on people
-      // you're already connected to rather than appearing then vanishing.
-      await refreshKnownFriendIds();
-    } else {
-      squadChatNoneEl.classList.add("hidden");
-      squadChatActiveEl.classList.remove("hidden");
-    }
+    squadsBrowseEl.classList.add("hidden");
+    squadsDetailEl.classList.remove("hidden");
+    // Needed before the roster renders, so Add Friend is hidden on people
+    // you're already connected to rather than appearing then vanishing.
+    await refreshKnownFriendIds();
     await loadSquadDetail();
   } catch (e) {
     console.error("Failed to load squad membership:", e);
@@ -195,9 +171,7 @@ export async function openSquadsScreen() {
   }
 }
 
-/** Fetches the caller's squad + roster + rank, then renders whichever of
- * Home/Chat is actually active - the other tab's content stays stale until
- * it's opened, and the chat poller only ever runs while Chat is on screen. */
+/** Fetches the caller's squad + roster + rank and renders the Home tab. */
 async function loadSquadDetail() {
   const detail = await loadMySquad();
   if (!detail) {
@@ -208,15 +182,7 @@ async function loadSquadDetail() {
   const rankInfo = squadRankInfo(detail.squad);
   const session = await getSession();
   squadDetailData = { ...detail, rankInfo, myUserId: session.user.id };
-
-  if (activeSquadsTab === "home") {
-    renderSquadDetailFromCache();
-  } else if (activeSquadsTab === "chat") {
-    cleanupSquadChatWatcher();
-    squadChatStop = watchSquadChat(detail.squad.id, (messages) => {
-      renderSquadChat(squadChatMessagesEl, messages, squadDetailData.myUserId, openReportMessageModal);
-    });
-  }
+  renderSquadDetailFromCache();
 }
 
 /** Re-renders the header + roster from the cached detail - no network call.
@@ -312,79 +278,6 @@ document.getElementById("btn-leave-squad").addEventListener("click", () => {
   runSquadAction(() => leaveSquad());
 });
 
-document.getElementById("btn-squad-chat-send").addEventListener("click", sendSquadChatFromInput);
-squadChatInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendSquadChatFromInput();
-});
-async function sendSquadChatFromInput() {
-  const body = squadChatInput.value.trim();
-  if (!body || !squadDetailData) return;
-  squadChatInput.value = "";
-  try {
-    await sendSquadMessage(squadDetailData.squad.id, body);
-  } catch (e) {
-    console.error("Failed to send squad chat:", e);
-    setSquadStatus(e.message || "Couldn't send that message.", "error");
-    // A rejected message is usually one word away from an allowed one - the
-    // moderation filter and the rate limiter both refuse text worth editing
-    // rather than retyping - so put it back in the box.
-    squadChatInput.value = body;
-  }
-}
-
-/** Report a message. A short reason is optional: making it mandatory buys
- * worse reports, not fewer. */
-function openReportMessageModal(message) {
-  const wrap = document.createElement("div");
-  wrap.innerHTML =
-    `<p class="hint-text">Reporting <strong>${escapeHtml(message.username)}</strong>:</p>` +
-    `<blockquote class="report-quote">${escapeHtml(message.body)}</blockquote>`;
-
-  const field = document.createElement("div");
-  field.className = "field-row";
-  field.innerHTML = `<label for="input-report-reason">What's wrong with it? (optional)</label>`;
-  const reasonInput = document.createElement("input");
-  reasonInput.id = "input-report-reason";
-  reasonInput.type = "text";
-  reasonInput.maxLength = 300;
-  reasonInput.placeholder = "Harassment, slurs, spam…";
-  field.appendChild(reasonInput);
-  wrap.appendChild(field);
-
-  const note = document.createElement("p");
-  note.className = "hint-text";
-  note.innerHTML =
-    "Moderators see the message and your reason. The player is not told who reported them. " +
-    '<a href="legal/community.html" target="_blank" rel="noopener">Community Guidelines</a>.';
-  wrap.appendChild(note);
-
-  const errorEl = document.createElement("div");
-  errorEl.className = "auth-status hidden";
-  wrap.appendChild(errorEl);
-
-  const sendBtn = document.createElement("button");
-  sendBtn.type = "button";
-  sendBtn.className = "btn btn-primary btn-block";
-  sendBtn.textContent = "Send Report";
-  sendBtn.addEventListener("click", async () => {
-    sendBtn.disabled = true;
-    try {
-      await reportSquadMessage(message.id, reasonInput.value.trim());
-    } catch (e) {
-      console.error("Failed to report message:", e);
-      errorEl.textContent = e.message || "Couldn't send that report.";
-      errorEl.classList.remove("hidden");
-      errorEl.classList.add("auth-error");
-      sendBtn.disabled = false;
-      return;
-    }
-    closeModal();
-    setSquadStatus("Report sent. Thanks - we'll take a look.");
-  });
-  wrap.appendChild(sendBtn);
-
-  openModal("Report Message", wrap);
-}
 
 // ---- Friends panel ----
 

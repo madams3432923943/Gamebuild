@@ -1,4 +1,4 @@
-// Squads: player-run clans. Every write that isn't plain chat goes through a
+// Squads: player-run clans. Every write goes through a
 // SECURITY DEFINER RPC (see the squads_* migrations) rather than a direct
 // table write - membership caps, one-squad-per-player, and who's allowed to
 // kick/promote whom are all enforced server-side, the same way
@@ -182,75 +182,15 @@ export async function listPublicSquads(searchTerm = "") {
   return squads.map((s) => ({ ...s, memberCount: counts.get(s.id) || 0 }));
 }
 
-// ---- chat ----
-
-/** Polls a squad's chat every `intervalMs` and calls onMessages(list) with
- * the last `limit` messages whenever the count changes - same watch/stop
- * shape as watchMatch (online.js) and startPresence (presence.js). No
- * realtime here for the same reason: one more polling loop is simpler than
- * a websocket for something this low-frequency. Returns a stop() function. */
-export function watchSquadChat(squadId, onMessages, intervalMs = 4000, limit = 50) {
-  let stopped = false;
-  // Newest message's id, the cheapest possible "did anything change" check -
-  // a growing/shrinking list always changes this except the pathological
-  // all-empty-both-times case, which has nothing to render either way.
-  let lastNewestId = undefined;
-
-  async function tick() {
-    if (stopped) return;
-    try {
-      const supabase = await getSupabase();
-      const { data, error } = await supabase
-        .from("squad_messages")
-        .select("id, user_id, username, body, created_at")
-        .eq("squad_id", squadId)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      const messages = data.slice().reverse();
-      const newestId = messages.length ? messages[messages.length - 1].id : null;
-      if (newestId !== lastNewestId) {
-        lastNewestId = newestId;
-        onMessages(messages);
-      }
-    } catch {
-      // transient network hiccup - just try again next tick
-    }
-    if (!stopped) setTimeout(tick, intervalMs);
-  }
-  tick();
-
-  return () => {
-    stopped = true;
-  };
-}
-
-export async function sendSquadMessage(squadId, body) {
-  const trimmed = body.trim();
-  if (!trimmed) return;
-  const session = await requireSession();
-  const supabase = await getSupabase();
-  const { data: profile } = await supabase.from("profiles").select("username").eq("id", session.user.id).single();
-  const { error } = await supabase.from("squad_messages").insert({
-    squad_id: squadId,
-    user_id: session.user.id,
-    username: (profile && profile.username) || "Player",
-    body: trimmed.slice(0, 300),
-  });
-  // The moderation triggers (20260813_02_content_moderation.sql) raise with
-  // text already written for a player to read - "That message breaks the
-  // Community Guidelines", "Slow down" - so it is passed through rather than
-  // replaced with something vaguer.
-  if (error) throw new Error(error.message || "Couldn't send that message.");
-}
-
-/** Flags a message for review. Deliberately says nothing back about what
- * happens next: whether a report was actioned is not the reporter's business,
- * and telling them would tell the reported player too. */
-export async function reportSquadMessage(messageId, reason) {
-  await requireSession();
-  return callRpc("report_squad_message", { p_message_id: messageId, p_reason: reason || "" });
-}
+// ---- chat: switched off ----
+//
+// Squad chat lived here: a poller, a sender and a report call. It is switched
+// off for now (see the Chat panel in index.html) and was removed rather than
+// left dangling - the table, the moderation triggers and report_squad_message()
+// are all still in the database, so bringing it back is client work only. The
+// version to restore is in git, minus its polling loop: it re-downloaded the
+// last fifty messages every four seconds, and the replacement should ask for
+// messages newer than the last id it saw.
 
 // ---- RPC wrappers ----
 // Every one of these can throw with a message meant to be shown directly to

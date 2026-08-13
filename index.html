@@ -535,20 +535,19 @@
         </div>
       </div>
 
-      <!-- Chat: needs a squad; shows a placeholder otherwise. -->
+      <!-- Chat: built, then switched off before launch. It polled every four
+           seconds for the last fifty messages whether or not anything had
+           changed, which was the single largest bandwidth cost in the app and
+           would have exhausted the database plan's monthly allowance on its
+           own at a few hundred players. The table, the moderation triggers and
+           the report RPC are all still there; this is a UI decision, not a
+           teardown, and turning it back on is this panel plus a poll that asks
+           only for messages newer than the last one it saw. -->
       <div id="squads-panel-chat" class="hidden">
-        <div id="squad-chat-none" class="card coming-soon-card hidden">
+        <div class="card coming-soon-card">
           <span class="coming-soon-icon">💬</span>
-          <h3>No squad yet</h3>
-          <p class="coming-soon-memo">Join or create a squad on the Home tab to start chatting.</p>
-        </div>
-        <div id="squad-chat-active" class="card squad-chat-card hidden">
-          <h3>Squad Chat</h3>
-          <div id="squad-chat-messages" class="squad-chat-messages"></div>
-          <div class="squad-chat-input-row">
-            <input id="input-squad-chat" type="text" maxlength="300" placeholder="Say something to your squad..." />
-            <button id="btn-squad-chat-send" class="btn btn-primary" type="button">Send</button>
-          </div>
+          <h3>Coming soon!</h3>
+          <p class="coming-soon-memo">Squad chat is on the way. Squads, invites and the roster all work today.</p>
         </div>
       </div>
 

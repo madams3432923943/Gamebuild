@@ -45,7 +45,7 @@ export const LEGAL = {
 
   // Bumped whenever a document's substance changes - not for typo fixes.
   // Shown on each page, and the value a stored consent record would pin to.
-  VERSION: "1.0",
+  VERSION: "1.1",
   LAST_UPDATED: "August 13, 2026",
 };
 
@@ -67,7 +67,7 @@ export const AFFILIATION_NOTICE =
 export const LEGAL_DOCUMENTS = [
   { id: "terms", path: "terms.html", title: "Terms of Service", blurb: "The rules for using Draft Nova, and the limits on our liability." },
   { id: "privacy", path: "privacy.html", title: "Privacy Policy", blurb: "What we collect, why, who processes it, and how to get it deleted." },
-  { id: "community", path: "community.html", title: "Community Guidelines", blurb: "What is and isn't allowed in usernames, squad names and squad chat." },
+  { id: "community", path: "community.html", title: "Community Guidelines", blurb: "What is and isn't allowed in usernames, squad names and mottos." },
   { id: "ai", path: "ai-disclosure.html", title: "AI & Simulation Disclosure", blurb: "Results are simulated, not real. Where AI was and wasn't used." },
   { id: "disclaimers", path: "disclaimers.html", title: "Disclaimers & Attribution", blurb: "No league affiliation, where the data comes from, no betting advice." },
   { id: "dmca", path: "dmca.html", title: "Copyright / DMCA", blurb: "How to report infringing content and how to counter a report." },
