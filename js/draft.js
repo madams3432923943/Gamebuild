@@ -252,16 +252,17 @@ export function worstEligiblePick(squad, roster, slots = defaultSlots()) {
   return combos.reduce((worst, c) => (c.score < worst.score ? c : worst));
 }
 
-/** Softens how much a decade's raw squad count drives how often it comes up.
- * The dataset is lopsided - the 2020s have 30 squads while the 1970s have 3 -
- * so picking a squad uniformly at random made almost half of all rounds a
- * 2020s team and the eras blurred together. Weighting each decade by the
- * square root of its size pulls the 2020s down from ~46% of rounds to ~30%
- * and lifts the 1970s from ~5% to ~9%, without swinging so far that the three
- * 1970s squads start repeating constantly (which flat per-decade weighting
- * would do). The real cure is more historical squads; this makes the pool we
- * have feel varied in the meantime. */
-function decadeWeight(squadCount) {
+/** Softens how much an era's raw squad count drives how often it comes up.
+ * The dataset is lopsided - the 2020s have 30 NBA squads while the 1970s have
+ * 3 - so picking a squad uniformly at random made almost half of all rounds a
+ * 2020s team and the eras blurred together. Weighting each era by the square
+ * root of its size pulls the 2020s down from ~46% of rounds to ~30% and lifts
+ * the 1970s from ~5% to ~9%, without swinging so far that the three 1970s
+ * squads start repeating constantly (which flat per-era weighting would do).
+ *
+ * Since the balancing pass below, this only decides which era wins a TIE, so
+ * it no longer governs how often an era appears - see rollNextSquad. */
+function eraWeight(squadCount) {
   return Math.sqrt(squadCount);
 }
 
@@ -273,6 +274,37 @@ function pickWeighted(entries, weightOf) {
     if (roll <= 0) return entry;
   }
   return entries[entries.length - 1];
+}
+
+/**
+ * Which era the next round should come from, given how many rounds each era
+ * has already had in THIS draft.
+ *
+ * Weighted-random-per-round was random in the honest sense and still produced
+ * runs nobody believes: football has three eras, so a ten-round draft rolling
+ * each one independently deals seven 2000s squads in a row about as often as
+ * a coin lands heads five times - rare per round, common across a session.
+ * That reads as a broken shuffle whether or not it is one.
+ *
+ * So eras are drawn in cycles instead: no era comes up a second time until
+ * every era that still has an unused squad has come up once. Which era leads a
+ * cycle stays random (weighted, above), so the ORDER is never predictable -
+ * what is guaranteed is the COVERAGE. In a three-era football draft that means
+ * every era shows up in the first three rounds, and the longest possible run
+ * of one era is two (the tail of one cycle into the head of the next).
+ *
+ * An era whose squads are all used up drops out of the rotation entirely -
+ * it's absent from `byEra` - and the remaining eras keep cycling among
+ * themselves rather than the draft stalling on a debt it can't pay.
+ *
+ * @param byEra Map of era -> that era's still-eligible squads. Never empty.
+ * @param useCounts Map of era -> rounds already spent on it this draft.
+ */
+function pickNextEra(byEra, useCounts) {
+  const entries = [...byEra.entries()];
+  const leastUsed = Math.min(...entries.map(([era]) => useCounts.get(era) || 0));
+  const due = entries.filter(([era]) => (useCounts.get(era) || 0) === leastUsed);
+  return pickWeighted(due, ([, squads]) => eraWeight(squads.length));
 }
 
 export class DraftState {
@@ -290,6 +322,9 @@ export class DraftState {
     this.squads = buildSquads(allPlayers);
     this.recentSquadIds = new Set(recentSquadIds);
     this.usedSquadIds = new Set();
+    // era -> rounds already rolled from it, so rollNextSquad can spread the
+    // draft across every era instead of streaking on one. See pickNextEra.
+    this.eraUseCounts = new Map();
     this.slots = slots;
     this.rosterA = {}; // human
     this.rosterB = {}; // bot
@@ -303,7 +338,7 @@ export class DraftState {
 
   /** Roll the next shared category. Both sides draft from this same squad.
    * Never repeats a squad within a game, prefers squads the player hasn't
-   * just seen, and balances eras via decadeWeight above. */
+   * just seen, and spreads the rounds across every era via pickNextEra. */
   rollNextSquad() {
     if (this.isComplete()) return null;
 
@@ -314,16 +349,18 @@ export class DraftState {
     const fresh = unused.filter((s) => !this.recentSquadIds.has(s.id));
     const candidates = fresh.length > 0 ? fresh : unused;
 
-    const byDecade = new Map();
+    // Keyed on `decade`, which buildSquads writes for every sport - it carries
+    // football's era just as it carries basketball's decade.
+    const byEra = new Map();
     for (const squad of candidates) {
-      if (!byDecade.has(squad.decade)) byDecade.set(squad.decade, []);
-      byDecade.get(squad.decade).push(squad);
+      if (!byEra.has(squad.decade)) byEra.set(squad.decade, []);
+      byEra.get(squad.decade).push(squad);
     }
 
-    const decades = [...byDecade.values()];
-    const chosenDecade = pickWeighted(decades, (group) => decadeWeight(group.length));
-    const chosen = chosenDecade[Math.floor(Math.random() * chosenDecade.length)];
+    const [era, eraSquads] = pickNextEra(byEra, this.eraUseCounts);
+    const chosen = eraSquads[Math.floor(Math.random() * eraSquads.length)];
 
+    this.eraUseCounts.set(era, (this.eraUseCounts.get(era) || 0) + 1);
     this.usedSquadIds.add(chosen.id);
     this.currentSquad = chosen;
     return this.currentSquad;
