@@ -1385,6 +1385,31 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
   renderCurrentRound();
 }
 
+/** Re-show the gamestyle screen as a retry, without re-running the phase.
+ *
+ * startTacticPhase would redraw a fresh hand of gamestyles and reset the
+ * choice; this only unhides the cards that are already rendered, so what the
+ * player sees is the plan they committed, waiting to be sent again. No clock:
+ * the pick was already made in time, and a countdown on an error message
+ * pressures the player over a failure that wasn't theirs. */
+function offerStrategyResubmit(message, onRetry) {
+  cleanupTacticTimer();
+  draftPoolPanel.classList.add("hidden");
+  tacticPhaseEl.classList.remove("hidden");
+  pickTimerEl.hidden = true;
+  pickTimerEl.textContent = "";
+  tacticPhaseHintEl.textContent = message;
+  btnPlayGame.textContent = "Send Game Plan Again";
+  btnPlayGame.onclick = () => {
+    // One retry per press - a double tap must not fire two submits.
+    btnPlayGame.onclick = null;
+    tacticPhaseEl.classList.add("hidden");
+    draftPoolPanel.classList.remove("hidden");
+    btnPlayGame.textContent = "Play Game";
+    onRetry();
+  };
+}
+
 // Rotation phase: minutes-per-player, shared by Offline Ranked Practice (6
 // slots) and (later) Online Ranked. Only shown under the "strict" ruleset -
 // Quick Play stays a no-strategy, no-clock, just-play-it experience. A
@@ -2047,6 +2072,9 @@ async function enterOnlineMatch(matchId) {
     // post-strategy fallback poll can both aim for it without ever running
     // two reveals at once. See handleOnlineMatchState.
     simulationStarted: false,
+    // Same idea for the rotation -> matchups -> gamestyle sequence: entering
+    // it twice would ask the player to redo choices they already made.
+    strategyPhaseStarted: false,
   };
 
   if (picks.length === 0) {
@@ -2175,6 +2203,15 @@ async function handleOnlineMatchState(match) {
   try {
     if (match.status === "strategy") {
       cleanupPickTimer();
+      // Enter the strategy sequence ONCE per match. Every phase in it is a
+      // decision the player already made - re-entering restarts them at the
+      // rotation screen and throws those decisions away, which is exactly what
+      // a failed strategy submit used to do: submit fails, the error routes
+      // back through here, the player sets 240 minutes again, the retry fails
+      // the same way. Recovery from a failed submit belongs at the submit (see
+      // beginOnlineStrategyPhase), not at the top of the phase.
+      if (game.online.strategyPhaseStarted) return;
+      game.online.strategyPhaseStarted = true;
       await beginOnlineStrategyPhase(match);
       return;
     }
@@ -2426,28 +2463,66 @@ async function beginOnlineStrategyPhase(match) {
       `${sport().rotationBudget} ${sport().labels.unit} to spend. Starters play more than the bench. ` +
       `Lower someone to free ${sport().labels.unit} before raising someone else.`;
   }
+  /**
+   * Commit rotation + matchups + gamestyle, and recover in place if that
+   * fails.
+   *
+   * The failure path is the whole point. This used to hand the error back to
+   * handleOnlineMatchState, which saw a match still in 'strategy' and started
+   * the phase over - so a rejected submit sent the player back to the rotation
+   * screen to re-assign 240 minutes, re-assign matchups and re-pick a
+   * gamestyle, only to be rejected again. A submit that fails must not cost
+   * the player the choices the submit was carrying.
+   *
+   * Three outcomes are genuinely different and are told apart here:
+   *   - the match moved on (both sides in, or already simulating): follow it
+   *   - the match is gone (opponent left, stale sweep): say so, terminally
+   *   - the submit itself failed: keep every choice, show why, offer a retry
+   */
+  const submitOnlineStrategy = async () => {
+    draftTurnBanner.textContent = "Submitting your game plan…";
+    try {
+      // A sport with strategy groups commits the whole pair; one without
+      // commits its single gamestyle id, exactly as before.
+      await submitStrategy(
+        o.matchId,
+        strategy.rotationMinutes,
+        strategy.matchups,
+        sport().strategyGroups ? strategy.strategy : strategy.tactic
+      );
+      draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
+      awaitSimulationStart();
+      return;
+    } catch (e) {
+      console.error("Strategy submit failed:", e);
+      let freshMatch;
+      try {
+        freshMatch = await getMatch(o.matchId);
+      } catch (pollError) {
+        console.error("Couldn't re-read the match after a failed submit:", pollError);
+        freshMatch = undefined;
+      }
+      // getMatch returns null (not an error) when the row is gone.
+      if (freshMatch === null) {
+        handleOpponentLeft();
+        return;
+      }
+      if (freshMatch && freshMatch.status !== "strategy") {
+        await handleOnlineMatchState(freshMatch);
+        return;
+      }
+      draftTurnBanner.textContent = "Couldn't submit your game plan.";
+      offerStrategyResubmit(
+        `${e.message} - your rotation, matchups and game plan are all still set. Send them again.`,
+        submitOnlineStrategy
+      );
+    }
+  };
+
   const onlineTactic = () => {
       draftTurnBanner.textContent = "Final round — set your game plan";
       tacticPhaseHintEl.textContent = `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
-      startTacticPhase(async () => {
-        draftTurnBanner.textContent = "Submitting your game plan…";
-        try {
-          // A sport with strategy groups commits the whole pair; one without
-          // commits its single gamestyle id, exactly as before.
-          await submitStrategy(
-            o.matchId,
-            strategy.rotationMinutes,
-            strategy.matchups,
-            sport().strategyGroups ? strategy.strategy : strategy.tactic
-          );
-          draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
-          awaitSimulationStart();
-        } catch (e) {
-          draftTurnBanner.textContent = "Couldn't submit your game plan (" + e.message + ") - try again.";
-          const freshMatch = await getMatch(o.matchId);
-          await handleOnlineMatchState(freshMatch);
-        }
-      });
+      startTacticPhase(submitOnlineStrategy);
   };
   const afterRotationOnline = () => {
     if (!hasMatchups()) return onlineTactic();

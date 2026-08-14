@@ -238,6 +238,16 @@ filtering the pool handed to `DraftState`, so nothing downstream needs to know
 an era exists. Each bracket keeps its own record in `profiles.era_records`,
 since knowing the 2010s is a different skill from knowing the 1970s.
 
+Within a bracket, rounds are dealt from the eras in **cycles**: no era comes up
+again until every era with an unused squad has had a turn, and which era leads
+a cycle is a weighted random draw. So the order stays unpredictable while the
+coverage is guaranteed - a draft can never run seven straight 2000s squads, and
+"All Years" always means all years. The rule is written twice, once for offline
+drafts (`pickNextEra` in `js/draft.js`) and once for online ones
+(`public.next_draft_squad`, shared by `join_queue`, `challenge_friend` and
+`advance_round_if_ready`); `npm run verify:era-rotation` checks the offline half
+against real data for every sport and bracket.
+
 ## Who's online
 
 The header ticker counts browsers that have sent a heartbeat in the last 75
