@@ -354,6 +354,13 @@ let unreconciled = 0;
 let missingConversion = 0;
 let offChartTwoPointers = 0;
 let unreconciledSacks = 0;
+// A field goal on your last possession of the game, trailing by more than
+// three. It cannot tie and it cannot win, and no team has ever kicked one -
+// reported from a live game as "down 7 in overtime and we kicked a field
+// goal". Counted against every last-chance possession so the check reads as a
+// rate, not as an absence.
+let lastChanceDown4Plus = 0;
+let hopelessFieldGoals = 0;
 for (let i = 0; i < 400; i++) {
   const rosterA = rosterWith({ QB: qbPool[i % qbPool.length], RB: rbPool[i % rbPool.length] });
   const rosterB = rosterWith({ QB: qbPool[(i * 3) % qbPool.length], RB: medianRB });
@@ -364,6 +371,21 @@ for (let i = 0; i < 400; i++) {
   // decision faced is the margin the engine faced - not one reconstructed from
   // the final score.
   const live = { A: 0, B: 0 };
+  // The engine's own rule is "no next possession"; the last drive each team
+  // takes is exactly that, whether it came in regulation or overtime.
+  const lastDriveIndex = { A: -1, B: -1 };
+  result.drives.forEach((d, index) => { lastDriveIndex[d.team] = index; });
+  // Its own running score: the margin a drive FACED, not the one it left
+  // behind, and the main walk below has not started counting yet.
+  const before = { A: 0, B: 0 };
+  result.drives.forEach((drive, index) => {
+    const foe = drive.team === "A" ? "B" : "A";
+    if (index === lastDriveIndex[drive.team] && before[drive.team] - before[foe] < -3) {
+      lastChanceDown4Plus += 1;
+      if (drive.outcome === "fieldGoal") hopelessFieldGoals += 1;
+    }
+    before[drive.team] += drive.points;
+  });
   for (const drive of result.drives) {
     if (drive.outcome === "touchdown") {
       touchdowns += 1;
@@ -395,6 +417,41 @@ for (let i = 0; i < 400; i++) {
   }
 }
 const twoPointRate = touchdowns ? twoPointTries / touchdowns : 0;
+
+// ---- does the quarterback run like HIMSELF? --------------------------------
+//
+// Reported from a live game: Ben Roethlisberger, one of the least mobile
+// quarterbacks who ever played, finished with 8 carries for 52 yards. Carries
+// were weighted by rushing YARDS and then the bell-cow cap poured whatever it
+// took off the back onto whoever was left - on a twelve-slot roster, the
+// quarterback. So the pocket passer inherited a running back's workload.
+//
+// Measured against each man's OWN rate, because that is the only honest
+// yardstick: a quarterback who ran for 6 yards a game may not simulate 50.
+const mobilityGames = 60;
+function qbRushSample(qb) {
+  const carries = [];
+  const yards = [];
+  for (let i = 0; i < mobilityGames; i++) {
+    const result = NFL.simulate(rosterWith({ QB: qb, RB: medianRB }), rosterWith({ QB: medianOf(qbPool, "pass_yds"), RB: medianRB }), ctx, {
+      strategyA: BAL, strategyB: BAL, rand: mulberry32(i * 104729 + qb.name.length),
+    });
+    const line = (result.boxA || {}).QB || {};
+    carries.push(line.carries || 0);
+    yards.push(line.rush_yds || 0);
+  }
+  return { real: qb.rush_yds, carries: mean(carries), yards: mean(yards), name: `${qb.name} ${qb.season}` };
+}
+// The extremes of the dataset, picked by real rushing production rather than
+// by name, so this keeps meaning something when the data grows.
+const byRushing = [...qbPool].sort((a, b) => (a.rush_yds || 0) - (b.rush_yds || 0));
+const pocketQBs = byRushing.filter((p) => p.pass_yds > 180).slice(0, 3);
+const runningQBs = byRushing.filter((p) => p.pass_yds > 180).slice(-3);
+const pocketRuns = pocketQBs.map(qbRushSample);
+const runnerRuns = runningQBs.map(qbRushSample);
+const worstPocket = pocketRuns.reduce((w, r) => (r.yards > w.yards ? r : w), pocketRuns[0]);
+const meanPocketYards = mean(pocketRuns.map((r) => r.yards));
+const meanRunnerYards = mean(runnerRuns.map((r) => r.yards));
 
 const poor = tierStats.get("poor") && eff(tierStats.get("poor"));
 const avg = tierStats.get("average") && eff(tierStats.get("average"));
@@ -437,13 +494,25 @@ const checks = [
     // EFFICIENCY is a backup's. Yardage alone was never the tell - 25/42 for
     // 280 was wrong because of the 60% completion rate behind it, not only
     // the total.
+    // SEPARATION AS A RATIO, NOT A YARDAGE GAP. It was "more than 90 yards
+    // between them", which is a number that moves whenever league-wide VOLUME
+    // moves - and volume is a thing this engine is allowed to tune. Trimming
+    // snaps per drive to football's 63 plays a game (from 65) shrank every
+    // passing total by about 4% and took the gap from 94 to 89 without any
+    // tier moving relative to any other, which is the check failing for a
+    // reason that has nothing to do with what it is measuring. A ratio holds
+    // the same claim - an elite line is a different thing from a backup's -
+    // and is indifferent to how many plays a game there are. Real football is
+    // 2.6x (119 against 307); this asks for 1.5x, since the sim compresses the
+    // range at both ends and that compression is measured separately above.
     ok: !!(poor && elite) &&
       poor.yardsPerGame < 230 &&
-      elite.yardsPerGame - poor.yardsPerGame > 90 &&
+      elite.yardsPerGame > poor.yardsPerGame * 1.5 &&
       poor.compPct < 0.58,
     detail:
       `bottom tier ${poor.yardsPerGame.toFixed(0)} yds at ${(poor.compPct * 100).toFixed(1)}%, ` +
-      `${(elite.yardsPerGame - poor.yardsPerGame).toFixed(0)} behind elite`,
+      `${(elite.yardsPerGame / Math.max(1, poor.yardsPerGame)).toFixed(2)}x behind elite ` +
+      `(${elite.yardsPerGame.toFixed(0)} yds at ${(elite.compPct * 100).toFixed(1)}%)`,
   },
   {
     title: "Simulated production tracks real production within 1.6x",
@@ -510,6 +579,27 @@ const checks = [
     title: "Ground Control still runs the ball far more than balanced",
     ok: ground.median >= carries.median + 4,
     detail: `${ground.median} carries against balanced's ${carries.median}`,
+  },
+  {
+    title: "A pocket passer does not run like a running back",
+    // Two claims: he stays near his own rate, and he never posts a back's
+    // line. 15 yards is generous - the men in this group averaged 3 to 6.
+    ok: !!worstPocket && worstPocket.yards < 15 && meanPocketYards < 12,
+    detail: pocketRuns
+      .map((r) => `${r.name}: ${r.yards.toFixed(0)} yds on ${r.carries.toFixed(1)} car (real ${r.real.toFixed(1)}/g)`)
+      .join("\n"),
+  },
+  {
+    title: "A running quarterback still runs",
+    ok: meanRunnerYards > meanPocketYards * 3,
+    detail: runnerRuns
+      .map((r) => `${r.name}: ${r.yards.toFixed(0)} yds on ${r.carries.toFixed(1)} car (real ${r.real.toFixed(1)}/g)`)
+      .join("\n"),
+  },
+  {
+    title: "A team that must have seven never kicks three",
+    ok: hopelessFieldGoals === 0 && lastChanceDown4Plus > 0,
+    detail: `${hopelessFieldGoals} of ${lastChanceDown4Plus} last-chance possessions down 4+ ended in a field goal`,
   },
   {
     title: "Every touchdown plays out a conversion",

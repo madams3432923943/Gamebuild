@@ -177,9 +177,16 @@ function edge(off, def) {
  * the pace of the game are unchanged - what changes is that the ball stays on
  * the field.
  */
-function driveOutcome(mult, rand, mustScore = false) {
+function driveOutcome(mult, rand, mustScore = false, mustTouchdown = false) {
   const td = DRIVE_OUTCOMES.touchdown * mult;
-  const fg = DRIVE_OUTCOMES.fieldGoal * mult;
+  // A FIELD GOAL THAT CANNOT TIE THE GAME IS NOT AN OUTCOME. Reported from a
+  // live game: down seven in overtime, the offence kicked three. No team has
+  // ever done that, because three points on the last possession of a game you
+  // trail by seven loses by four instead of by seven. When the deficit is
+  // bigger than a field goal and there is no next possession, the drive is
+  // playing for the touchdown - it either gets in or it ends on downs, and the
+  // kicking share goes to those two rather than to the scoreboard.
+  const fg = mustTouchdown ? 0 : DRIVE_OUTCOMES.fieldGoal * mult;
   let scoring = Math.min(0.92, td + fg);
   let remaining = 1 - scoring;
   const puntShare = DRIVE_OUTCOMES.punt / (DRIVE_OUTCOMES.punt + DRIVE_OUTCOMES.turnover);
@@ -437,7 +444,7 @@ function describeConversion(conversion) {
  * @param margin this team's score minus the opponent's, entering the drive.
  *   Only the conversion decision reads it; a drive itself does not care.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false) {
   // The gamestyle acts on BOTH sides: yours lifts your offence, theirs lifts
   // the defence you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
@@ -445,7 +452,16 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   const defAdj = def * theirs.def * ((theirs.passRush + theirs.coverage + theirs.runDef) / 3);
   const mult = edge(offAdj, defAdj) * (TEAM_QUARTER_VARIANCE_MIN +
     rand() * (TEAM_QUARTER_VARIANCE_MAX - TEAM_QUARTER_VARIANCE_MIN));
-  let outcome = driveOutcome(mult, rand, mustScore);
+  // No next possession AND three points do not get you level: the only thing
+  // worth playing for is the touchdown. `margin` is this team's score minus
+  // theirs entering the drive, so -3 can still be tied by a kick and -4 cannot.
+  //
+  // Deliberately narrower than mustScore, which also covers the possession
+  // BEFORE the last one - there, kicking to cut a two-score deficit to five is
+  // a call a coach really makes. On the last possession of the game it is not
+  // a call at all.
+  const mustTouchdown = lastChance && margin < -POINTS.fieldGoal;
+  let outcome = driveOutcome(mult, rand, mustScore, mustTouchdown);
 
   // Ball Hawks and Blitz Brigade turn stops into takeaways; Ground & Pound's
   // ball control resists them. Applied as a re-roll of a stop rather than as
@@ -464,7 +480,11 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   if (outcome === "fieldGoal" && finish > 1 && rand() < (finish - 1)) {
     outcome = "touchdown";
   } else if (outcome === "touchdown" && finish < 1 && rand() < (1 - finish) * 0.6) {
-    outcome = "fieldGoal";
+    // ...but a defence cannot hold a team to three when three is not on offer:
+    // an offence that must have seven is going for it on fourth down, so a
+    // stop here is a stop on downs. Without this the mustTouchdown rule above
+    // could still be undone one branch later.
+    outcome = mustTouchdown ? "downs" : "fieldGoal";
   }
   let endYard = Math.max(1, Math.min(100, startYard + driveYards(outcome, startYard, mult, rand)));
   let points = 0;
@@ -577,11 +597,8 @@ function usageWeights(roster) {
   const skill = Object.entries(roster || {})
     .filter(([, e]) => e && !isUnit(e))
     .map(([slot, entry]) => ({ slot, entry }));
-  const build = (list, field, gate) => {
-    const items = list.map(({ slot, entry }) => ({
-      slot,
-      weight: Math.max(0, Number(entry[field]) || 0) * (gate ? gate[slot.replace(/\d+$/, "")] ?? 0 : 1),
-    }));
+  const build = (list, weightOf) => {
+    const items = list.map(({ slot, entry }) => ({ slot, weight: Math.max(0, weightOf(slot, entry) || 0) }));
     const total = items.reduce((s, i) => s + i.weight, 0);
     // A roster with no production in this column (a data gap) shares evenly
     // rather than dropping the touches on the floor.
@@ -589,12 +606,73 @@ function usageWeights(roster) {
     return items.map((i) => ({ ...i, weight: i.weight / total }));
   };
   return {
-    catchers: build(skill.filter(({ slot }) => slot !== "QB"), "rec"),
-    // Carries are gated by POSITION before production weights them, the same
-    // way scoring runs are. A quarterback's rushing yards can rival a back's
-    // without him being the man the ball is handed to twenty times a game.
-    rushers: capBellCow(build(skill, "rush_yds", CARRY_SHARE)),
+    catchers: build(skill.filter(({ slot }) => slot !== "QB"), (slot, entry) => Number(entry.rec) || 0),
+    rushers: capBellCow(
+      build(skill, (slot, entry) => carriesPerGame(entry) * (CARRY_SHARE[slot.replace(/\d+$/, "")] ?? 0))
+    ),
   };
+}
+
+/**
+ * How many times a man really was handed the ball, per game: his rushing yards
+ * divided by his yards per carry. Both are in the dataset, so this is measured,
+ * not modelled.
+ *
+ * IT REPLACES RUSHING YARDS AS THE CARRY WEIGHT, and the difference is the
+ * whole point. Yards say Ben Roethlisberger (6 a game at 2.6 a carry - two
+ * carries) and Lamar Jackson (80 a game at 6.9 - twelve) are 13x apart; carries
+ * say they are 6x apart, which is the number that decides how often the ball is
+ * in each man's hands. Weighting by yards and then handing every carry the same
+ * average gain is what put 52 rushing yards on eight carries next to Big Ben's
+ * name in a live game - a stat line he never produced in his life.
+ *
+ * A player with yards but no rate falls back to the league's 4.3, rather than
+ * to zero: a data gap should not delete a man from the running game.
+ */
+function carriesPerGame(entry) {
+  const yards = Math.max(0, Number(entry?.rush_yds) || 0);
+  if (yards <= 0) return 0;
+  const ypc = Number(entry?.ypc) || 0;
+  return ypc > 0 ? yards / ypc : yards / LEAGUE_YARDS_PER_CARRY;
+}
+
+const LEAGUE_YARDS_PER_CARRY = 4.3;
+
+/** What one man's carry is worth against an average one, from his own yards
+ * per carry. Banded because a drive's total is fixed before the carriers are
+ * drawn - this decides how the drive's ground yardage is SHARED OUT, and a
+ * scale wide enough to hand one man everything would leave the rest of a
+ * backfield with carries worth nothing. */
+const CARRIER_YARD_SCALE_MIN = 0.45;
+const CARRIER_YARD_SCALE_MAX = 1.7;
+
+function carrierYardScale(entry) {
+  const ypc = Number(entry?.ypc) || 0;
+  if (ypc <= 0) return 1;
+  return Math.max(CARRIER_YARD_SCALE_MIN, Math.min(CARRIER_YARD_SCALE_MAX, ypc / LEAGUE_YARDS_PER_CARRY));
+}
+
+/**
+ * How far a gameplan is allowed to move a VOLUME number - how often you hand
+ * it off, and so how often you throw it.
+ *
+ * A plan is an intent, not a different sport. Vertical Attack applied at full
+ * strength put 63 attempts on a quarterback in a live game and Ground Control
+ * put 39 carries on a back, both of which are among the most extreme games
+ * anyone has ever played, from an ordinary Sunday's plan. The square root keeps
+ * the direction and the ORDER of the plans exactly as authored while pulling
+ * their reach in: a 1.50 ground tilt becomes 1.22, a 0.55 passing tilt becomes
+ * 0.74. Choosing a plan should be worth a handful of snaps a game, not a
+ * different offence.
+ *
+ * The efficiency mods (off, explosive, redZone, security, protection) are NOT
+ * damped - those are what a plan is actually for, and they are already solved
+ * against a win-rate band in scripts/verify-nfl-gameplans.mjs.
+ */
+function planTilt(mod) {
+  const value = Number(mod);
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  return Math.sqrt(value);
 }
 
 /** The most of a team's carries one man can take.
@@ -612,28 +690,58 @@ function usageWeights(roster) {
  * entire running game. */
 const BELL_COW_CEILING = 0.74;
 
+/** The most of a team's carries a QUARTERBACK can take, however the rest of
+ * the backfield is capped.
+ *
+ * This is the Roethlisberger rule. The spare carries taken off a bell cow used
+ * to be shared out in proportion to what each other man already had, and on a
+ * roster whose only other rusher of note is the quarterback, "in proportion"
+ * meant essentially all of them: a statue of a passer inherited eleven carries
+ * a game and ran for 58 yards. A quarterback's own record is the only thing
+ * that should decide how often he runs, so the redistribution can never lift
+ * him above the share his real carries already justify - a scramble or two for
+ * Big Ben, a third of the ground game for Lamar Jackson.
+ *
+ * The small floor is the sneak-and-kneel share every quarterback has. */
+const QB_CARRY_FLOOR = 0.04;
+
 function capBellCow(items) {
   if (items.length < 2) return items;
   let top = items[0];
   for (const item of items) if (item.weight > top.weight) top = item;
   if (top.weight <= BELL_COW_CEILING) return items;
+
   const spare = top.weight - BELL_COW_CEILING;
+  const ceilingFor = (item) =>
+    item.slot === "QB" ? Math.max(QB_CARRY_FLOOR, item.weight) : 1;
   const rest = items.filter((item) => item !== top);
-  const restTotal = rest.reduce((sum, item) => sum + item.weight, 0);
-  // Redistributed in proportion to what each already had, so a mobile
-  // quarterback picks up more of the slack than a receiver does. An even split
-  // would hand a tight end carries the position gate just took away.
+  // Only men whose own record says they carry the ball can absorb the spare,
+  // and none of them past his own ceiling. What nobody can take stays with the
+  // back: he really is the whole backfield on a twelve-slot roster, and
+  // inventing carries for a quarterback who never ran is the worse error.
+  const room = rest.map((item) => Math.max(0, ceilingFor(item) - item.weight));
+  const roomTotal = room.reduce((sum, r) => sum + r, 0);
+  const absorbed = Math.min(spare, roomTotal);
+
   return items.map((item) => {
-    if (item === top) return { ...item, weight: BELL_COW_CEILING };
-    const share = restTotal > 0 ? item.weight / restTotal : 1 / Math.max(1, rest.length);
-    return { ...item, weight: item.weight + spare * share };
+    if (item === top) return { ...item, weight: top.weight - absorbed };
+    const i = rest.indexOf(item);
+    const share = roomTotal > 0 ? room[i] / roomTotal : 0;
+    return { ...item, weight: item.weight + absorbed * share };
   });
 }
 
 /** Who the ball is handed to on an ordinary carry, as a multiplier on that
- * man's rushing production. Backs carry; quarterbacks scramble and keep;
- * receivers get the occasional designed run; tight ends do not carry. */
-const CARRY_SHARE = { RB: 1, QB: 0.3, FLEX: 0.7, WR: 0.08, TE: 0 };
+ * man's own carries per game.
+ *
+ * Much closer to 1 than it used to be, because the weight it multiplies is now
+ * a measured carry count rather than a yardage total - the data already knows
+ * that a quarterback runs less often than a back, so the gate no longer has to
+ * say it a second time. What is left is the ROSTER correction: a real team
+ * spreads its carries over two or three backs and this roster has one, so
+ * everyone else is scaled down toward him rather than splitting a real team's
+ * whole non-RB share between a quarterback and three receivers. */
+const CARRY_SHARE = { RB: 1, QB: 0.6, FLEX: 0.9, WR: 0.5, TE: 0.15 };
 
 /** One weighted draw. Returns a SLOT. */
 function pickBySlotWeight(items, rand) {
@@ -696,8 +804,13 @@ const RUN_SHARE = 0.63;
  * snaps and the most committed ground teams on about 68%. A team outside that
  * pair of numbers is not running a plan, it is playing from four scores down -
  * which is a game state, not a gameplan, and this band is about gameplans. */
-const RUN_SHARE_MIN = 0.44;
-const RUN_SHARE_MAX = 0.70;
+const RUN_SHARE_MIN = 0.45;
+const RUN_SHARE_MAX = 0.66;
+// Narrowed alongside planTilt, and for the same reason: at 0.70 the ground
+// plan's tilt was clamped rather than damped, so every softening upstream
+// arrived at the same hard edge and Ground Control still handed off on seven
+// snaps in ten. The pair still spans the league - the most committed running
+// team against the most pass-happy one - it just no longer spans more.
 
 /** What a carry is worth against a COMPLETION, as a multiplier on the yardage
  * it draws. Not against an attempt: the incompletions are already carved out,
@@ -741,9 +854,14 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // go three-and-out in one snap. The yardage term is what marching adds on
   // top. Weighted across the outcome chart these come to 5.4 snaps a drive,
   // which over eleven drives is football's 60.
-  const count = Math.max(
-    1,
-    Math.min(14, SNAPS_BASE[outcome] ?? 3) + Math.round(Math.abs(net) / 12) + Math.floor(rand() * 3)
+  // The cap is on the WHOLE count, not just the base. Capping only the base
+  // (which is at most 3) capped nothing, and the yardage term is unbounded, so
+  // a 90-yard drive in a shootout ran seventeen snaps and a game could reach
+  // 108 offensive plays. No offence runs that many; twelve snaps is already a
+  // long, chain-moving drive.
+  const count = Math.min(
+    12,
+    Math.max(1, (SNAPS_BASE[outcome] ?? 3) + Math.round(Math.abs(net) / 13) + Math.floor(rand() * 3))
   );
   const plays = [];
 
@@ -798,19 +916,37 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // the ones spent two scores behind. The narrowed band still leaves Ground
   // Control and Vertical Attack at opposite ends of the league - about 70% runs
   // against about 70% throws - which is the whole point of the choice.
-  const runShare = Math.max(RUN_SHARE_MIN, Math.min(RUN_SHARE_MAX, RUN_SHARE * (Number(plan.runShare) || 1)));
+  const runShare = Math.max(
+    RUN_SHARE_MIN,
+    Math.min(RUN_SHARE_MAX, RUN_SHARE * planTilt(plan.runShare))
+  );
+  const usage = usageWeights(roster);
+  // Relative to THIS backfield's own average, so weighting a carry by the man
+  // taking it decides how the ground yards are shared out without changing how
+  // many there are. An absolute scale would quietly hand a team with a 5.8-a-
+  // carry back extra offence and take it off his quarterback's passing line.
+  const meanCarrierScale = usage.rushers.reduce(
+    (sum, r) => sum + r.weight * carrierYardScale(roster[r.slot]), 0
+  ) || 1;
   const raw = [];
   const kinds = [];
+  const carriers = [];
   for (let i = 0; i < productive; i++) {
     const isRun = rand() < runShare;
     kinds[i] = isRun ? "run" : "pass";
-    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT : 1);
+    // THE MAN IS CHOSEN BEFORE THE YARDS, so the yards can know who is running.
+    // Every carry used to draw from the same pool whatever the carrier's own
+    // rate, which is how a quarterback with a 2.6-yard average finished a game
+    // at 6.5 a carry: he was handed a running back's gains. A carrier's own
+    // yards per carry now weights the draw, so a plodder's carries are short
+    // ones and a burner's are not.
+    carriers[i] = isRun ? pickBySlotWeight(usage.rushers, rand) : null;
+    const carrierBoost = isRun ? carrierYardScale(roster[carriers[i]]) / meanCarrierScale : 1;
+    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT * carrierBoost : 1);
   }
   const rawTotal = raw.reduce((s, v) => s + v, 0);
   // The productive plays make up whatever the sacks gave away.
   const gainPool = net - sackLoss;
-
-  const usage = usageWeights(roster);
 
   let yard = startYard;
   let down = 1;
@@ -873,7 +1009,12 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
     let carrier = null;
     let receiver = null;
     if (type === "run") {
-      carrier = scoringTd && kind === "rush" ? scorerSlot : pickBySlotWeight(usage.rushers, rand);
+      // Drawn with the yardage above, not here: the gain this play was given
+      // was weighted by THIS man's yards per carry, so drawing a different one
+      // now would hand his gain to somebody else.
+      carrier = scoringTd && kind === "rush"
+        ? scorerSlot
+        : carriers[slot.index] ?? pickBySlotWeight(usage.rushers, rand);
     } else if (type === "sack") {
       carrier = "QB";
     } else if (type === "incompletion") {
@@ -1083,7 +1224,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods,
                          late && live[side] < live[foe],
-                         live[side] - live[foe]);
+                         live[side] - live[foe],
+                         i === possessions - 1 && live[side] < live[foe]);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -1138,7 +1280,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       const trailing = margin < 0;
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods, trailing, margin);
+                         cfg[side].mods, cfg[foe].mods, trailing, margin, trailing);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;
