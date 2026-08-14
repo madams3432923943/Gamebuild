@@ -27,7 +27,13 @@ import { OFFENSIVE_PLANS, DEFENSIVE_PLANS } from "../js/sports/nfl/tactics.js";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
-const GAMES = Number(process.env.NFL_GAMEPLAN_GAMES || 60);
+// 200 DRAFTED ROSTERS, not 60. Every plan is held to a five-point-wide band on
+// either side of even, so the measurement has to be tighter than five points -
+// and at 60 rosters it was not: the same plans, unchanged, read 36.6% on the
+// first 60 draft seeds and 42.3% over 250, because a small set of rosters
+// happens to suit some plans and not others. Fourteen seconds buys a number
+// that means what it says.
+const GAMES = Number(process.env.NFL_GAMEPLAN_GAMES || 200);
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -170,16 +176,34 @@ const noteResult = (id, won, decided) => {
 
 let sideAWins = 0;
 let decidedMirror = 0;
-const matchupSample = rosters.slice(0, Math.min(40, rosters.length));
+// EVERY roster, not the first 40. A plan's rate was measured over 200 games,
+// where one flipped game is half a point and the band's floor is five points
+// away - so an engine change that shuffles the random stream moved a plan by
+// three or four points without changing anything about the plan. Widening the
+// sample is what makes the band a measurement rather than a reading, and the
+// roster count is already the knob (NFL_GAMEPLAN_GAMES) for trading runtime
+// against confidence.
+const matchupSample = rosters;
 for (const roster of matchupSample) {
   for (const off of OFFENSIVE_PLANS) {
     for (const def of DEFENSIVE_PLANS) {
       const mine = { offense: off.id, defense: def.id };
       const theirs = { offense: BALANCED_OFF, defense: BALANCED_DEF };
-      const result = play(roster, mine, theirs);
-      const decided = result.winner !== null;
-      noteResult(off.id, result.winner === "A", decided);
-      noteResult(def.id, result.winner === "A", decided);
+      // BOTH SEATS, always. draftRoster's two rosters are drafted greedily and
+      // are not equal in strength, so "plan X in seat A against balanced in
+      // seat B" measures the plan PLUS whatever the seat's roster is worth -
+      // and that second term is not small. It was invisible while every plan
+      // carried it equally and the whole board sat near 50%; making player
+      // quality matter more in the run game tilted the rosters further apart
+      // and pushed the board to 44%, which reads as five plans going bad at
+      // once rather than as one flaw in the measurement. Playing each plan in
+      // both seats cancels the roster and the seat together.
+      for (const seat of ["A", "B"]) {
+        const result = seat === "A" ? play(roster, mine, theirs) : play(roster, theirs, mine);
+        const decided = result.winner !== null;
+        noteResult(off.id, result.winner === seat, decided);
+        noteResult(def.id, result.winner === seat, decided);
+      }
     }
   }
 }
