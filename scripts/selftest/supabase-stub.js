@@ -12,6 +12,14 @@
 // The real online path is NOT covered by this and must never appear to be:
 // `npm run verify --online` against the live site is the only thing that
 // exercises matchmaking and the simulate-match Edge Function.
+//
+// AND rpc() BELOW ANSWERS "yes" TO EVERYTHING, WITHOUT READING ITS ARGUMENTS.
+// That is fine for driving the harness and dangerous to forget: the online
+// self-test drove the whole rotation -> matchups -> gamestyle sequence and
+// reported it committed for ten days while the live submit_strategy rejected
+// every one of those payloads. What the browser sends is held to the RPC's
+// actual rules in scripts/verify-online-strategy-contract.mjs; a green run
+// here says the SCREENS work, never that the server would have accepted it.
 
 const USER = { id: "00000000-0000-4000-8000-00000000beef", email: "selftest@ballknowledge.app" };
 
