@@ -369,18 +369,61 @@ async function driveStrategyPhases(page, label, log, deadline) {
     .waitFor({ state: "visible", timeout: waitBudget(deadline, 10000, 60000) })
     .then(() => true)
     .catch(() => false);
+  // What each round actually put up, so the SHAPE of the flow is asserted and
+  // not just its completion. Football's two rounds are the case that broke
+  // before: the harness clicked once, reported success, and the defensive
+  // round was still on screen.
+  const shape = [];
   if (firstRound) {
     while (
       rounds < MAX_STRATEGY_ROUNDS &&
       (await page.locator("#tactic-phase:not(.hidden)").isVisible().catch(() => false))
     ) {
+      shape.push({
+        cards: await page.locator("#tactic-grid .tactic-card, #tactic-grid button").count().catch(() => 0),
+        heading: (await page.locator("#draft-turn-banner").textContent().catch(() => "")) || "",
+      });
       await page.locator("#tactic-grid .tactic-card, #tactic-grid button").first().click().catch(() => {});
       rounds += 1;
       await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
       await page.waitForTimeout(400);
     }
     log(`  ${label}: gameplan chosen over ${rounds} round${rounds === 1 ? "" : "s"}, game started`);
+    for (const [i, r] of shape.entries()) {
+      log(`  ${label}: round ${i + 1} offered ${r.cards} card(s) — ${r.heading.replace(/\s+/g, " ").trim()}`);
+    }
   }
+  return shape;
+}
+
+/**
+ * The football gameplan flow, asserted rather than merely driven.
+ *
+ * Three things have gone wrong here before and none of them stops the game
+ * from starting, so none of them fails a test that only checks the game
+ * started: both sides of the ball on screen at once, a round offering the
+ * whole catalogue instead of a hand, and defence being reachable without
+ * confirming offence. `shape` is what the rounds actually showed, captured as
+ * they were played.
+ */
+export function checkNflGameplanShape(shape, expectedPerRound = 3) {
+  const problems = [];
+  if (shape.length !== 2) {
+    problems.push(`expected 2 rounds (offense then defense), saw ${shape.length}`);
+  }
+  const [offense, defense] = shape;
+  if (offense && !/offensive/i.test(offense.heading)) {
+    problems.push(`round 1 is not the offensive round: "${offense.heading.trim()}"`);
+  }
+  if (defense && !/defensive/i.test(defense.heading)) {
+    problems.push(`round 2 is not the defensive round: "${defense.heading.trim()}"`);
+  }
+  for (const [i, r] of shape.entries()) {
+    if (r.cards !== expectedPerRound) {
+      problems.push(`round ${i + 1} offered ${r.cards} cards, expected ${expectedPerRound}`);
+    }
+  }
+  return problems;
 }
 
 // ---------------------------------------------------------------------------
@@ -443,14 +486,20 @@ export async function runBrowserChecks(opts = {}) {
     // character at a time - twelve rounds of that runs about 150 seconds on
     // its own before a down has been played.
     //
-    // KNOWN GAP: `SELFTEST_SPORT=nfl` still does not finish. It now signs in,
-    // drafts all twelve rounds, drives both gameplan rounds and starts the
-    // game - everything below the final-score wait, which is clamped to 120s
-    // independently of this budget and which football's playback does not
-    // beat under this harness. scripts/verify-nfl-live-playback.mjs plays the
-    // same football game to a final score in real Chromium in 53s, so this is
-    // something about this harness rather than about the app. Basketball, the
-    // default, is unaffected and green.
+    // The KNOWN GAP that stood here - "`SELFTEST_SPORT=nfl` still does not
+    // finish", dying on the final-score wait - is closed. The full football
+    // run now completes: sign-in, twelve draft rounds, both gameplan rounds, a
+    // simulated final score, the box score and the phone-width layout audit,
+    // in about 290s of the 420s budget.
+    //
+    // Not attributable to any one commit. It was measured green on the merge
+    // of the NFL playback and engine work, BEFORE the stage-ordering fix that
+    // landed alongside this comment - checked deliberately, because the
+    // tempting story (football was drawing on a hidden field) is wrong: the
+    // wrong-stage flash was only ever in the ONLINE flow, which awaits the
+    // server between showing the screen and playing the result, and this
+    // harness plays a practice match. Keep the wider budget; football's
+    // playback legitimately needs it.
     budgetMs = (process.env.SELFTEST_SPORT || "nba") === "nba" ? 210000 : 420000,
     // Optional request interception, used only by the self-test to stand in
     // for the Supabase CDN module. A real run against a real site passes
@@ -661,8 +710,26 @@ export async function runBrowserChecks(opts = {}) {
 
     // ---- strategy phases --------------------------------------------------
     const strategyStart = Date.now();
-    await Promise.all(sessions.map(({ page, label }) => driveStrategyPhases(page, label, log, deadline)));
+    const shapes = await Promise.all(sessions.map(({ page, label }) => driveStrategyPhases(page, label, log, deadline)));
     checks.push(check("browser:strategy", "Rotation, matchups and gamestyle commit", PASS, { durationMs: Date.now() - strategyStart }));
+
+    // Football's two rounds are a shape, not just a count of clicks. Asserted
+    // per session, because "the game started" stays true for every way this
+    // has broken.
+    if ((process.env.SELFTEST_SPORT || "nba") === "nfl") {
+      const problems = shapes.flatMap((shape, i) =>
+        checkNflGameplanShape(shape).map((p) => `${sessions[i].label}: ${p}`)
+      );
+      checks.push(
+        check(
+          "browser:nfl-gameplan-rounds",
+          problems.length
+            ? `NFL gameplan rounds are wrong — ${problems.join("; ")}`
+            : "NFL offers 3 offensive plans, then 3 defensive plans, one round at a time",
+          problems.length ? FAIL : PASS
+        )
+      );
+    }
 
     // ---- simulation -------------------------------------------------------
     const simStart = Date.now();
