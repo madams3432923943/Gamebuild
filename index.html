@@ -275,7 +275,14 @@
              data-stage is what shared code keys on, so a new sport adds a
              sibling here and declares its name rather than editing a
              condition somewhere else. -->
-        <div class="court" data-stage="court" aria-hidden="true">
+        <!-- Starts hidden, like every other stage. A default-visible stage is
+             a default SPORT: the court shipped unhidden, so any path that
+             reached the game screen before setting the stage - the online flow
+             awaits a cold-starting Edge Function for seconds - showed football
+             a basketball court. No stage being visible until one is chosen
+             makes the wrong-sport flash structurally impossible rather than a
+             matter of who remembers to call showStage first. -->
+        <div class="court hidden" data-stage="court" aria-hidden="true">
           <span class="court-circle"></span>
           <span class="court-halfline"></span>
           <span class="court-key court-key-left"></span>

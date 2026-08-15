@@ -97,6 +97,24 @@ async function runInPage(page) {
       return w.charAt(0).toUpperCase() + w.slice(1);
     };
 
+    // ---- the shipped markup commits to NO sport ---------------------------
+    // The bug this catches is not "showStage is wrong" - showStage was always
+    // right. It is that the game screen could be PAINTED before showStage ran,
+    // and the markup had already picked a side: the court shipped without
+    // `hidden`, so the default stage was basketball. Online football awaits a
+    // cold-starting Edge Function for seconds between showing the screen and
+    // playing the result, and sat on a basketball court for all of it.
+    //
+    // Asserted on the page as loaded, before this harness has toggled
+    // anything, so it fails if any stage is ever given back its default
+    // visibility.
+    const initiallyVisible = visible();
+    check(
+      "no stage is visible until a sport chooses one",
+      initiallyVisible.length === 0,
+      initiallyVisible.length ? `visible on load: ${initiallyVisible.join(",")}` : "all stages start hidden"
+    );
+
     // ---- every live sport declares a stage that the page actually has -----
     const declared = {};
     for (const id of ["nba", "nfl"]) {
@@ -190,6 +208,68 @@ async function runInPage(page) {
   });
 }
 
+/**
+ * The half of the rule a DOM test cannot reach.
+ *
+ * The checks above prove the stages are correct once something sets them.
+ * They passed throughout the entire life of the bug, because the defect was
+ * ORDERING: the online flow showed the game screen, then awaited the server,
+ * and only set the stage when the result came back. Nothing in the page can
+ * observe that - js/main.js boots the whole app on import (auth, Supabase,
+ * the home screen), so the harness above deliberately blocks it and works on
+ * markup alone.
+ *
+ * So this reads the source. Crude, and it earns its place: the rule it
+ * protects is "the stage is decided before the screen is shown", and the only
+ * evidence of that rule is the order of two calls in a file the browser test
+ * is not allowed to run.
+ */
+async function checkStageIsSetBeforeTheScreenIsShown() {
+  const raw = await readFile(path.join(ROOT, "js", "main.js"), "utf8");
+  // Comments in this file quote these very call sites while explaining the
+  // ordering, so scanning the raw text finds prose and reports it as code.
+  // Blanked rather than deleted so byte offsets still point at real source.
+  const src = raw
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + m.slice(p.length).replace(/./g, " "));
+  const out = [];
+
+  // resetGameScreen is the one place that knows the screen is being prepared
+  // for a sport, so it is where the stage is chosen. If that call goes away,
+  // every flow silently inherits whatever the last game left behind.
+  const reset = src.match(/function resetGameScreen\(\)\s*\{[\s\S]*?\n\}/);
+  out.push({
+    name: "resetGameScreen sets the stage",
+    ok: !!reset && /showStage\(/.test(reset[0]),
+    detail: reset ? (/showStage\(/.test(reset[0]) ? "calls showStage" : "does NOT call showStage") : "resetGameScreen not found",
+  });
+
+  // Every route onto the game screen has to have chosen a stage first. Checked
+  // by position rather than by reading the flow: for each showScreen("game"),
+  // the nearest preceding resetGameScreen must be closer than the nearest
+  // preceding showScreen("game"), i.e. this entry reset the screen itself.
+  const shows = [...src.matchAll(/showScreen\("game"\)/g)].map((m) => m.index);
+  const resets = [...src.matchAll(/resetGameScreen\(\)/g)].map((m) => m.index);
+  const unguarded = shows.filter((at) => {
+    const priorReset = resets.filter((r) => r < at).pop();
+    if (priorReset === undefined) return true;
+    // Anything between the reset and the reveal other than whitespace and a
+    // comment means these are not the same entry into the screen.
+    return !/^[\s;]*$/.test(src.slice(priorReset + "resetGameScreen()".length, at).replace(/\/\/[^\n]*/g, ""));
+  });
+  out.push({
+    name: 'every showScreen("game") resets the screen first',
+    ok: shows.length > 0 && unguarded.length === 0,
+    detail: shows.length
+      ? unguarded.length
+        ? `${unguarded.length} of ${shows.length} reveal the screen without resetting it (offsets ${unguarded.join(", ")})`
+        : `${shows.length} call sites, all reset first`
+      : 'no showScreen("game") call sites found - has the screen been renamed?',
+  });
+
+  return out;
+}
+
 async function main() {
   const port = Number(process.env.BK_STAGE_PORT || 8937);
   const server = await serve(ROOT, port);
@@ -211,6 +291,8 @@ async function main() {
   } catch (e) {
     checks.push({ name: "harness ran", ok: false, detail: e.message });
   }
+
+  checks.push(...(await checkStageIsSetBeforeTheScreenIsShown()));
 
   checks.push({
     name: "no page errors",

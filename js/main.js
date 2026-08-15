@@ -2771,6 +2771,15 @@ function resetGameScreen() {
   // previous game would otherwise survive into this one.
   liveScoreboard.classList.remove("period-flash", "lead-flash");
   courtStageEl.classList.remove("final-flash");
+  // The stage belongs to the RESET, not to playback. playOutResult sets it
+  // too, but that runs after the online flow has awaited the server for
+  // seconds - and the court is the stage index.html leaves unhidden, so an
+  // NFL match sat on a basketball court for the whole cold start. Whoever
+  // clears the game screen is the one who knows a sport is about to be
+  // watched on it; deciding the stage here means it is already correct the
+  // first time the screen is painted, in every flow, rather than each caller
+  // having to remember.
+  showStage(sport().presentation.stage);
 }
 
 /** The active sport's opening word, in the scoreboard's sentence case -
@@ -3477,6 +3486,21 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   resetGameScreen();
   showScreen("game");
   renderScoreboard(liveScoreboard, "You", o.oppUsername, [], REGULATION_PERIODS, 0, 0, "Simulating…", true);
+  // An empty stage for the length of a cold start reads as a broken screen,
+  // so a sport whose stage means something before the result arrives draws it
+  // now: football's field with the endzones named and no ball on it yet.
+  //
+  // Keyed on the DECLARED stage name, the same way showStage and playOutResult
+  // below already are - not on a sport id. The stage the sport asked for is
+  // the only thing this knows about it.
+  //
+  // Ideally the sport would own this and hand back its own idle view, but
+  // js/ui.js imports js/sports/index.js, so a sport reaching back into ui.js
+  // for the renderer closes an import cycle. Left here until the football
+  // renderer moves out of shared UI, which is its own piece of work.
+  if (sport().presentation.stage === "field") {
+    renderFootballField(document.getElementById("football-field"), "You", o.oppUsername);
+  }
 
   try {
     await simulateMatch(matchId);
