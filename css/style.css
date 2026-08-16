@@ -1119,6 +1119,14 @@ input[type="text"]:focus-visible {
 .slot-filled {
   color: var(--text);
   text-align: right;
+  /* .roster-slot is a flex row and a flex item defaults to min-width:auto, so
+   * this column refuses to shrink below its content unless told to. Below
+   * 860px it is also truncated with an ellipsis (see the media block above),
+   * which is the deliberate choice - a wrapped football name makes its row
+   * twice as tall and the column stops scanning as a lineup. These two are
+   * what keep the untruncated case, above 860px, from pushing the row wide. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .slot-empty {
@@ -2732,6 +2740,24 @@ table.box-table th, table.history-table th {
 /* Compact roster rows (football). The name leads, the season sits under it. */
 .slot-name { font-weight: 600; }
 .slot-season { font-size: 0.78rem; color: var(--muted); }
+
+/* The names inside a drafted unit - "Sherman, Maxwell, Lane, Thurmond".
+ *
+ * Football-only, and it shipped with no rule at all: an inline span holding up
+ * to four comma-joined full names cannot wrap on its own, so a secondary drawn
+ * from long surnames measured 460px inside a 360px phone and took the whole
+ * page into horizontal scroll with it. Nothing caught it because the layout
+ * audit only ever ran on the post-game screen, by which point the roster panel
+ * that draws these is gone.
+ *
+ * Wrapping is the fix; the width cap keeps a long roll from pushing the column
+ * wide on desktop before wrapping gets the chance. */
+.slot-members {
+  max-width: 100%;
+  font-size: 0.74rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
 
 .box-group-label {
   margin: 0.7rem 0 0.25rem;

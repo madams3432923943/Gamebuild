@@ -331,6 +331,39 @@ async function isPastDraft(page) {
 /** Rotation -> matchups -> gamestyle. Each is accepted at its default: the
  * harness is verifying that the phases work and commit, not exploring
  * strategy, and defaults are the path most players take anyway. */
+/**
+ * Whatever is on screen right now, measured at a phone width and put back.
+ *
+ * The run drives at desktop size, so anything that only exists mid-flow - the
+ * gameplan cards above all - is never seen at 360px by the end-of-run audit.
+ * Restores the previous viewport so the flow it interrupted carries on at the
+ * size it was driving at.
+ */
+async function auditAtWidth(page, width) {
+  const before = page.viewportSize();
+  if (!before) return null; // a real device context; its width is already the point
+  try {
+    await page.setViewportSize({ width, height: before.height });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const audit = await page.evaluate(LAYOUT_AUDIT);
+    return {
+      width,
+      overlapCount: audit.overlapCount,
+      escapingCount: audit.escapingCount,
+      documentOverflowPx: audit.documentOverflowPx,
+      worst: [
+        ...audit.escaping.slice(0, 3).map((e) => `escapes: ${e.el} (${e.left}..${e.right} vs ${e.viewport}px)`),
+        ...audit.overlaps.slice(0, 3).map((o) => `overlaps: ${o.a} / ${o.b} by ${o.overlapPx}`),
+      ],
+    };
+  } catch {
+    return null;
+  } finally {
+    await page.setViewportSize(before).catch(() => {});
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(r))).catch(() => {});
+  }
+}
+
 async function driveStrategyPhases(page, label, log, deadline) {
   const phases = [
     { name: "rotation", panel: "#rotation-phase", button: "#btn-confirm-rotation" },
@@ -382,6 +415,12 @@ async function driveStrategyPhases(page, label, log, deadline) {
       shape.push({
         cards: await page.locator("#tactic-grid .tactic-card, #tactic-grid button").count().catch(() => 0),
         heading: (await page.locator("#draft-turn-banner").textContent().catch(() => "")) || "",
+        // Gameplan cards are audited HERE because this is the only moment they
+        // exist. The post-game layout audit at the end of the run cannot see
+        // them - the phase is long gone by then - so "the cards render on
+        // mobile" was a claim no test could make. Measured at 360px, the
+        // narrowest width the rest of the suite holds itself to.
+        phone: await auditAtWidth(page, 360),
       });
       await page.locator("#tactic-grid .tactic-card, #tactic-grid button").first().click().catch(() => {});
       rounds += 1;
@@ -712,6 +751,26 @@ export async function runBrowserChecks(opts = {}) {
     const strategyStart = Date.now();
     const shapes = await Promise.all(sessions.map(({ page, label }) => driveStrategyPhases(page, label, log, deadline)));
     checks.push(check("browser:strategy", "Rotation, matchups and gamestyle commit", PASS, { durationMs: Date.now() - strategyStart }));
+
+    // Gameplan cards at 360px, for whichever sport is under test. Both sports
+    // put cards up here; only the number of rounds differs.
+    const cardProblems = shapes.flatMap((shape, i) =>
+      shape
+        .filter((r) => r.phone && (r.phone.overlapCount || r.phone.escapingCount || r.phone.documentOverflowPx))
+        .map((r, roundIdx) =>
+          `${sessions[i].label} round ${roundIdx + 1}: ${r.phone.worst.join("; ") || `${r.phone.documentOverflowPx}px overflow`}`
+        )
+    );
+    const audited = shapes.flat().filter((r) => r.phone).length;
+    checks.push(
+      check(
+        "browser:gameplan-mobile",
+        cardProblems.length
+          ? `Gameplan cards break at 360px — ${cardProblems.join(" | ")}`
+          : `Gameplan cards hold at 360px (${audited} round${audited === 1 ? "" : "s"} audited)`,
+        cardProblems.length ? FAIL : PASS
+      )
+    );
 
     // Football's two rounds are a shape, not just a count of clicks. Asserted
     // per session, because "the game started" stays true for every way this

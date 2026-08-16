@@ -184,6 +184,22 @@ export const LAYOUT_AUDIT = `
       const clips = cs.overflowX !== 'visible' || cs.overflowY !== 'visible';
       if (!clips) continue;
       if (scrollable) return true;
+      // A THIRD kind of containment, between "reachable by scrolling" and
+      // "gone": text deliberately truncated with an ellipsis. The ellipsis is
+      // the author saying the overflow is intended and signposting it to the
+      // reader, which a bare overflow:hidden does not. Football's roster rows
+      // rely on it - a wrapped unit name doubles the row height and the column
+      // stops scanning as a lineup - so treating it as a break reported three
+      // findings per round for a layout working exactly as designed.
+      //
+      // Deliberately narrow: it takes all three of ellipsis, nowrap and a
+      // clipping overflow, which is the whole truncation idiom and not
+      // something a broken layout arrives at by accident.
+      if (
+        cs.textOverflow === 'ellipsis' &&
+        /nowrap|pre$/.test(cs.whiteSpace) &&
+        /^(hidden|clip)$/.test(cs.overflowX)
+      ) return true;
       const pr = p.getBoundingClientRect();
       const escapes = r.left < pr.left - 2 || r.right > pr.right + 2;
       if (escapes && isMeaningful(el)) return false;
