@@ -503,7 +503,7 @@ function splitCell(makes, attempts) {
   return attempts > 0 ? `${r(makes)}/${r(attempts)}` : "-";
 }
 
-function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = true, splits = []) {
+function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = true, splits = [], isMvp = false) {
   // The year, not the decade. This row is claiming 45 points were scored, and
   // the 2017 Isaiah Thomas and the 2010s Celtics average of him are different
   // players - naming the wrong one makes the line unverifiable.
@@ -527,8 +527,13 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
       return `<td>${v === undefined || v === null ? "-" : r(v)}</td>`;
     })
     .join("");
+  // The MVP's row is marked with a star as well as a tint. The tint alone
+  // would be the only thing saying "this is the best line in the table", and a
+  // faint background is exactly what a low-contrast screen, a bright room or a
+  // colourblind reader loses first.
+  const mvpStar = isMvp ? `<span class="box-mvp-star" title="Most valuable player" aria-label="Most valuable player">\u2605</span> ` : "";
   return (
-    `<tr><td>${slotLabel}</td><td>${escapeHtml(player.name)}${meta}</td>` +
+    `<tr${isMvp ? ' class="box-mvp"' : ""}><td>${slotLabel}</td><td>${mvpStar}${escapeHtml(player.name)}${meta}</td>` +
     (showMinutes ? `<td>${minutes == null ? "-" : r(minutes)}</td>` : "") +
     cells +
     splits
@@ -549,7 +554,7 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
  * sub-table per group with only that group's columns; one that does not keeps
  * the single table, which is what basketball wants.
  */
-function boxGroupTables(roster, box, teamLabel, final) {
+function boxGroupTables(roster, box, teamLabel, final, mvpName = null) {
   const sport = activeSport();
   let html = `<div class="team-heading">${teamLabel}</div>`;
   for (const group of sport.boxGroups) {
@@ -569,17 +574,18 @@ function boxGroupTables(roster, box, teamLabel, final) {
       group.columns.map(([, head]) => `<th>${head}</th>`).join("") +
       `</tr></thead><tbody>`;
     for (const slot of ordered) {
-      html += boxRow(slotLabel(slot), roster[slot], box[slot], null, null, group.columns, false, []);
+      html += boxRow(slotLabel(slot), roster[slot], box[slot], null, null, group.columns, false, [],
+                     !!mvpName && roster[slot]?.name === mvpName);
     }
     html += "</tbody></table>";
   }
   return html;
 }
 
-function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
+function boxTable(roster, box, teamLabel, shotLines, minutesMap, final, mvpName = null) {
   const sport = activeSport();
   if (Array.isArray(sport.boxGroups) && sport.boxGroups.length) {
-    return boxGroupTables(roster, box, teamLabel, final);
+    return boxGroupTables(roster, box, teamLabel, final, mvpName);
   }
   const columns = sport.boxColumns;
   // MIN and the shooting splits are basketball's, and only basketball's - a
@@ -610,15 +616,22 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final) {
   const ordered = final && key ? [...slots].sort((a, b) => (box[b][key] || 0) - (box[a][key] || 0)) : slots;
   for (const slot of ordered) {
     html += boxRow(slotLabel(slot), roster[slot], box[slot], shotLines && shotLines[slot],
-                   minutesMap && minutesMap[slot], columns, showMinutes, splits);
+                   minutesMap && minutesMap[slot], columns, showMinutes, splits,
+                   !!mvpName && roster[slot]?.name === mvpName);
   }
   html += "</tbody></table>";
   return html;
 }
 
-export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB, minutesA, minutesB, final = false) {
+/** @param mvp optional {side:"A"|"B", name} - marks that player's row. Matched
+ * by name WITHIN the winning side's roster rather than globally, so the same
+ * player drafted by both teams only stars on the side that earned it. */
+export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB, minutesA, minutesB, final = false, mvp = null) {
+  const mvpA = mvp && mvp.side === "A" ? mvp.name : null;
+  const mvpB = mvp && mvp.side === "B" ? mvp.name : null;
   container.innerHTML =
-    boxTable(rosterA, boxA, labelA, shotsA, minutesA, final) + boxTable(rosterB, boxB, labelB, shotsB, minutesB, final);
+    boxTable(rosterA, boxA, labelA, shotsA, minutesA, final, mvpA) +
+    boxTable(rosterB, boxB, labelB, shotsB, minutesB, final, mvpB);
 }
 
 /** Shot splits for a finished roster, computed once so the same line is

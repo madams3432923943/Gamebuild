@@ -953,6 +953,36 @@ export async function runBrowserChecks(opts = {}) {
       );
     }
 
+    // The MVP row and the frozen name column. Both are pure CSS/markup and
+    // both fail silently: a selector that never matches leaves a box score
+    // that still renders correctly and simply never marks anybody, and a
+    // sticky column that is not sticky just scrolls away with the numbers.
+    const boxDetail = await sessions[0].page.evaluate(() => {
+      const rows = document.querySelectorAll(".box-mvp");
+      const nameCell = document.querySelector("table.box-table td:nth-child(2)");
+      return {
+        mvpRows: rows.length,
+        starred: document.querySelectorAll(".box-mvp .box-mvp-star").length,
+        nameSticky: nameCell ? getComputedStyle(nameCell).position : "no cell",
+      };
+    });
+    // One per team at most, and never zero once a game has finished. Football
+    // splits a roster over three grouped tables, so the row can legitimately
+    // appear once per table it belongs to - the cap is what matters.
+    const boxDetailOk =
+      boxDetail.mvpRows >= 1 && boxDetail.mvpRows <= 2 &&
+      boxDetail.starred === boxDetail.mvpRows &&
+      boxDetail.nameSticky === "sticky";
+    checks.push(
+      check(
+        "browser:box-mvp",
+        boxDetailOk
+          ? `MVP row marked and the name column stays put (${boxDetail.mvpRows} row, starred, position:sticky)`
+          : `Box-score detail wrong: ${JSON.stringify(boxDetail)}`,
+        boxDetailOk ? PASS : FAIL
+      )
+    );
+
     checks.push(
       check("browser:box-score", "Full box score renders after the game", boxVisible.every(Boolean) ? PASS : FAIL, {
         detail: boxVisible.every(Boolean) ? undefined : "At least one client finished without a box score on screen.",

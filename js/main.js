@@ -3241,7 +3241,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       analysisA: analysis,
     });
 
-    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB, minutesA, minutesB, true);
+    // The MVP is already named in the callout above; the box score is where
+    // the line that earned it lives, and finding it meant reading two tables.
+    renderFullBoxScore(fullBoxScore, rosterA, result.boxA, labelA, rosterB, result.boxB, labelB, shotsA, shotsB, minutesA, minutesB, true,
+                       { side: mvp.side, name: mvp.player.name });
     fullBoxScore.classList.remove("hidden");
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");

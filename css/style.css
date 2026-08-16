@@ -4935,3 +4935,55 @@ html, body {
 @media (max-width: 480px) {
   .fb-score { font-size: 2.1rem; }
 }
+
+/* ---- Box score: the MVP row, and a name column that survives scrolling ----
+   The box score is wider than a phone by design and scrolls inside
+   #full-box-score. That scroll was taking the player's name with it, so three
+   columns in you were reading a row of numbers with no idea whose they were.
+   The slot and the name stay put now; everything else scrolls under them.
+
+   Sticky rather than a fixed second table: one table means one set of row
+   heights, and two tables side by side drift apart the moment a name wraps. */
+table.box-table td:nth-child(1),
+table.box-table th:nth-child(1),
+table.box-table td:nth-child(2),
+table.box-table th:nth-child(2) {
+  position: sticky;
+  background: var(--panel);
+  z-index: 1;
+}
+
+table.box-table td:nth-child(1),
+table.box-table th:nth-child(1) { left: 0; }
+
+/* Offset by the slot column's own width so the two never overlap. */
+table.box-table td:nth-child(2),
+table.box-table th:nth-child(2) {
+  left: 3.6rem;
+  /* The edge where the frozen pair ends and the scrolling numbers begin. */
+  box-shadow: 1px 0 0 var(--line);
+}
+
+/* The MVP's line. A star carries it, a tint reinforces it - the tint alone is
+   the first thing lost to a dim screen, a bright room, or a colourblind
+   reader, and it would be the only thing saying "this is the best line here". */
+.box-mvp td {
+  background: rgba(var(--accent-rgb), 0.12);
+  font-weight: 600;
+}
+
+.box-mvp td:nth-child(1),
+.box-mvp td:nth-child(2) {
+  /* Sticky cells paint their own background, so the row tint has to be
+     restated on them or the frozen pair stays plain while the rest lights up. */
+  background: color-mix(in srgb, var(--panel) 88%, rgba(var(--accent-rgb), 1) 12%);
+}
+
+.box-mvp-star {
+  color: var(--accent-bright);
+}
+
+@media (max-width: 480px) {
+  table.box-table td:nth-child(2),
+  table.box-table th:nth-child(2) { left: 3rem; }
+}
