@@ -3,13 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Draft Nova: an NBA draft-battle game. Draft a shared team-and-decade squad from memory and play out the result." />
+  <meta name="description" content="Draft Nova: a multi-sport draft-battle game. Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
   <!-- The default sport's accent, kept in step with the sport picker by
        applyTheme() in js/main.js. Set here too so the phone address bar is the
        right color on the very first paint. -->
   <meta name="theme-color" content="#d9741f" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏀</text></svg>" />
+  <!-- The Draft Nova mark, not a basketball. A 🏀 favicon told every tab and
+       bookmark this was a basketball app, which stopped being true when
+       football shipped and would be wrong again for every sport after it.
+       The SVG emoji stays as the fallback for the same reason it was here
+       originally - it needs no network - but the real mark leads. -->
+  <link rel="icon" type="image/png" href="assets/brand/draft-nova-icon.png" />
+  <link rel="alternate icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌟</text></svg>" />
+  <link rel="apple-touch-icon" href="assets/brand/draft-nova-icon.png" />
   <title>Draft Nova</title>
+
+  <!-- Shared into a chat or a group, the link is the app's first impression.
+       Without these it renders as a bare URL. Absolute URLs because Open Graph
+       scrapers do not resolve relative ones. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Draft Nova" />
+  <meta property="og:title" content="Draft Nova" />
+  <meta property="og:description" content="Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
+  <meta property="og:url" content="https://madams3432923943.github.io/gamebuild/" />
+  <meta property="og:image" content="https://madams3432923943.github.io/gamebuild/assets/brand/draft-nova-lockup.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Draft Nova" />
+  <meta name="twitter:description" content="Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
+  <meta name="twitter:image" content="https://madams3432923943.github.io/gamebuild/assets/brand/draft-nova-lockup.png" />
   <script type="importmap">
   {
     "imports": {
@@ -556,6 +577,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=752dfe3"></script>
+  <script type="module" src="js/main.js?v=8f779de"></script>
 </body>
 </html>

@@ -62,6 +62,21 @@ const VIEWPORTS = [
   { name: "phone-360", width: 360, height: 800 },
 ];
 
+/**
+ * Sizes for auditing a screen that only exists part-way through a match.
+ *
+ * A short list on purpose: each entry costs a resize, two frames and a DOM
+ * walk in the middle of a live flow with a running clock, so this is the
+ * narrowest pair that still says something the end-of-run audit cannot -
+ * the tightest portrait width the suite holds itself to, and the landscape
+ * that a phone falls into by accident, where it is vertical room that runs
+ * out rather than horizontal.
+ */
+const MID_FLOW_VIEWPORTS = [
+  ["phone-360", 360, 800],
+  ["landscape-640", 640, 360],
+];
+
 // ---------------------------------------------------------------------------
 
 /** Console errors, page exceptions and failed requests, collected for the
@@ -339,11 +354,11 @@ async function isPastDraft(page) {
  * Restores the previous viewport so the flow it interrupted carries on at the
  * size it was driving at.
  */
-async function auditAtWidth(page, width) {
+async function auditAtWidth(page, width, height) {
   const before = page.viewportSize();
   if (!before) return null; // a real device context; its width is already the point
   try {
-    await page.setViewportSize({ width, height: before.height });
+    await page.setViewportSize({ width, height: height || before.height });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const audit = await page.evaluate(LAYOUT_AUDIT);
     return {
@@ -735,6 +750,21 @@ export async function runBrowserChecks(opts = {}) {
       checks.push(frameCheck("browser:anim-intro", "Matchup intro animation renders smoothly", introPerf, sessions.length));
     }
 
+    // The draft board is where a player spends most of a match and it was
+    // never measured on a phone - the end-of-run audit sees the post-game
+    // screen, by which point the board is gone. Landscape is included because
+    // it is the orientation a phone lands in by accident, and a 360px-tall
+    // viewport is a different problem from a 360px-wide one: it is vertical
+    // room that runs out, not horizontal.
+    //
+    // Measured EMPTY here and again FULL after the draft below, because they
+    // are different layouts - an empty slot says "open", a filled one carries
+    // a name, a season and, in football, a unit roll.
+    const draftShapes = { empty: {}, full: {} };
+    for (const [name, w, h] of MID_FLOW_VIEWPORTS) {
+      draftShapes.empty[name] = await auditAtWidth(sessions[0].page, w, h);
+    }
+
     // ---- draft ------------------------------------------------------------
     const draftStart = Date.now();
     const squadIndex = await loadSquadIndex(process.env.SELFTEST_SPORT || "nba");
@@ -745,6 +775,28 @@ export async function runBrowserChecks(opts = {}) {
       check("browser:draft", `Both rosters auto-draft (${picks.join(" + ")} picks)`, PASS, {
         durationMs: Date.now() - draftStart,
       })
+    );
+
+    for (const [name, w, h] of MID_FLOW_VIEWPORTS) {
+      draftShapes.full[name] = await auditAtWidth(sessions[0].page, w, h);
+    }
+    const draftProblems = [];
+    for (const [when, byViewport] of Object.entries(draftShapes)) {
+      for (const [name, a] of Object.entries(byViewport)) {
+        if (!a) continue;
+        if (a.overlapCount || a.escapingCount || a.documentOverflowPx) {
+          draftProblems.push(`${when} @ ${name}: ${a.worst.join("; ") || `${a.documentOverflowPx}px overflow`}`);
+        }
+      }
+    }
+    checks.push(
+      check(
+        "browser:draft-mobile",
+        draftProblems.length
+          ? `Draft board breaks on a phone — ${draftProblems.join(" | ")}`
+          : `Draft board holds empty and full, portrait and landscape (${MID_FLOW_VIEWPORTS.map((v) => v[0]).join(", ")})`,
+        draftProblems.length ? FAIL : PASS
+      )
     );
 
     // ---- strategy phases --------------------------------------------------
