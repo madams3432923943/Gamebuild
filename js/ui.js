@@ -2543,3 +2543,73 @@ export function formatMvpStatLine(sport, line) {
   if (!ranked.length) return "no recorded statistics";
   return ranked.map((entry) => `${entry.value} ${labelFor(entry.key)}`).join(" / ");
 }
+
+/**
+ * Basketball's shot chart: an overlay on the court that fills in as the game
+ * is revealed.
+ *
+ * Draws nothing by itself. Markers arrive one at a time from the ledger in
+ * js/sports/nba/playback.js, which decomposed them from the simulated result
+ * - this layer never decides whether a shot went in, only how a shot that
+ * already went in or already missed should look.
+ *
+ * The two teams attack opposite baskets, which is how the court reads as a
+ * court rather than a scatter plot: the ledger works in half-court
+ * coordinates (x across, y out from the basket) and each side maps onto its
+ * own end. That, rather than colour alone, is what separates the teams.
+ */
+export function renderShotChart(container) {
+  if (!container) return null;
+  let layer = container.querySelector(".shot-chart");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "shot-chart";
+    // Decorative as a whole: every marker carries its own label, and the box
+    // score below is the accessible record of the same events.
+    layer.setAttribute("aria-hidden", "true");
+    container.appendChild(layer);
+  }
+  layer.innerHTML = "";
+  return { layer, recent: [] };
+}
+
+/**
+ * One shot, placed and animated.
+ *
+ * Made and missed differ by SHAPE as well as colour - a filled disc against a
+ * hollow ring with a slash - because a red/green pair is the one distinction a
+ * red-green colourblind player cannot make, and the chart would otherwise be
+ * unreadable to them.
+ */
+export function plotShot(refs, event, opts = {}) {
+  if (!refs || !event || event.zone == null) return;
+  const mark = document.createElement("span");
+  const side = event.side === "a" ? "a" : "b";
+  mark.className =
+    `shot-mark shot-${side} ${event.made ? "shot-made" : "shot-miss"}` +
+    (event.strong ? " shot-strong" : "") +
+    (event.shotType === "three" ? " shot-three" : "");
+
+  // Half-court to full-court. Side A attacks the left basket, so its "out from
+  // the basket" axis runs left-to-right across the near half; side B mirrors.
+  // Each half is 50% of the floor, so y (0 at the rim, 1 at half-court) scales
+  // by 0.5 and is measured in from that side's own baseline.
+  const along = Math.max(0, Math.min(1, event.y)) * 0.5;
+  const across = Math.max(0, Math.min(1, event.x));
+  mark.style.left = `${(side === "a" ? along : 1 - along) * 100}%`;
+  mark.style.top = `${across * 100}%`;
+
+  const zoneLabel = opts.zoneLabel || "";
+  mark.title = `${event.player} — ${event.made ? "made" : "missed"} ${event.shotType === "three" ? "3PT" : "2PT"}${zoneLabel ? ` ${zoneLabel}` : ""}`;
+
+  refs.layer.appendChild(mark);
+  // The newest shots are the ones being watched, so they stay bright while the
+  // chart behind them settles back. Without this the floor becomes an even
+  // wash of markers and the shot just taken is impossible to pick out.
+  refs.recent.push(mark);
+  requestAnimationFrame(() => mark.classList.add("shot-in"));
+  while (refs.recent.length > 6) {
+    const old = refs.recent.shift();
+    old.classList.add("shot-settled");
+  }
+}

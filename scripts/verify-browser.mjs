@@ -928,6 +928,31 @@ export async function runBrowserChecks(opts = {}) {
           .catch(() => false)
       )
     );
+    // The shot chart, if this sport draws one. Counted rather than assumed:
+    // the ledger passing its own unit checks says the DATA is right, and a
+    // clean console says nothing threw, but neither shows a single marker
+    // reached the court. Made and missed are both required - a chart of only
+    // makes would mean the miss path never ran.
+    if ((process.env.SELFTEST_SPORT || "nba") === "nba") {
+      const chart = await sessions[0].page.evaluate(() => ({
+        total: document.querySelectorAll(".shot-mark").length,
+        made: document.querySelectorAll(".shot-mark.shot-made").length,
+        missed: document.querySelectorAll(".shot-mark.shot-miss").length,
+        teamA: document.querySelectorAll(".shot-mark.shot-a").length,
+        teamB: document.querySelectorAll(".shot-mark.shot-b").length,
+      }));
+      const chartOk = chart.total > 20 && chart.made > 0 && chart.missed > 0 && chart.teamA > 0 && chart.teamB > 0;
+      checks.push(
+        check(
+          "browser:shot-chart",
+          chartOk
+            ? `Shot chart accumulates on the court (${chart.total} marks — ${chart.made} made, ${chart.missed} missed, both teams)`
+            : `Shot chart did not draw as expected: ${JSON.stringify(chart)}`,
+          chartOk ? PASS : FAIL
+        )
+      );
+    }
+
     checks.push(
       check("browser:box-score", "Full box score renders after the game", boxVisible.every(Boolean) ? PASS : FAIL, {
         detail: boxVisible.every(Boolean) ? undefined : "At least one client finished without a box score on screen.",

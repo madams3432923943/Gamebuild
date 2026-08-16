@@ -100,6 +100,8 @@ import {
   renderFriendRequests,
   renderFriendsLeaderboard,
   renderFootballField,
+  renderShotChart,
+  plotShot,
   showFootballEvent,
   accumulatePeriodStats,
   liveStatKeys,
@@ -2771,6 +2773,9 @@ function resetGameScreen() {
   // previous game would otherwise survive into this one.
   liveScoreboard.classList.remove("period-flash", "lead-flash");
   courtStageEl.classList.remove("final-flash");
+  // Last game's shot chart is not this game's. It accumulates all the way to
+  // the final buzzer by design, so nothing else ever clears it.
+  courtStageEl.querySelector(".shot-chart")?.remove();
   // The stage belongs to the RESET, not to playback. playOutResult sets it
   // too, but that runs after the online flow has awaited the server for
   // seconds - and the court is the stage index.html leaves unhidden, so an
@@ -2858,6 +2863,43 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   if (sport().presentation.stage === "field" && Array.isArray(result.drives) && result.drives.length) {
     fieldRefs = renderFootballField(footballFieldEl, labelA, labelB);
     timeline = sport().presentation.buildTimeline?.(result.drives) || timeline;
+  }
+
+  // Basketball's equivalent: a ledger of shots decomposed from the same result
+  // the box score is built from, plotted onto the court as the game reveals.
+  //
+  // The seed has to be the SAME on both machines watching an online game, so
+  // it is derived from the result itself rather than drawn fresh - the stored
+  // simulation seed when the server recorded one, and the final score when it
+  // did not, which is stable for a finished game and differs between games.
+  let shotChartRefs = null;
+  let ledger = { events: [] };
+  const shotTimers = [];
+  if (sport().presentation.buildShotLedger && Array.isArray(result.quarterBoxScores)) {
+    const seed = Number(result.simulationSeed) ||
+      (result.teamScoreA * 1000 + result.teamScoreB) * 7919 + result.quarterBoxScores.length;
+    ledger = sport().presentation.buildShotLedger(result.quarterBoxScores, rosterA, rosterB, seed);
+    shotChartRefs = renderShotChart(courtStageEl);
+  }
+
+  /**
+   * Spreads one period's shots across the hold that period is given.
+   *
+   * The ledger carries an ORDER, not a clock - the engine models no game
+   * clock, and inventing one would put a second source of truth next to the
+   * score. So the events of a period are laid evenly across however long that
+   * period is on screen, which keeps them in step with the scoreboard ticking
+   * up beside them without pretending to a precision the simulation never had.
+   */
+  function playQuarterShots(period, holdMs) {
+    if (!shotChartRefs) return;
+    const ofPeriod = ledger.events.filter((e) => e.period === period && e.type === "shot" && e.zone != null);
+    if (!ofPeriod.length) return;
+    const spread = Math.max(0, holdMs - 400);
+    ofPeriod.forEach((event, i) => {
+      const at = ofPeriod.length > 1 ? (i / (ofPeriod.length - 1)) * spread : 0;
+      shotTimers.push(setTimeout(() => plotShot(shotChartRefs, event), at));
+    });
   }
 
   /**
@@ -3090,6 +3132,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // the whole game rather than sliced out of each quarter's hold - see
     // js/sports/nfl/playback.js for why that distinction matters.
     playQuarterEvents(i + 1);
+    playQuarterShots(i + 1, holdFor(i + 1, isOt));
     renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
     announcePeriod(i, label);
     if (leadChanged) {
@@ -3114,6 +3157,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     for (const t of scoreTickIntervals) clearInterval(t);
     // Nothing should still be waiting to draw on a field the game has left.
     for (const t of fieldTimers) clearTimeout(t);
+    // Same for the court: a pending marker firing after the game ends would
+    // land on the next game's chart, or on a screen that has moved on.
+    for (const t of shotTimers) clearTimeout(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
     flashClass(courtStageEl, "final-flash");
 

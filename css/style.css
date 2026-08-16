@@ -4799,3 +4799,91 @@ html, body {
     gap: 0.25rem 0.6rem;
   }
 }
+
+/* ---- Basketball shot chart -------------------------------------------------
+   Markers plotted onto the court as the game is revealed. The court art below
+   is decoration at half opacity; this layer sits above it and is the only
+   thing on the stage carrying information, so it is drawn at full strength.
+
+   Made and missed are distinguished by SHAPE first and colour second. A
+   red/green pair is precisely the distinction a red-green colourblind player
+   cannot make, and the chart is the main thing on screen during a basketball
+   game - so a filled disc reads as a make and a hollow ring as a miss with the
+   colour removed entirely. */
+.shot-chart {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.shot-mark {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.2);
+  transition: opacity 220ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The arrival pulse. Kept short - a basketball game is ~200 markers, and
+   anything longer than a few hundred milliseconds turns the reveal into a
+   queue of animations rather than a game. */
+.shot-in {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.shot-made {
+  background: #35c46b;
+  box-shadow: 0 0 0 2px rgba(53, 196, 107, 0.35);
+}
+
+/* Hollow, with a slash through it: legible as "miss" in greyscale. */
+.shot-miss {
+  background: transparent;
+  border: 2px solid #e2574c;
+}
+
+.shot-miss::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-top: 2px solid #e2574c;
+  transform: rotate(45deg);
+  transform-origin: center;
+}
+
+/* A three is a bigger mark than a two - the shot chart should say what it was
+   worth without needing a legend. */
+.shot-three { width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; }
+
+/* Rim finishes, the loudest thing the ledger honestly knows about. Not called
+   a dunk anywhere: the engine has no dunks, only a shot taken close in. */
+.shot-strong {
+  box-shadow: 0 0 0 3px rgba(53, 196, 107, 0.5), 0 0 12px 2px rgba(53, 196, 107, 0.55);
+}
+
+/* Which team took it. The halves of the floor already separate them; this is
+   the second cue for a shot near the middle. */
+.shot-a { outline: 1px solid rgba(255, 255, 255, 0.5); }
+.shot-b { outline: 1px dashed rgba(255, 255, 255, 0.5); }
+
+/* Older shots recede so the last few reads as "what just happened". They stay
+   on the floor - the chart accumulating over a game is the point of it. */
+.shot-settled {
+  opacity: 0.42;
+  box-shadow: none;
+  transition: opacity 600ms ease, box-shadow 600ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot-mark {
+    transition: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+  .shot-settled { transition: none; }
+}
