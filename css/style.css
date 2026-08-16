@@ -4887,3 +4887,51 @@ html, body {
   }
   .shot-settled { transition: none; }
 }
+
+/* ---- Final banner: the score leads --------------------------------------
+   This was one uppercase sentence with the numbers buried mid-phrase, which
+   made the single thing every player looks for the hardest thing to find.
+   Three stacked parts now, sized by how much they matter: the outcome, the
+   score, then who beat whom.
+
+   Won and lost are spelled out and not left to green-vs-red. That pair is
+   exactly the one a red-green colourblind player cannot separate, and this
+   banner is the answer to "did I win". */
+.final-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.fb-outcome {
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  opacity: 0.85;
+}
+
+.fb-score {
+  font-size: 2.6rem;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fb-winner {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  opacity: 0.8;
+  text-transform: none;
+}
+
+/* Colour as the SECOND cue, after the word. Kept to the border and the
+   outcome line so the score itself stays maximum-contrast plain text. */
+.final-banner.final-won { border-color: #35c46b; }
+.final-banner.final-won .fb-outcome { color: #35c46b; }
+.final-banner.final-lost { border-color: #e2574c; }
+.final-banner.final-lost .fb-outcome { color: #e2574c; }
+
+@media (max-width: 480px) {
+  .fb-score { font-size: 2.1rem; }
+}

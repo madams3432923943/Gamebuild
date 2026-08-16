@@ -338,7 +338,11 @@ async function main() {
       !!midpoint && boxTotals[boxTotals.length - 1] > 0 && midpoint.boxTotal < boxTotals[boxTotals.length - 1];
 
     // The final banner and the scoreboard have to agree about who won.
-    const finalNumbers = (last?.finalText || "").match(/(\d+)\s*-\s*(\d+)/);
+    // Any of the dashes a score is legitimately typeset with. The banner sets
+    // its score with an en-dash now that the number is the headline rather
+    // than a hyphen mid-sentence, and matching only ASCII "-" turned a
+    // typographic choice into a failed assertion about who won.
+    const finalNumbers = (last?.finalText || "").match(/(\d+)\s*[-–—]\s*(\d+)/);
     const bannerAgrees =
       !!finalNumbers &&
       Number(finalNumbers[1]) === last.scoreA &&

@@ -3153,6 +3153,14 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     setTimeout(step, wait);
   }
 
+  /** One line of the final banner. Text only, never markup - see finish(). */
+  function bannerPart(className, text) {
+    const el = document.createElement("span");
+    el.className = className;
+    el.textContent = text;
+    return el;
+  }
+
   function finish() {
     for (const t of scoreTickIntervals) clearInterval(t);
     // Nothing should still be waiting to draw on a field the game has left.
@@ -3168,9 +3176,34 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     pushPlayHeadline(playFeedEl, sport().buildGameScript(periodsSoFar, labelA, labelB), "final");
 
     const winnerName = result.winner === "A" ? labelA : labelB;
-    finalBanner.textContent = `${winnerName} ${subjectVerb(winnerName, "wins", "win")}, ${result.teamScoreA}-${result.teamScoreB}${
-      result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : ""
-    }`;
+    const otNote = result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : "";
+    // The SCORE leads. It was one uppercase sentence with the numbers buried in
+    // the middle of it, which made the single thing everyone looks for the
+    // hardest thing on the screen to find. Winner, score, then the outcome from
+    // the player's own side.
+    //
+    // "Won"/"Lost" is spelled out rather than carried by the green or red
+    // alone: win and loss are exactly the pair that has to survive being
+    // colourblind, and the whole screen is the answer to "did I win".
+    const youWon = result.winner === "A";
+    // Built as nodes rather than markup. The winner's name is an opponent's
+    // username in an online game - untrusted text that has no business being
+    // parsed as HTML, and textContent settles that without an escaping step
+    // anyone can forget.
+    finalBanner.replaceChildren(
+      bannerPart("fb-outcome", youWon ? "Won" : "Lost"),
+      bannerPart("fb-score", `${result.teamScoreA}–${result.teamScoreB}`),
+      bannerPart("fb-winner", `${winnerName} ${subjectVerb(winnerName, "wins", "win")}${otNote}`)
+    );
+    finalBanner.classList.toggle("final-won", youWon);
+    finalBanner.classList.toggle("final-lost", !youWon);
+    // Three stacked spans read as one run-on string to a screen reader -
+    // "Lost24-28Bot wins". The visual split is a layout decision; the sentence
+    // is what should be announced.
+    finalBanner.setAttribute(
+      "aria-label",
+      `${youWon ? "Won" : "Lost"}. Final score ${result.teamScoreA} to ${result.teamScoreB}. ${winnerName} ${subjectVerb(winnerName, "wins", "win")}${otNote}.`
+    );
     finalBanner.classList.remove("hidden");
 
     // Shot splits are computed once here and shared by the box score and the
@@ -3219,9 +3252,24 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // louder than winning.
     playBuzzer();
     if (result.winner === "A") {
-      confetti({ count: 110, durationMs: 4200 });
-      window.setTimeout(playFanfare, 320);
-      replayAnimation(finalBanner, "win-flare");
+      // How loud a win is depends on what was at stake. Quick Play got the
+      // same 110-piece confetti and fanfare as a ranked game against a real
+      // opponent, which spends the celebration on the game that risked
+      // nothing - and leaves nothing bigger to give the one that did.
+      //
+      // Read off what the mode actually IS rather than a flag set beside it:
+      // an online game is a real opponent, a strict ruleset is the full game,
+      // and anything else is casual.
+      const stakes = game.mode === "online" ? "ranked" : game.ruleset === "strict" ? "practice" : "casual";
+      const CELEBRATION = {
+        ranked: { count: 110, durationMs: 4200, fanfare: true, flare: true },
+        practice: { count: 55, durationMs: 2600, fanfare: true, flare: true },
+        casual: { count: 22, durationMs: 1500, fanfare: false, flare: false },
+      };
+      const party = CELEBRATION[stakes];
+      confetti({ count: party.count, durationMs: party.durationMs });
+      if (party.fanfare) window.setTimeout(playFanfare, 320);
+      if (party.flare) replayAnimation(finalBanner, "win-flare");
     } else {
       window.setTimeout(playDefeat, 320);
     }
