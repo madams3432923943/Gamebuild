@@ -25,6 +25,7 @@ import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./re
 import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
+import { buildShotLedger } from "./playback.js";
 import {
   SLOTS as NBA_SLOTS,
   basePosition,
@@ -125,7 +126,11 @@ export const NBA = {
   // hides every other one, rather than testing the sport id in each place
   // that draws something - which is how football ended up playing on a
   // basketball court with a field drawn underneath it.
-  presentation: { stage: "court" },
+  // buildShotLedger is basketball's answer to football's buildTimeline: the
+  // authoritative result, decomposed into the events a shot chart can draw.
+  // Declared here so shared code asks the SPORT for its playback rather than
+  // learning what a shot is.
+  presentation: { stage: "court", buildShotLedger },
 
   // ---- Roster shape -------------------------------------------------------
   slots: {

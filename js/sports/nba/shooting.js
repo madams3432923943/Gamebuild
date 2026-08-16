@@ -36,7 +36,11 @@ export function hasShootingProfile(player) {
  * Splits `points` into makes and attempts using the player's shot profile.
  * @returns null when the player has no profile, so callers can fall back.
  */
-export function shotLine(player, points) {
+/** @param rand injectable randomness. Defaults to Math.random, which is right
+ * for the box score - a line is drawn once and kept. The shot ledger passes a
+ * SEEDED generator instead, because an online game is simulated once and then
+ * played back on two machines, and both players have to see the same chart. */
+export function shotLine(player, points, rand = Math.random) {
   if (!hasShootingProfile(player) || points <= 0) return null;
 
   const tpa = player.tpa || 0;
@@ -53,7 +57,7 @@ export function shotLine(player, points) {
 
   // Shares of scoring, then a per-game wobble so nights differ. A player with
   // tpa === 0 has share3 === 0 and stays there through every step below.
-  const jitter = () => 1 + (Math.random() * 2 - 1) * VARIANCE;
+  const jitter = () => 1 + (rand() * 2 - 1) * VARIANCE;
   const share3 = (threePts / total) * (tpa > 0 ? jitter() : 0);
   const shareFt = (ftPts / total) * jitter();
   const share2 = Math.max(0, 1 - share3 - shareFt);
