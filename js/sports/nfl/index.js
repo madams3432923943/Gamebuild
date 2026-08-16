@@ -1,11 +1,12 @@
-// NFL: declared, not yet playable.
+// NFL: live, online, and the second sport this app has.
 //
-// This file exists so the shape of the work is visible and the UI can offer
-// the sport the moment it's real, rather than the tile being hardcoded
-// "Coming soon" markup that somebody has to remember to go and change.
-// `live: false` is the only thing keeping it out of play - every screen reads
-// that flag, so flipping it is what ships NFL, and nothing flips it until the
-// pieces below exist.
+// This file began as a declaration of work not yet done - `live: false`, a
+// tile the UI could offer the moment it was real. All of it is real now:
+// football drafts, simulates, plays online against a stranger, and is graded
+// and recapped in its own vocabulary. The header said "not yet playable" for
+// long enough after it was playable to be worth correcting; a comment that
+// describes a state the code left months ago is worse than no comment, since
+// it is read as current.
 //
 // WHY NFL CANNOT REUSE THE NBA ENGINE
 //
