@@ -3772,6 +3772,7 @@ btnGameHome.addEventListener("click", () => {
 
 const profileRefs = {
   usernameInput: document.getElementById("input-profile-username"),
+  displayName: document.getElementById("profile-display-name"),
   tierBadge: document.getElementById("profile-tier-badge"),
   tierCaption: document.getElementById("profile-tier-caption"),
   onlineRecord: document.getElementById("online-record"),
@@ -4224,6 +4225,9 @@ profileRefs.usernameInput.addEventListener("change", async () => {
   }
   game.nameA = name;
   signedInAsEl.textContent = name;
+  // The heading above is the same fact as this field. Editing one without the
+  // other leaves the profile disagreeing with itself until the next render.
+  if (profileRefs.displayName) profileRefs.displayName.textContent = name;
 });
 
 // Squads reaches back into the game only to join a challenge, and needs to

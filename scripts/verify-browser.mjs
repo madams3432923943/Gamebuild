@@ -689,6 +689,45 @@ export async function runBrowserChecks(opts = {}) {
       : VIEWPORTS;
     checks.push(...(await auditTabs(sessions[0].page, log, auditViewports, !!device)));
 
+    // The profile's hierarchy, not just its dimensions. The layout audit above
+    // is happy with a screen that fits and says nothing - it would pass a
+    // profile whose name heading rendered empty, or one that opened on the
+    // account form again. Both are the exact regression this restructure is.
+    await sessions[0].page.locator("#nav-profile").click().catch(() => {});
+    await sleep(600);
+    const identity = await sessions[0].page.evaluate(() => {
+      const heading = document.getElementById("profile-display-name");
+      const account = document.querySelector(".profile-account");
+      const input = document.getElementById("input-profile-username");
+      const headingTop = heading?.getBoundingClientRect().top ?? 0;
+      const accountTop = account?.getBoundingClientRect().top ?? 0;
+      return {
+        name: (heading?.textContent || "").trim(),
+        accountOpen: account ? account.hasAttribute("open") : null,
+        // The whole point of the change: identity above administration.
+        nameAboveAccount: headingTop > 0 && accountTop > headingTop,
+        inputStillWired: !!input,
+      };
+    });
+    // Back to Play. auditTabs leaves the app where it started because it ends
+    // on its own navigation; this check does not, and leaving the run parked
+    // on the profile means the match below never starts.
+    await sessions[0].page.locator("#nav-play").click().catch(() => {});
+    await sleep(400);
+
+    const identityOk =
+      identity.name.length > 0 && identity.name !== "Player" &&
+      identity.accountOpen === false && identity.nameAboveAccount && identity.inputStillWired;
+    checks.push(
+      check(
+        "browser:profile-identity",
+        identityOk
+          ? `Profile leads with the player (“${identity.name}”), account settings collapsed below`
+          : `Profile hierarchy wrong: ${JSON.stringify(identity)}`,
+        identityOk ? PASS : FAIL
+      )
+    );
+
     // ---- start the match --------------------------------------------------
     const matchStart = Date.now();
     for (const { page } of sessions) {
@@ -1106,9 +1145,15 @@ const ERROR_COPY = /couldn't load|could not load|something went wrong|failed to 
 
 async function auditTabs(page, log, viewports, fixedViewport = false) {
   const out = [];
-  const rows = [["tab", "width", "rendered", "error copy", "escaping", "h-overflow"]];
+  const rows = [["tab", "viewport", "rendered", "error copy", "escaping", "overlap", "h-overflow"]];
   const problems = [];
-  const list = fixedViewport ? viewports : [viewports[0], viewports[2]].filter(Boolean);
+  // Desktop, the tightest portrait phone, and landscape. The narrow width and
+  // the short height are different failure modes - one runs out of room across,
+  // the other runs out down - and a tab audited only at 390px wide had never
+  // been looked at in the orientation a phone falls into by accident.
+  const list = fixedViewport
+    ? viewports
+    : [viewports[0], { name: "phone-360", width: 360, height: 800 }, { name: "landscape-640", width: 640, height: 360 }];
 
   for (const tab of TABS) {
     for (const vp of list) {
@@ -1130,10 +1175,11 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
 
       rows.push([
         tab.name,
-        fixedViewport ? vp.name : `${vp.width}px`,
+        fixedViewport ? vp.name : `${vp.width}x${vp.height}`,
         shown ? "yes" : "NO",
         errored ? "YES" : empty ? "EMPTY" : "no",
         String(audit.escapingCount),
+        String(audit.overlapCount ?? 0),
         `${audit.documentOverflowPx}px`,
       ]);
 
@@ -1142,11 +1188,16 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
         const line = (text.split("\n").find((l) => ERROR_COPY.test(l)) || "").trim();
         problems.push(`${tab.name} @${vp.width}px: shows an error - "${line}"`);
       } else if (empty) problems.push(`${tab.name} @${vp.width}px: rendered empty`);
-      if (audit.escapingCount || audit.documentOverflowPx) {
+      // Overlaps were being measured and then thrown away - only escaping
+      // elements and page overflow were reported. Two controls sitting on top
+      // of each other is the mobile failure a player actually hits: the thing
+      // is on screen, it just cannot be tapped.
+      if (audit.escapingCount || audit.documentOverflowPx || audit.overlapCount) {
         problems.push(
-          `${tab.name} @${vp.width}px: ${audit.escapingCount} element(s) escape, ` +
-            `${audit.documentOverflowPx}px horizontal overflow` +
-            (audit.escaping.length ? ` (${audit.escaping.slice(0, 3).map((e) => e.el).join(", ")})` : "")
+          `${tab.name} @${vp.width}x${vp.height}: ${audit.escapingCount} escape, ` +
+            `${audit.overlapCount} overlap, ${audit.documentOverflowPx}px h-overflow` +
+            (audit.escaping.length ? ` (${audit.escaping.slice(0, 3).map((e) => e.el).join(", ")})` : "") +
+            (audit.overlaps?.length ? ` [${audit.overlaps.slice(0, 3).map((o) => `${o.a}/${o.b}`).join(", ")}]` : "")
         );
       }
       log(`  tab ${tab.name} @${vp.width}px: ${shown ? "shown" : "MISSING"}${errored ? " ERROR" : ""}`);

@@ -1404,6 +1404,11 @@ export function renderProfileScreen(
   onOpenGame = null
 ) {
   refs.usernameInput.value = profile.username || "";
+  // The name as a HEADING, not only as the value of a text box. The input is
+  // still the way to change it - it just lives under "Account settings" now,
+  // and a profile whose only statement of who you are is an editable field
+  // reads as a form rather than as yours.
+  if (refs.displayName) refs.displayName.textContent = profile.username || "Player";
   renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
 
   if (refs.sportRankHeading) refs.sportRankHeading.textContent = `${sport.name} Rank`;

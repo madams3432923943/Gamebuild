@@ -5017,3 +5017,83 @@ table.box-table th:nth-child(2) {
 .nav-tab-icon[aria-pressed="false"] {
   opacity: 0.55;
 }
+
+/* ---- Profile: identity before administration ------------------------------
+   The screen opened on two text inputs, so the first thing you saw on your own
+   profile was an account form and your rank sat below it. Name, tier and
+   banner lead now; the fields that edit the account are one fold down behind a
+   closed disclosure. */
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.8rem;
+}
+
+.profile-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.15);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  color: var(--accent-bright);
+  font-size: 1.4rem;
+}
+
+/* min-width:0 so a long username wraps instead of pushing the row wide - the
+   same flex default that let football's roster names escape a phone. */
+.profile-identity-text { min-width: 0; }
+
+.profile-name {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.profile-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.profile-account {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.profile-account > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  /* A summary is focusable already; this makes that visible, which the default
+     marker alone does not do well on a dark panel. */
+  padding: 0.25rem 0;
+}
+
+.profile-account > summary:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.profile-account-body {
+  padding-top: 0.6rem;
+}
+
+@media (max-width: 480px) {
+  .profile-name { font-size: 1.2rem; }
+  .profile-avatar { width: 2.6rem; height: 2.6rem; font-size: 1.1rem; }
+  /* Full-width action buttons on a phone: two half-width buttons side by side
+     at 360px leave labels like "Customize Banner" truncated. */
+  .profile-header-actions .btn { flex: 1 1 100%; }
+}

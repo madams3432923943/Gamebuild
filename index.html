@@ -38,7 +38,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=b2f008a" />
+  <link rel="stylesheet" href="css/style.css?v=68d2e99" />
 </head>
 <body>
   <header class="top-nav">
@@ -367,27 +367,59 @@
     </section>
 
     <section id="screen-profile" class="screen hidden">
+      <!-- IDENTITY FIRST.
+           This screen used to open on two text inputs - "Your name" and
+           "Recovery email" - so the first thing a player saw on their own
+           profile was an account settings form, and their rank, banner and
+           record were below it. Who you are and how you are doing lead now;
+           the fields that edit the account are still here, one fold down,
+           behind a disclosure that is closed by default.
+
+           Every id is unchanged. This is a re-ordering, not a rewrite: the
+           profile screen is wired by id from js/main.js and js/profile.js, and
+           renaming anything here to make the markup tidier would be a
+           gratuitous way to break it. -->
       <div class="profile-header">
-        <div class="field-row">
-          <label for="input-profile-username">Your name</label>
-          <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
+        <div class="profile-identity">
+          <span class="profile-avatar" id="profile-avatar" aria-hidden="true">★</span>
+          <div class="profile-identity-text">
+            <h2 class="profile-name" id="profile-display-name">Player</h2>
+            <div id="profile-tier-badge"></div>
+            <div id="profile-tier-caption" class="player-stats"></div>
+          </div>
         </div>
-        <!-- Accounts made before email sign-up existed have a synthetic
-             address nobody can read, so they can't be recovered. This is how
-             they become recoverable. -->
-        <div class="field-row" id="profile-email-row">
-          <label for="input-profile-email">Recovery email</label>
-          <input id="input-profile-email" type="email" placeholder="you@example.com" autocomplete="email" />
-        </div>
-        <div class="profile-email-actions">
-          <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
-          <span id="profile-email-status" class="hint-text"></span>
-        </div>
-        <div id="profile-tier-badge"></div>
-        <div id="profile-tier-caption" class="player-stats"></div>
-        <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
+
         <div class="equipped-banner" id="profile-equipped-banner" hidden></div>
-        <button type="button" id="btn-customize-banner" class="btn btn-secondary">Customize Banner</button>
+
+        <div class="profile-header-actions">
+          <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
+          <button type="button" id="btn-customize-banner" class="btn btn-secondary btn-small">Customize Banner</button>
+        </div>
+
+        <!-- Closed by default. Editing your name or recovery email is a rare,
+             deliberate act; showing it is one of maybe twenty. <details> rather
+             than a JS toggle so it is keyboard reachable and announced as
+             expandable without anything having to wire it up. -->
+        <details class="profile-account">
+          <summary>Account settings</summary>
+          <div class="profile-account-body">
+            <div class="field-row">
+              <label for="input-profile-username">Your name</label>
+              <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
+            </div>
+            <!-- Accounts made before email sign-up existed have a synthetic
+                 address nobody can read, so they can't be recovered. This is how
+                 they become recoverable. -->
+            <div class="field-row" id="profile-email-row">
+              <label for="input-profile-email">Recovery email</label>
+              <input id="input-profile-email" type="email" placeholder="you@example.com" autocomplete="email" />
+            </div>
+            <div class="profile-email-actions">
+              <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
+              <span id="profile-email-status" class="hint-text"></span>
+            </div>
+          </div>
+        </details>
       </div>
 
       <div class="records-row">
@@ -585,6 +617,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=b2f008a"></script>
+  <script type="module" src="js/main.js?v=68d2e99"></script>
 </body>
 </html>
