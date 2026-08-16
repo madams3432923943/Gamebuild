@@ -1,3 +1,4 @@
+import { playSound } from "./sound.js";
 // Celebration: confetti, a buzzer, and the couple of sounds that turn a
 // number going up into something worth watching.
 //
@@ -63,76 +64,18 @@ export function confetti({ count = 70, durationMs = 3200 } = {}) {
 // One shared context. Created lazily because constructing it before a user
 // gesture leaves it suspended on iOS, and a suspended context that never
 // resumes is a silent game with no error to notice.
-let audioCtx = null;
-let muted = false;
+// Audio used to live here: four functions, each opening straight onto the
+// destination node, with no mute, no shared volume and no preference that
+// survived a reload. It moved to js/sound.js, which owns one context, one
+// master gain and one on/off. These four names stay as re-exports because
+// they are called from a dozen places and renaming them would be churn with
+// no benefit - the sound they make is now the catalogue's business.
 
-function ctx() {
-  if (muted) return null;
-  if (!audioCtx) {
-    const Ctor = window.AudioContext || window.webkitAudioContext;
-    if (!Ctor) return null;
-    try {
-      audioCtx = new Ctor();
-    } catch {
-      return null;
-    }
-  }
-  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-  return audioCtx;
-}
-
-/** One synthesised tone. `type` picks the timbre, and the envelope is a
- * plain attack/decay because anything more elaborate is inaudible under a
- * 200ms blip. */
-function tone({ freq, durationMs = 180, type = "sine", gain = 0.12, delayMs = 0, sweepTo = null }) {
-  const audio = ctx();
-  if (!audio) return;
-  const start = audio.currentTime + delayMs / 1000;
-  const stop = start + durationMs / 1000;
-
-  const osc = audio.createOscillator();
-  const amp = audio.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, start);
-  if (sweepTo) osc.frequency.exponentialRampToValueAtTime(sweepTo, stop);
-
-  amp.gain.setValueAtTime(0.0001, start);
-  amp.gain.exponentialRampToValueAtTime(gain, start + 0.012);
-  amp.gain.exponentialRampToValueAtTime(0.0001, stop);
-
-  osc.connect(amp).connect(audio.destination);
-  osc.start(start);
-  osc.stop(stop + 0.02);
-}
-
-/** The end-of-game horn. */
-export function playBuzzer() {
-  tone({ freq: 180, durationMs: 700, type: "square", gain: 0.08 });
-  tone({ freq: 240, durationMs: 700, type: "sawtooth", gain: 0.05 });
-}
-
-/** A short rising fanfare - a win, a rank-up, an unlock. */
-export function playFanfare() {
-  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-  notes.forEach((freq, i) => tone({ freq, durationMs: 260, type: "triangle", gain: 0.1, delayMs: i * 110 }));
-}
-
-/** A flat two-note fall, for a loss. Quieter than the fanfare on purpose:
- * losing shouldn't be louder than winning. */
-export function playDefeat() {
-  tone({ freq: 392, durationMs: 260, type: "triangle", gain: 0.07 });
-  tone({ freq: 311.13, durationMs: 420, type: "triangle", gain: 0.07, delayMs: 200 });
-}
-
-/** A single bright tick, for a stat counting up or a badge landing. */
-export function playPop(step = 0) {
-  tone({ freq: 660 + step * 90, durationMs: 110, type: "sine", gain: 0.07 });
-}
-
-/** A rising whoosh, for the matchmaking banners flying in. */
-export function playWhoosh() {
-  tone({ freq: 140, sweepTo: 900, durationMs: 480, type: "sawtooth", gain: 0.05 });
-}
+export function playBuzzer() { playSound("buzzer"); }
+export function playFanfare() { playSound("fanfare"); }
+export function playDefeat() { playSound("defeat"); }
+export function playWhoosh() { playSound("whoosh"); }
+export { playPop } from "./sound.js";
 
 /** Retriggers a CSS animation class on an element. Removing then re-adding a
  * class that's already present is a no-op without a reflow in between, so

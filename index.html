@@ -38,7 +38,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=ba2d002" />
+  <link rel="stylesheet" href="css/style.css?v=b2f008a" />
 </head>
 <body>
   <header class="top-nav">
@@ -55,6 +55,14 @@
       <button class="nav-tab" id="nav-profile" type="button">Profile</button>
       <button class="nav-tab" id="nav-badges" type="button">Rewards</button>
       <button class="nav-tab" id="nav-squads" type="button">Squads</button>
+      <!-- Sound is off-or-on for the whole app and the choice is remembered.
+           aria-pressed rather than a label that changes meaning: a button
+           reading "Sound" that is sometimes a state and sometimes a command is
+           ambiguous to a screen reader and to everyone else. -->
+      <button class="nav-tab nav-tab-icon" id="nav-sound" type="button" aria-pressed="true" title="Sound">
+        <span aria-hidden="true" id="nav-sound-icon">&#128266;</span>
+        <span class="sr-only" id="nav-sound-label">Sound on</span>
+      </button>
       <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
     </nav>
   </header>
@@ -577,6 +585,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=ba2d002"></script>
+  <script type="module" src="js/main.js?v=b2f008a"></script>
 </body>
 </html>

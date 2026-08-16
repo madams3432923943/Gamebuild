@@ -3,6 +3,7 @@
 //   - "bot": synchronous, client-only (DraftState from draft.js).
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
+import { playSound, primeSound, soundEnabled, setSoundEnabled } from "./sound.js";
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
@@ -730,6 +731,35 @@ for (const el of [inputAuthPassword, inputAuthUsername, inputAuthEmail, inputAut
     if (e.key === "Enter") btnAuthSubmit.click();
   });
 }
+
+// ---- Sound -----------------------------------------------------------------
+// The context cannot be created outside a user gesture on mobile, and one made
+// before a gesture stays suspended forever - a silent game with nothing in the
+// console to explain it. primeSound waits for the first gesture there is.
+primeSound();
+
+const navSound = document.getElementById("nav-sound");
+const navSoundIcon = document.getElementById("nav-sound-icon");
+const navSoundLabel = document.getElementById("nav-sound-label");
+
+function paintSoundToggle() {
+  const on = soundEnabled();
+  navSound.setAttribute("aria-pressed", on ? "true" : "false");
+  // The icon is decorative; the state is carried by aria-pressed and by the
+  // visually-hidden label, so it is never colour or glyph alone.
+  navSoundIcon.textContent = on ? "\u{1F50A}" : "\u{1F507}";
+  navSoundLabel.textContent = on ? "Sound on" : "Sound off";
+  navSound.title = on ? "Sound on" : "Sound off";
+}
+
+navSound.addEventListener("click", () => {
+  const on = setSoundEnabled(!soundEnabled());
+  paintSoundToggle();
+  // Confirm turning it ON by making a sound. Turning it off confirms itself
+  // by the silence that follows.
+  if (on) playSound("tap");
+});
+paintSoundToggle();
 
 document.getElementById("nav-signout").addEventListener("click", async () => {
   cleanupOnlineWatcher();
@@ -2898,7 +2928,16 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const spread = Math.max(0, holdMs - 400);
     ofPeriod.forEach((event, i) => {
       const at = ofPeriod.length > 1 ? (i / (ofPeriod.length - 1)) * spread : 0;
-      shotTimers.push(setTimeout(() => plotShot(shotChartRefs, event), at));
+      shotTimers.push(setTimeout(() => {
+        plotShot(shotChartRefs, event);
+        // The sound names the KIND of shot, and the throttle in sound.js keeps
+        // a busy quarter from turning into a buzz. A miss is quieter than a
+        // make on purpose - the chart already shows every attempt, and the
+        // sound is there to mark the ones that changed the score.
+        playSound(
+          !event.made ? "shotMiss" : event.strong ? "rimFinish" : event.shotType === "three" ? "shotThree" : "shotMade"
+        );
+      }, at));
     });
   }
 

@@ -4987,3 +4987,33 @@ table.box-table th:nth-child(2) {
   table.box-table td:nth-child(2),
   table.box-table th:nth-child(2) { left: 3rem; }
 }
+
+/* Visually hidden, still read aloud. The sound toggle's state lives here so it
+   is never carried by the icon alone - a speaker glyph with a line through it
+   is small, and at a glance the two states are easy to confuse. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* An icon-only nav button. Narrower than the text tabs beside it, so the row
+   still fits a phone with a sport, a profile and a sign-out on it. */
+.nav-tab-icon {
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* The toggle reads as off without relying on the glyph alone. */
+.nav-tab-icon[aria-pressed="false"] {
+  opacity: 0.55;
+}
