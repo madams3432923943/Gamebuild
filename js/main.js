@@ -2224,8 +2224,7 @@ async function handleOnlineMatchState(match) {
       // scoreboard just sits on "Simulating…" forever with the real reason
       // buried in an unhandled promise rejection.
       console.error("Online simulation flow failed:", e);
-      finalBanner.textContent = "Couldn't play back the game (" + e.message + ") - your result is safe, check Profile > Recent Games.";
-      finalBanner.classList.remove("hidden");
+      showBannerMessage("Couldn't play back the game (" + e.message + ") - your result is safe, check Profile > Recent Games.");
       btnToProfile.classList.remove("hidden");
       btnPlayAgain.classList.remove("hidden");
       btnGameHome.classList.remove("hidden");
@@ -2624,6 +2623,26 @@ poolSearch.addEventListener("input", () => {
 const courtStageEl = document.getElementById("court-stage");
 const liveScoreboard = document.getElementById("live-scoreboard");
 const finalBanner = document.getElementById("final-banner");
+
+/**
+ * The final banner as a PLAIN MESSAGE, not a result.
+ *
+ * finish() dresses this element up: a won/lost class for the border colour and
+ * an aria-label carrying the whole sentence, because the three stacked spans
+ * would otherwise be read as "Lost24-28Bot wins". Both of those outlive the
+ * game unless something removes them, and the error paths below reuse the same
+ * element - so an error could arrive wearing the last game's green WON border,
+ * and a screen reader would announce the previous game's final score instead
+ * of the message, since aria-label wins over text content.
+ *
+ * Anything that puts a sentence in this banner goes through here.
+ */
+function showBannerMessage(text) {
+  finalBanner.classList.remove("final-won", "final-lost", "win-flare");
+  finalBanner.removeAttribute("aria-label");
+  finalBanner.textContent = text;
+  finalBanner.classList.remove("hidden");
+}
 const mvpCallout = document.getElementById("mvp-callout");
 const gameRecapEl = document.getElementById("game-recap");
 const playFeedEl = document.getElementById("play-feed");
@@ -2806,6 +2825,10 @@ function resetGameScreen() {
   // Last game's shot chart is not this game's. It accumulates all the way to
   // the final buzzer by design, so nothing else ever clears it.
   courtStageEl.querySelector(".shot-chart")?.remove();
+  // Nor is the last game's result. The won/lost colour and the aria-label
+  // outlive the banner being hidden, and both are wrong for the next game.
+  finalBanner.classList.remove("final-won", "final-lost", "win-flare");
+  finalBanner.removeAttribute("aria-label");
   // The stage belongs to the RESET, not to playback. playOutResult sets it
   // too, but that runs after the online flow has awaited the server for
   // seconds - and the court is the stage index.html leaves unhidden, so an
@@ -3680,8 +3703,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   }
 
   if (!dbResult) {
-    finalBanner.textContent = "Couldn't load the result - check Profile > Recent Games in a moment.";
-    finalBanner.classList.remove("hidden");
+    showBannerMessage("Couldn't load the result - check Profile > Recent Games in a moment.");
     btnGameHome.classList.remove("hidden");
     return;
   }
@@ -3711,8 +3733,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
     ({ rosterA, rosterB } = buildVisibleState(picks, Infinity, statsByKey));
   } catch (e) {
     console.error("Failed to load final rosters for the result screen:", e);
-    finalBanner.textContent = "Result saved, but the box score couldn't load - check Profile > Recent Games.";
-    finalBanner.classList.remove("hidden");
+    showBannerMessage("Result saved, but the box score couldn't load - check Profile > Recent Games.");
     btnGameHome.classList.remove("hidden");
     return;
   }
