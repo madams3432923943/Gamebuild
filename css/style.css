@@ -5097,3 +5097,146 @@ table.box-table th:nth-child(2) {
      at 360px leave labels like "Customize Banner" truncated. */
   .profile-header-actions .btn { flex: 1 1 100%; }
 }
+
+/* ===========================================================================
+   MOTION
+   ===========================================================================
+
+   Two problems, one system.
+
+   The app had thirty keyframe animations and six separate
+   `prefers-reduced-motion` blocks between them, each neutralising whatever the
+   author of that feature happened to remember. Twenty-six of the thirty were
+   not named in any of them - including eight INFINITE pulses, which are the
+   worst case: a glow that never stops is the one a vestibular-sensitive player
+   cannot look away from, and it was running regardless of what their operating
+   system had been told to ask for.
+
+   Protection was opt-in, so every future animation had to remember too. The
+   block at the bottom of this section inverts that: reduced motion switches
+   animation off APP-WIDE, and anything added later is covered by construction
+   rather than by diligence.
+
+   The tokens exist so durations stop being re-invented per component. Three
+   speeds is enough for an app of this size, and having exactly three is what
+   keeps a press, a card and a screen change feeling like one product. */
+:root {
+  --motion-fast: 110ms;   /* a press, a tap, a toggle - felt, not watched */
+  --motion-base: 220ms;   /* a card selecting, a slot filling */
+  --motion-slow: 380ms;   /* a screen arriving */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---- Press feedback -------------------------------------------------------
+   Every button in the app moves when pressed. On a phone there is no hover to
+   confirm a tap landed, and the gap between tapping and the screen changing is
+   exactly where a player taps a second time - which is how a double-submit
+   starts. */
+.btn,
+.nav-tab,
+.mode-btn,
+.sport-card-action,
+.link-btn {
+  transition: transform var(--motion-fast) var(--ease-out),
+              background-color var(--motion-fast) var(--ease-out),
+              border-color var(--motion-fast) var(--ease-out),
+              opacity var(--motion-fast) var(--ease-out);
+}
+
+.btn:active,
+.nav-tab:active,
+.mode-btn:active,
+.sport-card-action:active,
+.link-btn:active {
+  transform: scale(0.96);
+}
+
+/* Hover is gated on devices that actually have a pointer. Without this, a
+   touch browser applies :hover on tap and LEAVES IT APPLIED until you tap
+   something else - so the last thing touched stays lit and reads as selected.
+   That is the single most common way a mobile UI looks broken to its author on
+   a desktop. */
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+  }
+
+  .nav-tab:hover:not(.active) {
+    background: rgba(var(--accent-rgb), 0.12);
+  }
+
+  .tactic-card:hover:not(.selected) {
+    border-color: rgba(var(--accent-rgb), 0.55);
+    transform: translateY(-2px);
+  }
+}
+
+/* ---- Selection ------------------------------------------------------------
+   A card that has been chosen should say so in more than colour: it lifts and
+   holds, so the choice is visible in a screenshot and to someone who cannot
+   separate the selected border from the unselected one. */
+.tactic-card {
+  transition: transform var(--motion-base) var(--ease-out),
+              border-color var(--motion-base) var(--ease-out),
+              box-shadow var(--motion-base) var(--ease-out);
+}
+
+.tactic-card.selected {
+  animation: card-select var(--motion-base) var(--ease-spring);
+}
+
+@keyframes card-select {
+  from { transform: scale(0.97); }
+  60%  { transform: scale(1.02); }
+  to   { transform: scale(1); }
+}
+
+/* ---- Screen transitions ---------------------------------------------------
+   Short and one-directional. A screen change here is navigation, not a
+   flourish - anything longer than this and moving around the app starts to
+   feel like waiting for it. */
+.screen:not(.hidden) {
+  animation: screen-in var(--motion-slow) var(--ease-out);
+}
+
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- The safety net -------------------------------------------------------
+   Everything above, everything already in this file, and everything added
+   after it. Durations go to near-zero rather than `none` so animationend and
+   transitionend listeners still fire - a handler that waits for one before
+   revealing the next thing would otherwise hang forever, which turns an
+   accessibility preference into a broken app.
+
+   The search spinner is the one exception, and deliberately: it is not
+   decoration, it is the only thing on screen saying a request is still in
+   flight. Freezing it would report "finished" for something still running. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .search-spinner {
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Nothing should move on press either - the colour change still confirms it. */
+  .btn:active,
+  .nav-tab:active,
+  .mode-btn:active,
+  .sport-card-action:active,
+  .link-btn:active {
+    transform: none;
+  }
+}

@@ -709,6 +709,59 @@ export async function runBrowserChecks(opts = {}) {
         inputStillWired: !!input,
       };
     });
+    // Reduced motion, asserted on real computed styles rather than trusted.
+    //
+    // The app carries thirty-odd keyframe animations and used to protect them
+    // one scattered @media block at a time, which left twenty-six unprotected
+    // - eight of them infinite. The safety net is meant to make that structural
+    // rather than remembered, and the only way to know it holds is to ask the
+    // browser with the preference actually set.
+    //
+    // Near-zero rather than `none`, so animationend still fires: a handler
+    // waiting on one before revealing the next thing would otherwise hang, and
+    // an accessibility preference that freezes the app is worse than one that
+    // is ignored.
+    await sessions[0].page.emulateMedia({ reducedMotion: "reduce" });
+    await sleep(300);
+    const motion = await sessions[0].page.evaluate(() => {
+      const ms = (v) => (v.endsWith("ms") ? parseFloat(v) : parseFloat(v) * 1000);
+      // EVERYTHING on the visible screen, not a hand-picked selector list.
+      // The infinite pulses this is most concerned about - an eligible slot, a
+      // live dot, a breathing banner - are none of them buttons, so a sample of
+      // buttons would report "no infinite loops" while they ran on regardless.
+      const sample = [...document.querySelectorAll(".screen:not(.hidden), .screen:not(.hidden) *, .top-nav, .top-nav *")].slice(0, 600);
+      let worstAnim = 0;
+      let worstTrans = 0;
+      let infinite = 0;
+      for (const el of sample) {
+        const cs = getComputedStyle(el);
+        for (const d of cs.animationDuration.split(",")) worstAnim = Math.max(worstAnim, ms(d.trim()));
+        for (const d of cs.transitionDuration.split(",")) worstTrans = Math.max(worstTrans, ms(d.trim()));
+        if (/infinite/.test(cs.animationIterationCount)) infinite += 1;
+      }
+      const spinner = document.querySelector(".search-spinner");
+      return {
+        sampled: sample.length,
+        worstAnim,
+        worstTrans,
+        infinite,
+        // The documented exception: a spinner still spinning is the only thing
+        // saying a request is in flight.
+        spinnerStillSpins: spinner ? /infinite/.test(getComputedStyle(spinner).animationIterationCount) : "absent",
+      };
+    });
+    await sessions[0].page.emulateMedia({ reducedMotion: null });
+    const motionOk = motion.sampled > 0 && motion.worstAnim <= 1 && motion.worstTrans <= 1 && motion.infinite === 0;
+    checks.push(
+      check(
+        "browser:reduced-motion",
+        motionOk
+          ? `Reduced motion stops everything (${motion.sampled} elements, worst ${motion.worstAnim}ms animation / ${motion.worstTrans}ms transition, no infinite loops)`
+          : `Reduced motion not honoured: ${JSON.stringify(motion)}`,
+        motionOk ? PASS : FAIL
+      )
+    );
+
     // Back to Play. auditTabs leaves the app where it started because it ends
     // on its own navigation; this check does not, and leaving the run parked
     // on the profile means the match below never starts.
