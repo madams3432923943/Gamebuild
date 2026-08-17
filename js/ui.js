@@ -503,6 +503,57 @@ function splitCell(makes, attempts) {
   return attempts > 0 ? `${r(makes)}/${r(attempts)}` : "-";
 }
 
+/**
+ * The team line under a box score: what the roster did ADDED UP, and the
+ * shooting percentages that only exist at the team level.
+ *
+ * A box score of ten individual lines does not answer "how did we shoot",
+ * which is the first thing anyone asks about a basketball game. Summed here
+ * rather than stored, because a stored team total is a second copy of numbers
+ * the rows already carry, and the two drift.
+ *
+ * Percentages come from the SHOT SPLITS, which are only present once a game is
+ * final - live, the splits do not exist yet and the row shows totals alone
+ * rather than inventing a percentage from nothing. A sport that declares no
+ * splitColumns (football) simply gets the totals.
+ */
+function boxTotalsRow(roster, box, columns, showMinutes, splits, shotLines, minutesMap) {
+  const slots = rosterSlots(roster).filter((slot) => box[slot]);
+  const sum = (pick) => slots.reduce((total, slot) => total + (Number(pick(slot)) || 0), 0);
+
+  const cells = columns
+    .map(([key, , derive]) => {
+      // A derived column is derived PER ROW, so summing the rows is right and
+      // re-deriving from team totals would not be - total yards per player is
+      // not the same shape of number as a team's.
+      const total = sum((slot) => (typeof derive === "function" ? derive(box[slot]) : box[slot][key]));
+      return `<td>${r(total)}</td>`;
+    })
+    .join("");
+
+  const splitCells = splits
+    .map(([key]) => {
+      if (!shotLines) return "<td>-</td>";
+      const makes = sum((slot) => shotLines[slot]?.[`${key}m`]);
+      const attempts = sum((slot) => shotLines[slot]?.[`${key}a`]);
+      if (!attempts) return "<td>-</td>";
+      // Makes/attempts AND the percentage. The split alone makes you do the
+      // division; the percentage alone hides how much volume it rests on, and
+      // 2/3 is not the same claim as 40/60.
+      const pct = Math.round((makes / attempts) * 1000) / 10;
+      return `<td>${r(makes)}/${r(attempts)}<span class="box-pct">${pct.toFixed(1)}%</span></td>`;
+    })
+    .join("");
+
+  return (
+    `<tr class="box-totals"><td>TEAM</td><td>${slots.length} players</td>` +
+    (showMinutes ? `<td>${minutesMap ? r(sum((slot) => minutesMap[slot])) : "-"}</td>` : "") +
+    cells +
+    splitCells +
+    `</tr>`
+  );
+}
+
 function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = true, splits = [], isMvp = false) {
   // The year, not the decade. This row is claiming 45 points were scored, and
   // the 2017 Isaiah Thomas and the 2010s Celtics average of him are different
@@ -619,7 +670,12 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final, mvpName 
                    minutesMap && minutesMap[slot], columns, showMinutes, splits,
                    !!mvpName && roster[slot]?.name === mvpName);
   }
-  html += "</tbody></table>";
+  html += "</tbody>";
+  // In a <tfoot> rather than a last <tr>, so the team line is structurally the
+  // summary of the table and not another player in it - which is also what
+  // lets it stay put if the table is ever made scrollable vertically.
+  html += `<tfoot>${boxTotalsRow(roster, box, columns, showMinutes, splits, shotLines, minutesMap)}</tfoot>`;
+  html += "</table>";
   return html;
 }
 

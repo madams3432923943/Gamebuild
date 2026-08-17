@@ -858,6 +858,28 @@ export async function runBrowserChecks(opts = {}) {
     }
 
     // ---- draft ------------------------------------------------------------
+    // Watch for the roster reveal animation before a single pick is made.
+    // A filled slot flips and glows (.slot-reveal) so you can see WHAT you
+    // just got and compare it against the opponent's - the one moment in a
+    // draft where something changed and you were not the one who changed it.
+    //
+    // Sampled with a MutationObserver rather than a poll: the class lives on a
+    // node that renderRosterPanel rebuilds every round, and the animation is
+    // shorter than any polling interval that would not slow the run down.
+    await sessions[0].page.evaluate(() => {
+      window.__bkReveals = 0;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          for (const node of r.addedNodes) {
+            if (node.nodeType === 1 && node.classList?.contains("slot-reveal")) window.__bkReveals += 1;
+            if (node.nodeType === 1 && node.querySelectorAll) {
+              window.__bkReveals += node.querySelectorAll(".slot-reveal").length;
+            }
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+
     const draftStart = Date.now();
     const squadIndex = await loadSquadIndex(process.env.SELFTEST_SPORT || "nba");
     const picks = await Promise.all(
@@ -867,6 +889,17 @@ export async function runBrowserChecks(opts = {}) {
       check("browser:draft", `Both rosters auto-draft (${picks.join(" + ")} picks)`, PASS, {
         durationMs: Date.now() - draftStart,
       })
+    );
+
+    const reveals = await sessions[0].page.evaluate(() => window.__bkReveals || 0);
+    checks.push(
+      check(
+        "browser:roster-reveal",
+        reveals > 0
+          ? `Newly filled roster slots animate (${reveals} reveals over the draft)`
+          : "No roster slot ever played its reveal animation during the draft",
+        reveals > 0 ? PASS : FAIL
+      )
     );
 
     for (const [name, w, h] of MID_FLOW_VIEWPORTS) {
@@ -1026,19 +1059,47 @@ export async function runBrowserChecks(opts = {}) {
     // reached the court. Made and missed are both required - a chart of only
     // makes would mean the miss path never ran.
     if ((process.env.SELFTEST_SPORT || "nba") === "nba") {
-      const chart = await sessions[0].page.evaluate(() => ({
-        total: document.querySelectorAll(".shot-mark").length,
-        made: document.querySelectorAll(".shot-mark.shot-made").length,
-        missed: document.querySelectorAll(".shot-mark.shot-miss").length,
-        teamA: document.querySelectorAll(".shot-mark.shot-a").length,
-        teamB: document.querySelectorAll(".shot-mark.shot-b").length,
-      }));
-      const chartOk = chart.total > 20 && chart.made > 0 && chart.missed > 0 && chart.teamA > 0 && chart.teamB > 0;
+      const chart = await sessions[0].page.evaluate(() => {
+        const marks = [...document.querySelectorAll(".shot-mark")];
+        const court = document.querySelector('[data-stage="court"]');
+        const board = document.getElementById("live-scoreboard");
+        const cr = court?.getBoundingClientRect();
+        const br = board?.getBoundingClientRect();
+        // CONTAINMENT is the property that broke. The markers are placed as a
+        // percentage of their parent, and when that parent was the whole stage
+        // rather than the floor, corner threes landed on the scoreboard. A
+        // count of markers cannot see that - they were all present and correct,
+        // just drawn on top of the score.
+        let outsideCourt = 0;
+        let onScoreboard = 0;
+        for (const m of marks) {
+          const r = m.getBoundingClientRect();
+          if (cr && (r.left < cr.left - 2 || r.right > cr.right + 2 || r.top < cr.top - 2 || r.bottom > cr.bottom + 2)) {
+            outsideCourt += 1;
+          }
+          if (br && r.right > br.left && r.left < br.right && r.bottom > br.top && r.top < br.bottom) {
+            onScoreboard += 1;
+          }
+        }
+        return {
+          total: marks.length,
+          made: document.querySelectorAll(".shot-mark.shot-made").length,
+          missed: document.querySelectorAll(".shot-mark.shot-miss").length,
+          teamA: document.querySelectorAll(".shot-mark.shot-a").length,
+          teamB: document.querySelectorAll(".shot-mark.shot-b").length,
+          outsideCourt,
+          onScoreboard,
+          courtAboveBoard: cr && br ? cr.top < br.top : null,
+        };
+      });
+      const chartOk = chart.total > 20 && chart.made > 0 && chart.missed > 0 &&
+        chart.teamA > 0 && chart.teamB > 0 &&
+        chart.outsideCourt === 0 && chart.onScoreboard === 0 && chart.courtAboveBoard === true;
       checks.push(
         check(
           "browser:shot-chart",
           chartOk
-            ? `Shot chart accumulates on the court (${chart.total} marks — ${chart.made} made, ${chart.missed} missed, both teams)`
+            ? `Shot chart stays on the court (${chart.total} marks — ${chart.made} made, ${chart.missed} missed, both teams, none on the scoreboard)`
             : `Shot chart did not draw as expected: ${JSON.stringify(chart)}`,
           chartOk ? PASS : FAIL
         )

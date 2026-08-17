@@ -2932,7 +2932,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const seed = Number(result.simulationSeed) ||
       (result.teamScoreA * 1000 + result.teamScoreB) * 7919 + result.quarterBoxScores.length;
     ledger = sport().presentation.buildShotLedger(result.quarterBoxScores, rosterA, rosterB, seed);
-    shotChartRefs = renderShotChart(courtStageEl);
+    // Inside the STAGE THIS SPORT DECLARED, not the stage container. The
+    // markers are positioned as a percentage of their parent, so handing them
+    // the whole container put corner threes on the scoreboard.
+    shotChartRefs = renderShotChart(courtStageEl.querySelector(`[data-stage="${sport().presentation.stage}"]`));
   }
 
   /**

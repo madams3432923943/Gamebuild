@@ -2669,20 +2669,47 @@ table.box-table th, table.history-table th {
   100% { box-shadow: 0 0 0 rgba(255, 209, 102, 0); }
 }
 
+/* ---- The court ------------------------------------------------------------
+   IN FLOW, and first, so the scoreboard sits under it rather than behind it.
+
+   This was `position: absolute; inset: 0` - a full-bleed background at half
+   opacity, with the scoreboard and the play feed drawn on top of it. That was
+   survivable while the court was decoration. It stopped being survivable when
+   the shot chart arrived: markers are placed as a percentage of the court's
+   box, and if that box is the whole stage then a shot from the corner lands on
+   the scoreboard. Which is exactly what it did.
+
+   So the floor is a real element with its own aspect ratio now, the chart is
+   confined inside it, and everything else flows beneath. */
 .court {
-  position: absolute;
-  inset: 0;
-  opacity: 0.5;
+  position: relative;
+  width: 100%;
+  /* A basketball court is 94x50 feet. Squashed slightly - a true 1.88 is very
+     letterboxed on a phone - but kept wide enough to read as a court. */
+  aspect-ratio: 1.8;
+  margin: 0 auto 0.75rem;
+  border-radius: 10px;
+  /* The floor. Warm and dark rather than brown-realistic: this sits inside a
+     cool navy stage and a literal hardwood tan fights it. */
+  background:
+    linear-gradient(160deg, rgba(var(--accent-rgb), 0.10), rgba(var(--accent-rgb), 0.03)),
+    #141d2e;
+  border: 1px solid rgba(var(--accent-rgb), 0.30);
+  overflow: hidden;
   pointer-events: none;
 }
 
+/* Court lines. Brighter than the old 0.35 alpha and drawn at full opacity on
+   the element rather than through a 0.5 parent, because these are what make
+   the shot positions legible - a marker means nothing without the arc it is
+   inside or outside of. */
 .court span {
   position: absolute;
-  border: 2px solid rgba(var(--accent-rgb), 0.35);
+  border: 2px solid rgba(var(--accent-rgb), 0.42);
 }
 
 .court-circle {
-  width: 22%;
+  width: 16%;
   aspect-ratio: 1;
   border-radius: 50%;
   top: 50%;
@@ -2698,26 +2725,31 @@ table.box-table th, table.history-table th {
   border-width: 0 0 0 2px;
 }
 
+/* The paint. Both ends, opening off their own baseline. */
 .court-key {
   top: 50%;
   transform: translateY(-50%);
-  width: 16%;
-  height: 42%;
+  width: 15%;
+  height: 38%;
+  border-radius: 0 4px 4px 0;
 }
 
-.court-key-left { left: 0; }
-.court-key-right { right: 0; }
+.court-key-left { left: 0; border-left-width: 0; }
+.court-key-right { right: 0; border-right-width: 0; border-radius: 4px 0 0 4px; }
 
+/* The three-point line. A circle wider than it is tall, clipped by the
+   court's overflow so only the arc inside the floor shows - which is what a
+   three-point line actually looks like from above. */
 .court-arc {
   top: 50%;
   transform: translateY(-50%);
-  width: 26%;
-  height: 74%;
+  width: 30%;
+  height: 86%;
   border-radius: 50%;
 }
 
-.court-arc-left { left: -13%; }
-.court-arc-right { right: -13%; }
+.court-arc-left { left: -15%; }
+.court-arc-right { right: -15%; }
 
 .court-stage .scoreboard {
   position: relative;
@@ -4815,6 +4847,11 @@ html, body {
   inset: 0;
   pointer-events: none;
   z-index: 2;
+  /* Belt and braces with the court's own overflow:hidden. A marker's spread
+     can carry it a percent or two past an edge, and a shot hanging off the
+     floor onto the scoreboard is the bug this whole layer was moved to fix. */
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .shot-mark {
@@ -5239,4 +5276,34 @@ table.box-table th:nth-child(2) {
   .link-btn:active {
     transform: none;
   }
+}
+
+/* ---- Box score: the team line ---------------------------------------------
+   A table of ten individual lines does not answer "how did we shoot", which is
+   the first thing anyone asks about a basketball game. This is that answer,
+   in a tfoot so it reads as the table's summary rather than an eleventh
+   player. */
+table.box-table tfoot .box-totals td {
+  border-top: 2px solid rgba(var(--accent-rgb), 0.5);
+  border-bottom: none;
+  font-weight: 700;
+  background: rgba(var(--accent-rgb), 0.07);
+}
+
+table.box-table tfoot .box-totals td:nth-child(1),
+table.box-table tfoot .box-totals td:nth-child(2) {
+  /* The frozen pair paints its own background, so the totals tint has to be
+     restated or the sticky cells stay plain while the rest of the row lifts. */
+  background: color-mix(in srgb, var(--panel) 92%, rgba(var(--accent-rgb), 1) 8%);
+}
+
+/* The percentage under its split. Makes and attempts stay the headline - 2/3
+   and 40/60 are both 67% and are not the same claim - so the percentage rides
+   underneath at a smaller size rather than replacing them. */
+.box-pct {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent-bright);
+  letter-spacing: 0.02em;
 }
