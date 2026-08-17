@@ -379,6 +379,24 @@ export function generalBannerById(id) {
  * returns for franchise banners so the tile renderer can treat both alike. */
 export function generalBannerProgress(banner, profile) {
   const { value, required, unlocked } = banner.progress(profile);
+  // THE FOUNDER GRANT.
+  //
+  // The general ladders are computed live from real counters - online wins,
+  // friend count, wins in every era - and the clan ladder is computed from
+  // nothing at all, because clans do not exist yet and its progress function
+  // ignores the profile and returns false.
+  //
+  // So "unlock these for the founder" cannot be done by writing data. Inflating
+  // online_wins would be the obvious shortcut and is wrong twice over: it is a
+  // real ranked record, it feeds the ELO and the percentile everyone else is
+  // measured against, and it still would not touch the clan banners. Granting on
+  // identity changes what is UNLOCKED without lying about what was PLAYED.
+  //
+  // `granted` is passed through so a tile can say how it was come by rather than
+  // implying 500 ranked wins that never happened.
+  if (!unlocked && isFounder(profile)) {
+    return { drafted: required, value, required, unlocked: true, percent: 100, granted: true };
+  }
   return { drafted: value, value, required, unlocked, percent: Math.min(100, (100 * value) / required) };
 }
 
