@@ -750,13 +750,38 @@ export async function runBrowserChecks(opts = {}) {
         spinnerStillSpins: spinner ? /infinite/.test(getComputedStyle(spinner).animationIterationCount) : "absent",
       };
     });
+    // Reduced motion must not mean reduced INFORMATION. A newly filled roster
+    // slot is the case that proved it: its glow is the only thing saying which
+    // row just changed, and the blanket rule above silenced it outright.
+    //
+    // Read AFTER the animation would have finished. The first attempt at this
+    // read the computed background immediately, which is the glow keyframe's
+    // opening colour - so it passed whether or not the static fallback existed,
+    // and removing the fallback did not fail it. Waiting past the (now
+    // ~0.01ms) animation is what makes this test the thing it claims to be.
+    motion.revealStillReads = await sessions[0].page.evaluate(async () => {
+      const probe = document.createElement("span");
+      probe.className = "slot-filled slot-reveal";
+      (document.querySelector(".screen:not(.hidden)") || document.body).appendChild(probe);
+      await new Promise((r) => setTimeout(r, 80));
+      const bg = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const alpha = /rgba?\(([^)]+)\)/.exec(bg);
+      const parts = alpha ? alpha[1].split(",").map((n) => parseFloat(n)) : [];
+      return parts.length === 4 ? parts[3] > 0.05 : parts.length === 3;
+    });
+
     await sessions[0].page.emulateMedia({ reducedMotion: null });
-    const motionOk = motion.sampled > 0 && motion.worstAnim <= 1 && motion.worstTrans <= 1 && motion.infinite === 0;
+    const motionOk =
+      motion.sampled > 0 && motion.worstAnim <= 1 && motion.worstTrans <= 1 && motion.infinite === 0 &&
+      // Both halves, or this only tests that motion stopped and says nothing
+      // about whether the information survived it.
+      motion.revealStillReads === true;
     checks.push(
       check(
         "browser:reduced-motion",
         motionOk
-          ? `Reduced motion stops everything (${motion.sampled} elements, worst ${motion.worstAnim}ms animation / ${motion.worstTrans}ms transition, no infinite loops)`
+          ? `Reduced motion stops movement, not meaning (${motion.sampled} elements stilled, roster reveal still reads as a highlight)`
           : `Reduced motion not honoured: ${JSON.stringify(motion)}`,
         motionOk ? PASS : FAIL
       )

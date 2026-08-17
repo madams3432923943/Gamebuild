@@ -5276,6 +5276,27 @@ table.box-table th:nth-child(2) {
   .link-btn:active {
     transform: none;
   }
+
+  /* REDUCED MOTION IS NOT REDUCED INFORMATION.
+   *
+   * The blanket rule above is right about movement and wrong about meaning
+   * where the animation IS the message. A newly filled roster slot flips and
+   * glows, and that glow is the only thing saying "this one is new" - switch it
+   * off and a drafted roster is ten identical rows with no indication of which
+   * one just changed. The flip is the vestibular part; a background tint is
+   * not, and there is no reason to lose both.
+   *
+   * So the highlight becomes STATIC instead of absent: the slot stays tinted
+   * until the next round re-renders the panel, which is a longer, calmer read
+   * of the same fact the animation was conveying.
+   *
+   * The same argument does not apply to the pulses and sweeps this block
+   * exists to stop - those decorate, they do not inform. */
+  .slot-reveal {
+    animation: none !important;
+    background: rgba(var(--accent-rgb), 0.35);
+    box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.55);
+  }
 }
 
 /* ---- Box score: the team line ---------------------------------------------
