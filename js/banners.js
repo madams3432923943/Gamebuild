@@ -237,12 +237,20 @@ export const DEFAULT_BANNER_ID = "rookie";
  * labels, and the tile prints the name underneath anyway. */
 function bannerBase(t) {
   return {
-    id: t.file.toLowerCase(),
+    // The id is PERSISTED - profiles.equipped_banner and granted_banners store
+    // it - so it cannot follow the filename around. `id` overrides the derived
+    // value for exactly that case: Pink Blossom's file was renamed from
+    // blossom to Pink-Blossom during the artwork upload, and deriving the id
+    // from the new name would have silently unequipped every player flying it
+    // and voided their grant.
+    id: t.id || t.file.toLowerCase(),
     name: t.name,
     abbr: t.name.slice(0, 3).toUpperCase(),
     colors: t.colors,
     // Case-sensitive: GitHub Pages serves these paths literally.
-    image: `assets/banners/${t.file}.png`,
+    // JPEG, not PNG: the artwork is photographic texture, where lossless
+    // costs ~6x the bytes for no visible gain. See tools/build-banner-art.mjs.
+    image: `assets/banners/${t.file}.jpg`,
     hideAbbr: true,
   };
 }
@@ -286,7 +294,7 @@ export const GENERAL_BANNERS = [
     progress: () => ({ value: 1, required: 1, unlocked: true }),
   },
   // ---- The reward ladders -------------------------------------------------
-  // Real artwork now (assets/banners/*.png), so these carry `image` rather
+  // Real artwork now (assets/banners/*.jpg), so these carry `image` rather
   // than the generated `art` pattern they used to. `colors` stays as the
   // fallback painted underneath - a slow or missing file shows the banner's
   // own two colors instead of a hole.
@@ -301,7 +309,9 @@ export const GENERAL_BANNERS = [
     { file: "Forest-Pixel", name: "Forest Pixel", need: 10, colors: ["#4b5320", "#2f3317"] },
     { file: "Desert-Wind", name: "Desert Wind", need: 25, colors: ["#c2a373", "#7a6242"] },
     { file: "Reptile", name: "Reptile", need: 50, colors: ["#8a6a3a", "#241c10"] },
-    { file: "blossom", name: "Pink Blossom", need: 75, colors: ["#e88aa8", "#4a3038"] },
+    // id pinned to "blossom": that is what is already stored in players'
+    // equipped_banner and granted_banners, from before the file was renamed.
+    { file: "Pink-Blossom", id: "blossom", name: "Pink Blossom", need: 75, colors: ["#e88aa8", "#4a3038"] },
     { file: "Purple-Wind", name: "Purple Wind", need: 100, colors: ["#7d3fc4", "#2a1240"] },
     { file: "Blue-Wave", name: "Blue Wave", need: 150, colors: ["#1f5fd0", "#0d1c3a"] },
     { file: "Arctic-Stripe", name: "Arctic Stripe", need: 200, colors: ["#c9d3dc", "#3a434d"] },

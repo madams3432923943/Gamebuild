@@ -1,93 +1,103 @@
-# Banner artwork: how big the PNGs need to be
+# Banner artwork
 
-## The problem this documents
+The twenty general banners in `assets/banners/` are the card. On the home
+identity card the artwork fills the whole thing, sharp, at every width. There is
+no second treatment, no fallback layout, and nothing is blurred.
 
-The twenty general banners are real PNGs in `assets/banners/`, all about
-**265×90**. That is the right size for a tile in the Customize grid, which draws
-them at roughly 190px wide — a downscale, so they look crisp.
-
-The home identity card is a different question. On a desktop it is about
-1060px wide, and painting one 265px texture across it is a **~3.9× upscale**.
-It shipped that way and did not read as a soft background; it read as a
-rendering fault.
-
-## What was tried
-
-| Approach | Result |
-| --- | --- |
-| `background-size: cover` (what shipped) | ~3.9× upscale. Visibly broken on desktop. |
-| `background-repeat: repeat` at native size | **Rejected — measured.** None of the twenty textures wrap. Seam difference at the edges ran 2–20× each image's own neighbouring-pixel variation, so `repeat` draws a visible grid. |
-| Deliberate heavy blur, art only | Looks intentional, but the player never sees their banner. |
-| Blurred wash + sharp plate | **Rejected in review.** Still called blurry — deliberate softness and accidental softness are indistinguishable to whoever is looking at it. |
-| **Colour field + sharp plate** (shipped) | The field is built from the banner's own two colours in pure CSS, so it is sharp at any size. The art appears once, at ≤1.3× native. Nothing on the card is blurred. |
-
-No CSS invents detail that is not in the file. Those were the only options.
-
-## How it works now
-
-In `css/style.css`, under `.player-banner`:
-
-- `.pb-banner-wash` — the artwork at `cover` on narrow cards; on wide ones the
-  same layer paints a gradient of `--banner-c1`/`--banner-c2` instead. No blur
-  at any width.
-- `.pb-banner-plate` — a second copy, ≤351px wide (1.3× native), right-anchored.
-  Only on wide cards.
-
-Both are created in `renderHomeHeader` (`js/ui.js`) and switched by a
-**container query on the card's own width**, not the viewport's — the card's
-width over the image's width is what sets the scale factor.
-
-> The art is painted on a child layer, never on `.player-banner` itself. An
-> element cannot match a container query on itself, only its descendants can.
-> Written the other way round, the query silently does nothing.
-
-## The real fix — and it needs no code change
-
-**Replace the files in `assets/banners/` with larger ones.** That is the whole
-change. `applyArtResolution()` in `js/ui.js` measures each image's intrinsic
-width when the card renders; at **900px wide or more** the card drops the colour
-field and the plate and goes back to being the banner, full-bleed and sharp.
-
-### Spec
+## Spec
 
 | | |
 | --- | --- |
-| **Minimum** | **1600 × 544 px** |
-| Preferred | 2120 × 720 px (sharp on 2× displays at full desktop width) |
-| Aspect ratio | ~2.94 : 1 — the same as the current files, so nothing crops differently |
-| Format | PNG, **same filenames**, same folder |
-| Threshold | ≥900px wide flips a banner to full-bleed automatically |
+| Size | **2120 × 720** |
+| Aspect ratio | **2.94 : 1** — the card's own proportions |
+| Format | **JPEG**, quality 90 |
+| Typical weight | 200–650 KB, ~8 MB for the set |
+| Naming | Title-Case-Hyphenated, matching `file` in `js/banners.js` |
 
-Filenames must match exactly, because `js/banners.js` builds the path as
-`assets/banners/<file>.png`. Replacing a file is zero-downtime; deleting one is
-not — the card and the Rewards tile both fall back to the banner's two colours
-until it returns, which is tidy but is not the artwork.
+2120px is 2× the ~1060px the card reaches on desktop, so it stays sharp on
+retina. Building files at exactly the card's ratio means the committed file is
+what the player sees — `cover` crops nothing.
 
-Files can be replaced one at a time. Each banner is measured independently, so a
-mix of upgraded and not-yet-upgraded banners is a supported state, not a broken
-one.
+## Replacing artwork
 
-`npm run verify:banner-resolution` asserts the PNGs are still the small size the
-current layout was written against. If that check fails because the art got
-*bigger*, that is the good outcome — the workaround can be deleted.
+Put full-resolution originals in `tools/banner-source/` and run:
+
+```
+node tools/build-banner-art.mjs
+```
+
+It resizes to 2120×720 with a centre crop and re-encodes to JPEG q90, printing a
+before/after table. Originals are **not committed** — 48 MB of source for 8 MB of
+output — the same arrangement as `tools/seasons/*.csv` (see `tools/README.md`).
+The set as first uploaded is recoverable from git history at commit `daa7589`.
+
+## Two hazards, both of which have already bitten
+
+**Never rename a binary through GitHub's web UI.** It opens the file in a text
+editor and saves the result. `Blossom.png` was renamed to `Pink-Blossom.png` that
+way and arrived **2 bytes long**, containing `\r\n`. The banner rendered as
+nothing. Upload a replacement file instead, or rename via git.
+
+**Renaming a banner's file renames its ID, which is stored in the database.**
+`bannerBase()` in `js/banners.js` derives `id` from `file`, and that id is
+persisted in `profiles.equipped_banner` and `profiles.granted_banners`. Renaming
+`blossom` → `Pink-Blossom` would have changed the id to `pink-blossom` and
+silently unequipped everyone flying it, voiding their grants — with no error
+anywhere. Pass an explicit `id` to keep the stored value:
+
+```js
+{ file: "Pink-Blossom", id: "blossom", name: "Pink Blossom", ... }
+```
+
+`verify:banner-resolution` holds a list of the ids that exist in the database and
+fails if one stops resolving.
+
+## Why JPEG
+
+The artwork is photographic texture, where PNG's losslessness buys nothing
+visible and costs about 6×. Measured on the real files at 2120×720:
+
+| PNG | JPEG q90 | JPEG q82 | WebP q85 |
+| --- | --- | --- | --- |
+| ~3,600 KB | ~490 KB | ~390 KB | ~350 KB |
+
+q90 because the artwork is the product. WebP would save another ~25%; not taken,
+since JPEG is universally supported and the set already fits comfortably. No
+banner uses transparency, so nothing was lost leaving PNG behind.
 
 ## What holds it in place
 
-- `npm run verify:banner-resolution` — source sizes, the upscale cap, and that
-  the art is painted on a descendant layer.
+- `npm run verify:banner-resolution` — every catalogue entry resolves to a real
+  file at the exact path **and case** (Pages is case-sensitive), the file is a
+  genuine image rather than just a name, it is wide enough, shaped like the card,
+  light enough, and no stored id has changed.
 - `browser:banner-art` in `scripts/verify-browser.mjs` — measures the **painted**
-  result in Chromium at 1280px and 360px. Only the browser knows how many source
-  pixels ended up covering how many screen pixels. It also generates a 1600px
-  image in-page and pushes it through the same code path, so the promise that
-  "bigger files just work" is tested before anyone redraws twenty banners.
+  result in Chromium at 1280px and 360px: the card shows the artwork, nothing is
+  blurred, the layer covers the card.
+
+## History
+
+Worth reading before "simplifying" any of this, because both dead ends are the
+obvious thing to try.
+
+The artwork used to be ~265×90. On a ~1060px card that is a **3.9× upscale**, and
+it shipped looking like a rendering fault.
+
+| Attempt | Outcome |
+| --- | --- |
+| `cover` on the small files | The original bug. |
+| `repeat` at native size | **Measured and rejected.** None of the twenty textures wrap; edge seams ran 2–20× each image's own neighbouring-pixel variation, so it draws a visible grid. |
+| Blurred wash of the art | **Rejected in review.** Still read as blurry — deliberate softness and accidental softness are indistinguishable to whoever is looking at it. |
+| Colour field + small sharp copy | Sharp, but it was not the banner. |
+| **Bigger source files** | What actually worked. |
+
+Nothing in CSS invents detail that is not in the file. Only the last row ever
+could have.
 
 ## Known limitations
 
-- The plate assumes the card's right side is free. No image banner currently
-  carries an emblem or a label, which are the only other things that live there;
-  if one ever does, they collide.
-- On a wide card the field is the banner's two colours, not its artwork, so two
-  banners sharing a palette look alike from across the room. The plate is what
-  tells them apart.
-- Image banners get the left-weighted scrim that patterned banners use. Without
-  it a pale palette (Arctic Stripe) put near-white behind the white username.
+- `applyArtFallback()` in `js/ui.js` drops the card back to the banner's two
+  colours if a file fails to load, so a bad file degrades rather than rendering a
+  blank slab. It does not check size — that is a build-time gate now.
+- The Rewards grid renders all twenty at ~8 MB total. Fine today; if the set
+  grows much past this, they want lazy loading or a smaller tile variant.

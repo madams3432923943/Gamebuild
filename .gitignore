@@ -24,3 +24,7 @@ tools/seasons-nfl/
 # machine-written SQL in every clone and every diff to say what the dataset
 # already says.
 db/seed/players-seed.sql
+
+# Full-resolution banner originals. Not committed - 48 MB of source for 8 MB of
+# shipped output. See the header of tools/build-banner-art.mjs.
+tools/banner-source/

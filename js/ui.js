@@ -829,52 +829,39 @@ function setCardMark(card, className, text) {
   el.textContent = text;
 }
 
-/** Artwork at least this wide can fill the identity card outright. The card
- *  tops out around 1060px, so 900px is inside a 1.2x upscale - close enough to
- *  native that it reads sharp, without demanding true 2x from every file.
+/** Whether each artwork URL loaded. Checked once - renderHomeHeader runs on
+ *  every refreshHome(), and re-fetching the same file to ask the same question
+ *  would be waste. `null` while in flight, so a slow load cannot queue a
+ *  second probe for the same URL. */
+const artLoadCache = new Map();
+
+/** Drops the card back to the banner's own two colours when its artwork cannot
+ *  be loaded - the same fallback the Rewards tiles use.
  *
- *  The current banners are ~265px, which is why they cannot. When larger files
- *  are dropped into assets/banners/ this is what notices, with no code change:
- *  see docs/banner-artwork.md for the sizes to supply. */
-const FULL_BLEED_MIN_WIDTH = 900;
-
-/** Intrinsic width per image URL. Measured once - renderHomeHeader runs on
- *  every refreshHome(), and decoding the same PNG each time to ask how wide it
- *  is would be wasteful. `null` while in flight so a slow decode cannot queue
- *  a second one. */
-const artWidthCache = new Map();
-
-/** Marks the card full-bleed once its artwork is big enough to fill it.
- *  Deliberately measured rather than declared per banner: a flag in
- *  js/banners.js would be a second source of truth that can disagree with the
- *  file on disk, and the file is the thing that decides whether it looks good. */
-function applyArtResolution(card, src) {
-  const setFrom = (width) => {
-    // The card may have re-rendered onto a different banner while we decoded.
-    if (card.style.getPropertyValue("--banner-image").includes(src)) {
-      card.classList.toggle("art-hi-res", width >= FULL_BLEED_MIN_WIDTH);
-    }
-  };
-  if (artWidthCache.has(src)) {
-    const known = artWidthCache.get(src);
-    if (known !== null) setFrom(known);
+ *  Worth having rather than trusting the files: the card paints the art on a
+ *  layer over its own background, so without this a missing file leaves an
+ *  empty layer covering the fallback, and the card renders as a blank slab. It
+ *  earned its keep the day a banner was renamed in the browser and its file
+ *  arrived two bytes long.
+ *
+ *  Whether the file is big enough is NOT checked here. That was the job of an
+ *  earlier version, back when the artwork was too small to fill the card and
+ *  the layout had a second treatment to fall back on. There is no second
+ *  treatment now, and a size problem is better caught before it ships:
+ *  scripts/verify-banner-resolution.mjs fails the build for it. */
+function applyArtFallback(card, src) {
+  if (artLoadCache.has(src)) {
+    if (artLoadCache.get(src) === false) card.classList.remove("has-banner-image");
     return;
   }
-  artWidthCache.set(src, null);
+  artLoadCache.set(src, null);
   const probe = new Image();
-  probe.onload = () => {
-    artWidthCache.set(src, probe.naturalWidth);
-    setFrom(probe.naturalWidth);
-  };
-  // A missing or unreadable file drops the card back to the banner's own two
-  // colours, the same fallback the Rewards tiles use. Without this the card
-  // would paint a layer with nothing in it - and this is the state the app is
-  // in for as long as artwork is being replaced, so it has to look deliberate
-  // rather than broken.
+  probe.onload = () => artLoadCache.set(src, true);
   probe.onerror = () => {
-    artWidthCache.set(src, 0);
+    artLoadCache.set(src, false);
+    // The card may have re-rendered onto a different banner while we waited.
     if (card.style.getPropertyValue("--banner-image").includes(src)) {
-      card.classList.remove("has-banner-image", "art-hi-res");
+      card.classList.remove("has-banner-image");
     }
   };
   probe.src = src;
@@ -930,36 +917,21 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     refs.card.classList.toggle("has-banner-image", !!franchise.image);
     // Resolved against the DOCUMENT, not left relative. A relative url() inside
     // a custom property resolves against the STYLESHEET that consumes it, so
-    // "assets/banners/X.png" became "css/assets/banners/X.png" and 404'd - the
+    // "assets/banners/X.jpg" became "css/assets/banners/X.jpg" and 404'd - the
     // card silently fell back to its gradient. The tiles never hit this because
     // they set an <img src>, which resolves against the document. baseURI
     // rather than a leading slash, since Pages serves this from /Gamebuild/.
     if (franchise.image) {
       const src = new URL(franchise.image, document.baseURI).href;
       refs.card.style.setProperty("--banner-image", `url("${src}")`);
-      applyArtResolution(refs.card, src);
+      applyArtFallback(refs.card, src);
     } else {
       refs.card.style.removeProperty("--banner-image");
-      refs.card.classList.remove("art-hi-res");
     }
-    // The banner artwork is roughly 265x90. Stretched across a desktop card it
-    // is a ~3.9x upscale, which is exactly as blurry as it sounds - it shipped
-    // looking like a rendering fault. The art cannot be tiled instead (the
-    // textures do not wrap; measured seams run 2-20x the images' own
-    // neighbouring-pixel variation), and no amount of CSS invents detail that
-    // is not in the file.
-    //
-    // So the card stops asking one small texture to be wallpaper: a heavily
-    // blurred copy becomes the colour field, where softness is obviously the
-    // point, and a second copy is drawn SHARP at close to its native size. The
-    // player sees their banner crisply, and the card keeps its richness.
-    //
-    // Both layers only earn their keep once the card is wide enough for the
-    // upscale to show - see the container query in style.css, which is keyed to
-    // the card's own width rather than the viewport's, because that is what
-    // actually decides the scale factor.
+    // The artwork is the card. It is painted on a layer rather than on the card
+    // itself so that a file which fails to load falls back to the card's own
+    // background instead of covering it - see applyArtFallback above.
     setCardLayer(refs.card, "pb-banner-wash", !!franchise.image);
-    setCardLayer(refs.card, "pb-banner-plate", !!franchise.image);
     if (franchise.art && !franchise.image) {
       refs.card.classList.add(`banner-art-${franchise.art}`);
       refs.card.dataset.bannerArt = franchise.art;
@@ -972,9 +944,8 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     for (const prop of ["--banner-c1", "--banner-c2", "--art-c1", "--art-c2", "--banner-image"]) {
       refs.card.style.removeProperty(prop);
     }
-    refs.card.classList.remove("has-banner-image", "art-hi-res");
+    refs.card.classList.remove("has-banner-image");
     setCardLayer(refs.card, "pb-banner-wash", false);
-    setCardLayer(refs.card, "pb-banner-plate", false);
     delete refs.card.dataset.bannerAbbr;
     delete refs.card.dataset.bannerArt;
   }

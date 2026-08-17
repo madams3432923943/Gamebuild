@@ -1,31 +1,36 @@
 #!/usr/bin/env node
-// How large the banner artwork is allowed to be drawn.
+// Banner artwork: does every banner have a real file, big enough, shaped right?
 //
 // WHY THIS EXISTS
 //
-// The twenty general banners are real PNGs of about 265x90. The home identity
-// card used one as full-bleed wallpaper with `background-size: cover`, which on
-// a desktop-width card is a ~3.9x upscale. It shipped, and it read as a
-// rendering fault rather than as a style - the first thing said about it was
-// "big error here".
+// Two rounds of trouble, and the second one is why the first check below is
+// first.
 //
-// Nothing in CSS invents detail that is not in the file, and tiling is not
-// available either: these textures do not wrap. That is measured, not assumed -
-// see the seam figures below. So the rule is the only one that can hold: never
-// draw the art at more than MAX_UPSCALE, and fill the rest of the card with a
-// blur where softness is obviously deliberate.
+// Round one: the artwork was ~265x90 and the home identity card is ~1060px
+// wide, so it drew at a ~3.9x upscale and shipped looking like a rendering
+// fault. That was fixed by supplying artwork at 2120x720.
 //
-// This file guards the two halves of that. First, that the source art is the
-// size the CSS was written against - if someone drops in bigger or smaller
-// PNGs, the numbers baked into the layout stop meaning anything. Second, that
-// the textures still do not tile, because "just repeat it" is the obvious
-// suggestion and it has already been measured and rejected once.
+// Round two, during that upload: one banner stopped rendering. The file was
+// named Pink-Blossom.png while the catalogue asked for blossom.png, AND the
+// file was two bytes long - GitHub's web "rename" had opened a PNG in its text
+// editor and saved a newline over it. Nothing in the suite noticed either
+// thing. A catalogue entry pointing at a file that does not exist is invisible
+// to every test that only looks at the files present on disk, which is what
+// this file used to do.
 //
-// The real fix, when it is available, is bigger source art. At 1060x360 or so
-// the card could go back to plain `cover` and this whole treatment could be
-// deleted. That is a design commission, not a code change.
+// So the checks run in the order the failures happen:
+//   1. every banner the app asks for actually resolves to a real image
+//   2. it is big enough to fill the card
+//   3. it is shaped like the card, so `cover` does not crop away the picture
+//   4. it is not so heavy that the Rewards grid becomes a download
+//
+// Case matters. GitHub Pages serves from a case-sensitive filesystem while
+// macOS does not, so `Blossom.png` for `blossom.png` works locally and 404s in
+// production. The existence check compares against the real directory listing
+// rather than asking the filesystem, precisely so it cannot be fooled by that.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { FRANCHISES, GENERAL_BANNERS } from "../js/banners.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 const checks = [];
@@ -34,90 +39,200 @@ const add = (title, ok, detail) => checks.push({ title, status: ok ? PASS : FAIL
 const DIR = "assets/banners";
 const CSS = readFileSync("css/style.css", "utf8");
 
-// The widest the home card gets in the app's own layout, measured rather than
-// guessed: the page is capped and the card fills it.
-const CARD_MAX_WIDTH = 1100;
-// Past this the upscale stops reading as softness and starts reading as broken.
-const MAX_UPSCALE = 1.6;
+// The card's own proportions, and how far off a file may be before `cover`
+// starts throwing away a meaningful part of the picture.
+const CARD_ASPECT = 2120 / 720;
+const ASPECT_TOLERANCE = 0.25;
+// Artwork narrower than this cannot fill the card without visible upscaling.
+// There is no longer a fallback treatment for art that misses it - the card
+// simply stretches - so this is a build-time gate rather than a runtime branch.
+const FULL_BLEED_MIN_WIDTH = 900;
+// The Rewards grid renders every banner at once. The uploaded originals came in
+// at 1.1-3.4 MB each, 48 MB in total, which is a download rather than a page.
+const MAX_FILE_KB = 700;
 
-/** PNG dimensions straight out of the IHDR chunk - no image library needed. */
-function pngSize(path) {
-  const head = readFileSync(path).subarray(0, 33);
-  return { width: head.readUInt32BE(16), height: head.readUInt32BE(20) };
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Dimensions straight out of the file's own header - no image library needed,
+ *  and no decode either. Handles both formats because the shipped artwork is
+ *  JPEG while anything hand-added is likely to be PNG.
+ *
+ *  Returns null for anything that is not actually an image, which is the case
+ *  the two-byte file taught us to check: a name is not a picture. */
+function imageInfo(path) {
+  let buf;
+  try {
+    buf = readFileSync(path);
+  } catch {
+    return null;
+  }
+  const bytes = statSync(path).size;
+
+  if (buf.length >= 33 && buf.subarray(0, 8).equals(PNG_MAGIC)) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20), bytes, format: "png" };
+  }
+
+  // JPEG: walk the segment chain to the frame header, which is the only place
+  // the dimensions live. SOF0-SOF15 carry them, except the four markers in that
+  // range that mean something else (DHT, JPG, DAC, and the restart markers).
+  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) return null;
+      const marker = buf[i + 1];
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7), bytes, format: "jpeg" };
+      }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  }
+  return null;
 }
 
-const files = readdirSync(DIR).filter((f) => f.endsWith(".png"));
-const sizes = files.map((f) => ({ f, ...pngSize(`${DIR}/${f}`) }));
+// The real directory listing, used for a case-sensitive membership test.
+const onDisk = new Set(readdirSync(DIR));
 
-// ---- the art is the size the layout was written against ---------------------
-const widths = sizes.map((s) => s.width);
-const minW = Math.min(...widths);
-const maxW = Math.max(...widths);
+// Every banner the APP asks for - the catalogue is the source of truth here,
+// not the folder. A file nobody references is harmless; a reference with no
+// file is a blank banner in production.
+const wanted = [...FRANCHISES, ...GENERAL_BANNERS].filter((b) => b.image);
+
+// ---- 1. every referenced file resolves --------------------------------------
+const missing = [];
+const notPng = [];
+const resolved = [];
+for (const banner of wanted) {
+  const name = banner.image.slice(`${DIR}/`.length);
+  if (!banner.image.startsWith(`${DIR}/`) || !onDisk.has(name)) {
+    missing.push(`${banner.id} -> ${banner.image}`);
+    continue;
+  }
+  const info = imageInfo(banner.image);
+  if (!info) {
+    notPng.push(`${banner.id} -> ${banner.image}`);
+    continue;
+  }
+  resolved.push({ id: banner.id, name, ...info });
+}
+
 add(
-  "Every banner PNG is still the small texture the card was designed around",
-  minW >= 200 && maxW <= 400,
-  `${sizes.length} files, ${minW}-${maxW}px wide. If this fails because the art got BIGGER, ` +
-    `that is good news: re-check whether the wash/plate treatment is still needed at all.`
+  "Every banner the app asks for has a file, at the exact path and case",
+  missing.length === 0,
+  missing.length === 0
+    ? `${wanted.length} referenced banners, all present in ${DIR}/`
+    : `no such file: ${missing.join(", ")} — Pages is case-sensitive even where your laptop is not`
 );
 
-// ---- full-bleed cover is off on wide cards ----------------------------------
-// The actual defect, asserted against the stylesheet. A card 1060px wide
-// showing a 270px image is the 3.9x that got reported.
-const worstUpscale = CARD_MAX_WIDTH / maxW;
 add(
-  "Full-bleed art on a desktop-width card would exceed the upscale limit",
-  worstUpscale > MAX_UPSCALE,
-  `${worstUpscale.toFixed(1)}x at ${CARD_MAX_WIDTH}px - which is why the treatment below exists`
+  "Every one of those files is a real image, not just a name",
+  notPng.length === 0,
+  notPng.length === 0
+    ? `${resolved.length} files carry a valid ${[...new Set(resolved.map((r) => r.format))].join("/")} header`
+    : `present but not an image: ${notPng.join(", ")} — a renamed-in-the-browser binary lands here`
 );
 
-// The container query is the mechanism, so its absence is the regression. A
-// plain string check, because the alternative is parsing CSS to prove a
-// negative; verify-browser.mjs asserts the rendered result.
+// Everything below needs real files to measure, and would otherwise report a
+// second, more confusing failure for the same cause.
+if (missing.length === 0 && notPng.length === 0) {
+  // ---- 2. big enough to fill the card ---------------------------------------
+  const tooSmall = resolved.filter((r) => r.width < FULL_BLEED_MIN_WIDTH);
+  const minW = Math.min(...resolved.map((r) => r.width));
+  add(
+    "Every banner is wide enough to fill the card",
+    tooSmall.length === 0,
+    tooSmall.length === 0
+      ? `narrowest is ${minW}px, over the ${FULL_BLEED_MIN_WIDTH}px full-bleed threshold`
+      : `still on the small-art treatment: ${tooSmall.map((r) => `${r.name} (${r.width}px)`).join(", ")}`
+  );
+
+  // ---- 3. shaped like the card ----------------------------------------------
+  // `cover` crops whatever does not fit. A 1.5:1 file in a 2.94:1 card loses
+  // half its height, and nothing about that is visible from a passing test -
+  // the card looks fine, it is just showing a different picture than the file.
+  const cropped = resolved
+    .map((r) => {
+      const aspect = r.width / r.height;
+      const loss = aspect > CARD_ASPECT ? 1 - CARD_ASPECT / aspect : 1 - aspect / CARD_ASPECT;
+      return { ...r, aspect, lossPct: Math.round(loss * 100) };
+    })
+    .filter((r) => Math.abs(r.aspect - CARD_ASPECT) > ASPECT_TOLERANCE)
+    .sort((a, b) => b.lossPct - a.lossPct);
+  add(
+    "Every banner is shaped like the card, so `cover` crops nothing that matters",
+    cropped.length === 0,
+    cropped.length === 0
+      ? `all ${resolved.length} within ${ASPECT_TOLERANCE} of ${CARD_ASPECT.toFixed(2)}:1`
+      : `cropped at render: ${cropped.slice(0, 5).map((r) => `${r.name} ${r.aspect.toFixed(2)}:1 loses ${r.lossPct}%`).join(", ")}`
+  );
+
+  // ---- 4. light enough to ship ----------------------------------------------
+  const heavy = resolved.filter((r) => r.bytes / 1024 > MAX_FILE_KB).sort((a, b) => b.bytes - a.bytes);
+  const totalMb = resolved.reduce((sum, r) => sum + r.bytes, 0) / 1048576;
+  add(
+    "The banner set is light enough that the Rewards grid is a page, not a download",
+    heavy.length === 0,
+    heavy.length === 0
+      ? `${resolved.length} files, ${totalMb.toFixed(1)} MB total, largest ${Math.round(Math.max(...resolved.map((r) => r.bytes)) / 1024)} KB`
+      : `over ${MAX_FILE_KB} KB: ${heavy.slice(0, 5).map((r) => `${r.name} ${Math.round(r.bytes / 1024)} KB`).join(", ")} (${totalMb.toFixed(1)} MB total)`
+  );
+}
+
+// ---- ids are persisted, so they cannot follow filenames -------------------
+// The trap this nearly fell into. A banner's id is derived from its FILENAME,
+// and profiles.equipped_banner and profiles.granted_banners store that id. So
+// renaming blossom.png to Pink-Blossom.png would have changed the id to
+// "pink-blossom" and, with no error anywhere, unequipped every player flying it
+// and voided their grant - a data migration disguised as a file rename.
 //
-// The art must be painted on a DESCENDANT of the card, not on the card itself.
-// That is not a style preference: an element cannot match a container query on
-// itself, so art painted on the card ignores the query entirely and stays
-// stretched. It was written the wrong way round first and the browser check is
-// what caught it.
+// bannerBase() now accepts an explicit `id` override for exactly that case.
+// This list is the contract: these ids exist in the database, so they may be
+// ADDED to but never renamed or removed without migrating those columns first.
+const PERSISTED_IDS = [
+  "rookie", "forest-pixel", "desert-wind", "reptile", "blossom", "purple-wind",
+  "blue-wave", "arctic-stripe", "carbon-fiber", "gold", "crystal",
+  "wild-fur", "skulls", "inferno",
+  "volcanic", "crimson-splat", "good-luck",
+  "woodland-camo", "hunter", "stealth", "urban-camo",
+];
+const liveIds = new Set(GENERAL_BANNERS.map((b) => b.id));
+const vanished = PERSISTED_IDS.filter((id) => !liveIds.has(id));
 add(
-  "The artwork is painted on a layer inside the card, where the container query can reach it",
-  /@container \(min-width: 480px\)/.test(CSS) &&
-    /\.player-banner\.has-banner-image > \.pb-banner-wash \{[^}]*background-image: var\(--banner-image\)/.test(CSS) &&
-    !/\.player-banner\.has-banner-image \{\s*\n\s*background-image:/.test(CSS),
-  "the card itself paints no artwork - .pb-banner-wash does, and it is a descendant"
+  "No banner id has changed out from under the database",
+  vanished.length === 0,
+  vanished.length === 0
+    ? `all ${PERSISTED_IDS.length} stored ids still resolve`
+    : `these ids are stored in equipped_banner/granted_banners and no longer exist: ${vanished.join(", ")}. ` +
+      `Renaming a file renames its id unless bannerBase() is given an explicit \`id\`.`
 );
 
+// ---- the CSS side -----------------------------------------------------------
+// The full-bleed path is what all of the above is in service of. It is set by
+// applyArtResolution() in js/ui.js measuring the file, so the stylesheet has to
+// have somewhere for that measurement to land.
 add(
-  "The sharp plate is capped near native size",
-  /width: min\(351px, 38%\)/.test(CSS),
-  `351px against ${maxW}px of source is ${(351 / maxW).toFixed(2)}x, inside the ${MAX_UPSCALE}x limit`
+  "The card paints the artwork itself, not a stand-in for it",
+  /\.player-banner\.has-banner-image > \.pb-banner-wash \{[^}]*background-image: var\(--banner-image\)/.test(CSS) &&
+    !/linear-gradient\(120deg, var\(--banner-c1\)/.test(CSS) &&
+    !/\.pb-banner-plate/.test(CSS),
+  "no colour field, no plate - both were workarounds for artwork that was too small"
 );
 
-// The layers are absolutely positioned decoration inside a flex column. Left
-// in the flow they would each take the card's 0.9rem gap and shove its
-// contents apart on every phone, where the treatment is not even active.
-// The layers are absolutely positioned decoration inside a flex column. Left
-// in the flow they would take the card's 0.9rem gap and shove its contents
-// apart - including on banners that have no artwork at all.
+// The art must be painted on a DESCENDANT of the card, not on the card itself:
+// an element cannot match a container query on itself, so art painted on the
+// card ignores the query entirely. Written the wrong way round first, and the
+// browser check is what caught it.
+// The art goes on a LAYER, never on .player-banner itself. Originally that was
+// so a container query could reach it; the query is gone, but the reason to
+// keep the layer is now different and just as real - the card's own background
+// is the fallback a missing file falls back TO, and painting the artwork
+// directly onto the card would cover it.
 add(
-  "The layers stay out of the flex flow until they have artwork to draw",
-  /\.pb-banner-wash,\s*\n\.pb-banner-plate \{\s*\n(\s*\/\*[\s\S]*?\*\/\s*\n)?\s*display: none;/.test(CSS),
-  "display:none by default; only .has-banner-image turns them on"
+  "The artwork is painted on a layer, leaving the card's own background as the fallback",
+  !/\.player-banner\.has-banner-image \{\s*\n\s*background-image:/.test(CSS),
+  "a missing file drops .has-banner-image and the card's own background shows through"
 );
 
-// ---- the textures still do not tile ----------------------------------------
-// Guarding the rejected alternative. Measured with Chromium's canvas in
-// tools/, and recorded here as the conclusion: seam difference at the wrap
-// ran 2-20x each image's own neighbouring-pixel difference, so `repeat` draws
-// a visible grid. If someone commissions seamless art, THIS is the check to
-// re-run and delete - not the treatment to quietly turn off.
-add(
-  "Tiling is documented as measured-and-rejected, not merely untried",
-  /Tiling was measured and rejected/.test(CSS) && /seams/.test(CSS),
-  "the stylesheet says why repeat is wrong, so the next person does not re-litigate it"
-);
-
-console.log(renderSection("Banner artwork: how far a 265x90 texture may be stretched"));
+console.log(renderSection("Banner artwork: real files, big enough, shaped like the card"));
 for (const c of checks) console.log(renderCheck(c));
 const { counts, ok } = summarize(checks);
 console.log(`\n  passed ${counts[PASS]}  failed ${counts[FAIL]}\n`);

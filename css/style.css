@@ -1771,22 +1771,33 @@ table.box-table th, table.history-table th {
    an <img> - this card is a layout container with the player's name, badges
    and stats on top of it.
 
-   It is painted on a LAYER (.pb-banner-wash) rather than on the card itself,
-   and that is deliberate rather than incidental: the rules below have to know
-   how wide the card is, and an element cannot match a container query on
-   itself - only its descendants can. Putting the art on the card meant
-   `background-image: none` inside the query silently never applied, which is
-   exactly the bug the browser check caught. Every rule here is a descendant
-   rule so that the one mechanism works throughout. */
-.pb-banner-wash,
-.pb-banner-plate {
+   It is painted on a LAYER (.pb-banner-wash) rather than on the card itself.
+   That was originally so a container query could switch treatments by the
+   card's width, and an element cannot match a container query on itself - only
+   its descendants can. The query is gone now that the artwork fills the card at
+   every width, but the layer stays: the card's own background is its panel
+   fallback, and painting over it would remove the thing a missing file falls
+   back to.
+
+   HISTORY, because the obvious "simplification" here is to go back to what was
+   tried first. The artwork used to be ~265x90, which on a ~1060px card is a
+   3.9x upscale that shipped looking like a rendering fault. Two workarounds
+   came and went - a blurred wash (still read as "blurry": deliberate softness
+   and accidental softness are indistinguishable to whoever is looking) and a
+   colour field plus a small sharp copy of the art. Both are deleted. Tiling was
+   measured and rejected too: the textures do not wrap, with edge seams 2-20x
+   their own neighbouring-pixel variation.
+
+   What actually fixed it was 2120x720 source files. If undersized art ever
+   appears again, applyArtResolution() in js/ui.js is what notices - see
+   docs/banner-artwork.md. */
+.pb-banner-wash {
   /* Off unless the banner actually has artwork. Off is the important half: the
      card is a flex column, so an unstyled div would not merely be invisible -
      it would take the card's 0.9rem gap and push the contents apart. */
   display: none;
 }
 
-/* Narrow cards: the art at 1:1-ish, which is what it was drawn for. */
 .player-banner.has-banner-image > .pb-banner-wash {
   display: block;
   position: absolute;
@@ -1796,91 +1807,6 @@ table.box-table th, table.history-table th {
   background-size: cover;
   background-position: center;
   pointer-events: none;
-}
-
-/* ---- Wide cards: colour field + sharp plate ----
-   The banner PNGs are about 265x90. `cover` on a phone-width card is close to
-   a 1:1 render and looks right; on a desktop card it is a ~3.9x upscale and
-   looks broken - which is how it shipped. 480cqw is the point where the
-   upscale passes ~1.8x and starts to read as a fault rather than as softness.
-
-   NOTHING ON THIS CARD IS BLURRED, and that is the requirement rather than a
-   preference. A blurred wash of the art was tried first: it is what a lot of
-   apps do with undersized artwork, and it still read as "the banner is blurry"
-   to the person looking at it. Soft-on-purpose and soft-by-accident are not
-   distinguishable to someone who just wants their banner to look sharp.
-
-   So the field is built from the banner's own two colours - pure CSS, so it is
-   sharp at any size - and the artwork appears once, at no more than 1.3x
-   native, where it can be looked at properly.
-
-   Tiling was measured and rejected: none of the twenty textures wrap, with
-   edge seams running 2-20x their own neighbouring-pixel variation, so `repeat`
-   draws a visible grid. The only honest way to put the art back across the
-   whole card is bigger source files - see docs/banner-artwork.md. */
-@container (min-width: 480px) {
-  /* The same layer, now painting colour instead of an enlarged photograph.
-     --banner-c1/--banner-c2 are the equipped banner's own two colours, set
-     inline by renderHomeHeader, so the card still belongs to the banner. The
-     highlight and the dark floor are what stop it reading as a flat swatch. */
-  .player-banner.has-banner-image > .pb-banner-wash {
-    background-image:
-      radial-gradient(120% 160% at 12% 0%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 55%),
-      linear-gradient(120deg, var(--banner-c1) 0%, var(--banner-c2) 78%, #05070c 100%);
-  }
-
-  /* ---- What this is all waiting for ----
-     Artwork wide enough to fill the card goes back to being the card, which is
-     what a banner is supposed to be. The colour field and the plate are both
-     workarounds for source files that are too small; neither is the intent.
-
-     `art-hi-res` is set by applyArtResolution() in js/ui.js, which measures the
-     file's own intrinsic width - so replacing the PNGs in assets/banners/ with
-     larger ones is the entire change. No flag to flip, no code to edit. */
-  .player-banner.has-banner-image.art-hi-res > .pb-banner-wash {
-    background-image: var(--banner-image);
-  }
-
-  .player-banner.has-banner-image.art-hi-res > .pb-banner-plate {
-    display: none;
-  }
-
-  /* The plate sits over the right half, and the equipped-banner strip spans
-     the card - "Flying Pink Blossom" ran straight underneath it. Capped only
-     while the plate is actually there, so the full-bleed card above and every
-     phone keep the whole width. */
-  .player-banner.has-banner-image:not(.art-hi-res) .equipped-banner {
-    max-width: 58%;
-  }
-
-  /* The banner itself, drawn at 1.3x native at most - close enough to sharp
-     that the texture reads, large enough to be the thing you notice. Sits
-     above the card's ::after scrim (z-index 0) so the art keeps its contrast
-     while the text side stays darkened. No image banner carries an emblem or
-     a label, so this corner is free - if one ever does, they collide here. */
-  .player-banner.has-banner-image > .pb-banner-plate {
-    display: block;
-    position: absolute;
-    z-index: 1;
-    right: 1.6rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: min(351px, 38%);
-    aspect-ratio: 270 / 92;
-    /* The card is not always as tall as the signed-in one: before the stats
-       rows render it is barely taller than the plate, and without this the art
-       runs flush into both edges. Cropping a texture costs nothing - cropping
-       is what `cover` is for - whereas overflowing the card looks like a
-       mistake. */
-    max-height: calc(100% - 1.6rem);
-    border-radius: 10px;
-    background-image: var(--banner-image);
-    background-size: cover;
-    background-position: center;
-    border: 1px solid rgba(255, 255, 255, 0.32);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    pointer-events: none;
-  }
 }
 
 .player-banner.has-banner {
