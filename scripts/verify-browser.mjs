@@ -1409,6 +1409,102 @@ const TABS = [
 
 const ERROR_COPY = /couldn't load|could not load|something went wrong|failed to load/i;
 
+/** The banner PNGs are ~265x90. Drawn full-bleed on a desktop-width identity
+ *  card that is a ~3.9x upscale, and it shipped looking like a rendering
+ *  fault. The fix is a blurred wash plus a copy of the art drawn sharp near
+ *  native size, switched on by a container query on the card's own width.
+ *
+ *  This measures the PAINTED result rather than the stylesheet: what matters
+ *  is how many source pixels ended up covering how many screen pixels, and
+ *  only the browser knows that. Asserted at a desktop width, where the
+ *  treatment is active, and at 360px, where it must stay OFF - two empty divs
+ *  left in a flex column would each take the card's gap and push its contents
+ *  apart on every phone. */
+const MAX_ART_UPSCALE = 1.6;
+const NARROWEST_BANNER_PNG = 247;
+
+async function auditBannerResolution(page, log) {
+  const read = () =>
+    page.evaluate(() => {
+      const card = document.querySelector(".player-banner");
+      if (!card) return { state: "no-card" };
+      // Applied to the REAL card in the real page when the signed-in account
+      // is not flying an image banner, so the check exercises the shipped
+      // stylesheet either way rather than silently skipping.
+      const applied = card.classList.contains("has-banner-image");
+      if (!applied) {
+        card.classList.add("has-banner", "has-banner-image");
+        card.style.setProperty(
+          "--banner-image",
+          `url("${new URL("assets/banners/Gold.png", document.baseURI).href}")`
+        );
+        for (const cls of ["pb-banner-wash", "pb-banner-plate"]) {
+          if (!card.querySelector(`.${cls}`)) {
+            const el = document.createElement("div");
+            el.className = cls;
+            card.prepend(el);
+          }
+        }
+      }
+      const plate = card.querySelector(".pb-banner-plate");
+      const wash = card.querySelector(".pb-banner-wash");
+      return {
+        state: applied ? "equipped" : "synthesised",
+        cardWidth: Math.round(card.getBoundingClientRect().width),
+        cardBackground: getComputedStyle(card).backgroundImage,
+        plateWidth: plate ? Math.round(plate.getBoundingClientRect().width) : 0,
+        plateDisplay: plate ? getComputedStyle(plate).display : "absent",
+        washDisplay: wash ? getComputedStyle(wash).display : "absent",
+        washFilter: wash ? getComputedStyle(wash).filter : "none",
+      };
+    });
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await sleep(300);
+  const wide = await read();
+  await page.setViewportSize({ width: 360, height: 800 });
+  await sleep(300);
+  const narrow = await read();
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  const problems = [];
+  if (wide.state === "no-card") problems.push("the home identity card was not on screen at all");
+  else {
+    // The defect itself: one small texture stretched sharp across the whole
+    // card. Blurred it is a wash and fine; unblurred at this width it is the
+    // ~4x upscale that got reported as a rendering fault.
+    if (!/blur/.test(wide.washFilter)) {
+      problems.push(
+        `at ${wide.cardWidth}px the art fills the card unblurred ` +
+          `(~${(wide.cardWidth / NARROWEST_BANNER_PNG).toFixed(1)}x upscale, filter: ${wide.washFilter})`
+      );
+    }
+    if (wide.plateDisplay === "none" || !wide.plateWidth) {
+      problems.push("the sharp plate is not drawn on a desktop-width card");
+    } else {
+      const upscale = wide.plateWidth / NARROWEST_BANNER_PNG;
+      if (upscale > MAX_ART_UPSCALE) {
+        problems.push(`the plate is drawn at ${upscale.toFixed(2)}x, past the ${MAX_ART_UPSCALE}x limit`);
+      }
+    }
+    // And the other half: on a phone the card is near enough 1:1 that the art
+    // belongs full-bleed and sharp. The plate would only crowd it.
+    if (narrow.plateDisplay !== "none") problems.push(`the plate is laid out at 360px (display: ${narrow.plateDisplay})`);
+    if (narrow.washDisplay === "none") problems.push("the art is not painted at all at 360px");
+    if (/blur/.test(narrow.washFilter)) problems.push(`the art is blurred at 360px, where it does not need to be`);
+  }
+
+  log(`  banner art: ${wide.cardWidth}px card, plate ${wide.plateWidth}px, ${wide.state}`);
+  return check("browser:banner-art", "Banner artwork is never stretched past its resolution", problems.length ? FAIL : PASS, {
+    detail: problems.length ? problems.join("\n") : undefined,
+    table: [
+      ["width", "card bg", "plate", "wash", "source"],
+      [`${wide.cardWidth}px`, wide.cardBackground === "none" ? "none" : "FULL-BLEED", `${wide.plateWidth}px`, wide.washFilter, wide.state],
+      [`${narrow.cardWidth}px`, narrow.cardBackground === "none" ? "none" : "cover", narrow.plateDisplay, narrow.washDisplay, narrow.state],
+    ],
+  });
+}
+
 async function auditTabs(page, log, viewports, fixedViewport = false) {
   const out = [];
   const rows = [["tab", "viewport", "rendered", "error copy", "escaping", "overlap", "h-overflow"]];
@@ -1473,6 +1569,8 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
   if (!fixedViewport) await page.setViewportSize({ width: 1280, height: 900 });
   await page.locator("#nav-play").click().catch(() => {});
   await page.locator("#screen-home:not(.hidden)").waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
+
+  if (!fixedViewport) out.push(await auditBannerResolution(page, log));
 
   out.push(
     check("browser:tabs", "Profile, Rewards and Squads load at desktop and phone widths", problems.length ? FAIL : PASS, {

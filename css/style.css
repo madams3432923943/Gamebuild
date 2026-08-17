@@ -1760,16 +1760,93 @@ table.box-table th, table.history-table th {
   gap: 0.9rem;
   position: relative;
   overflow: hidden;
+  /* So the artwork rules below can ask how wide THIS CARD is. The viewport is
+     the wrong question: what blurs the art is the card's width divided by the
+     image's, and the card is not the viewport. */
+  container-type: inline-size;
 }
 
-/* The equipped banner's artwork as the whole card's background. A background
-   rather than an <img> because this card is a layout container with the
-   player's name, badges and stats on top - the art is wallpaper, not content.
-   The gradient stays underneath for the same fallback reason as the tiles. */
-.player-banner.has-banner-image {
+/* ---- The equipped banner's artwork ----
+   The art is wallpaper, not content, so it is painted rather than marked up as
+   an <img> - this card is a layout container with the player's name, badges
+   and stats on top of it.
+
+   It is painted on a LAYER (.pb-banner-wash) rather than on the card itself,
+   and that is deliberate rather than incidental: the rules below have to know
+   how wide the card is, and an element cannot match a container query on
+   itself - only its descendants can. Putting the art on the card meant
+   `background-image: none` inside the query silently never applied, which is
+   exactly the bug the browser check caught. Every rule here is a descendant
+   rule so that the one mechanism works throughout. */
+.pb-banner-wash,
+.pb-banner-plate {
+  /* Off unless the banner actually has artwork. Off is the important half: the
+     card is a flex column, so an unstyled div would not merely be invisible -
+     it would take the card's 0.9rem gap and push the contents apart. */
+  display: none;
+}
+
+/* Narrow cards: the art at 1:1-ish, which is what it was drawn for. */
+.player-banner.has-banner-image > .pb-banner-wash {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   background-image: var(--banner-image);
   background-size: cover;
   background-position: center;
+  pointer-events: none;
+}
+
+/* ---- Wide cards: wash + sharp plate ----
+   The banner PNGs are about 265x90. `cover` on a phone-width card is close to
+   a 1:1 render and looks right; on a desktop card it is a ~3.9x upscale and
+   looks broken - which is how it shipped. 480cqw is the point where the
+   upscale passes ~1.8x and starts to read as a fault rather than as softness.
+
+   Tiling was measured and rejected: none of the twenty textures wrap, with
+   edge seams running 2-20x their own neighbouring-pixel variation, so `repeat`
+   draws a visible grid. The only honest fixes are bigger source art (see
+   docs/banner-artwork.md) or not asking a small texture to fill a large area.
+   This is the second. */
+@container (min-width: 480px) {
+  /* The same layer, now blurred hard enough to read as a deliberate wash of
+     the banner's own colours rather than a photograph out of focus. Inset past
+     the card's edges so the blur has real pixels to sample instead of fading
+     out at the border. */
+  .player-banner.has-banner-image > .pb-banner-wash {
+    inset: -2.5rem;
+    filter: blur(26px) saturate(1.12);
+  }
+
+  /* The banner itself, drawn at 1.3x native at most - close enough to sharp
+     that the texture reads, large enough to be the thing you notice. Sits
+     above the card's ::after scrim (z-index 0) so the art keeps its contrast
+     while the text side stays darkened. No image banner carries an emblem or
+     a label, so this corner is free - if one ever does, they collide here. */
+  .player-banner.has-banner-image > .pb-banner-plate {
+    display: block;
+    position: absolute;
+    z-index: 1;
+    right: 1.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: min(351px, 38%);
+    aspect-ratio: 270 / 92;
+    /* The card is not always as tall as the signed-in one: before the stats
+       rows render it is barely taller than the plate, and without this the art
+       runs flush into both edges. Cropping a texture costs nothing - cropping
+       is what `cover` is for - whereas overflowing the card looks like a
+       mistake. */
+    max-height: calc(100% - 1.6rem);
+    border-radius: 10px;
+    background-image: var(--banner-image);
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
 }
 
 .player-banner.has-banner {

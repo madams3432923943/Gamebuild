@@ -829,6 +829,28 @@ function setCardMark(card, className, text) {
   el.textContent = text;
 }
 
+/** Adds or removes one of the card's background layers. Reused rather than
+ *  recreated for the same reason as setCardMark: this runs on every
+ *  refreshHome(), and appending would stack a new layer per refresh. */
+function setCardLayer(card, className, on) {
+  let el = card.querySelector(`.${className}`);
+  if (!on) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("div");
+    el.className = className;
+    // Decoration, not content. The card already announces the equipped banner
+    // in text, so a screen reader gains nothing from two empty divs.
+    el.setAttribute("aria-hidden", "true");
+    // First, so the layers paint under the name, badges and stats rather than
+    // over them - the card's children are z-index 1.
+    card.prepend(el);
+  }
+  return el;
+}
+
 export function renderHomeHeader(refs, profile, rankInfo) {
   refs.username.textContent = profile.username || "Player";
 
@@ -866,6 +888,24 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     } else {
       refs.card.style.removeProperty("--banner-image");
     }
+    // The banner artwork is roughly 265x90. Stretched across a desktop card it
+    // is a ~3.9x upscale, which is exactly as blurry as it sounds - it shipped
+    // looking like a rendering fault. The art cannot be tiled instead (the
+    // textures do not wrap; measured seams run 2-20x the images' own
+    // neighbouring-pixel variation), and no amount of CSS invents detail that
+    // is not in the file.
+    //
+    // So the card stops asking one small texture to be wallpaper: a heavily
+    // blurred copy becomes the colour field, where softness is obviously the
+    // point, and a second copy is drawn SHARP at close to its native size. The
+    // player sees their banner crisply, and the card keeps its richness.
+    //
+    // Both layers only earn their keep once the card is wide enough for the
+    // upscale to show - see the container query in style.css, which is keyed to
+    // the card's own width rather than the viewport's, because that is what
+    // actually decides the scale factor.
+    setCardLayer(refs.card, "pb-banner-wash", !!franchise.image);
+    setCardLayer(refs.card, "pb-banner-plate", !!franchise.image);
     if (franchise.art && !franchise.image) {
       refs.card.classList.add(`banner-art-${franchise.art}`);
       refs.card.dataset.bannerArt = franchise.art;
@@ -879,6 +919,8 @@ export function renderHomeHeader(refs, profile, rankInfo) {
       refs.card.style.removeProperty(prop);
     }
     refs.card.classList.remove("has-banner-image");
+    setCardLayer(refs.card, "pb-banner-wash", false);
+    setCardLayer(refs.card, "pb-banner-plate", false);
     delete refs.card.dataset.bannerAbbr;
     delete refs.card.dataset.bannerArt;
   }
