@@ -1,3 +1,4 @@
+import { statsKey } from "./sports/index.js";
 // Badge catalog. Modeled on NBA 2K badges: a badge isn't just earned, it
 // *ranks up* through tiers as you keep playing, so there's always a next
 // notch rather than a one-time unlock that goes dead.
@@ -18,9 +19,24 @@ export const BADGE_TIERS = [
 
 /** Career counting stats accumulate across every game you've played.
  * `personalBests` only ever holds single-game highs, so these are tracked
- * separately (profile.careerTotals). */
-const career = (key) => (p) => (p.careerTotals && p.careerTotals[key]) || 0;
-const bestInGame = (key) => (p) => (p.personalBests[key] && p.personalBests[key].value) || 0;
+ * separately (profile.careerTotals).
+ *
+ * BOTH MAPS ARE NAMESPACED BY SPORT, and for a long time neither of these
+ * helpers knew it. profile.js writes career totals and personal bests under
+ * statsKey(sport, key) - bare for basketball, `nfl:` prefixed for football -
+ * while these read the bare key. So basketball worked, football silently read
+ * undefined, and all twenty NFL badges sat at zero no matter how much football
+ * anybody played. The stats were being recorded correctly the whole time;
+ * nothing was looking at them.
+ *
+ * The sport is threaded in from the badge itself rather than passed at each
+ * call site, so a badge can only ever read its own sport's numbers and a future
+ * sport cannot be added with this bug re-introduced by omission. */
+const career = (key) => (p, sport) => (p.careerTotals && p.careerTotals[statsKey(sport, key)]) || 0;
+const bestInGame = (key) => (p, sport) => {
+  const record = p.personalBests && p.personalBests[statsKey(sport, key)];
+  return (record && record.value) || 0;
+};
 
 export const BADGES = [
   // ---- FOOTBALL ------------------------------------------------------------
@@ -370,7 +386,7 @@ export const BADGES = [
     icon: "😈",
     blurb: "Career steals and blocks combined",
     unit: "stops",
-    value: (p) => career("stl")(p) + career("blk")(p),
+    value: (p, sport) => career("stl")(p, sport) + career("blk")(p, sport),
     thresholds: [100, 500, 1500, 4000],
   },
   {
@@ -380,7 +396,7 @@ export const BADGES = [
     icon: "🔄",
     blurb: "Career points, rebounds and assists combined",
     unit: "counted stats",
-    value: (p) => career("pts")(p) + career("reb")(p) + career("ast")(p),
+    value: (p, sport) => career("pts")(p, sport) + career("reb")(p, sport) + career("ast")(p, sport),
     thresholds: [1000, 6000, 18000, 50000],
   },
   {
@@ -390,7 +406,7 @@ export const BADGES = [
     icon: "🧰",
     blurb: "Your lowest single-game high across all five stats - rewards being good everywhere, not just one column",
     unit: "in every stat",
-    value: (p) => Math.min(...["pts", "reb", "ast", "stl", "blk"].map((k) => bestInGame(k)(p))),
+    value: (p, sport) => Math.min(...["pts", "reb", "ast", "stl", "blk"].map((k) => bestInGame(k)(p, sport))),
     thresholds: [3, 6, 9, 12],
   },
 
@@ -461,7 +477,10 @@ export const BADGES = [
  * indexes BADGE_TIERS. `next` is null once Hall of Fame is reached.
  */
 export function badgeProgress(badge, profile) {
-  const value = badge.value(profile);
+  // The badge's OWN sport, so career() and bestInGame() look in the right
+  // namespace. See the note on those helpers for what happened when they did
+  // not know which sport they were counting.
+  const value = badge.value(profile, badge.sport);
   let tierIndex = -1;
   for (let i = 0; i < badge.thresholds.length; i++) {
     if (value >= badge.thresholds[i]) tierIndex = i;

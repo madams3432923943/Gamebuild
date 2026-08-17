@@ -23,6 +23,7 @@
 // from two different sports may ever produce the same string.
 
 import { eraRecordKey, statsKey, SPORTS, DEFAULT_SPORT_ID } from "../js/sports/index.js";
+import { badgeSummary } from "../js/badges.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 const checks = [];
@@ -123,7 +124,66 @@ add(
   ids.join(", ")
 );
 
-console.log(renderSection("Cross-sport leakage: era records, personal bests, ratings"));
+// ---- badges READ the namespace they are written under ----------------------
+// The gap this file had, found the hard way. The checks above prove statsKey and
+// eraRecordKey produce distinct keys. They said nothing about whether anything
+// READS through them - and js/badges.js did not. Career totals and personal
+// bests are written under statsKey(sport, key), the badge helpers looked up the
+// bare key, and so all twenty NFL badges sat at zero through every football game
+// ever played while the stats themselves recorded perfectly.
+//
+// A key function that is correct and unused is indistinguishable from a missing
+// one, so the property is now asserted end to end: a profile holding ONLY one
+// sport's numbers must earn that sport's badges and NONE of the other's.
+for (const sport of SPORTS.filter((s) => s.live)) {
+  const other = SPORTS.find((s) => s.live && s.id !== sport.id);
+  if (!other) continue;
+
+  // Deliberately enormous, so "earned nothing" can only mean the lookup missed -
+  // never that the thresholds were not reached.
+  const HUGE = 1e6;
+  const profileFor = (which) => {
+    const careerTotals = {};
+    const personalBests = {};
+    for (const key of which.lineKeys || []) {
+      careerTotals[statsKey(which.id, key)] = HUGE;
+      personalBests[statsKey(which.id, key)] = { value: HUGE };
+    }
+    for (const key of Object.keys(which.statLabels || {})) {
+      careerTotals[statsKey(which.id, key)] = HUGE;
+      personalBests[statsKey(which.id, key)] = { value: HUGE };
+    }
+    // Zeroed, so only the stat namespace can move a badge - the win-count and
+    // draft badges would otherwise mask a broken stat lookup.
+    return {
+      careerTotals,
+      personalBests,
+      draftCounts: {},
+      history: [],
+      onlineWins: 0, onlineLosses: 0, offlineWins: 0, offlineLosses: 0,
+    };
+  };
+
+  const own = badgeSummary(profileFor(sport), sport.id);
+  add(
+    `${sport.id.toUpperCase()} badges read ${sport.id.toUpperCase()} career stats`,
+    own.earned > 0,
+    own.earned > 0
+      ? `${own.earned} of ${own.total} earned from ${sport.id}-namespaced stats`
+      : `NONE of ${own.total} earned despite maximal ${sport.id} stats - the badge helpers are reading the wrong namespace`
+  );
+
+  const foreign = badgeSummary(profileFor(other), sport.id);
+  add(
+    `${other.id.toUpperCase()} stats never earn ${sport.id.toUpperCase()} badges`,
+    foreign.earned === 0,
+    foreign.earned === 0
+      ? `${other.id} data leaves all ${foreign.total} ${sport.id} badges untouched`
+      : `${foreign.earned} ${sport.id} badges earned from ${other.id} data`
+  );
+}
+
+console.log(renderSection("Cross-sport leakage: era records, personal bests, ratings, badges"));
 for (const c of checks) console.log(renderCheck(c));
 const { counts, ok } = summarize(checks);
 console.log(`\n  passed ${counts[PASS]}  failed ${counts[FAIL]}\n`);
