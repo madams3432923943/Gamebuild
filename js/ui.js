@@ -2733,6 +2733,44 @@ function calloutAt(refs, mark, event, opts) {
 }
 
 /**
+ * The buzzer overlay: how each team shot, by area of the floor.
+ *
+ * This is what turns the settled chart from something you look at into
+ * something you READ. A hundred and forty markers tell you where shots came
+ * from; "RIM 7/15 47%" tells you whether they went in, which is the question.
+ *
+ * Placed on each team's own half at the distance the band describes - rim
+ * nearest the basket, threes furthest out - so the number sits over the marks
+ * it summarises rather than in a legend somewhere else. Side B mirrors, exactly
+ * as its markers do.
+ *
+ * Makes/attempts lead and the percentage follows: 3/7 and 30/70 are both 43%
+ * and are not remotely the same game.
+ */
+export function renderZoneSummary(refs, summary) {
+  if (!refs || !summary) return 0;
+  let drawn = 0;
+  for (const side of ["a", "b"]) {
+    for (const band of summary[side] || []) {
+      const el = document.createElement("div");
+      el.className = `zone-stat zone-stat-${side}`;
+      el.innerHTML =
+        `<span class="zone-stat-label">${escapeHtml(band.label)}</span>` +
+        `<span class="zone-stat-line">${band.makes}/${band.attempts}</span>` +
+        `<span class="zone-stat-pct">${band.pct}%</span>`;
+      // Same mapping the markers use: side A works out from the left baseline,
+      // side B from the right.
+      el.style.left = `${(side === "a" ? band.at.x : 1 - band.at.x) * 100}%`;
+      el.style.top = `${band.at.y * 100}%`;
+      refs.layer.appendChild(el);
+      requestAnimationFrame(() => el.classList.add("zone-stat-in"));
+      drawn += 1;
+    }
+  }
+  return drawn;
+}
+
+/**
  * A banner for the moments the ledger says are moments - a run, a lead change,
  * the last shot of a quarter. Sits over the court's centre rather than on the
  * shot, because it is about the GAME rather than about one attempt.

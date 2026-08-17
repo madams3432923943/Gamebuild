@@ -2684,9 +2684,10 @@ table.box-table th, table.history-table th {
 .court {
   position: relative;
   width: 100%;
-  /* A basketball court is 94x50 feet. Squashed slightly - a true 1.88 is very
-     letterboxed on a phone - but kept wide enough to read as a court. */
-  aspect-ratio: 1.8;
+  /* A basketball court is 94x50 feet - 1.88. Drawn at very close to true,
+     because the squashed 1.8 made the keys look tall and the arcs look wrong,
+     and letterboxing on a phone is the lesser problem. */
+  aspect-ratio: 1.88;
   margin: 0 auto 0.75rem;
   border-radius: 10px;
   /* The floor. Warm and dark rather than brown-realistic: this sits inside a
@@ -2706,9 +2707,11 @@ table.box-table th, table.history-table th {
    the element rather than through a 0.5 parent, because these are what make
    the shot positions legible - a marker means nothing without the arc it is
    inside or outside of. */
+/* Thinner than 2px. At this size 2px reads as a diagram; 1.5 reads as a
+   court, and the marks are what should carry weight on this surface. */
 .court span {
   position: absolute;
-  border: 2px solid rgba(var(--accent-rgb), 0.42);
+  border: 1.5px solid rgba(var(--accent-rgb), 0.38);
 }
 
 .court-circle {
@@ -2728,13 +2731,16 @@ table.box-table th, table.history-table th {
   border-width: 0 0 0 2px;
 }
 
-/* The paint. Both ends, opening off their own baseline. */
+/* The paint - FILLED, not outlined. An empty rectangle reads as a box drawn on
+   the floor; a filled one reads as the paint, and it gives the rim cluster of
+   markers something to sit against. */
 .court-key {
   top: 50%;
   transform: translateY(-50%);
   width: 15%;
   height: 38%;
   border-radius: 0 4px 4px 0;
+  background: rgba(var(--accent-rgb), 0.09);
 }
 
 .court-key-left { left: 0; border-left-width: 0; }
@@ -5422,4 +5428,66 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   font-weight: 600;
   color: var(--accent-bright);
   letter-spacing: 0.02em;
+}
+
+/* ---- Buzzer overlay: how each team shot, by area ---------------------------
+   The settled chart says where the shots came from. These say whether they went
+   in, which is the question anybody actually has. Sat over each team's own half
+   at the distance the band describes, so the number is on top of the marks it
+   summarises instead of in a legend elsewhere. */
+.zone-stat {
+  position: absolute;
+  transform: translate(-50%, -50%) scale(0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05em;
+  padding: 0.3em 0.5em;
+  border-radius: 5px;
+  background: rgba(8, 12, 22, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: var(--font-mono);
+  line-height: 1.1;
+  opacity: 0;
+  /* Sized against the court, like the markers, so it stays proportionate from
+     a 360px phone to a desktop. */
+  font-size: clamp(0.5rem, 1.5cqw, 0.78rem);
+  transition: opacity 400ms ease, transform 400ms var(--ease-out);
+  z-index: 5;
+}
+
+.zone-stat-in {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.zone-stat-label {
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* Makes/attempts leads. 3/7 and 30/70 are both 43% and are not the same game,
+   so the volume is the headline and the rate is the follow-up. */
+.zone-stat-line {
+  font-weight: 700;
+  color: #eef3fb;
+}
+
+.zone-stat-pct {
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+/* Each side's own colour, matching its markers. */
+.zone-stat-a { border-color: rgba(var(--accent-rgb), 0.6); }
+.zone-stat-a .zone-stat-pct { color: var(--accent-bright); }
+.zone-stat-b .zone-stat-pct { color: #8fa3c4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .zone-stat {
+    transition: none;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }

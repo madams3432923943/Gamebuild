@@ -1105,6 +1105,40 @@ export async function runBrowserChecks(opts = {}) {
       // well below the shot count - but a game with none means the whole
       // "worth saying" branch never fired. Moments are rarer still: a game can
       // legitimately have no lead change, so only callouts are required.
+      // The buzzer overlay. Only exists after the final whistle, and it is the
+      // thing that makes the settled chart readable rather than merely present.
+      const zones = await sessions[0].page.evaluate(() => {
+        const stats = [...document.querySelectorAll(".zone-stat")];
+        const court = document.querySelector('[data-stage="court"]');
+        const cr = court?.getBoundingClientRect();
+        let outside = 0;
+        for (const z of stats) {
+          const r = z.getBoundingClientRect();
+          if (cr && (r.left < cr.left - 2 || r.right > cr.right + 2)) outside += 1;
+        }
+        return {
+          count: stats.length,
+          sideA: document.querySelectorAll(".zone-stat-a").length,
+          sideB: document.querySelectorAll(".zone-stat-b").length,
+          outside,
+          // Every label must carry volume AND rate - a bare percentage hides
+          // whether it rests on three attempts or thirty.
+          allHaveBoth: stats.every((z) => z.querySelector(".zone-stat-line") && z.querySelector(".zone-stat-pct")),
+          sample: stats.slice(0, 2).map((z) => z.textContent.replace(/\s+/g, " ").trim()),
+        };
+      });
+      const zonesOk = zones.count >= 4 && zones.sideA > 0 && zones.sideB > 0 &&
+        zones.outside === 0 && zones.allHaveBoth;
+      checks.push(
+        check(
+          "browser:zone-summary",
+          zonesOk
+            ? `Buzzer overlay reads the floor back (${zones.count} bands, both halves, e.g. ${zones.sample.join(" / ")})`
+            : `Zone summary wrong: ${JSON.stringify(zones)}`,
+          zonesOk ? PASS : FAIL
+        )
+      );
+
       const dramaOk = drama.callouts > 0;
       checks.push(
         check(

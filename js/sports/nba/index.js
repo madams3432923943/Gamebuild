@@ -25,7 +25,7 @@ import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./re
 import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
-import { buildShotLedger } from "./playback.js";
+import { buildShotLedger, zoneSummary } from "./playback.js";
 import {
   SLOTS as NBA_SLOTS,
   basePosition,
@@ -130,7 +130,7 @@ export const NBA = {
   // authoritative result, decomposed into the events a shot chart can draw.
   // Declared here so shared code asks the SPORT for its playback rather than
   // learning what a shot is.
-  presentation: { stage: "court", buildShotLedger },
+  presentation: { stage: "court", buildShotLedger, zoneSummary },
 
   // ---- Roster shape -------------------------------------------------------
   slots: {

@@ -357,6 +357,58 @@ function assignAssists(pending, period, rand) {
   }
 }
 
+/**
+ * The floor, in four bands, per team.
+ *
+ * SEVEN zones is the right granularity for placing a shot and the wrong one for
+ * reading a chart: fourteen labels on one court is clutter, and on a phone it
+ * is unreadable. Four bands is what a person actually says about a game - they
+ * killed us inside, we could not hit from outside - and each one still maps
+ * cleanly onto the zones underneath it.
+ *
+ * Counts come straight from the ledger, which reconciles to the engine, so
+ * these percentages are the simulation's own shooting rather than a second
+ * opinion about it. Zones with no attempts are omitted: "0%" and "never tried"
+ * are different claims and only one of them is true.
+ */
+// `at` is a fraction of the FULL court from that team's own baseline. Kept
+// clear of the edge on purpose: a label is centred on its anchor and has a
+// minimum readable width, so a band at 0.10 clips past the sideline on a 360px
+// phone - which showed up as an intermittently failing layout audit rather
+// than an obviously broken screen, the worst way for it to show up.
+export const ZONE_BANDS = [
+  { key: "rim", label: "RIM", zones: ["rim"], at: { x: 0.15, y: 0.3 } },
+  { key: "paint", label: "PAINT", zones: ["paint"], at: { x: 0.15, y: 0.72 } },
+  { key: "mid", label: "MID", zones: ["short-mid", "long-mid"], at: { x: 0.31, y: 0.3 } },
+  { key: "three", label: "3PT", zones: ["corner-three", "wing-three", "above-break-three"], at: { x: 0.31, y: 0.72 } },
+];
+
+export function zoneSummary(events) {
+  const out = { a: [], b: [] };
+  for (const side of ["a", "b"]) {
+    for (const band of ZONE_BANDS) {
+      let makes = 0;
+      let attempts = 0;
+      for (const e of events) {
+        if (e.type !== "shot" || e.side !== side || !e.zone) continue;
+        if (!band.zones.includes(e.zone)) continue;
+        attempts += 1;
+        if (e.made) makes += 1;
+      }
+      if (!attempts) continue;
+      out[side].push({
+        key: band.key,
+        label: band.label,
+        makes,
+        attempts,
+        pct: Math.round((makes / attempts) * 100),
+        at: band.at,
+      });
+    }
+  }
+  return out;
+}
+
 /** Running score after each event, so the scoreboard and the chart can never
  * disagree: both read the same ledger rather than each counting for itself. */
 export function scoreAfter(events, upTo) {

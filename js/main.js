@@ -104,6 +104,7 @@ import {
   renderShotChart,
   plotShot,
   announceMoment,
+  renderZoneSummary,
   showFootballEvent,
   accumulatePeriodStats,
   liveStatKeys,
@@ -3295,6 +3296,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // 0.16 so the newest shot is findable; at the buzzer they all lift to an
     // even weight, which is what a shot chart is FOR.
     shotChartRefs?.layer.classList.add("shot-chart-final");
+    // And the numbers over the marks. A hundred and forty markers say where the
+    // shots came from; these say whether they went in, which is the question
+    // anybody actually has. Counts come from the ledger, so they are the
+    // simulation's own shooting rather than a second opinion about it.
+    if (shotChartRefs && sport().presentation.zoneSummary) {
+      renderZoneSummary(shotChartRefs, sport().presentation.zoneSummary(ledger.events));
+    }
 
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.
