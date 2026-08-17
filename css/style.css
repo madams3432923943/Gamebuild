@@ -2333,11 +2333,23 @@ table.box-table th, table.history-table th {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
+/* The banner carries a hint of your kit rather than being repainted by it - the
+   banner art is the reward you earned and should still look like itself. A trim
+   edge and a tinted ground are enough to say "this is my team" without
+   overwriting anything. */
 .equipped-banner {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   margin-top: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--my-kit-ink, var(--accent));
+  background: color-mix(in srgb, var(--my-kit-ink, var(--accent)) 10%, transparent);
+}
+
+.equipped-banner .banner-flying {
+  color: var(--my-kit-ink, var(--accent-bright));
 }
 
 .banner-flying {
@@ -2743,8 +2755,24 @@ table.box-table th, table.history-table th {
   background: rgba(var(--accent-rgb), 0.09);
 }
 
-.court-key-left { left: 0; border-left-width: 0; }
-.court-key-right { right: 0; border-right-width: 0; border-radius: 4px 0 0 4px; }
+/* Each team's paint in that team's own trim colour - this is "their side of the
+   court", the thing the kits were asked for. Kept to the paint rather than the
+   whole half: a fully tinted floor fights the markers, which are the only thing
+   on this surface carrying information. */
+.court-key-left {
+  left: 0;
+  border-left-width: 0;
+  background: color-mix(in srgb, var(--team-a-trim, transparent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--team-a-trim, rgba(var(--accent-rgb), 0.38)) 55%, transparent);
+}
+
+.court-key-right {
+  right: 0;
+  border-right-width: 0;
+  border-radius: 4px 0 0 4px;
+  background: color-mix(in srgb, var(--team-b-trim, transparent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--team-b-trim, rgba(var(--accent-rgb), 0.38)) 55%, transparent);
+}
 
 /* The three-point line. A circle wider than it is tall, clipped by the
    court's overflow so only the arc inside the floor shows - which is what a
@@ -4682,12 +4710,23 @@ html, body {
 
 /* The two end zones are the two drafters' ends of the field, named so you can
    see whose goal line the ball is approaching without reading a label. */
+/* Each team's endzone in that team's colour - football's version of "their side
+   of the court". Falls back to the sport accent, so a field drawn before the
+   kits are known is tinted rather than blank. */
 .ff-endzone {
   flex: 0 0 11%;
   display: grid;
   place-items: center;
   background: rgba(var(--accent-rgb), 0.22);
   overflow: hidden;
+}
+
+.ff-endzone.left {
+  background: color-mix(in srgb, var(--team-a-ink, rgba(var(--accent-rgb), 1)) 30%, transparent);
+}
+
+.ff-endzone.right {
+  background: color-mix(in srgb, var(--team-b-ink, rgba(var(--accent-rgb), 1)) 30%, transparent);
 }
 
 .ff-endzone span {
@@ -4888,9 +4927,13 @@ html, body {
   transform: translate(-50%, -50%) scale(1);
 }
 
-/* ---- Team is the loud channel ---- */
-.shot-a { --shot-ink: var(--accent-bright); }
-.shot-b { --shot-ink: #8fa3c4; }
+/* ---- Team is the loud channel, and now it is the PLAYER'S colour ----
+   Falls back to the old sport-accent-vs-grey pair, which matters more than it
+   looks: a client that reaches this stylesheet before dressStage has run, or at
+   all if the profile read failed, still gets two distinguishable teams rather
+   than two invisible ones. */
+.shot-a { --shot-ink: var(--team-a-ink, var(--accent-bright)); }
+.shot-b { --shot-ink: var(--team-b-ink, #8fa3c4); }
 
 /* Made: solid. Missed: hollow with a slash, so the difference survives
    greyscale and colourblindness - it is shape first, colour second. */
@@ -4973,7 +5016,8 @@ html, body {
   transform: translate(-50%, -230%);
 }
 
-.shot-callout-a { border-color: rgba(var(--accent-rgb), 0.7); }
+.shot-callout-a { border-color: var(--team-a-ink, rgba(var(--accent-rgb), 0.7)); }
+.shot-callout-b { border-color: var(--team-b-ink, rgba(255, 255, 255, 0.2)); }
 .shot-callout-made { color: #fff; }
 
 /* ---- Moments --------------------------------------------------------------
@@ -5480,9 +5524,10 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 }
 
 /* Each side's own colour, matching its markers. */
-.zone-stat-a { border-color: rgba(var(--accent-rgb), 0.6); }
-.zone-stat-a .zone-stat-pct { color: var(--accent-bright); }
-.zone-stat-b .zone-stat-pct { color: #8fa3c4; }
+.zone-stat-a { border-color: var(--team-a-ink, rgba(var(--accent-rgb), 0.6)); }
+.zone-stat-a .zone-stat-pct { color: var(--team-a-ink, var(--accent-bright)); }
+.zone-stat-b { border-color: var(--team-b-ink, rgba(255, 255, 255, 0.14)); }
+.zone-stat-b .zone-stat-pct { color: var(--team-b-ink, #8fa3c4); }
 
 @media (prefers-reduced-motion: reduce) {
   .zone-stat {
@@ -5491,3 +5536,86 @@ table.box-table tfoot .box-totals td:nth-child(2) {
     transform: translate(-50%, -50%) scale(1);
   }
 }
+
+/* ---- Kit picker -----------------------------------------------------------
+   One swatch per kit, each showing BOTH of its colours - the pair is what is
+   being chosen, and a single dot would hide the alternate you wear away. */
+.profile-kits {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.profile-kits-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.profile-kits-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.profile-kits-note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--my-kit-ink, var(--accent-bright));
+}
+
+.kit-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.kit-swatch {
+  position: relative;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+  border: 2px solid transparent;
+  transition: transform var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+
+/* Primary fills, secondary takes the lower corner - the away kit visible on the
+   same chip rather than hidden behind a hover. */
+.kit-swatch-primary,
+.kit-swatch-secondary {
+  position: absolute;
+  inset: 0;
+}
+
+.kit-swatch-primary { background: var(--kit-primary); }
+
+.kit-swatch-secondary {
+  background: var(--kit-secondary);
+  clip-path: polygon(100% 45%, 100% 100%, 45% 100%);
+}
+
+/* Equipped is a ring AND a size change, not colour alone - on a row of
+   fourteen colours, colour is the one channel already fully spent. */
+.kit-swatch-on {
+  border-color: #fff;
+  transform: scale(1.12);
+}
+
+.kit-swatch:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-swatch:hover { transform: scale(1.08); }
+  .kit-swatch-on:hover { transform: scale(1.12); }
+}
+
+.profile-kits-hint { margin: 0.5rem 0 0; }

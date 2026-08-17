@@ -7,6 +7,7 @@
 import { getSupabase, requireSession } from "./supabaseClient.js";
 import { eraRecordKey, statsKey, DEFAULT_SPORT_ID, activeSport, activeSportId, sportById } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
+import { DEFAULT_KIT_ID, kitById } from "./kits.js";
 import { GENERAL_TIERS, tierAt, tierAbove } from "./ranks.js";
 import { ratingFor, overallRating, percentileOf, RANK_GAMES_FLOOR } from "./rating.js";
 
@@ -280,6 +281,10 @@ function normalize(row) {
     // Never null: a player with nothing equipped flies the default Rookie
     // banner rather than showing a blank card (see DEFAULT_BANNER_ID).
     equippedBanner: row.equipped_banner || DEFAULT_BANNER_ID,
+    // Same never-null contract as the banner. kitById resolves a retired id to
+    // the default too, so this is belt and braces on a column that may predate
+    // the row reading it.
+    equippedKit: row.equipped_kit || DEFAULT_KIT_ID,
     featuredBadges: row.featured_badges || [],
     createdAt: row.created_at || null,
     history: row.history || [],
@@ -547,6 +552,25 @@ export async function setEquippedBanner(franchiseId) {
   const { error } = await supabase
     .from("profiles")
     .update({ equipped_banner: franchiseId })
+    .eq("id", session.user.id);
+  if (error) throw error;
+}
+
+/** Equips a team kit - the two colours you wear. Cosmetic, same as the banner,
+ * so the client writes it directly.
+ *
+ * The id is validated against the catalogue before it is stored rather than
+ * after it is read: the whole point of storing an id is that only ids in KITS
+ * are meaningful, and writing junk here would be a silent way to give somebody
+ * the default forever without telling them. */
+export async function setEquippedKit(kitId) {
+  const kit = kitById(kitId);
+  if (kit.id !== kitId) throw new Error(`Unknown kit: ${kitId}`);
+  const session = await requireSession();
+  const supabase = await getSupabase();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ equipped_kit: kit.id })
     .eq("id", session.user.id);
   if (error) throw error;
 }

@@ -1151,6 +1151,60 @@ export async function runBrowserChecks(opts = {}) {
       );
     }
 
+    // Team kits reaching the DOM. The unit test proves the palette is separable;
+    // this proves the separation survives the trip through dressStage, the
+    // custom properties and the cascade - a kit that is computed correctly and
+    // then never applied looks exactly like no kit at all.
+    const kits = await sessions[0].page.evaluate(() => {
+      const stage = document.getElementById("court-stage");
+      const cs = getComputedStyle(stage);
+      const a = cs.getPropertyValue("--team-a-ink").trim();
+      const b = cs.getPropertyValue("--team-b-ink").trim();
+      // Where the kit has to LAND differs by sport, so both are read and the
+      // caller asserts whichever this run has. Football has no shot markers at
+      // all, and treating their absence as a failure made the football run fail
+      // for having no basketball in it.
+      const mark = document.querySelector(".shot-mark.shot-a");
+      // What the marker ACTUALLY resolved to, not what the variable says. A
+      // typo'd var name falls through to the fallback and still "has a colour".
+      const markInk = mark ? getComputedStyle(mark).getPropertyValue("--shot-ink").trim() : null;
+      const left = document.querySelector(".ff-endzone.left");
+      const right = document.querySelector(".ff-endzone.right");
+      const endzones = left && right
+        ? {
+            left: getComputedStyle(left).backgroundColor,
+            right: getComputedStyle(right).backgroundColor,
+          }
+        : null;
+      return {
+        a,
+        b,
+        markInk,
+        endzones,
+        distinct: !!a && !!b && a !== b,
+        markUsesKit: markInk === null ? null : markInk === a,
+        endzonesDiffer: endzones ? endzones.left !== endzones.right : null,
+      };
+    });
+    // Distinct kits always. Then whichever surface this sport actually draws:
+    // basketball's markers, football's endzones. A run that has neither would
+    // pass the first and prove nothing, so at least one has to be present.
+    const surfaceChecked = kits.markUsesKit !== null || kits.endzonesDiffer !== null;
+    const kitsOk =
+      kits.distinct &&
+      surfaceChecked &&
+      kits.markUsesKit !== false &&
+      kits.endzonesDiffer !== false;
+    checks.push(
+      check(
+        "browser:team-kits",
+        kitsOk
+          ? `Both teams wear their own kit (${kits.a} vs ${kits.b}, ${kits.markUsesKit ? "markers follow" : "endzones differ"})`
+          : `Kits not applied: ${JSON.stringify(kits)}`,
+        kitsOk ? PASS : FAIL
+      )
+    );
+
     // The shot chart, if this sport draws one. Counted rather than assumed:
     // the ledger passing its own unit checks says the DATA is right, and a
     // clean console says nothing threw, but neither shows a single marker

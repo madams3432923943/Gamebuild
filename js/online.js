@@ -2,6 +2,7 @@
 // the server-computed simulation result. Deliberately poll-based rather
 // than realtime - see the comment on watchMatch() for why.
 
+import { DEFAULT_KIT_ID } from "./kits.js";
 import { getSupabase, requireSession } from "./supabaseClient.js";
 import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 
@@ -298,17 +299,20 @@ export async function getOpponentSummary(userId) {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("username, online_wins, online_losses, equipped_banner, sport_ratings")
+    .select("username, online_wins, online_losses, equipped_banner, equipped_kit, sport_ratings")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
-    return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null, sportRatings: {} };
+    // A failed read still has to produce a wearable kit, or the opponent's half
+    // of the court renders unstyled. The default is a real kit, not null.
+    return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null, equippedKit: DEFAULT_KIT_ID, sportRatings: {} };
   }
   return {
     username: data.username || "Opponent",
     onlineWins: data.online_wins || 0,
     onlineLosses: data.online_losses || 0,
     equippedBanner: data.equipped_banner || null,
+    equippedKit: data.equipped_kit || DEFAULT_KIT_ID,
     sportRatings: data.sport_ratings || {},
   };
 }

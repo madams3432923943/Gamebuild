@@ -38,7 +38,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=2f7d8f4" />
+  <link rel="stylesheet" href="css/style.css?v=8fa7d1a" />
 </head>
 <body>
   <header class="top-nav">
@@ -391,6 +391,22 @@
 
         <div class="equipped-banner" id="profile-equipped-banner" hidden></div>
 
+        <!-- Your kit: the two colours you wear. Sits at the top with identity
+             rather than under Account settings, because it is the same kind of
+             thing as your name and your banner - who you are, not how the
+             account is configured. Rendered from KITS in js/kits.js so the
+             palette is declared in one place. -->
+        <div class="profile-kits">
+          <div class="profile-kits-head">
+            <span class="profile-kits-title">Team colours</span>
+            <span class="profile-kits-note" id="profile-kit-name"></span>
+          </div>
+          <div class="kit-swatches" id="profile-kit-picker" role="radiogroup" aria-label="Team colours"></div>
+          <p class="hint-text profile-kits-hint">
+            You wear your first colour at home and your second away, so two teams never clash.
+          </p>
+        </div>
+
         <div class="profile-header-actions">
           <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
           <button type="button" id="btn-customize-banner" class="btn btn-secondary btn-small">Customize Banner</button>
@@ -617,6 +633,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=2f7d8f4"></script>
+  <script type="module" src="js/main.js?v=8fa7d1a"></script>
 </body>
 </html>

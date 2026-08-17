@@ -4,6 +4,7 @@
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
 import { playSound, primeSound, soundEnabled, setSoundEnabled } from "./sound.js";
+import { wornColours, rgbString, kitById, KITS, DEFAULT_KIT_ID, BOT_KIT_ID } from "./kits.js";
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
@@ -27,6 +28,7 @@ import {
   recordDraftPicks,
   setUsername,
   setEquippedBanner,
+  setEquippedKit,
   setFeaturedBadges,
   FEATURED_BADGE_SLOTS,
   RANK_GAMES_FLOOR,
@@ -628,6 +630,17 @@ async function refreshHome() {
   try {
     const profile = await loadProfile();
     game.nameA = profile.username || "Player";
+    // Your kit travels with the session so every stage can dress itself without
+    // re-reading the profile mid-match.
+    game.myKit = profile.equippedKit || DEFAULT_KIT_ID;
+    // YOUR colours, app-wide, for the places that are about you rather than
+    // about a match - the banner most of all. These are NEW properties, not a
+    // reassignment of --accent: the sport still owns the app's theme, and a kit
+    // that repainted 121 accent rules would make every screen look like a
+    // different app depending on who was signed in.
+    const myKit = kitById(game.myKit);
+    document.documentElement.style.setProperty("--my-kit-ink", myKit.primary);
+    document.documentElement.style.setProperty("--my-kit-trim", myKit.secondary);
     // The banner is sport-neutral, so it carries the all-sports rank. The
     // ratings table is read once here and handed to both, since the banner and
     // the standings below it are ranking against the same field.
@@ -2097,6 +2110,18 @@ async function enterOnlineMatch(matchId) {
     matchId,
     mySide,
     oppUsername,
+    // The opponent's kit, and who is at home.
+    //
+    // Home is player_a - the same fact mySide is derived from, so both clients
+    // reach the same answer with nothing to negotiate. Deliberately NOT random:
+    // two clients rolling for it would dress the same match two ways.
+    //
+    // Expressed in the RENDER frame, where side A is always "me" (see
+    // normalizeServerResult). If I am player_a then home is me, render side A.
+    // If I am player_b then home is my opponent, who renders as side B. Which
+    // collapses to mySide - not a tautology, just the two frames agreeing here.
+    oppKit: oppSummary.equippedKit || DEFAULT_KIT_ID,
+    homeSide: mySide,
     pendingPlayer: null,
     myRoster: {},
     oppRoster: {},
@@ -2804,6 +2829,69 @@ function renderWhyBreakdown(result, ctx) {
  * One list cannot drift from itself, which is the actual fix. Anything added
  * to the game screen from here on gets cleared by adding it once, here.
  */
+/**
+ * Dresses the stage in both players' colours.
+ *
+ * Module scope, not nested inside playOutResult - resetGameScreen calls this,
+ * and the first version of it lived inside playOutResult where nothing outside
+ * could see it. That threw a ReferenceError the moment the game screen was
+ * cleared, which surfaced as "the game screen never appeared" in the football
+ * playback test rather than as anything mentioning colour.
+ *
+ * Scoped to #court-stage, NEVER to documentElement. --accent is the SPORT's
+ * identity and themes 121 rules across the app; a player's kit has no business
+ * overwriting it, which is why applyTheme() stays global and this does not.
+ *
+ * Home wears its primary, away its secondary, and wornColours settles any clash
+ * deterministically - both clients compute the same answer from the same two kit
+ * ids, the way the shot ledger is seeded from the same match.
+ *
+ * Sides here are the RENDER frame, where A is always "me".
+ */
+/**
+ * The kit picker: one swatch per kit, showing both of its colours.
+ *
+ * Each swatch shows the PAIR, because the pair is what you are choosing - a
+ * single dot would hide the alternate you wear on the road. Radio semantics
+ * rather than buttons, since this is one choice among many and a screen reader
+ * should be told that.
+ */
+function renderKitPicker(container, equippedId, onPick) {
+  if (!container) return;
+  container.innerHTML = "";
+  for (const kit of KITS) {
+    const equipped = kit.id === equippedId;
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = `kit-swatch${equipped ? " kit-swatch-on" : ""}`;
+    swatch.setAttribute("role", "radio");
+    swatch.setAttribute("aria-checked", equipped ? "true" : "false");
+    // The name, not just the colours: a swatch row is unusable to anyone who
+    // cannot see it, and "Jade" is the actual choice being made.
+    swatch.setAttribute("aria-label", `${kit.name}${equipped ? " (equipped)" : ""}`);
+    swatch.title = kit.name;
+    swatch.style.setProperty("--kit-primary", kit.primary);
+    swatch.style.setProperty("--kit-secondary", kit.secondary);
+    swatch.innerHTML = '<span class="kit-swatch-primary"></span><span class="kit-swatch-secondary"></span>';
+    swatch.addEventListener("click", () => onPick(kit.id));
+    container.appendChild(swatch);
+  }
+}
+
+function dressStage(homeSide, kitA, kitB) {
+  const aIsHome = homeSide !== "B";
+  const worn = wornColours(aIsHome ? kitA : kitB, aIsHome ? kitB : kitA);
+  const forA = aIsHome ? worn.home : worn.away;
+  const forB = aIsHome ? worn.away : worn.home;
+  const style = courtStageEl.style;
+  style.setProperty("--team-a-ink", forA.ink);
+  style.setProperty("--team-a-ink-rgb", rgbString(forA.ink));
+  style.setProperty("--team-a-trim", forA.trim);
+  style.setProperty("--team-b-ink", forB.ink);
+  style.setProperty("--team-b-ink-rgb", rgbString(forB.ink));
+  style.setProperty("--team-b-trim", forB.trim);
+}
+
 function resetGameScreen() {
   for (const el of [
     finalBanner,
@@ -2827,6 +2915,17 @@ function resetGameScreen() {
   // Last game's shot chart is not this game's. It accumulates all the way to
   // the final buzzer by design, so nothing else ever clears it.
   courtStageEl.querySelector(".shot-chart")?.remove();
+  // The kits, decided before the first paint for the same reason the stage is:
+  // whatever is on this screen is visible while the online flow awaits the
+  // server, and a court in last game's colours is a worse lie than a blank one.
+  // Offline you are always home - it is your floor and there is no second
+  // profile to consult. The bot wears a fixed neutral kit so the two sides still
+  // read as two teams.
+  dressStage(
+    game.online?.homeSide || "A",
+    game.myKit || DEFAULT_KIT_ID,
+    game.online?.oppKit || BOT_KIT_ID
+  );
   // Nor is the last game's result. The won/lost colour and the aria-label
   // outlive the banner being hidden, and both are wrong for the next game.
   finalBanner.classList.remove("final-won", "final-lost", "win-flare");
@@ -3274,7 +3373,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     setTimeout(step, wait);
   }
 
-  /** One line of the final banner. Text only, never markup - see finish(). */
+/** One line of the final banner. Text only, never markup - see finish(). */
   function bannerPart(className, text) {
     const el = document.createElement("span");
     el.className = className;
@@ -3865,6 +3964,8 @@ btnGameHome.addEventListener("click", () => {
 const profileRefs = {
   usernameInput: document.getElementById("input-profile-username"),
   displayName: document.getElementById("profile-display-name"),
+  kitPicker: document.getElementById("profile-kit-picker"),
+  kitName: document.getElementById("profile-kit-name"),
   tierBadge: document.getElementById("profile-tier-badge"),
   tierCaption: document.getElementById("profile-tier-caption"),
   onlineRecord: document.getElementById("online-record"),
@@ -3924,6 +4025,29 @@ async function renderProfileFor(profile) {
     statsSport.live ? loadRankInfo(profile, statsSport.id, population) : Promise.resolve(null),
   ]);
   renderProfileScreen(profileRefs, profile, overall, statsSport, sportRank, openStoredGame);
+
+  // The kit picker. Writes through and repaints from the same profile object the
+  // rest of this screen was drawn from, so the swatch that lights up is the one
+  // the database now holds rather than the one that was clicked.
+  const equippedKitId = profile.equippedKit || DEFAULT_KIT_ID;
+  if (profileRefs.kitName) profileRefs.kitName.textContent = kitById(equippedKitId).name;
+  renderKitPicker(profileRefs.kitPicker, equippedKitId, async (kitId) => {
+    if (kitId === equippedKitId) return;
+    try {
+      await setEquippedKit(kitId);
+    } catch (e) {
+      // Cosmetic, so a failure must not eat the screen - but it must not
+      // silently pretend to have worked either, or the next reload undoes a
+      // change the player watched happen.
+      console.error("Couldn't save your kit:", e);
+      if (profileRefs.kitName) profileRefs.kitName.textContent = "Couldn't save that - try again";
+      return;
+    }
+    playSound("cardSelect");
+    const fresh = await loadProfile();
+    currentProfile = fresh;
+    await renderProfileFor(fresh);
+  });
   renderBadgeSportTabs(profileStatsTabsEl, profileStatsSportId, (id) => {
     profileStatsSportId = id;
     if (currentProfile) renderProfileFor(currentProfile).catch((e) => console.error(e));
