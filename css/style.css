@@ -1798,25 +1798,35 @@ table.box-table th, table.history-table th {
   pointer-events: none;
 }
 
-/* ---- Wide cards: wash + sharp plate ----
+/* ---- Wide cards: colour field + sharp plate ----
    The banner PNGs are about 265x90. `cover` on a phone-width card is close to
    a 1:1 render and looks right; on a desktop card it is a ~3.9x upscale and
    looks broken - which is how it shipped. 480cqw is the point where the
    upscale passes ~1.8x and starts to read as a fault rather than as softness.
 
+   NOTHING ON THIS CARD IS BLURRED, and that is the requirement rather than a
+   preference. A blurred wash of the art was tried first: it is what a lot of
+   apps do with undersized artwork, and it still read as "the banner is blurry"
+   to the person looking at it. Soft-on-purpose and soft-by-accident are not
+   distinguishable to someone who just wants their banner to look sharp.
+
+   So the field is built from the banner's own two colours - pure CSS, so it is
+   sharp at any size - and the artwork appears once, at no more than 1.3x
+   native, where it can be looked at properly.
+
    Tiling was measured and rejected: none of the twenty textures wrap, with
    edge seams running 2-20x their own neighbouring-pixel variation, so `repeat`
-   draws a visible grid. The only honest fixes are bigger source art (see
-   docs/banner-artwork.md) or not asking a small texture to fill a large area.
-   This is the second. */
+   draws a visible grid. The only honest way to put the art back across the
+   whole card is bigger source files - see docs/banner-artwork.md. */
 @container (min-width: 480px) {
-  /* The same layer, now blurred hard enough to read as a deliberate wash of
-     the banner's own colours rather than a photograph out of focus. Inset past
-     the card's edges so the blur has real pixels to sample instead of fading
-     out at the border. */
+  /* The same layer, now painting colour instead of an enlarged photograph.
+     --banner-c1/--banner-c2 are the equipped banner's own two colours, set
+     inline by renderHomeHeader, so the card still belongs to the banner. The
+     highlight and the dark floor are what stop it reading as a flat swatch. */
   .player-banner.has-banner-image > .pb-banner-wash {
-    inset: -2.5rem;
-    filter: blur(26px) saturate(1.12);
+    background-image:
+      radial-gradient(120% 160% at 12% 0%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 55%),
+      linear-gradient(120deg, var(--banner-c1) 0%, var(--banner-c2) 78%, #05070c 100%);
   }
 
   /* The banner itself, drawn at 1.3x native at most - close enough to sharp
@@ -1901,6 +1911,13 @@ table.box-table th, table.history-table th {
    username. This scrim is weighted to the left, where the name, join date and
    stats all live, and thins out toward the right so the artwork still reads
    and the emblem keeps its glow. */
+/* Image banners need the same treatment, and for a reason the patterned ones
+   do not have: their field is built from the banner's own two colours, and
+   some of those are pale. Arctic Stripe put near-white behind a white username.
+   The default scrim above even adds a white sheen at the top left, which is
+   exactly where the name sits, so on a light banner it was making the contrast
+   worse rather than better. */
+.player-banner.has-banner.has-banner-image::after,
 .player-banner.has-banner[data-banner-art]::after {
   background:
     linear-gradient(

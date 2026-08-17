@@ -18,7 +18,8 @@ rendering fault.
 | `background-size: cover` (what shipped) | ~3.9× upscale. Visibly broken on desktop. |
 | `background-repeat: repeat` at native size | **Rejected — measured.** None of the twenty textures wrap. Seam difference at the edges ran 2–20× each image's own neighbouring-pixel variation, so `repeat` draws a visible grid. |
 | Deliberate heavy blur, art only | Looks intentional, but the player never sees their banner. |
-| **Blurred wash + sharp plate** (shipped) | The blurred copy is the card's colour field; a second copy is drawn sharp at ≤1.3× native. |
+| Blurred wash + sharp plate | **Rejected in review.** Still called blurry — deliberate softness and accidental softness are indistinguishable to whoever is looking at it. |
+| **Colour field + sharp plate** (shipped) | The field is built from the banner's own two colours in pure CSS, so it is sharp at any size. The art appears once, at ≤1.3× native. Nothing on the card is blurred. |
 
 No CSS invents detail that is not in the file. Those were the only options.
 
@@ -26,8 +27,9 @@ No CSS invents detail that is not in the file. Those were the only options.
 
 In `css/style.css`, under `.player-banner`:
 
-- `.pb-banner-wash` — the artwork, `cover`. Sharp on narrow cards, blurred hard
-  on wide ones.
+- `.pb-banner-wash` — the artwork at `cover` on narrow cards; on wide ones the
+  same layer paints a gradient of `--banner-c1`/`--banner-c2` instead. No blur
+  at any width.
 - `.pb-banner-plate` — a second copy, ≤351px wide (1.3× native), right-anchored.
   Only on wide cards.
 
@@ -62,5 +64,8 @@ needed.
 - The plate assumes the card's right side is free. No image banner currently
   carries an emblem or a label, which are the only other things that live there;
   if one ever does, they collide.
-- The blurred wash is a `filter: blur(26px)` on a full-card layer. It is static,
-  not animated, and only active above 480px of card width.
+- On a wide card the field is the banner's two colours, not its artwork, so two
+  banners sharing a palette look alike from across the room. The plate is what
+  tells them apart.
+- Image banners get the left-weighted scrim that patterned banners use. Without
+  it a pale palette (Arctic Stripe) put near-white behind the white username.

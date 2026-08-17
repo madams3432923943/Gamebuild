@@ -1411,8 +1411,11 @@ const ERROR_COPY = /couldn't load|could not load|something went wrong|failed to 
 
 /** The banner PNGs are ~265x90. Drawn full-bleed on a desktop-width identity
  *  card that is a ~3.9x upscale, and it shipped looking like a rendering
- *  fault. The fix is a blurred wash plus a copy of the art drawn sharp near
- *  native size, switched on by a container query on the card's own width.
+ *  fault. A blurred wash of the art was the first fix and it was still called
+ *  blurry - deliberate softness and accidental softness look identical. So a
+ *  wide card is a field of the banner's own two colours (pure CSS, sharp at
+ *  any size) plus one copy of the art at no more than 1.3x native, switched by
+ *  a container query on the card's own width.
  *
  *  This measures the PAINTED result rather than the stylesheet: what matters
  *  is how many source pixels ended up covering how many screen pixels, and
@@ -1454,8 +1457,11 @@ async function auditBannerResolution(page, log) {
         cardBackground: getComputedStyle(card).backgroundImage,
         plateWidth: plate ? Math.round(plate.getBoundingClientRect().width) : 0,
         plateDisplay: plate ? getComputedStyle(plate).display : "absent",
+        plateFilter: plate ? getComputedStyle(plate).filter : "none",
+        plateBackground: plate ? getComputedStyle(plate).backgroundImage : "none",
         washDisplay: wash ? getComputedStyle(wash).display : "absent",
         washFilter: wash ? getComputedStyle(wash).filter : "none",
+        washBackground: wash ? getComputedStyle(wash).backgroundImage : "none",
       };
     });
 
@@ -1470,14 +1476,21 @@ async function auditBannerResolution(page, log) {
   const problems = [];
   if (wide.state === "no-card") problems.push("the home identity card was not on screen at all");
   else {
-    // The defect itself: one small texture stretched sharp across the whole
-    // card. Blurred it is a wash and fine; unblurred at this width it is the
-    // ~4x upscale that got reported as a rendering fault.
-    if (!/blur/.test(wide.washFilter)) {
+    // The defect itself: one small texture enlarged to fill the whole card.
+    // On a wide card the field must be CSS colour, not the photograph - a
+    // url() here means the art is being stretched ~4x again.
+    if (/url\(/.test(wide.washBackground)) {
       problems.push(
-        `at ${wide.cardWidth}px the art fills the card unblurred ` +
-          `(~${(wide.cardWidth / NARROWEST_BANNER_PNG).toFixed(1)}x upscale, filter: ${wide.washFilter})`
+        `at ${wide.cardWidth}px the field is still the artwork, not the banner's colours ` +
+          `(~${(wide.cardWidth / NARROWEST_BANNER_PNG).toFixed(1)}x upscale)`
       );
+    }
+    // And it is not solved by blurring it either. That was tried, and "blurry
+    // on purpose" is indistinguishable from "blurry" to the person looking at
+    // it, so nothing on this card is allowed to be blurred at any width.
+    for (const [label, shot] of [["desktop", wide], ["360px", narrow]]) {
+      if (/blur/.test(shot.washFilter)) problems.push(`the card is blurred at ${label} (filter: ${shot.washFilter})`);
+      if (/blur/.test(shot.plateFilter)) problems.push(`the plate is blurred at ${label} (filter: ${shot.plateFilter})`);
     }
     if (wide.plateDisplay === "none" || !wide.plateWidth) {
       problems.push("the sharp plate is not drawn on a desktop-width card");
@@ -1487,20 +1500,36 @@ async function auditBannerResolution(page, log) {
         problems.push(`the plate is drawn at ${upscale.toFixed(2)}x, past the ${MAX_ART_UPSCALE}x limit`);
       }
     }
+    // The plate must actually be the artwork, not the colour field repeated -
+    // otherwise every check above passes on a card showing no banner at all.
+    if (!/url\(/.test(wide.plateBackground)) problems.push("the plate is not painting the banner artwork");
+
     // And the other half: on a phone the card is near enough 1:1 that the art
     // belongs full-bleed and sharp. The plate would only crowd it.
     if (narrow.plateDisplay !== "none") problems.push(`the plate is laid out at 360px (display: ${narrow.plateDisplay})`);
     if (narrow.washDisplay === "none") problems.push("the art is not painted at all at 360px");
-    if (/blur/.test(narrow.washFilter)) problems.push(`the art is blurred at 360px, where it does not need to be`);
+    if (!/url\(/.test(narrow.washBackground)) problems.push("at 360px the card shows colour instead of the artwork");
   }
 
   log(`  banner art: ${wide.cardWidth}px card, plate ${wide.plateWidth}px, ${wide.state}`);
   return check("browser:banner-art", "Banner artwork is never stretched past its resolution", problems.length ? FAIL : PASS, {
     detail: problems.length ? problems.join("\n") : undefined,
     table: [
-      ["width", "card bg", "plate", "wash", "source"],
-      [`${wide.cardWidth}px`, wide.cardBackground === "none" ? "none" : "FULL-BLEED", `${wide.plateWidth}px`, wide.washFilter, wide.state],
-      [`${narrow.cardWidth}px`, narrow.cardBackground === "none" ? "none" : "cover", narrow.plateDisplay, narrow.washDisplay, narrow.state],
+      ["width", "field", "plate", "blur", "source"],
+      [
+        `${wide.cardWidth}px`,
+        /url\(/.test(wide.washBackground) ? "ARTWORK" : "banner colours",
+        `${wide.plateWidth}px art`,
+        wide.washFilter,
+        wide.state,
+      ],
+      [
+        `${narrow.cardWidth}px`,
+        /url\(/.test(narrow.washBackground) ? "artwork" : "COLOURS",
+        narrow.plateDisplay,
+        narrow.washFilter,
+        narrow.state,
+      ],
     ],
   });
 }
