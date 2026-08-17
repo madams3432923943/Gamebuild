@@ -266,7 +266,63 @@ export function buildShotLedger(quarterBoxScores, rosterA, rosterB, seed = 1) {
     });
   });
 
+  annotateMoments(events);
   return { events, periods: periods.length };
+}
+
+/**
+ * Marks the moments already implicit in the order.
+ *
+ * None of this is new information - it is the running score, read once. But
+ * "Denver just scored ten in a row" and "the lead changed hands" are the two
+ * things a person watching would actually say out loud, and until something
+ * computes them the presentation has no way to know a moment happened. The
+ * events carry them so the renderer can slow down, raise its voice, or stay
+ * out of the way, without recomputing a score of its own and risking a
+ * different answer from the scoreboard's.
+ *
+ * Derived, never invented: a run is consecutive scoring in the ledger's own
+ * order, and a lead change is the sign of the margin flipping. If the ledger is
+ * right, these are right.
+ */
+function annotateMoments(events) {
+  const score = { a: 0, b: 0 };
+  let runSide = null;
+  let runPoints = 0;
+  let lastLeader = null;
+
+  events.forEach((event, i) => {
+    const scoring = event.type === "shot" && event.made && event.points > 0;
+    if (scoring) {
+      score[event.side] += event.points;
+      // A run is broken by the OTHER team scoring, not by a miss - a team can
+      // miss five in a row mid-run and the run is still theirs.
+      if (runSide === event.side) runPoints += event.points;
+      else { runSide = event.side; runPoints = event.points; }
+    }
+
+    const leader = score.a === score.b ? null : score.a > score.b ? "a" : "b";
+    // Only a genuine change of hands. Going from tied to ahead is not a lead
+    // change, it is taking the lead for the first time since the tie - counting
+    // it would fire this on nearly every basket of a close game and make the
+    // signal worthless.
+    const leadChange = !!(scoring && leader && lastLeader && leader !== lastLeader);
+    if (leader) lastLeader = leader;
+
+    // The last event of a period, whatever it was. A shot here is the closest
+    // this model gets to a buzzer-beater: the engine has no clock, so what can
+    // be said honestly is "this was the last thing that happened in the
+    // quarter", which is enough to earn a beat.
+    const endOfPeriod = i === events.length - 1 || events[i + 1].period !== event.period;
+
+    event.scoreAfter = { a: score.a, b: score.b };
+    event.leadChange = leadChange;
+    event.endOfPeriod = endOfPeriod;
+    // Surfaced only once it is worth saying. Eight is the threshold a
+    // broadcast would bother mentioning.
+    event.runPoints = scoring && runPoints >= 8 ? runPoints : 0;
+    event.runSide = event.runPoints ? runSide : null;
+  });
 }
 
 /**

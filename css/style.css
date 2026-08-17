@@ -2697,6 +2697,9 @@ table.box-table th, table.history-table th {
   border: 1px solid rgba(var(--accent-rgb), 0.30);
   overflow: hidden;
   pointer-events: none;
+  /* Makes cqw units above resolve against the COURT, which is what the shot
+     marks have to stay legible against - not the viewport. */
+  container-type: inline-size;
 }
 
 /* Court lines. Brighter than the old 0.35 alpha and drawn at full opacity on
@@ -4833,15 +4836,20 @@ html, body {
 }
 
 /* ---- Basketball shot chart -------------------------------------------------
-   Markers plotted onto the court as the game is revealed. The court art below
-   is decoration at half opacity; this layer sits above it and is the only
-   thing on the stage carrying information, so it is drawn at full strength.
+   Markers plotted onto the court as the game is revealed.
 
-   Made and missed are distinguished by SHAPE first and colour second. A
-   red/green pair is precisely the distinction a red-green colourblind player
-   cannot make, and the chart is the main thing on screen during a basketball
-   game - so a filled disc reads as a make and a hollow ring as a miss with the
-   colour removed entirely. */
+   REWRITTEN after seeing it on a phone. The first pass sized marks in absolute
+   pixels - 12px - which is 1.4% of the court on a desktop and 3.5% on a
+   handset. A hundred and twenty of those is forty percent ink coverage, and the
+   screenshot that came back was an unreadable green blob at each rim. Marks are
+   sized in COURT UNITS now, so the chart is the same density at every width.
+
+   The second mistake was the colour. Make was green and miss was red FOR BOTH
+   TEAMS, so team identity rested on a 1px solid-vs-dashed outline nobody can
+   see, and the two teams looked identical. Team is the strong channel now -
+   your side in the sport's accent, the opponent in cool grey - and made vs
+   missed is fill vs hollow, which is the weaker distinction because it is the
+   less important question. Shape still carries it with colour removed. */
 .shot-chart {
   position: absolute;
   inset: 0;
@@ -4852,77 +4860,164 @@ html, body {
      floor onto the scoreboard is the bug this whole layer was moved to fix. */
   overflow: hidden;
   border-radius: inherit;
+  /* The unit every mark is sized in. Container query units would be ideal;
+     this is the same idea with wider support - the court's width drives it,
+     because the court is what the marks have to stay legible against. */
+  font-size: 1.6cqw;
 }
 
 .shot-mark {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  margin: -6px 0 0 -6px;
+  /* ~2% of court width, not 12 pixels. */
+  width: 2.1%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(0.2);
   border-radius: 50%;
   opacity: 0;
-  transform: scale(0.2);
-  transition: opacity 220ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 200ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* The arrival pulse. Kept short - a basketball game is ~200 markers, and
-   anything longer than a few hundred milliseconds turns the reveal into a
-   queue of animations rather than a game. */
 .shot-in {
   opacity: 1;
-  transform: scale(1);
+  transform: translate(-50%, -50%) scale(1);
 }
 
+/* ---- Team is the loud channel ---- */
+.shot-a { --shot-ink: var(--accent-bright); }
+.shot-b { --shot-ink: #8fa3c4; }
+
+/* Made: solid. Missed: hollow with a slash, so the difference survives
+   greyscale and colourblindness - it is shape first, colour second. */
 .shot-made {
-  background: #35c46b;
-  box-shadow: 0 0 0 2px rgba(53, 196, 107, 0.35);
+  background: var(--shot-ink);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
 
-/* Hollow, with a slash through it: legible as "miss" in greyscale. */
 .shot-miss {
   background: transparent;
-  border: 2px solid #e2574c;
+  border: 0.18em solid var(--shot-ink);
+  opacity: 0;
 }
+
+.shot-miss.shot-in { opacity: 0.9; }
 
 .shot-miss::after {
   content: "";
   position: absolute;
-  inset: 1px;
-  border-top: 2px solid #e2574c;
+  inset: 12%;
+  border-top: 0.16em solid var(--shot-ink);
   transform: rotate(45deg);
-  transform-origin: center;
 }
 
-/* A three is a bigger mark than a two - the shot chart should say what it was
-   worth without needing a legend. */
-.shot-three { width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; }
+/* A three is bigger than a two, so a mark says what it was worth with no
+   legend to consult. */
+.shot-three { width: 2.7%; }
 
-/* Rim finishes, the loudest thing the ledger honestly knows about. Not called
-   a dunk anywhere: the engine has no dunks, only a shot taken close in. */
+/* Rim finishes. Nothing is called a dunk - the engine has none - but a shot
+   from close in is a real fact and earns the loudest mark on the floor. */
 .shot-strong {
-  box-shadow: 0 0 0 3px rgba(53, 196, 107, 0.5), 0 0 12px 2px rgba(53, 196, 107, 0.55);
+  box-shadow: 0 0 0 0.12em rgba(0, 0, 0, 0.5), 0 0 0.9em 0.15em var(--shot-ink);
 }
 
-/* Which team took it. The halves of the floor already separate them; this is
-   the second cue for a shot near the middle. */
-.shot-a { outline: 1px solid rgba(255, 255, 255, 0.5); }
-.shot-b { outline: 1px dashed rgba(255, 255, 255, 0.5); }
-
-/* Older shots recede so the last few reads as "what just happened". They stay
-   on the floor - the chart accumulating over a game is the point of it. */
+/* SETTLED SHOTS ARE NEARLY GHOSTS. This was 0.42, which at a hundred marks is
+   an even wash with no focal point - the whole floor competing for attention.
+   The accumulated chart is meant to be the QUIET background to whatever just
+   happened, and only becomes the subject once the game ends. */
 .shot-settled {
-  opacity: 0.42;
+  opacity: 0.16 !important;
   box-shadow: none;
-  transition: opacity 600ms ease, box-shadow 600ms ease;
+  transform: translate(-50%, -50%) scale(0.72);
+  transition: opacity 700ms ease, box-shadow 700ms ease, transform 700ms ease;
+}
+
+/* At the final buzzer the chart stops being background and becomes the
+   artifact: everything lifts to an even, readable weight. Added by finish(). */
+.shot-chart.shot-chart-final .shot-mark {
+  opacity: 0.75 !important;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+
+/* ---- Callouts -------------------------------------------------------------
+   The line a commentator would say, where it happened. Terse on purpose: a
+   surname and a verdict is all that can be read in the time it is up, and a
+   callout nobody finishes reading is just motion. */
+.shot-callout {
+  position: absolute;
+  transform: translate(-50%, -160%);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(8, 12, 22, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e8eef8;
+  opacity: 0;
+  transition: opacity 160ms ease, transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  z-index: 3;
+}
+
+.shot-callout-in {
+  opacity: 1;
+  /* Rises as it fades in, so it reads as coming off the shot. */
+  transform: translate(-50%, -230%);
+}
+
+.shot-callout-a { border-color: rgba(var(--accent-rgb), 0.7); }
+.shot-callout-made { color: #fff; }
+
+/* ---- Moments --------------------------------------------------------------
+   A run, a lead change. Over the centre of the floor rather than on a shot,
+   because these are about the GAME, not one attempt. Both are read off the
+   ledger's own running score, so they cannot disagree with the scoreboard. */
+.court-moment {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%) scale(0.92);
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  font-family: var(--font-display);
+  font-size: clamp(0.7rem, 1.9cqw, 1.05rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: rgba(8, 12, 22, 0.92);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 200ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 4;
+}
+
+.court-moment-in {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.court-moment-lead {
+  border: 1px solid var(--accent-bright);
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.45);
+}
+
+.court-moment-run {
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .shot-mark {
+  .shot-mark,
+  .shot-settled,
+  .shot-callout,
+  .court-moment {
     transition: none;
-    opacity: 1;
-    transform: scale(1);
   }
-  .shot-settled { transition: none; }
+  .shot-mark { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .shot-callout { opacity: 1; transform: translate(-50%, -230%); }
+  .court-moment { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 /* ---- Final banner: the score leads --------------------------------------

@@ -103,6 +103,7 @@ import {
   renderFootballField,
   renderShotChart,
   plotShot,
+  announceMoment,
   showFootballEvent,
   accumulatePeriodStats,
   liveStatKeys,
@@ -2947,15 +2948,57 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
    * period is on screen, which keeps them in step with the scoreboard ticking
    * up beside them without pretending to a precision the simulation never had.
    */
+  /**
+   * How much of a period's screen time one event deserves.
+   *
+   * Evenly spreading a quarter's shots is arithmetically fair and dramatically
+   * flat: a garbage-time miss got exactly as long as the shot that swung the
+   * game. Real games are not evenly paced, and a playback that is reads as a
+   * progress bar with basketballs on it.
+   *
+   * So time is spent where the ledger says something happened. Every weight
+   * here is a fact the ledger already carries - a lead change, a run past
+   * eight, the last shot of the quarter, a make rather than a miss - so the
+   * pacing follows the game rather than a script laid over it.
+   */
+  function dramaWeight(event) {
+    let weight = event.made ? 1.15 : 0.85;
+    if (event.shotType === "three" && event.made) weight += 0.35;
+    if (event.strong) weight += 0.2;
+    if (event.runPoints) weight += 0.5;
+    if (event.leadChange) weight += 1.2;
+    // The last shot of a quarter gets the longest hold in the period. There is
+    // no clock in this engine, so it is not literally a buzzer-beater - but it
+    // is literally the last thing that happened, and a beat there is what makes
+    // a quarter feel like it ENDED rather than just stopped.
+    if (event.endOfPeriod) weight += 1.6;
+    return weight;
+  }
+
   function playQuarterShots(period, holdMs) {
     if (!shotChartRefs) return;
     const ofPeriod = ledger.events.filter((e) => e.period === period && e.type === "shot" && e.zone != null);
     if (!ofPeriod.length) return;
-    const spread = Math.max(0, holdMs - 400);
+
+    // Weighted cumulative offsets rather than an even division. The period
+    // still finishes inside its own hold - the weights decide how the time is
+    // divided, never how much there is.
+    const spread = Math.max(0, holdMs - 500);
+    const weights = ofPeriod.map(dramaWeight);
+    const total = weights.reduce((sum, w) => sum + w, 0) || 1;
+    let elapsed = 0;
+
     ofPeriod.forEach((event, i) => {
-      const at = ofPeriod.length > 1 ? (i / (ofPeriod.length - 1)) * spread : 0;
+      const at = (elapsed / total) * spread;
+      elapsed += weights[i];
       shotTimers.push(setTimeout(() => {
-        plotShot(shotChartRefs, event);
+        // The callout is what turns a chart filling in into a game being
+        // watched. Withheld from ordinary misses: naming every brick is noise,
+        // and the marker already says the shot happened.
+        const worthSaying =
+          event.made && (event.shotType === "three" || event.strong || event.runPoints || event.leadChange || event.endOfPeriod);
+        plotShot(shotChartRefs, event, { callout: worthSaying });
+
         // The sound names the KIND of shot, and the throttle in sound.js keeps
         // a busy quarter from turning into a buzz. A miss is quieter than a
         // make on purpose - the chart already shows every attempt, and the
@@ -2963,6 +3006,18 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         playSound(
           !event.made ? "shotMiss" : event.strong ? "rimFinish" : event.shotType === "three" ? "shotThree" : "shotMade"
         );
+
+        // The two things a person watching would say out loud. Both are read
+        // off the ledger's running score, so they can never disagree with the
+        // scoreboard ticking up beside them.
+        if (event.leadChange) {
+          const who = event.side === "a" ? labelA : labelB;
+          announceMoment(shotChartRefs, `${who} TAKE THE LEAD`, "lead");
+          playSound("steal");
+        } else if (event.runPoints) {
+          const who = event.runSide === "a" ? labelA : labelB;
+          announceMoment(shotChartRefs, `${who} ON A ${event.runPoints}-0 RUN`, "run");
+        }
       }, at));
     });
   }
@@ -3235,6 +3290,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     for (const t of shotTimers) clearTimeout(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
     flashClass(courtStageEl, "final-flash");
+    // The chart stops being the quiet background to whatever just happened and
+    // becomes the thing worth reading. During playback the settled marks sit at
+    // 0.16 so the newest shot is findable; at the buzzer they all lift to an
+    // even weight, which is what a shot chart is FOR.
+    shotChartRefs?.layer.classList.add("shot-chart-final");
 
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.

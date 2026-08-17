@@ -993,7 +993,25 @@ export async function runBrowserChecks(opts = {}) {
     }
 
     // ---- simulation -------------------------------------------------------
+    // Callouts and moment banners are transient by design - up for about a
+    // second and then removed, so nothing about them survives to the end of the
+    // run to be counted. Both are the difference between a chart filling in and
+    // a game being watched, and neither leaves a trace a post-hoc query could
+    // find. Counted as they happen.
     const simStart = Date.now();
+    await Promise.all(sessions.map(({ page }) => page.evaluate(() => {
+      window.__bkCallouts = 0;
+      window.__bkMoments = 0;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          for (const node of r.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            if (node.classList?.contains("shot-callout")) window.__bkCallouts += 1;
+            if (node.classList?.contains("court-moment")) window.__bkMoments += 1;
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    })));
     await Promise.all(sessions.map(({ page }) => page.evaluate(() => window.__bkPerfStart("simulation"))));
 
     const reachedGame = await Promise.all(
@@ -1078,6 +1096,27 @@ export async function runBrowserChecks(opts = {}) {
           .catch(() => false)
       )
     );
+    if ((process.env.SELFTEST_SPORT || "nba") === "nba") {
+      const drama = await sessions[0].page.evaluate(() => ({
+        callouts: window.__bkCallouts || 0,
+        moments: window.__bkMoments || 0,
+      }));
+      // Callouts are withheld from ordinary misses on purpose, so the count is
+      // well below the shot count - but a game with none means the whole
+      // "worth saying" branch never fired. Moments are rarer still: a game can
+      // legitimately have no lead change, so only callouts are required.
+      const dramaOk = drama.callouts > 0;
+      checks.push(
+        check(
+          "browser:live-drama",
+          dramaOk
+            ? `Live callouts fire on the shots worth naming (${drama.callouts} callouts, ${drama.moments} run/lead moments)`
+            : `No shot callout ever appeared: ${JSON.stringify(drama)}`,
+          dramaOk ? PASS : FAIL
+        )
+      );
+    }
+
     // The shot chart, if this sport draws one. Counted rather than assumed:
     // the ledger passing its own unit checks says the DATA is right, and a
     // clean console says nothing threw, but neither shows a single marker

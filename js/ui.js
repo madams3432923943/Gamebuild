@@ -2680,10 +2680,69 @@ export function plotShot(refs, event, opts = {}) {
   // The newest shots are the ones being watched, so they stay bright while the
   // chart behind them settles back. Without this the floor becomes an even
   // wash of markers and the shot just taken is impossible to pick out.
+  //
+  // THREE, not six. Six meant a sixth of a quarter's shots were all equally
+  // bright at once, which is not a focal point, it is a cluster. Three reads as
+  // "this one, and the two before it".
   refs.recent.push(mark);
   requestAnimationFrame(() => mark.classList.add("shot-in"));
-  while (refs.recent.length > 6) {
+  while (refs.recent.length > 3) {
     const old = refs.recent.shift();
     old.classList.add("shot-settled");
   }
+
+  if (opts.callout) calloutAt(refs, mark, event, opts);
+}
+
+/**
+ * The line a commentator would say, on the floor where it happened.
+ *
+ * This is the piece that turns a chart filling in into a game being watched.
+ * A marker appearing tells you a shot went in somewhere; "JOKIĆ · 3PT" tells
+ * you what just happened, and it is the difference between glancing and
+ * following.
+ *
+ * Deliberately terse - a surname and a verdict. Anything longer cannot be read
+ * in the time it is on screen, and a callout nobody finishes reading is just
+ * motion. Positioned off the marker so the eye is already in the right place.
+ */
+function calloutAt(refs, mark, event, opts) {
+  const chip = document.createElement("span");
+  chip.className = `shot-callout shot-callout-${event.side === "a" ? "a" : "b"}`;
+  if (event.made) chip.classList.add("shot-callout-made");
+
+  // Surname only. Full names are too wide for a phone's half-court and the
+  // first name is never the part that identifies a player to a fan.
+  const surname = String(event.player || "").split(" ").slice(-1)[0] || event.player || "";
+  const verdict = !event.made
+    ? "MISS"
+    : event.shotType === "three"
+      ? "3PT"
+      : event.strong
+        ? "AT THE RIM"
+        : "2PT";
+  chip.textContent = `${surname} · ${verdict}`;
+
+  chip.style.left = mark.style.left;
+  chip.style.top = mark.style.top;
+  refs.layer.appendChild(chip);
+  requestAnimationFrame(() => chip.classList.add("shot-callout-in"));
+  // Removed rather than left to accumulate: a hundred spent chips on the floor
+  // is a memory leak with a visual symptom.
+  setTimeout(() => chip.remove(), opts.calloutMs || 1100);
+}
+
+/**
+ * A banner for the moments the ledger says are moments - a run, a lead change,
+ * the last shot of a quarter. Sits over the court's centre rather than on the
+ * shot, because it is about the GAME rather than about one attempt.
+ */
+export function announceMoment(refs, text, kind = "") {
+  if (!refs) return;
+  const el = document.createElement("div");
+  el.className = `court-moment${kind ? ` court-moment-${kind}` : ""}`;
+  el.textContent = text;
+  refs.layer.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("court-moment-in"));
+  setTimeout(() => el.remove(), 1600);
 }
