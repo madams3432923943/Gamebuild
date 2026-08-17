@@ -829,6 +829,57 @@ function setCardMark(card, className, text) {
   el.textContent = text;
 }
 
+/** Artwork at least this wide can fill the identity card outright. The card
+ *  tops out around 1060px, so 900px is inside a 1.2x upscale - close enough to
+ *  native that it reads sharp, without demanding true 2x from every file.
+ *
+ *  The current banners are ~265px, which is why they cannot. When larger files
+ *  are dropped into assets/banners/ this is what notices, with no code change:
+ *  see docs/banner-artwork.md for the sizes to supply. */
+const FULL_BLEED_MIN_WIDTH = 900;
+
+/** Intrinsic width per image URL. Measured once - renderHomeHeader runs on
+ *  every refreshHome(), and decoding the same PNG each time to ask how wide it
+ *  is would be wasteful. `null` while in flight so a slow decode cannot queue
+ *  a second one. */
+const artWidthCache = new Map();
+
+/** Marks the card full-bleed once its artwork is big enough to fill it.
+ *  Deliberately measured rather than declared per banner: a flag in
+ *  js/banners.js would be a second source of truth that can disagree with the
+ *  file on disk, and the file is the thing that decides whether it looks good. */
+function applyArtResolution(card, src) {
+  const setFrom = (width) => {
+    // The card may have re-rendered onto a different banner while we decoded.
+    if (card.style.getPropertyValue("--banner-image").includes(src)) {
+      card.classList.toggle("art-hi-res", width >= FULL_BLEED_MIN_WIDTH);
+    }
+  };
+  if (artWidthCache.has(src)) {
+    const known = artWidthCache.get(src);
+    if (known !== null) setFrom(known);
+    return;
+  }
+  artWidthCache.set(src, null);
+  const probe = new Image();
+  probe.onload = () => {
+    artWidthCache.set(src, probe.naturalWidth);
+    setFrom(probe.naturalWidth);
+  };
+  // A missing or unreadable file drops the card back to the banner's own two
+  // colours, the same fallback the Rewards tiles use. Without this the card
+  // would paint a layer with nothing in it - and this is the state the app is
+  // in for as long as artwork is being replaced, so it has to look deliberate
+  // rather than broken.
+  probe.onerror = () => {
+    artWidthCache.set(src, 0);
+    if (card.style.getPropertyValue("--banner-image").includes(src)) {
+      card.classList.remove("has-banner-image", "art-hi-res");
+    }
+  };
+  probe.src = src;
+}
+
 /** Adds or removes one of the card's background layers. Reused rather than
  *  recreated for the same reason as setCardMark: this runs on every
  *  refreshHome(), and appending would stack a new layer per refresh. */
@@ -884,9 +935,12 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     // they set an <img src>, which resolves against the document. baseURI
     // rather than a leading slash, since Pages serves this from /Gamebuild/.
     if (franchise.image) {
-      refs.card.style.setProperty("--banner-image", `url("${new URL(franchise.image, document.baseURI).href}")`);
+      const src = new URL(franchise.image, document.baseURI).href;
+      refs.card.style.setProperty("--banner-image", `url("${src}")`);
+      applyArtResolution(refs.card, src);
     } else {
       refs.card.style.removeProperty("--banner-image");
+      refs.card.classList.remove("art-hi-res");
     }
     // The banner artwork is roughly 265x90. Stretched across a desktop card it
     // is a ~3.9x upscale, which is exactly as blurry as it sounds - it shipped
@@ -918,7 +972,7 @@ export function renderHomeHeader(refs, profile, rankInfo) {
     for (const prop of ["--banner-c1", "--banner-c2", "--art-c1", "--art-c2", "--banner-image"]) {
       refs.card.style.removeProperty(prop);
     }
-    refs.card.classList.remove("has-banner-image");
+    refs.card.classList.remove("has-banner-image", "art-hi-res");
     setCardLayer(refs.card, "pb-banner-wash", false);
     setCardLayer(refs.card, "pb-banner-plate", false);
     delete refs.card.dataset.bannerAbbr;
@@ -2768,6 +2822,21 @@ function calloutAt(refs, mark, event, opts) {
   chip.style.left = mark.style.left;
   chip.style.top = mark.style.top;
   refs.layer.appendChild(chip);
+
+  // A callout is centred on its marker, so one taken from the corner hangs off
+  // the side of the floor - on a phone a long surname ran past the viewport
+  // edge outright. Clamped after append rather than before, because the width
+  // is not knowable until it is laid out: it depends on the name.
+  const floorWidth = refs.layer.clientWidth;
+  const chipWidth = chip.offsetWidth;
+  if (floorWidth > chipWidth && chipWidth > 0) {
+    const half = chipWidth / 2;
+    const centre = (parseFloat(chip.style.left) / 100) * floorWidth;
+    const clamped = Math.min(Math.max(centre, half), floorWidth - half);
+    // Nudged only when it would actually overhang. A callout that fits stays
+    // exactly on its shot, which is the whole reason it is placed there.
+    if (clamped !== centre) chip.style.left = `${(clamped / floorWidth) * 100}%`;
+  }
   requestAnimationFrame(() => chip.classList.add("shot-callout-in"));
   // Removed rather than left to accumulate: a hundred spent chips on the floor
   // is a memory leak with a visual symptom.

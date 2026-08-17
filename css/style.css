@@ -1829,6 +1829,30 @@ table.box-table th, table.history-table th {
       linear-gradient(120deg, var(--banner-c1) 0%, var(--banner-c2) 78%, #05070c 100%);
   }
 
+  /* ---- What this is all waiting for ----
+     Artwork wide enough to fill the card goes back to being the card, which is
+     what a banner is supposed to be. The colour field and the plate are both
+     workarounds for source files that are too small; neither is the intent.
+
+     `art-hi-res` is set by applyArtResolution() in js/ui.js, which measures the
+     file's own intrinsic width - so replacing the PNGs in assets/banners/ with
+     larger ones is the entire change. No flag to flip, no code to edit. */
+  .player-banner.has-banner-image.art-hi-res > .pb-banner-wash {
+    background-image: var(--banner-image);
+  }
+
+  .player-banner.has-banner-image.art-hi-res > .pb-banner-plate {
+    display: none;
+  }
+
+  /* The plate sits over the right half, and the equipped-banner strip spans
+     the card - "Flying Pink Blossom" ran straight underneath it. Capped only
+     while the plate is actually there, so the full-bleed card above and every
+     phone keep the whole width. */
+  .player-banner.has-banner-image:not(.art-hi-res) .equipped-banner {
+    max-width: 58%;
+  }
+
   /* The banner itself, drawn at 1.3x native at most - close enough to sharp
      that the texture reads, large enough to be the thing you notice. Sits
      above the card's ::after scrim (z-index 0) so the art keeps its contrast

@@ -41,15 +41,35 @@ width over the image's width is what sets the scale factor.
 > element cannot match a container query on itself, only its descendants can.
 > Written the other way round, the query silently does nothing.
 
-## The real fix
+## The real fix — and it needs no code change
 
-**Commission the artwork at ~1060×360 or larger.** At that size the card can go
-back to plain `cover` and the wash/plate treatment can be deleted outright.
+**Replace the files in `assets/banners/` with larger ones.** That is the whole
+change. `applyArtResolution()` in `js/ui.js` measures each image's intrinsic
+width when the card renders; at **900px wide or more** the card drops the colour
+field and the plate and goes back to being the banner, full-bleed and sharp.
+
+### Spec
+
+| | |
+| --- | --- |
+| **Minimum** | **1600 × 544 px** |
+| Preferred | 2120 × 720 px (sharp on 2× displays at full desktop width) |
+| Aspect ratio | ~2.94 : 1 — the same as the current files, so nothing crops differently |
+| Format | PNG, **same filenames**, same folder |
+| Threshold | ≥900px wide flips a banner to full-bleed automatically |
+
+Filenames must match exactly, because `js/banners.js` builds the path as
+`assets/banners/<file>.png`. Replacing a file is zero-downtime; deleting one is
+not — the card and the Rewards tile both fall back to the banner's two colours
+until it returns, which is tidy but is not the artwork.
+
+Files can be replaced one at a time. Each banner is measured independently, so a
+mix of upgraded and not-yet-upgraded banners is a supported state, not a broken
+one.
 
 `npm run verify:banner-resolution` asserts the PNGs are still the small size the
 current layout was written against. If that check fails because the art got
-*bigger*, that is the good outcome — re-evaluate whether any of this is still
-needed.
+*bigger*, that is the good outcome — the workaround can be deleted.
 
 ## What holds it in place
 
@@ -57,7 +77,9 @@ needed.
   the art is painted on a descendant layer.
 - `browser:banner-art` in `scripts/verify-browser.mjs` — measures the **painted**
   result in Chromium at 1280px and 360px. Only the browser knows how many source
-  pixels ended up covering how many screen pixels.
+  pixels ended up covering how many screen pixels. It also generates a 1600px
+  image in-page and pushes it through the same code path, so the promise that
+  "bigger files just work" is tested before anyone redraws twenty banners.
 
 ## Known limitations
 

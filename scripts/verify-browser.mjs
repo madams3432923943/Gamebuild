@@ -1002,11 +1002,26 @@ export async function runBrowserChecks(opts = {}) {
     await Promise.all(sessions.map(({ page }) => page.evaluate(() => {
       window.__bkCallouts = 0;
       window.__bkMoments = 0;
+      // Worst horizontal overhang past the floor, in px. A callout is centred
+      // on its shot with nowrap text, so one taken from the corner hangs off
+      // the side - on a phone that ran past the viewport edge. It cannot be
+      // caught after the fact: callouts are removed after about a second, so
+      // by the time any layout audit runs there is nothing left to measure.
+      window.__bkCalloutOverhangPx = 0;
       new MutationObserver((records) => {
         for (const r of records) {
           for (const node of r.addedNodes) {
             if (node.nodeType !== 1) continue;
-            if (node.classList?.contains("shot-callout")) window.__bkCallouts += 1;
+            if (node.classList?.contains("shot-callout")) {
+              window.__bkCallouts += 1;
+              const court = document.querySelector('[data-stage="court"]');
+              if (court) {
+                const cr = court.getBoundingClientRect();
+                const nr = node.getBoundingClientRect();
+                const over = Math.max(0, cr.left - nr.left, nr.right - cr.right);
+                if (over > window.__bkCalloutOverhangPx) window.__bkCalloutOverhangPx = over;
+              }
+            }
             if (node.classList?.contains("court-moment")) window.__bkMoments += 1;
           }
         }
@@ -1100,6 +1115,7 @@ export async function runBrowserChecks(opts = {}) {
       const drama = await sessions[0].page.evaluate(() => ({
         callouts: window.__bkCallouts || 0,
         moments: window.__bkMoments || 0,
+        overhangPx: Math.round(window.__bkCalloutOverhangPx || 0),
       }));
       // Callouts are withheld from ordinary misses on purpose, so the count is
       // well below the shot count - but a game with none means the whole
@@ -1139,13 +1155,18 @@ export async function runBrowserChecks(opts = {}) {
         )
       );
 
-      const dramaOk = drama.callouts > 0;
+      // Firing is half of it. A callout that fires and then hangs off the side
+      // of the floor is the mobile failure, and one pixel of slack is allowed
+      // only for sub-pixel rounding.
+      const dramaOk = drama.callouts > 0 && drama.overhangPx <= 1;
       checks.push(
         check(
           "browser:live-drama",
           dramaOk
-            ? `Live callouts fire on the shots worth naming (${drama.callouts} callouts, ${drama.moments} run/lead moments)`
-            : `No shot callout ever appeared: ${JSON.stringify(drama)}`,
+            ? `Live callouts fire on the shots worth naming (${drama.callouts} callouts, ${drama.moments} run/lead moments, none overhanging)`
+            : drama.callouts === 0
+              ? `No shot callout ever appeared: ${JSON.stringify(drama)}`
+              : `A callout hung ${drama.overhangPx}px off the side of the floor (${drama.callouts} callouts)`,
           dramaOk ? PASS : FAIL
         )
       );
@@ -1509,6 +1530,59 @@ async function auditBannerResolution(page, log) {
     if (narrow.plateDisplay !== "none") problems.push(`the plate is laid out at 360px (display: ${narrow.plateDisplay})`);
     if (narrow.washDisplay === "none") problems.push("the art is not painted at all at 360px");
     if (!/url\(/.test(narrow.washBackground)) problems.push("at 360px the card shows colour instead of the artwork");
+  }
+
+  // ---- the path out of all of this -----------------------------------------
+  // Everything above is a workaround for source files that are too small. The
+  // fix is bigger artwork, and js/ui.js measures each file's intrinsic width so
+  // that dropping larger PNGs into assets/banners/ is the entire change.
+  //
+  // That promise is worth nothing untested, and it cannot be tested with the
+  // art in the repo - none of it is big enough. So a large image is generated
+  // here and fed through the same code path, which is the only way to know the
+  // upgrade works BEFORE someone spends an afternoon redrawing twenty banners.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const hiRes = await page.evaluate(async () => {
+    const card = document.querySelector(".player-banner");
+    if (!card) return null;
+    const c = document.createElement("canvas");
+    c.width = 1600;
+    c.height = 544;
+    const ctx = c.getContext("2d");
+    const grad = ctx.createLinearGradient(0, 0, 1600, 544);
+    grad.addColorStop(0, "#f5c542");
+    grad.addColorStop(1, "#6b4a08");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1600, 544);
+    const src = c.toDataURL("image/png");
+
+    card.classList.add("has-banner", "has-banner-image");
+    card.style.setProperty("--banner-image", `url("${src}")`);
+    // The same measurement ui.js performs, exercised through the real DOM.
+    const probe = new Image();
+    await new Promise((resolve) => {
+      probe.onload = resolve;
+      probe.onerror = resolve;
+      probe.src = src;
+    });
+    card.classList.toggle("art-hi-res", probe.naturalWidth >= 900);
+
+    const wash = card.querySelector(".pb-banner-wash");
+    const plate = card.querySelector(".pb-banner-plate");
+    return {
+      naturalWidth: probe.naturalWidth,
+      upgraded: card.classList.contains("art-hi-res"),
+      washBackground: wash ? getComputedStyle(wash).backgroundImage : "none",
+      plateDisplay: plate ? getComputedStyle(plate).display : "absent",
+    };
+  });
+
+  if (hiRes) {
+    if (!hiRes.upgraded) problems.push(`${hiRes.naturalWidth}px artwork did not trip the full-bleed threshold`);
+    if (!/url\(/.test(hiRes.washBackground)) {
+      problems.push("with large artwork the card still shows a colour field instead of the banner");
+    }
+    if (hiRes.plateDisplay !== "none") problems.push("the plate is still drawn once the artwork can fill the card");
   }
 
   log(`  banner art: ${wide.cardWidth}px card, plate ${wide.plateWidth}px, ${wide.state}`);
