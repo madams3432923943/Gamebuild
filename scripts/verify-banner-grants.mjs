@@ -1,94 +1,165 @@
 #!/usr/bin/env node
-// Banner grants: the founder gets everything, and nobody else gets anything.
+// The owner's override: granted banners and badges.
 //
 // WHY THIS EXISTS
 //
-// The general banner ladders are computed live from real counters - online wins,
-// friend count, wins in every era - and the clan ladder is computed from nothing
-// at all, since clans do not exist and its progress function ignores the profile
-// entirely. So the founder's banners could not be granted by writing data, only
-// by an identity check inside generalBannerProgress.
+// The first version of "give the founder every banner" was a hardcoded id check
+// in js/banners.js. It worked and it was the wrong shape: every future favour -
+// a friend, a tester, an apology for a bug - would have been a code change, a
+// test run, a push, and a wait on a Pages deploy that has failed with a 503 more
+// than once. Grants live in profiles.granted_banners / granted_badges now, so a
+// grant is one row edit and takes effect on the next page load.
 //
-// An identity check that unlocks things is exactly the kind of code that gets
-// generalised by accident - a truthy test, a renamed field, a profile object
-// that arrives without an id - and the failure mode is silent and generous:
-// everybody gets every banner and nobody notices, because nothing looks broken.
-// That is what this pins down.
+// An override that unlocks things is exactly the code that gets generalised by
+// accident - a truthy test, a renamed field, a profile that arrives without the
+// column - and the failure is silent and generous: everyone gets everything and
+// nothing looks broken. That is what this pins down.
 //
-// It also fixes the shortcut that was NOT taken, and should stay not-taken:
-// unlocking these by inflating online_wins would have faked a ranked record that
-// feeds the ELO everyone else is ranked against.
+// The other half is the line that must never move: grants are COSMETIC. Ratings,
+// records and results are the trusted server's. A grant that could reach them
+// would turn the ladder everyone else is ranked against into a favour.
 
-import { GENERAL_BANNERS, generalBannerProgress, isFounder } from "../js/banners.js";
+import {
+  FRANCHISES,
+  GENERAL_BANNERS,
+  bannerProgress,
+  generalBannerProgress,
+} from "../js/banners.js";
+import { BADGES, badgeProgress } from "../js/badges.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 const checks = [];
 const add = (title, ok, detail) => checks.push({ title, status: ok ? PASS : FAIL, detail: String(detail) });
 
-// The real founder id, read through the module's own predicate rather than
-// duplicated here - if the constant moves, this test follows it.
-const FOUNDER_ID = "eb5b91cf-7a08-4757-b2a7-967db2424846";
-add("isFounder recognises the founder id", isFounder({ id: FOUNDER_ID }), FOUNDER_ID);
+const bare = {
+  onlineWins: 0, onlineLosses: 0, offlineWins: 0, offlineLosses: 0,
+  friendCount: 0, eraRecords: {}, teamBanners: {}, careerTotals: {},
+  personalBests: {}, draftCounts: {}, history: [],
+};
 
-// Deliberately modest counters: a founder with six wins and one friend has
-// earned almost nothing, so anything unlocked is the grant and not the ladder.
-const founder = { id: FOUNDER_ID, onlineWins: 6, friendCount: 1, eraRecords: {} };
-const stranger = { id: "11111111-2222-3333-4444-555555555555", onlineWins: 6, friendCount: 1, eraRecords: {} };
-
-const unlockedFor = (p) => GENERAL_BANNERS.filter((b) => generalBannerProgress(b, p).unlocked);
-
-const founderUnlocked = unlockedFor(founder);
+// ---- nothing granted, nothing unlocked -------------------------------------
+// The floor. If this ever passes with unlocks, every check below is meaningless.
+const ungranted = { ...bare, grantedBanners: [], grantedBadges: [] };
+const baselineGeneral = GENERAL_BANNERS.filter((b) => generalBannerProgress(b, ungranted).unlocked);
 add(
-  "The founder has every general banner",
-  founderUnlocked.length === GENERAL_BANNERS.length,
-  `${founderUnlocked.length} of ${GENERAL_BANNERS.length}`
-);
-
-// The whole point of the check being narrow. A grant that leaks is worse than no
-// grant: every ladder in the game stops meaning anything at once.
-const strangerUnlocked = unlockedFor(stranger);
-add(
-  "Nobody else is granted anything",
-  strangerUnlocked.length === 1 && strangerUnlocked[0].id === "rookie",
-  strangerUnlocked.length === 1
+  "With no grant, only what is genuinely earned is unlocked",
+  baselineGeneral.length === 1 && baselineGeneral[0].id === "rookie",
+  baselineGeneral.length === 1
     ? "only Rookie, which everyone starts with"
-    : `${strangerUnlocked.length} unlocked for a stranger: ${strangerUnlocked.map((b) => b.id).join(", ")}`
+    : `${baselineGeneral.length} unlocked without a grant: ${baselineGeneral.map((b) => b.id).join(", ")}`
+);
+add(
+  "With no grant, no franchise banner is unlocked",
+  FRANCHISES.every((f) => !bannerProgress(f, ungranted).unlocked),
+  `${FRANCHISES.length} franchises, all locked`
+);
+add(
+  "With no grant, no badge has a tier",
+  BADGES.every((b) => badgeProgress(b, ungranted).tierIndex < 0),
+  `${BADGES.length} badges, none earned`
 );
 
-// A profile with no id at all - a partial row, a failed read, a stub in a test -
-// must not read as the founder. `undefined === undefined` is the bug this is
-// here to prevent.
-for (const shape of [{}, { id: null }, { id: undefined }, { id: "" }]) {
-  const p = { ...shape, onlineWins: 0, friendCount: 0, eraRecords: {} };
-  if (unlockedFor(p).length > 1) {
-    add("A profile with no id is not the founder", false, `granted via ${JSON.stringify(shape)}`);
+// ---- a grant unlocks exactly what it names, and nothing else ---------------
+const oneOfEach = {
+  ...bare,
+  grantedBanners: ["crystal", "nfl-eagles"],
+  grantedBadges: ["gunslinger"],
+};
+add(
+  "A granted general banner unlocks",
+  generalBannerProgress(GENERAL_BANNERS.find((b) => b.id === "crystal"), oneOfEach).unlocked,
+  "crystal, which needs 500 ranked wins, from a profile with zero"
+);
+add(
+  "A granted franchise banner unlocks",
+  bannerProgress(FRANCHISES.find((f) => f.id === "nfl-eagles"), oneOfEach).unlocked,
+  "nfl-eagles, from a profile that has drafted nobody"
+);
+add(
+  "A granted badge lands at its TOP tier, not Bronze",
+  badgeProgress(BADGES.find((b) => b.id === "gunslinger"), oneOfEach).tierIndex ===
+    BADGES.find((b) => b.id === "gunslinger").thresholds.length - 1,
+  "a grant that produced Bronze would leave the player grinding for something they were given"
+);
+
+// The narrowness is the whole point. A grant that leaks is worse than no grant:
+// every ladder in the game stops meaning anything at once.
+const leakedGeneral = GENERAL_BANNERS.filter(
+  (b) => b.id !== "crystal" && b.id !== "rookie" && generalBannerProgress(b, oneOfEach).unlocked
+);
+const leakedFranchise = FRANCHISES.filter(
+  (f) => f.id !== "nfl-eagles" && bannerProgress(f, oneOfEach).unlocked
+);
+const leakedBadges = BADGES.filter((b) => b.id !== "gunslinger" && badgeProgress(b, oneOfEach).tierIndex >= 0);
+add(
+  "Granting one thing grants only that thing",
+  leakedGeneral.length === 0 && leakedFranchise.length === 0 && leakedBadges.length === 0,
+  leakedGeneral.length + leakedFranchise.length + leakedBadges.length === 0
+    ? "two banners and one badge granted; nothing else moved"
+    : `leaked: ${[...leakedGeneral, ...leakedFranchise].map((x) => x.id).join(", ")} ${leakedBadges.map((b) => b.id).join(", ")}`
+);
+
+// ---- malformed grants deny rather than break -------------------------------
+// A missing column, a null, a string where an array belongs - all of these
+// arrive in practice, and the safe reading of every one of them is "no grant".
+for (const shape of [{}, { grantedBanners: null }, { grantedBanners: "crystal" }, { grantedBanners: {} }]) {
+  const p = { ...bare, ...shape };
+  const unlocked = GENERAL_BANNERS.filter((b) => generalBannerProgress(b, p).unlocked);
+  if (unlocked.length !== 1) {
+    add("A malformed grant denies rather than throws or leaks", false, JSON.stringify(shape));
     break;
   }
 }
-if (!checks.some((c) => c.title === "A profile with no id is not the founder")) {
-  add("A profile with no id is not the founder", true, "empty, null, undefined and blank ids all denied");
+if (!checks.some((c) => c.title === "A malformed grant denies rather than throws or leaks")) {
+  add(
+    "A malformed grant denies rather than throws or leaks",
+    true,
+    "missing, null, string and object all read as no grant"
+  );
 }
 
-// The clan banners are the proof that this had to be a grant rather than data:
-// their progress function takes no profile and returns unlocked:false always.
-const pending = GENERAL_BANNERS.filter((b) => b.pending);
+// An id for something that does not exist grants nothing, so a typo is harmless.
+const typo = { ...bare, grantedBanners: ["cyrstal", "", null, 42] };
 add(
-  "The unearnable clan banners are reachable ONLY by grant",
-  pending.length > 0 &&
-    pending.every((b) => !b.progress(founder).unlocked) &&
-    pending.every((b) => generalBannerProgress(b, founder).unlocked),
-  `${pending.length} clan banners: false from progress(), unlocked through the grant`
+  "An unknown or junk id grants nothing",
+  GENERAL_BANNERS.filter((b) => generalBannerProgress(b, typo).unlocked).length === 1,
+  "a typo costs the grant, not the screen"
 );
 
-// Granted is flagged, not disguised as earned.
-const grantedFlags = GENERAL_BANNERS.filter((b) => generalBannerProgress(b, founder).granted);
+// ---- granted is flagged, never disguised as earned -------------------------
 add(
-  "Granted banners are marked as granted, not as earned",
-  grantedFlags.length === GENERAL_BANNERS.length - 1,
-  `${grantedFlags.length} flagged (all but Rookie, which is genuinely earned by existing)`
+  "Granted unlocks are marked granted",
+  generalBannerProgress(GENERAL_BANNERS.find((b) => b.id === "crystal"), oneOfEach).granted === true &&
+    bannerProgress(FRANCHISES.find((f) => f.id === "nfl-eagles"), oneOfEach).granted === true &&
+    badgeProgress(BADGES.find((b) => b.id === "gunslinger"), oneOfEach).granted === true,
+  "so a tile can say how it was come by rather than implying 500 ranked wins"
 );
 
-console.log(renderSection("Banner grants: the founder, and nobody else"));
+// A genuinely earned unlock is NOT flagged as granted - the distinction is the
+// only thing keeping the flag meaningful.
+const earned = { ...bare, grantedBanners: [], onlineWins: 600 };
+const crystalEarned = generalBannerProgress(GENERAL_BANNERS.find((b) => b.id === "crystal"), earned);
+add(
+  "An earned unlock is not flagged as granted",
+  crystalEarned.unlocked && !crystalEarned.granted,
+  "600 ranked wins earns Crystal outright"
+);
+
+// ---- the line that must not move -------------------------------------------
+// Grants are cosmetic. This asserts the shape of what a grant returns: an
+// unlock and a flag, and nothing that any rating, record or result reads.
+const shape = generalBannerProgress(GENERAL_BANNERS.find((b) => b.id === "crystal"), oneOfEach);
+const allowed = new Set(["drafted", "value", "required", "unlocked", "percent", "granted"]);
+const unexpected = Object.keys(shape).filter((k) => !allowed.has(k));
+add(
+  "A grant returns only cosmetic progress fields",
+  unexpected.length === 0,
+  unexpected.length === 0
+    ? Object.keys(shape).join(", ")
+    : `a grant is leaking non-cosmetic fields: ${unexpected.join(", ")}`
+);
+
+console.log(renderSection("Granted unlocks: the owner's override, and its limits"));
 for (const c of checks) console.log(renderCheck(c));
 const { counts, ok } = summarize(checks);
 console.log(`\n  passed ${counts[PASS]}  failed ${counts[FAIL]}\n`);

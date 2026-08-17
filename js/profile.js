@@ -285,6 +285,10 @@ function normalize(row) {
     // the default too, so this is belt and braces on a column that may predate
     // the row reading it.
     equippedKit: row.equipped_kit || DEFAULT_KIT_ID,
+    // The owner's override. Arrays so "is this id present" is the only
+    // question; a missing column reads as an empty grant rather than undefined.
+    grantedBanners: Array.isArray(row.granted_banners) ? row.granted_banners : [],
+    grantedBadges: Array.isArray(row.granted_badges) ? row.granted_badges : [],
     featuredBadges: row.featured_badges || [],
     createdAt: row.created_at || null,
     history: row.history || [],

@@ -379,22 +379,20 @@ export function generalBannerById(id) {
  * returns for franchise banners so the tile renderer can treat both alike. */
 export function generalBannerProgress(banner, profile) {
   const { value, required, unlocked } = banner.progress(profile);
-  // THE FOUNDER GRANT.
+  // GRANTED, from profiles.granted_banners - see isGranted above.
   //
-  // The general ladders are computed live from real counters - online wins,
-  // friend count, wins in every era - and the clan ladder is computed from
-  // nothing at all, because clans do not exist yet and its progress function
-  // ignores the profile and returns false.
+  // This replaced a hardcoded founder id check. The ladders here are computed
+  // live from real counters, and the clan ladder from nothing at all (clans do
+  // not exist; its progress function ignores the profile and returns false), so
+  // there is no data to write that would unlock them. Inflating online_wins
+  // would have been the obvious shortcut and is wrong twice over: it is a real
+  // ranked record, it feeds the ELO and the percentile everyone else is measured
+  // against, and it still would not have touched the clan banners.
   //
-  // So "unlock these for the founder" cannot be done by writing data. Inflating
-  // online_wins would be the obvious shortcut and is wrong twice over: it is a
-  // real ranked record, it feeds the ELO and the percentile everyone else is
-  // measured against, and it still would not touch the clan banners. Granting on
-  // identity changes what is UNLOCKED without lying about what was PLAYED.
-  //
-  // `granted` is passed through so a tile can say how it was come by rather than
-  // implying 500 ranked wins that never happened.
-  if (!unlocked && isFounder(profile)) {
+  // A grant changes what is UNLOCKED without lying about what was PLAYED, and
+  // `granted` is passed through so a tile can say so rather than implying 500
+  // ranked wins that never happened.
+  if (!unlocked && isGranted(profile, banner.id)) {
     return { drafted: required, value, required, unlocked: true, percent: 100, granted: true };
   }
   return { drafted: value, value, required, unlocked, percent: Math.min(100, (100 * value) / required) };
@@ -409,6 +407,27 @@ export function bannerById(id) {
   if (id === FOUNDER_BANNER.id) return FOUNDER_BANNER;
   if (id === FIRST_PLAYER_BANNER.id) return FIRST_PLAYER_BANNER;
   return generalBannerById(id) || franchiseById(id);
+}
+
+/**
+ * Ids force-unlocked for this player, from profiles.granted_banners.
+ *
+ * The override the owner controls. A grant used to be a hardcoded id check in
+ * this file, which meant every future favour - a friend, a tester, an apology
+ * for a bug - was a code change, a test run, a push, and a wait on a Pages
+ * deploy that has failed with a 503 more than once. Now it is one row edit and
+ * takes effect on the next page load.
+ *
+ * Unknown ids are simply never matched, so a typo grants nothing rather than
+ * breaking a screen, and an id written for a banner that ships next week starts
+ * working the day it does.
+ *
+ * COSMETIC ONLY. Nothing reachable from here touches a rating, a record or a
+ * result - those are the trusted server's and must never be grantable.
+ */
+function isGranted(profile, id) {
+  const granted = profile && profile.grantedBanners;
+  return Array.isArray(granted) && granted.includes(id);
 }
 
 /** Every team string that belongs to a franchise, current name included. */
@@ -427,6 +446,9 @@ function teamNamesFor(franchise) {
 export function bannerProgress(franchise, profile) {
   const counts = profile.teamBanners || {};
   const drafted = teamNamesFor(franchise).reduce((sum, team) => sum + (counts[team] || 0), 0);
+  if (drafted < BANNER_THRESHOLD && isGranted(profile, franchise.id)) {
+    return { drafted, required: BANNER_THRESHOLD, unlocked: true, percent: 100, granted: true };
+  }
   return {
     drafted,
     required: BANNER_THRESHOLD,

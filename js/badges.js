@@ -476,6 +476,13 @@ export const BADGES = [
  * `tierIndex` is -1 when it hasn't been earned at all yet; otherwise it
  * indexes BADGE_TIERS. `next` is null once Hall of Fame is reached.
  */
+/** Badge ids force-unlocked for this player, from profiles.granted_badges.
+ * Same override as banners, same rule: cosmetic only, never a rating. */
+function isBadgeGranted(profile, id) {
+  const granted = profile && profile.grantedBadges;
+  return Array.isArray(granted) && granted.includes(id);
+}
+
 export function badgeProgress(badge, profile) {
   // The badge's OWN sport, so career() and bestInGame() look in the right
   // namespace. See the note on those helpers for what happened when they did
@@ -484,6 +491,20 @@ export function badgeProgress(badge, profile) {
   let tierIndex = -1;
   for (let i = 0; i < badge.thresholds.length; i++) {
     if (value >= badge.thresholds[i]) tierIndex = i;
+  }
+
+  // A granted badge lands at its TOP tier. A grant that produced Bronze would
+  // leave the player still visibly grinding for something they were given.
+  if (tierIndex < badge.thresholds.length - 1 && isBadgeGranted(profile, badge.id)) {
+    const top = badge.thresholds.length - 1;
+    return {
+      value,
+      tierIndex: top,
+      tier: BADGE_TIERS[top],
+      next: null,
+      percent: 100,
+      granted: true,
+    };
   }
 
   const nextThreshold = badge.thresholds[tierIndex + 1];
