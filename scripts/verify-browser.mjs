@@ -1128,39 +1128,8 @@ export async function runBrowserChecks(opts = {}) {
       // well below the shot count - but a game with none means the whole
       // "worth saying" branch never fired. Moments are rarer still: a game can
       // legitimately have no lead change, so only callouts are required.
-      // The buzzer overlay. Only exists after the final whistle, and it is the
-      // thing that makes the settled chart readable rather than merely present.
-      const zones = await sessions[0].page.evaluate(() => {
-        const stats = [...document.querySelectorAll(".zone-stat")];
-        const court = document.querySelector('[data-stage="court"]');
-        const cr = court?.getBoundingClientRect();
-        let outside = 0;
-        for (const z of stats) {
-          const r = z.getBoundingClientRect();
-          if (cr && (r.left < cr.left - 2 || r.right > cr.right + 2)) outside += 1;
-        }
-        return {
-          count: stats.length,
-          sideA: document.querySelectorAll(".zone-stat-a").length,
-          sideB: document.querySelectorAll(".zone-stat-b").length,
-          outside,
-          // Every label must carry volume AND rate - a bare percentage hides
-          // whether it rests on three attempts or thirty.
-          allHaveBoth: stats.every((z) => z.querySelector(".zone-stat-line") && z.querySelector(".zone-stat-pct")),
-          sample: stats.slice(0, 2).map((z) => z.textContent.replace(/\s+/g, " ").trim()),
-        };
-      });
-      const zonesOk = zones.count >= 4 && zones.sideA > 0 && zones.sideB > 0 &&
-        zones.outside === 0 && zones.allHaveBoth;
-      checks.push(
-        check(
-          "browser:zone-summary",
-          zonesOk
-            ? `Buzzer overlay reads the floor back (${zones.count} bands, both halves, e.g. ${zones.sample.join(" / ")})`
-            : `Zone summary wrong: ${JSON.stringify(zones)}`,
-          zonesOk ? PASS : FAIL
-        )
-      );
+      // browser:zone-summary lived here. The zone overlay was numbers drawn on
+      // the court, and went with it.
 
       // Firing is half of it. A callout that fires and then hangs off the side
       // of the floor is the mobile failure, and one pixel of slack is allowed
@@ -1189,13 +1158,20 @@ export async function runBrowserChecks(opts = {}) {
       const a = cs.getPropertyValue("--team-a-ink").trim();
       const b = cs.getPropertyValue("--team-b-ink").trim();
       // Where the kit has to LAND differs by sport, so both are read and the
-      // caller asserts whichever this run has. Football has no shot markers at
-      // all, and treating their absence as a failure made the football run fail
-      // for having no basketball in it.
-      const mark = document.querySelector(".shot-mark.shot-a");
-      // What the marker ACTUALLY resolved to, not what the variable says. A
-      // typo'd var name falls through to the fallback and still "has a colour".
-      const markInk = mark ? getComputedStyle(mark).getPropertyValue("--shot-ink").trim() : null;
+      // caller asserts whichever this run has. Football has no scoreboard
+      // digits of its own colour... it does, actually - both sports draw the
+      // board - but football ALSO paints endzones, and treating a missing
+      // surface as a failure made one sport's run fail for not being the other.
+      //
+      // Basketball's surface used to be shot markers on a court. The court is
+      // gone; the board is the whole stage, so the digits are where the kit has
+      // to show up. Read as the COMPUTED colour, not the variable: a typo'd var
+      // name falls through to the fallback and still "has a colour".
+      const digit = document.querySelector(".scoreboard-score-a");
+      const digitInk = digit ? getComputedStyle(digit).color : null;
+      const toRgb = (c) => { const d = document.createElement("div"); d.style.color = c;
+        document.body.appendChild(d); const v = getComputedStyle(d).color; d.remove(); return v; };
+      const markInk = digitInk === null ? null : (digitInk === toRgb(a) ? a : digitInk);
       const left = document.querySelector(".ff-endzone.left");
       const right = document.querySelector(".ff-endzone.right");
       const endzones = left && right
@@ -1215,7 +1191,7 @@ export async function runBrowserChecks(opts = {}) {
       };
     });
     // Distinct kits always. Then whichever surface this sport actually draws:
-    // basketball's markers, football's endzones. A run that has neither would
+    // basketball's board digits, football's endzones. A run with neither would
     // pass the first and prove nothing, so at least one has to be present.
     const surfaceChecked = kits.markUsesKit !== null || kits.endzonesDiffer !== null;
     const kitsOk =
@@ -1227,64 +1203,20 @@ export async function runBrowserChecks(opts = {}) {
       check(
         "browser:team-kits",
         kitsOk
-          ? `Both teams wear their own kit (${kits.a} vs ${kits.b}, ${kits.markUsesKit ? "markers follow" : "endzones differ"})`
+          ? `Both teams wear their own kit (${kits.a} vs ${kits.b}, ${kits.markUsesKit ? "the board's digits follow" : "endzones differ"})`
           : `Kits not applied: ${JSON.stringify(kits)}`,
         kitsOk ? PASS : FAIL
       )
     );
 
-    // The shot chart, if this sport draws one. Counted rather than assumed:
-    // the ledger passing its own unit checks says the DATA is right, and a
-    // clean console says nothing threw, but neither shows a single marker
-    // reached the court. Made and missed are both required - a chart of only
-    // makes would mean the miss path never ran.
-    if ((process.env.SELFTEST_SPORT || "nba") === "nba") {
-      const chart = await sessions[0].page.evaluate(() => {
-        const marks = [...document.querySelectorAll(".shot-mark")];
-        const court = document.querySelector('[data-stage="court"]');
-        const board = document.getElementById("live-scoreboard");
-        const cr = court?.getBoundingClientRect();
-        const br = board?.getBoundingClientRect();
-        // CONTAINMENT is the property that broke. The markers are placed as a
-        // percentage of their parent, and when that parent was the whole stage
-        // rather than the floor, corner threes landed on the scoreboard. A
-        // count of markers cannot see that - they were all present and correct,
-        // just drawn on top of the score.
-        let outsideCourt = 0;
-        let onScoreboard = 0;
-        for (const m of marks) {
-          const r = m.getBoundingClientRect();
-          if (cr && (r.left < cr.left - 2 || r.right > cr.right + 2 || r.top < cr.top - 2 || r.bottom > cr.bottom + 2)) {
-            outsideCourt += 1;
-          }
-          if (br && r.right > br.left && r.left < br.right && r.bottom > br.top && r.top < br.bottom) {
-            onScoreboard += 1;
-          }
-        }
-        return {
-          total: marks.length,
-          made: document.querySelectorAll(".shot-mark.shot-made").length,
-          missed: document.querySelectorAll(".shot-mark.shot-miss").length,
-          teamA: document.querySelectorAll(".shot-mark.shot-a").length,
-          teamB: document.querySelectorAll(".shot-mark.shot-b").length,
-          outsideCourt,
-          onScoreboard,
-          courtAboveBoard: cr && br ? cr.top < br.top : null,
-        };
-      });
-      const chartOk = chart.total > 20 && chart.made > 0 && chart.missed > 0 &&
-        chart.teamA > 0 && chart.teamB > 0 &&
-        chart.outsideCourt === 0 && chart.onScoreboard === 0 && chart.courtAboveBoard === true;
-      checks.push(
-        check(
-          "browser:shot-chart",
-          chartOk
-            ? `Shot chart stays on the court (${chart.total} marks — ${chart.made} made, ${chart.missed} missed, both teams, none on the scoreboard)`
-            : `Shot chart did not draw as expected: ${JSON.stringify(chart)}`,
-          chartOk ? PASS : FAIL
-        )
-      );
-    }
+    // browser:shot-chart lived here. It asserted that markers landed on the
+    // court and, in particular, that none of them landed on the scoreboard -
+    // a real bug it caught once. Both the chart and the court are gone; the
+    // board is the whole stage, so there is nothing left to contain.
+    //
+    // What the chart proved that still matters - that the ledger produces a
+    // real spread of makes, misses and both teams - is unit-tested directly by
+    // scripts/verify-nba-shot-ledger.mjs, which never needed a DOM.
 
     // The MVP row and the frozen name column. Both are pure CSS/markup and
     // both fail silently: a selector that never matches leaves a box score

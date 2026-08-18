@@ -24,10 +24,13 @@
 // unlikely, and each player still sees their own colours - they dress their own
 // half of the court and their own endzone either way.
 
-/** The court surface these colours are drawn on, from .court in css/style.css.
- * Every kit colour has to stay visible against it, which is why it lives here
- * as a number rather than only in the stylesheet. */
-export const COURT_SURFACE = "#141d2e";
+/** The surface a kit colour has to be legible ON.
+ *
+ * Was the court floor. The court is gone - the scoreboard is the whole stage -
+ * so it is the board's own background, and the kit colours now show up as the
+ * score digits rather than as marks on a floor. The lighter of the board's two
+ * gradient stops, because that is the harder of the two to be seen against. */
+export const BOARD_SURFACE = "#12161d";
 
 /** Minimum contrast a worn colour must have against the floor.
  *
@@ -238,7 +241,7 @@ export function wornColours(homeKitId, awayKitId) {
     for (const candidate of candidates) {
       if (
         colourDistance(homeInk, candidate) >= MIN_KIT_SEPARATION &&
-        contrastRatio(candidate, COURT_SURFACE) >= MIN_SURFACE_CONTRAST
+        contrastRatio(candidate, BOARD_SURFACE) >= MIN_SURFACE_CONTRAST
       ) {
         awayInk = candidate;
         shifted = true;

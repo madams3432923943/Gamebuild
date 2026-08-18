@@ -376,41 +376,11 @@ function assignAssists(pending, period, rand) {
 // minimum readable width, so a band at 0.10 clips past the sideline on a 360px
 // phone - which showed up as an intermittently failing layout audit rather
 // than an obviously broken screen, the worst way for it to show up.
-export const ZONE_BANDS = [
-  { key: "rim", label: "RIM", zones: ["rim"], at: { x: 0.15, y: 0.3 } },
-  { key: "paint", label: "PAINT", zones: ["paint"], at: { x: 0.15, y: 0.72 } },
-  { key: "mid", label: "MID", zones: ["short-mid", "long-mid"], at: { x: 0.31, y: 0.3 } },
-  { key: "three", label: "3PT", zones: ["corner-three", "wing-three", "above-break-three"], at: { x: 0.31, y: 0.72 } },
-];
+// ZONE_BANDS and zoneSummary lived here and are gone with the court they were
+// drawn on. The shape they aggregated is still in the ledger - every shot
+// carries its zone - so a text version of the same thing is a reduce away if
+// it is ever wanted somewhere that is not a floor.
 
-export function zoneSummary(events) {
-  const out = { a: [], b: [] };
-  for (const side of ["a", "b"]) {
-    for (const band of ZONE_BANDS) {
-      let makes = 0;
-      let attempts = 0;
-      for (const e of events) {
-        if (e.type !== "shot" || e.side !== side || !e.zone) continue;
-        if (!band.zones.includes(e.zone)) continue;
-        attempts += 1;
-        if (e.made) makes += 1;
-      }
-      if (!attempts) continue;
-      out[side].push({
-        key: band.key,
-        label: band.label,
-        makes,
-        attempts,
-        pct: Math.round((makes / attempts) * 100),
-        at: band.at,
-      });
-    }
-  }
-  return out;
-}
-
-/** Running score after each event, so the scoreboard and the chart can never
- * disagree: both read the same ledger rather than each counting for itself. */
 export function scoreAfter(events, upTo) {
   const score = { a: 0, b: 0 };
   for (let i = 0; i <= upTo && i < events.length; i++) {

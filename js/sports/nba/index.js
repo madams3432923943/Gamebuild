@@ -25,7 +25,7 @@ import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./re
 import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
-import { buildShotLedger, zoneSummary } from "./playback.js";
+import { buildShotLedger } from "./playback.js";
 import {
   SLOTS as NBA_SLOTS,
   basePosition,
@@ -130,12 +130,16 @@ export const NBA = {
   // authoritative result, decomposed into the events a shot chart can draw.
   // Declared here so shared code asks the SPORT for its playback rather than
   // learning what a shot is.
-  // stage is what is on screen DURING play; recapStage is where the shot
-  // chart is drawn once it is over. They used to be the same thing, and the
-  // court was the live stage - 510px of mostly-empty rectangle that a person
-  // glances at while the scoreboard beside it does the actual work. A shot
-  // chart is studied, not watched, so it moved to the buzzer.
-  presentation: { stage: "board", recapStage: "court", buildShotLedger, zoneSummary },
+  // The scoreboard is basketball's whole stage - "board" names a stage with no
+  // field art, and showStage() reveals nothing. There was a court; it drew
+  // 510px of mostly-empty rectangle above a scoreboard that carried more, so
+  // it was removed rather than resized.
+  //
+  // buildShotLedger stays because it is not about the court. It is what turns
+  // a final score into a sequence - who scored, from where, on what run - and
+  // that drives the play-by-play, the sounds and the run/lead moments. Only
+  // the drawing of it went away.
+  presentation: { stage: "board", buildShotLedger },
 
   // ---- Roster shape -------------------------------------------------------
   slots: {

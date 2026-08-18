@@ -38,7 +38,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=dbf8229" />
+  <link rel="stylesheet" href="css/style.css?v=d6a462b" />
 </head>
 <body>
   <header class="top-nav">
@@ -299,30 +299,26 @@
 
     <section id="screen-game" class="screen hidden">
       <div class="court-stage" id="court-stage">
-        <!-- Basketball's stage. Shown only when the active sport declares
-             `presentation.stage === "court"` - see showStage() in js/main.js.
-             data-stage is what shared code keys on, so a new sport adds a
-             sibling here and declares its name rather than editing a
-             condition somewhere else. -->
-        <!-- Starts hidden, like every other stage. A default-visible stage is
-             a default SPORT: the court shipped unhidden, so any path that
-             reached the game screen before setting the stage - the online flow
-             awaits a cold-starting Edge Function for seconds - showed football
-             a basketball court. No stage being visible until one is chosen
-             makes the wrong-sport flash structurally impossible rather than a
-             matter of who remembers to call showStage first. -->
-        <div class="court hidden" data-stage="court" aria-hidden="true">
-          <span class="court-circle"></span>
-          <span class="court-halfline"></span>
-          <span class="court-key court-key-left"></span>
-          <span class="court-key court-key-right"></span>
-          <span class="court-arc court-arc-left"></span>
-          <span class="court-arc court-arc-right"></span>
-        </div>
+        <!-- The game stage. The board below is what every sport shows; a sport
+             that also draws a field adds a [data-stage] sibling here and names
+             it in `presentation.stage`, rather than editing a condition
+             somewhere else. showStage() in js/main.js reveals the one named.
+
+             Basketball declares "board" and has no sibling at all: the
+             scoreboard IS its stage. It used to draw a court, which was 510px
+             of mostly-empty rectangle carrying less than the board under it -
+             removed outright rather than shrunk.
+
+             Every [data-stage] starts hidden. A default-visible stage is a
+             default SPORT: the court once shipped unhidden, so any path
+             reaching the game screen before the stage was set - the online
+             flow awaits a cold-starting Edge Function for seconds - showed
+             football a basketball court. Nothing visible until one is chosen
+             makes that flash structurally impossible rather than a matter of
+             who remembers to call showStage first. -->
         <div class="scoreboard" id="live-scoreboard"></div>
-        <!-- Football's playback. Hidden for sports that do not use it, so the
-             basketball reveal is untouched. Populated by renderFootballField()
-             in js/ui.js from the engine's `drives` array. -->
+        <!-- Football's playback, populated by renderFootballField() in
+             js/ui.js from the engine's `drives` array. -->
         <div id="football-field" class="football-field hidden" data-stage="field"></div>
         <div id="play-feed" class="play-feed"></div>
       </div>
@@ -633,6 +629,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=dbf8229"></script>
+  <script type="module" src="js/main.js?v=d6a462b"></script>
 </body>
 </html>

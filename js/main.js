@@ -103,10 +103,6 @@ import {
   renderFriendRequests,
   renderFriendsLeaderboard,
   renderFootballField,
-  renderShotChart,
-  plotShot,
-  announceMoment,
-  renderZoneSummary,
   showFootballEvent,
   accumulatePeriodStats,
   liveStatKeys,
@@ -3032,23 +3028,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // it is derived from the result itself rather than drawn fresh - the stored
   // simulation seed when the server recorded one, and the final score when it
   // did not, which is stable for a finished game and differs between games.
-  let shotChartRefs = null;
   let ledger = { events: [] };
   const shotTimers = [];
   if (sport().presentation.buildShotLedger && Array.isArray(result.quarterBoxScores)) {
     const seed = Number(result.simulationSeed) ||
       (result.teamScoreA * 1000 + result.teamScoreB) * 7919 + result.quarterBoxScores.length;
     ledger = sport().presentation.buildShotLedger(result.quarterBoxScores, rosterA, rosterB, seed);
-    // Inside the STAGE THIS SPORT DECLARED, not the stage container. The
-    // markers are positioned as a percentage of their parent, so handing them
-    // the whole container put corner threes on the scoreboard.
-    // Drawn into the stage the chart BELONGS to, which is no longer the one
-    // on screen during play: basketball fills the court in while it is hidden
-    // and reveals the whole thing at the buzzer. Rendering into a hidden
-    // element is fine because every mark is positioned as a percentage of its
-    // parent - nothing here measures pixels.
-    const chartStage = sport().presentation.recapStage || sport().presentation.stage;
-    shotChartRefs = renderShotChart(courtStageEl.querySelector(`[data-stage="${chartStage}"]`));
   }
 
   /**
@@ -3088,7 +3073,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   }
 
   function playQuarterShots(period, holdMs) {
-    if (!shotChartRefs) return;
     const ofPeriod = ledger.events.filter((e) => e.period === period && e.type === "shot" && e.zone != null);
     if (!ofPeriod.length) return;
 
@@ -3109,10 +3093,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         // and the marker already says the shot happened.
         const worthSaying =
           event.made && (event.shotType === "three" || event.strong || event.runPoints || event.leadChange || event.endOfPeriod);
-        plotShot(shotChartRefs, event, { callout: worthSaying });
-        // The line a commentator would say, on the thing that is actually on
-        // screen. The chart's own callouts are drawn on a hidden court while
-        // the board is the stage, so this is where they land during play.
+        // The line a commentator would say. It used to be a chip drawn on the
+        // floor; there is no floor, so it goes to the feed under the board -
+        // which is the thing a person is actually looking at.
         if (worthSaying) {
           const verdict = event.shotType === "three" ? "for three" : event.strong ? "at the rim" : "for two";
           pushPlayHeadline(playFeedEl, `${event.player} ${verdict}`, event.leadChange ? "lead-change" : "");
@@ -3131,11 +3114,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         // scoreboard ticking up beside them.
         if (event.leadChange) {
           const who = event.side === "a" ? labelA : labelB;
-          announceMoment(shotChartRefs, `${who} TAKE THE LEAD`, "lead");
+          pushPlayHeadline(playFeedEl, `${who} TAKE THE LEAD`, "lead-change");
           playSound("steal");
         } else if (event.runPoints) {
           const who = event.runSide === "a" ? labelA : labelB;
-          announceMoment(shotChartRefs, `${who} ON A ${event.runPoints}-0 RUN`, "run");
+          pushPlayHeadline(playFeedEl, `${who} ON A ${event.runPoints}-0 RUN`, "run");
         }
       }, at));
     });
@@ -3411,21 +3394,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     flashClass(courtStageEl, "final-flash");
     // The chart stops being the quiet background to whatever just happened and
     // becomes the thing worth reading. During playback the settled marks sit at
-    // 0.16 so the newest shot is findable; at the buzzer they all lift to an
-    // even weight, which is what a shot chart is FOR.
-    // The buzzer is when the chart earns the screen. Up to here the board has
-    // had it, which is the whole point of the change: you watch a scoreboard
-    // and you study a shot chart, and doing both at once did neither well.
-    if (shotChartRefs && sport().presentation.recapStage) showStage(sport().presentation.recapStage);
-    shotChartRefs?.layer.classList.add("shot-chart-final");
-    // And the numbers over the marks. A hundred and forty markers say where the
-    // shots came from; these say whether they went in, which is the question
-    // anybody actually has. Counts come from the ledger, so they are the
-    // simulation's own shooting rather than a second opinion about it.
-    if (shotChartRefs && sport().presentation.zoneSummary) {
-      renderZoneSummary(shotChartRefs, sport().presentation.zoneSummary(ledger.events));
-    }
-
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.
     pushPlayHeadline(playFeedEl, sport().buildGameScript(periodsSoFar, labelA, labelB), "final");

@@ -2816,143 +2816,13 @@ table.box-table th, table.history-table th {
   100% { box-shadow: 0 0 0 rgba(255, 209, 102, 0); }
 }
 
-/* ---- The court ------------------------------------------------------------
-   IN FLOW, and first, so the scoreboard sits under it rather than behind it.
+/* The court, its markings and everything drawn on it - the shot chart, its
+   callouts, its zone summary, its moment banners - were one thing and are all
+   gone. The scoreboard is the whole stage.
 
-   This was `position: absolute; inset: 0` - a full-bleed background at half
-   opacity, with the scoreboard and the play feed drawn on top of it. That was
-   survivable while the court was decoration. It stopped being survivable when
-   the shot chart arrived: markers are placed as a percentage of the court's
-   box, and if that box is the whole stage then a shot from the corner lands on
-   the scoreboard. Which is exactly what it did.
-
-   So the floor is a real element with its own aspect ratio now, the chart is
-   confined inside it, and everything else flows beneath. */
-.court {
-  position: relative;
-  width: 100%;
-  /* Capped. At full page width this drew 515px tall - the single biggest thing
-     on screen and the least informative, which is what "the court is too big"
-     meant. It is a chart to be read now, not a stage, so it takes a chart's
-     room. Width rather than height, so the 1.88 stays true. */
-  max-width: 720px;
-  /* A basketball court is 94x50 feet - 1.88. Drawn at very close to true,
-     because the squashed 1.8 made the keys look tall and the arcs look wrong,
-     and letterboxing on a phone is the lesser problem. */
-  aspect-ratio: 1.88;
-  margin: 0 auto 0.75rem;
-  border-radius: 10px;
-  /* The floor. Warm and dark rather than brown-realistic: this sits inside a
-     cool navy stage and a literal hardwood tan fights it. */
-  background:
-    linear-gradient(160deg, rgba(var(--accent-rgb), 0.10), rgba(var(--accent-rgb), 0.03)),
-    #141d2e;
-  border: 1px solid rgba(var(--accent-rgb), 0.30);
-  overflow: hidden;
-  pointer-events: none;
-  /* Makes cqw units above resolve against the COURT, which is what the shot
-     marks have to stay legible against - not the viewport. */
-  container-type: inline-size;
-}
-
-/* Court lines. Brighter than the old 0.35 alpha and drawn at full opacity on
-   the element rather than through a 0.5 parent, because these are what make
-   the shot positions legible - a marker means nothing without the arc it is
-   inside or outside of. */
-/* Thinner than 2px. At this size 2px reads as a diagram; 1.5 reads as a
-   court, and the marks are what should carry weight on this surface. */
-.court span {
-  position: absolute;
-  border: 1.5px solid rgba(var(--accent-rgb), 0.38);
-}
-
-.court-circle {
-  width: 16%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.court-halfline {
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 0;
-  border-width: 0 0 0 2px;
-}
-
-/* The paint - FILLED, not outlined. An empty rectangle reads as a box drawn on
-   the floor; a filled one reads as the paint, and it gives the rim cluster of
-   markers something to sit against. */
-.court-key {
-  top: 50%;
-  transform: translateY(-50%);
-  width: 15%;
-  height: 38%;
-  border-radius: 0 4px 4px 0;
-  background: rgba(var(--accent-rgb), 0.09);
-}
-
-/* Each team's paint in that team's own trim colour - this is "their side of the
-   court", the thing the kits were asked for. Kept to the paint rather than the
-   whole half: a fully tinted floor fights the markers, which are the only thing
-   on this surface carrying information. */
-.court-key-left {
-  left: 0;
-  border-left-width: 0;
-  background: color-mix(in srgb, var(--team-a-ink, transparent) 30%, transparent);
-  border-color: color-mix(in srgb, var(--team-a-ink, rgba(var(--accent-rgb), 0.38)) 70%, transparent);
-}
-
-.court-key-right {
-  right: 0;
-  border-right-width: 0;
-  border-radius: 4px 0 0 4px;
-  background: color-mix(in srgb, var(--team-b-ink, transparent) 30%, transparent);
-  border-color: color-mix(in srgb, var(--team-b-ink, rgba(var(--accent-rgb), 0.38)) 70%, transparent);
-}
-
-/* The three-point line. A circle wider than it is tall, clipped by the
-   court's overflow so only the arc inside the floor shows - which is what a
-   three-point line actually looks like from above. */
-.court-arc {
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30%;
-  height: 86%;
-  border-radius: 50%;
-}
-
-.court-arc-left {
-  left: -15%;
-  border-color: color-mix(in srgb, var(--team-a-ink, rgba(var(--accent-rgb), 0.45)) 60%, transparent);
-}
-
-.court-arc-right {
-  right: -15%;
-  border-color: color-mix(in srgb, var(--team-b-ink, rgba(var(--accent-rgb), 0.45)) 60%, transparent);
-}
-
-/* Each side of the floor in that side's colour. Kept faint - 9% - because the
-   markers are the only thing here carrying information and a strong floor
-   fights them. Faint across a whole half still reads as "their end", which the
-   paint alone did not: at 22% of a dark trim it was invisible, which is why
-   the court looked like it had no team colours at all. */
-.court::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg,
-      color-mix(in srgb, var(--team-a-ink, transparent) 9%, transparent) 0%,
-      transparent 45%,
-      transparent 55%,
-      color-mix(in srgb, var(--team-b-ink, transparent) 9%, transparent) 100%);
-}
+   The ledger that fed them outlived the floor (js/sports/nba/playback.js): it
+   still drives the play-by-play, the sounds and the run/lead lines. Only the
+   drawing went away. */
 
 /* The board keeps its own surface here. This used to strip it flat, which was
    right when the COURT was the stage and the scoreboard was a caption beneath
@@ -5048,194 +4918,40 @@ html, body {
   }
 }
 
-/* ---- Basketball shot chart -------------------------------------------------
-   Markers plotted onto the court as the game is revealed.
-
-   REWRITTEN after seeing it on a phone. The first pass sized marks in absolute
-   pixels - 12px - which is 1.4% of the court on a desktop and 3.5% on a
-   handset. A hundred and twenty of those is forty percent ink coverage, and the
-   screenshot that came back was an unreadable green blob at each rim. Marks are
-   sized in COURT UNITS now, so the chart is the same density at every width.
-
-   The second mistake was the colour. Make was green and miss was red FOR BOTH
-   TEAMS, so team identity rested on a 1px solid-vs-dashed outline nobody can
-   see, and the two teams looked identical. Team is the strong channel now -
-   your side in the sport's accent, the opponent in cool grey - and made vs
-   missed is fill vs hollow, which is the weaker distinction because it is the
-   less important question. Shape still carries it with colour removed. */
-.shot-chart {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  /* Belt and braces with the court's own overflow:hidden. A marker's spread
-     can carry it a percent or two past an edge, and a shot hanging off the
-     floor onto the scoreboard is the bug this whole layer was moved to fix. */
-  overflow: hidden;
-  border-radius: inherit;
-  /* The unit every mark is sized in. Container query units would be ideal;
-     this is the same idea with wider support - the court's width drives it,
-     because the court is what the marks have to stay legible against. */
-  font-size: 1.6cqw;
-}
-
-.shot-mark {
-  position: absolute;
-  /* ~2% of court width, not 12 pixels. */
-  width: 2.1%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%) scale(0.2);
-  border-radius: 50%;
-  opacity: 0;
-  transition: opacity 200ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.shot-in {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
 /* ---- Team is the loud channel, and now it is the PLAYER'S colour ----
    Falls back to the old sport-accent-vs-grey pair, which matters more than it
    looks: a client that reaches this stylesheet before dressStage has run, or at
    all if the profile read failed, still gets two distinguishable teams rather
    than two invisible ones. */
-.shot-a { --shot-ink: var(--team-a-ink, var(--accent-bright)); }
-.shot-b { --shot-ink: var(--team-b-ink, #8fa3c4); }
 
 /* Made: solid. Missed: hollow with a slash, so the difference survives
    greyscale and colourblindness - it is shape first, colour second. */
-.shot-made {
-  background: var(--shot-ink);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
-}
-
-.shot-miss {
-  background: transparent;
-  border: 0.18em solid var(--shot-ink);
-  opacity: 0;
-}
-
-.shot-miss.shot-in { opacity: 0.9; }
-
-.shot-miss::after {
-  content: "";
-  position: absolute;
-  inset: 12%;
-  border-top: 0.16em solid var(--shot-ink);
-  transform: rotate(45deg);
-}
 
 /* A three is bigger than a two, so a mark says what it was worth with no
    legend to consult. */
-.shot-three { width: 2.7%; }
 
 /* Rim finishes. Nothing is called a dunk - the engine has none - but a shot
    from close in is a real fact and earns the loudest mark on the floor. */
-.shot-strong {
-  box-shadow: 0 0 0 0.12em rgba(0, 0, 0, 0.5), 0 0 0.9em 0.15em var(--shot-ink);
-}
 
 /* SETTLED SHOTS ARE NEARLY GHOSTS. This was 0.42, which at a hundred marks is
    an even wash with no focal point - the whole floor competing for attention.
    The accumulated chart is meant to be the QUIET background to whatever just
    happened, and only becomes the subject once the game ends. */
-.shot-settled {
-  opacity: 0.16 !important;
-  box-shadow: none;
-  transform: translate(-50%, -50%) scale(0.72);
-  transition: opacity 700ms ease, box-shadow 700ms ease, transform 700ms ease;
-}
 
 /* At the final buzzer the chart stops being background and becomes the
    artifact: everything lifts to an even, readable weight. Added by finish(). */
-.shot-chart.shot-chart-final .shot-mark {
-  opacity: 0.75 !important;
-  transform: translate(-50%, -50%) scale(0.9);
-  transition: opacity 500ms ease, transform 500ms ease;
-}
 
 /* ---- Callouts -------------------------------------------------------------
    The line a commentator would say, where it happened. Terse on purpose: a
    surname and a verdict is all that can be read in the time it is up, and a
    callout nobody finishes reading is just motion. */
-.shot-callout {
-  position: absolute;
-  transform: translate(-50%, -160%);
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: rgba(8, 12, 22, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #e8eef8;
-  opacity: 0;
-  transition: opacity 160ms ease, transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
-  z-index: 3;
-}
-
-.shot-callout-in {
-  opacity: 1;
-  /* Rises as it fades in, so it reads as coming off the shot. */
-  transform: translate(-50%, -230%);
-}
-
-.shot-callout-a { border-color: var(--team-a-ink, rgba(var(--accent-rgb), 0.7)); }
-.shot-callout-b { border-color: var(--team-b-ink, rgba(255, 255, 255, 0.2)); }
-.shot-callout-made { color: #fff; }
 
 /* ---- Moments --------------------------------------------------------------
    A run, a lead change. Over the centre of the floor rather than on a shot,
    because these are about the GAME, not one attempt. Both are read off the
    ledger's own running score, so they cannot disagree with the scoreboard. */
-.court-moment {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  transform: translate(-50%, -50%) scale(0.92);
-  padding: 0.3rem 0.8rem;
-  border-radius: 6px;
-  font-family: var(--font-display);
-  font-size: clamp(0.7rem, 1.9cqw, 1.05rem);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  background: rgba(8, 12, 22, 0.92);
-  color: #fff;
-  opacity: 0;
-  transition: opacity 200ms ease, transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 4;
-}
-
-.court-moment-in {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.court-moment-lead {
-  border: 1px solid var(--accent-bright);
-  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.45);
-}
-
-.court-moment-run {
-  border: 1px solid rgba(255, 255, 255, 0.28);
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .shot-mark,
-  .shot-settled,
-  .shot-callout,
-  .court-moment {
-    transition: none;
-  }
-  .shot-mark { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  .shot-callout { opacity: 1; transform: translate(-50%, -230%); }
-  .court-moment { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 /* ---- Final banner: the score leads --------------------------------------
@@ -5647,62 +5363,13 @@ table.box-table tfoot .box-totals td:nth-child(2) {
    in, which is the question anybody actually has. Sat over each team's own half
    at the distance the band describes, so the number is on top of the marks it
    summarises instead of in a legend elsewhere. */
-.zone-stat {
-  position: absolute;
-  transform: translate(-50%, -50%) scale(0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.05em;
-  padding: 0.3em 0.5em;
-  border-radius: 5px;
-  background: rgba(8, 12, 22, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  font-family: var(--font-mono);
-  line-height: 1.1;
-  opacity: 0;
-  /* Sized against the court, like the markers, so it stays proportionate from
-     a 360px phone to a desktop. */
-  font-size: clamp(0.5rem, 1.5cqw, 0.78rem);
-  transition: opacity 400ms ease, transform 400ms var(--ease-out);
-  z-index: 5;
-}
-
-.zone-stat-in {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.zone-stat-label {
-  font-size: 0.75em;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
 
 /* Makes/attempts leads. 3/7 and 30/70 are both 43% and are not the same game,
    so the volume is the headline and the rate is the follow-up. */
-.zone-stat-line {
-  font-weight: 700;
-  color: #eef3fb;
-}
-
-.zone-stat-pct {
-  font-size: 0.85em;
-  font-weight: 700;
-}
 
 /* Each side's own colour, matching its markers. */
-.zone-stat-a { border-color: var(--team-a-ink, rgba(var(--accent-rgb), 0.6)); }
-.zone-stat-a .zone-stat-pct { color: var(--team-a-ink, var(--accent-bright)); }
-.zone-stat-b { border-color: var(--team-b-ink, rgba(255, 255, 255, 0.14)); }
-.zone-stat-b .zone-stat-pct { color: var(--team-b-ink, #8fa3c4); }
 
 @media (prefers-reduced-motion: reduce) {
-  .zone-stat {
-    transition: none;
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
 }
 
 /* ---- Kit picker -----------------------------------------------------------

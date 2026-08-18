@@ -133,32 +133,19 @@ async function runInPage(page) {
         !!declared[id] && (resolves || ARTLESS_STAGES.has(declared[id])),
         `stage=${declared[id]}${resolves ? "" : " (artless by declaration)"}`
       );
-      // A sport that draws a chart after the game must say where, and that one
-      // HAS to be a real element - it is drawn into.
-      const recap = activeSport().presentation?.recapStage;
-      if (recap) {
-        check(
-          `${id.toUpperCase()}'s recap stage is a real element`,
-          !!stage.querySelector(`[data-stage="${recap}"]`),
-          `recapStage=${recap}`
-        );
-      }
     }
 
     // ---- NBA: court, and no field ----------------------------------------
     setActiveSport("nba");
     showStage(activeSport().presentation.stage);
-    // During play basketball shows NO field art: the board is the stage. The
-    // court is still there and still gets filled in, hidden, and it is
-    // revealed at the buzzer - which is the next check.
-    check("NBA plays on the board, with no court on screen", visible().length === 0, `visible: ${visible().join(",") || "none"}`);
-    showStage(activeSport().presentation.recapStage);
+    // Basketball shows NO field art at any point: the board is the whole
+    // stage. There is no court to reveal - it was removed, not hidden.
+    check("NBA plays on the board, with no field art at all", visible().length === 0, `visible: ${visible().join(",") || "none"}`);
     check(
-      "NBA reveals the court at the buzzer",
-      visible().join(",") === "court",
-      `visible: ${visible().join(",") || "none"}`
+      "the court is gone from the page, not merely hidden",
+      !stage.querySelector('[data-stage="court"]') && !document.querySelector(".court"),
+      stage.querySelector('[data-stage="court"]') ? "a court element is still in the DOM" : "no court element exists"
     );
-    showStage(activeSport().presentation.stage);
     check(
       "NBA opens on Tip-off",
       openingLabel() === "Tip-off",
@@ -168,13 +155,8 @@ async function runInPage(page) {
     // ---- NFL: field, and the court is GONE, not merely covered -----------
     setActiveSport("nfl");
     showStage(activeSport().presentation.stage);
-    const courtEl = stage.querySelector('[data-stage="court"]');
+
     check("NFL shows the field and nothing else", visible().join(",") === "field", `visible: ${visible().join(",") || "none"}`);
-    check(
-      "NFL never renders the basketball court",
-      courtEl.classList.contains("hidden") && getComputedStyle(courtEl).display === "none",
-      `hidden=${courtEl.classList.contains("hidden")} display=${getComputedStyle(courtEl).display}`
-    );
     check(
       "NFL opens on Kickoff, not Tip-off",
       openingLabel() === "Kickoff",

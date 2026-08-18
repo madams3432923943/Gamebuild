@@ -27,7 +27,7 @@ import {
   hexToRgb,
   rgbString,
   shiftHue,
-  COURT_SURFACE,
+  BOARD_SURFACE,
   MIN_SURFACE_CONTRAST,
   MIN_KIT_SEPARATION,
   DEFAULT_KIT_ID,
@@ -56,15 +56,15 @@ add("Kit ids are unique", dupeIds.length === 0, dupeIds.length ? dupeIds.join(",
 const dim = [];
 for (const kit of KITS) {
   for (const [which, hex] of [["primary", kit.primary], ["secondary", kit.secondary]]) {
-    const ratio = contrastRatio(hex, COURT_SURFACE);
+    const ratio = contrastRatio(hex, BOARD_SURFACE);
     if (ratio < MIN_SURFACE_CONTRAST) dim.push(`${kit.id}/${which} ${ratio.toFixed(2)}:1`);
   }
 }
 add(
-  `Every kit colour clears ${MIN_SURFACE_CONTRAST}:1 against the court`,
+  `Every kit colour clears ${MIN_SURFACE_CONTRAST}:1 against the board`,
   dim.length === 0,
   dim.length === 0
-    ? `${KITS.length * 2} colours, all visible on ${COURT_SURFACE}`
+    ? `${KITS.length * 2} colours, all legible on the board at ${BOARD_SURFACE}`
     : `too dim: ${dim.join(", ")}`
 );
 
