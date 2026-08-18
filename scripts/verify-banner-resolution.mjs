@@ -232,6 +232,36 @@ add(
   "a missing file drops .has-banner-image and the card's own background shows through"
 );
 
+// ---- the rule that makes the artwork fit its frame at all -------------------
+//
+// WHY THIS IS CHECKED AS A STRING. `.banner-art-img` is what gives the artwork
+// position, size and object-fit: cover. Without it the image lands at its
+// natural 2120x720 inside a frame a fraction of that size, and .banner-art's
+// overflow:hidden crops it to a hugely magnified top-left corner - which looks
+// like artwork, just the wrong part of it, so nothing errors and no screenshot
+// obviously screams.
+//
+// It shipped broken exactly once and in a way worth guarding: a comment was
+// written directly after a selector,
+//
+//     .matchup-banner-slot /* ... */
+//     .banner-art-img { ... }
+//
+// and CSS comments are whitespace, so the two selectors fused into a descendant
+// rule and every banner image OUTSIDE the matchup intro silently lost its
+// sizing. The parse below strips comments the way a browser does, so the same
+// mistake in any form fails here.
+const withoutComments = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+const imgRuleAt = withoutComments.indexOf(".banner-art-img");
+const imgSelector = imgRuleAt < 0
+  ? ""
+  : withoutComments.slice(withoutComments.lastIndexOf("}", imgRuleAt) + 1, withoutComments.indexOf("{", imgRuleAt)).trim();
+add(
+  "Banner artwork is sized by a rule that applies everywhere, not just one screen",
+  imgSelector === ".banner-art-img",
+  `parses as ${JSON.stringify(imgSelector) || "missing"}`
+);
+
 console.log(renderSection("Banner artwork: real files, big enough, shaped like the card"));
 for (const c of checks) console.log(renderCheck(c));
 const { counts, ok } = summarize(checks);

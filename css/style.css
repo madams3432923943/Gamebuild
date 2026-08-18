@@ -844,10 +844,18 @@ input[type="text"]:focus-visible {
   width: 100%;
 }
 
-.matchup-banner-slot /* Real artwork sits on top of the colour gradient already painted on
+/* Real artwork sits on top of the colour gradient already painted on
    .banner-art, so a missing or slow file degrades to the banner's own two
    colours instead of a hole. object-fit: cover because the art is a texture -
-   cropping it is fine, distorting it is not. */
+   cropping it is fine, distorting it is not.
+
+   THE LEADING `.matchup-banner-slot` THAT USED TO BE HERE WAS A TYPO, and CSS
+   comments are whitespace, so the selector silently parsed as
+   `.matchup-banner-slot .banner-art-img` - a descendant rule. Every banner
+   image outside the matchup intro therefore had no positioning at all and
+   rendered at its natural 2120x720, cropped by .banner-art's overflow to a
+   hugely zoomed top-left corner. The Rewards grid has been showing a magnified
+   fragment of every piece of artwork rather than the artwork. */
 .banner-art-img {
   position: absolute;
   inset: 0;
@@ -857,13 +865,12 @@ input[type="text"]:focus-visible {
   border-radius: inherit;
 }
 
-.banner-art {
-  aspect-ratio: 5 / 3;
-}
-
+/* 5:2, matching .banner-art - a placeholder that stands in for a banner while
+   being a different shape makes the two sides of the intro jump when one
+   player is flying something and the other is not. */
 .matchup-banner-placeholder {
   width: 100%;
-  aspect-ratio: 5 / 3;
+  aspect-ratio: 5 / 2;
   border-radius: 6px;
   border: 1px dashed var(--line);
   display: flex;

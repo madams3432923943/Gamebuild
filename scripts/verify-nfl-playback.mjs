@@ -65,6 +65,11 @@ function playOneGame() {
   return NFL.simulate(draft.rosterA, draft.rosterB, ctx, {});
 }
 
+/** A quarter break may sit this far from 0:00 before it counts as wrong.
+ * Rounding only - the fit is exact, and this is not a tolerance for the model
+ * missing by minutes, which is what it used to do. */
+const CLOCK_SLACK_SECONDS = 2;
+
 const fail = {
   offField: 0,
   playEndpoint: 0,
@@ -77,6 +82,8 @@ const fail = {
   badClock: 0,
   clockRose: 0,
   clockAtWhistle: 0,
+  clockStalled: 0,
+  clockLeftover: 0,
 };
 let games = 0;
 let minMs = Infinity;
@@ -107,6 +114,33 @@ for (let n = 0; n < GAMES; n++) {
 
   const { totalMs, events: list } = buildTimeline(result.drives);
   events += list.length;
+
+  // ---- THE CLOCK HAS TO FIT ITS QUARTER ----
+  //
+  // The engine assigns a drive to a quarter by possession INDEX, while the
+  // seconds a drive burns come from what happened in it, so the two used to
+  // have nothing to do with each other: a quarter's drives summed to anywhere
+  // from ~430 to ~1050 seconds against a real quarter's 900. Over 900 the
+  // clock hit 0:00 and sat there while three more possessions played out - a
+  // player reported exactly that in Q3. Under 900 the quarter was declared
+  // over with minutes still showing. buildTimeline fits each quarter now, and
+  // both directions are held here.
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
+    // A play at 0:00 is only legal as a quarter's LAST play.
+    if (e.type === "play" && e.clockSeconds === 0) {
+      const rest = list.slice(i + 1);
+      const breakAt = rest.findIndex((x) => ["quarterEnd", "halfEnd", "final", "gameEnd"].includes(x.type));
+      const untilBreak = breakAt < 0 ? rest : rest.slice(0, breakAt);
+      if (untilBreak.some((x) => x.type === "play")) fail.clockStalled++;
+    }
+    // ...and a quarter may not be declared over with time still on it.
+    if (e.type === "quarterEnd" || e.type === "halfEnd") {
+      const prior = list.slice(0, i).reverse()
+        .find((x) => x.clockSeconds !== undefined && !["quarterEnd", "halfEnd"].includes(x.type));
+      if (prior && prior.clockSeconds > CLOCK_SLACK_SECONDS) fail.clockLeftover = Math.max(fail.clockLeftover, prior.clockSeconds);
+    }
+  }
   minMs = Math.min(minMs, totalMs);
   maxMs = Math.max(maxMs, totalMs);
   if (totalMs < TARGET_MIN_MS || totalMs > TARGET_MAX_MS) fail.outOfBand++;
@@ -187,6 +221,16 @@ function clockSeconds(text) {
 }
 
 const checks = [
+  {
+    title: "No play is shown after its quarter has already run out",
+    ok: fail.clockStalled === 0,
+    detail: `${fail.clockStalled} plays shown at 0:00 with the quarter still going, over ${games} games`,
+  },
+  {
+    title: "No quarter ends with time still on the clock",
+    ok: fail.clockLeftover <= CLOCK_SLACK_SECONDS,
+    detail: `worst leftover ${fail.clockLeftover}s at a quarter break (allowed ${CLOCK_SLACK_SECONDS}s for rounding)`,
+  },
   {
     title: `Playback lasts ${TARGET_MIN_MS / 1000}-${TARGET_MAX_MS / 1000}s`,
     ok: fail.outOfBand === 0,

@@ -89,6 +89,7 @@ import {
   renderBannerSportTabs,
   renderEquippedBanner,
   renderMatchupSide,
+  preloadBannerArt,
   renderTacticPicker,
   renderStrategyGroups,
   renderRotationPicker,
@@ -2031,6 +2032,14 @@ async function playMatchupIntro(mySide, oppSide) {
   matchupCountdownEl.classList.add("hidden");
   matchupCountdownEl.classList.remove("pulse", "go");
   matchupCountdownEl.textContent = "";
+
+  // Wait for the artwork BEFORE the banners fly in, not while they do. The
+  // intro is a fixed-length animation and it does not wait for images, so a
+  // banner whose file was still in flight flew in as a bare colour gradient and
+  // the whole point of the screen - seeing what the two players are flying -
+  // was missed. Capped, so a slow connection delays the intro by at most a
+  // beat instead of holding the match up for a decoration.
+  await preloadBannerArt([mySide.bannerId, oppSide.bannerId]);
 
   renderMatchupSide(matchupRefsA, mySide);
   renderMatchupSide(matchupRefsB, oppSide);
