@@ -93,6 +93,52 @@ const MIN_EVENT_MS = 90;
  * field shows is the one inside the fiction. */
 const QUARTER_SECONDS = 15 * 60;
 
+/** ...and in an overtime period, which is ten minutes and not fifteen. Every
+ * OT period was previously given a full quarter, so the clock in overtime read
+ * five minutes higher than it should have all the way down. */
+const OVERTIME_SECONDS = 10 * 60;
+
+const periodSeconds = (quarter) => (quarter > 4 ? OVERTIME_SECONDS : QUARTER_SECONDS);
+
+/**
+ * How much to stretch or squeeze each quarter's play clock so its drives fill
+ * exactly one quarter.
+ *
+ * WHY THIS IS NEEDED. The engine assigns a drive to a quarter by its POSSESSION
+ * INDEX - the possessions are split evenly into four - while the seconds a
+ * drive burns come from what actually happened in it. Those two numbers have
+ * nothing to do with each other, so a quarter's drives sum to anywhere between
+ * about 430 and 1050 seconds against a real quarter's 900. Measured over six
+ * simulated games, every single quarter missed.
+ *
+ * Both directions were visible and wrong. Over 900, the clock hit 0:00 with
+ * drives still to play and sat there while three more possessions went by -
+ * which is what a player reported. Under 900 - and the fourth quarter was under
+ * every time, often by seven or eight minutes - the quarter ended with the
+ * clock still showing time left.
+ *
+ * The clock is a PRESENTATION fact (see buildTimeline), so it is fitted here
+ * rather than by changing what the engine simulates. Scaling preserves the
+ * shape of the quarter: a drive that took twice as long as another still does,
+ * and time of possession stays a true share of the game - it just becomes a
+ * share of a real sixty minutes instead of the ~50 the drives happened to add
+ * up to.
+ */
+function clockScaleByQuarter(drives) {
+  const played = new Map();
+  for (const drive of drives) {
+    const seconds = (drive.plays || []).reduce((sum, play) => sum + (play.seconds || 0), 0);
+    played.set(drive.quarter, (played.get(drive.quarter) || 0) + seconds);
+  }
+  const scale = new Map();
+  for (const [quarter, seconds] of played) {
+    // A quarter with no measured time cannot be scaled into one - leave it
+    // alone rather than dividing by zero and producing an infinite clock.
+    scale.set(quarter, seconds > 0 ? periodSeconds(quarter) / seconds : 1);
+  }
+  return scale;
+}
+
 /** m:ss, with the seconds always two digits. */
 function formatClock(seconds) {
   const s = Math.max(0, Math.round(seconds));
@@ -173,6 +219,11 @@ function bumpTeam(target, side, key, amount) {
  */
 function accumulatePlay(playerDeltas, teamDeltas, side, play, enteredRedZone) {
   bumpTeam(teamDeltas, side, "plays", 1);
+  // The RAW duration, deliberately - not the clock-fitted one the timeline
+  // counts down with. This total has to equal the engine's own, which is what
+  // guarantees the live feed and the final box score tell the same story (see
+  // scripts/verify-nfl-event-ledger.mjs); feeding it the scaled seconds broke
+  // that agreement to make a number nothing displays look tidier.
   bumpTeam(teamDeltas, side, "possessionSeconds", play.seconds || 0);
   if (play.firstDown) bumpTeam(teamDeltas, side, "firstDowns", 1);
   if (play.down === 3) {
@@ -292,6 +343,10 @@ export function buildTimeline(drives, opts = {}) {
   // running clock, and inventing one in the engine would put a second source
   // of truth next to the score.
   let clockLeft = QUARTER_SECONDS;
+  // Fitted once, up front: every play's duration below is read through this.
+  const clockScale = clockScaleByQuarter(list);
+  const secondsOf = (drive, play) =>
+    (play.seconds || 35) * (clockScale.get(drive.quarter) ?? 1);
 
   const push = (type, weightKey, fields) => {
     events.push({
@@ -326,7 +381,7 @@ export function buildTimeline(drives, opts = {}) {
         });
       }
       lastQuarter = drive.quarter;
-      clockLeft = QUARTER_SECONDS;
+      clockLeft = periodSeconds(drive.quarter);
     }
 
     // A kickoff, not a drive that materialises at the 25. Shown when
@@ -370,16 +425,17 @@ export function buildTimeline(drives, opts = {}) {
     const plays = Array.isArray(drive.plays) ? drive.plays : [];
     for (const play of plays) {
       drivePlays += 1;
-      driveSeconds += play.seconds || 0;
+      const playSeconds = secondsOf(drive, play);
+      driveSeconds += playSeconds;
       const playerDeltas = { A: {}, B: {} };
       const teamDeltas = { A: {}, B: {} };
       if (accumulatePlay(playerDeltas, teamDeltas, drive.team, play, enteredRedZone)) {
         enteredRedZone = true;
       }
-      // Never past 0:00 - a quarter that ran long is the model's drives not
-      // fitting a real clock, and showing a negative one would be worse than
-      // holding at zero.
-      clockLeft = Math.max(0, clockLeft - (play.seconds || 35));
+      // The floor at zero is belt and braces now rather than the thing holding
+      // the clock together: clockScaleByQuarter makes a quarter's plays add up
+      // to exactly one quarter, so this should only ever absorb rounding.
+      clockLeft = Math.max(0, clockLeft - playSeconds);
       const terminal = !!play.result;
       if (!terminal) {
         const big = play.gain >= BIG_GAIN_YARDS;
