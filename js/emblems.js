@@ -29,11 +29,15 @@
 // grid - goes through it, so the shapes are drawn identically wherever they
 // appear and there is one place to fix if they are not.
 
-import { contrastRatio, luminance } from "./kits.js";
+import { contrastRatio, luminance, colourDistance } from "./kits.js";
 
 /** Shape space for every glyph below. Square, so a mark drops into a circular
  * avatar without per-glyph fitting. */
 const VIEW_BOX = "0 0 100 100";
+
+/** Thickness of the second-colour ring, in viewBox units. Wide enough to read
+ * as a band of colour at 34px rather than as an outline. */
+const RIM_WIDTH = 9;
 
 /** A radial ring of teeth/rays, used by the gear and the sun.
  *
@@ -264,6 +268,40 @@ export const EMBLEMS = {
       { tone: "cut", d: "M38 66H62V76H38Z" },
     ],
   },
+  feather: {
+    name: "Feather",
+    paths: [
+      { tone: "mark", d: "M74 8C40 12 20 36 18 66L12 92L34 78C64 76 84 54 82 24Z" },
+      { tone: "cut", d: "M74 16L26 76L22 84L30 80Z" },
+      { tone: "accent", d: "M62 24C50 30 42 40 38 52L46 56C50 44 56 36 66 30Z" },
+    ],
+  },
+  paw: {
+    name: "Paw",
+    paths: [
+      { tone: "mark", d: disc(24, 30, 12) },
+      { tone: "mark", d: disc(44, 20, 12) },
+      { tone: "mark", d: disc(66, 22, 12) },
+      { tone: "mark", d: disc(84, 38, 12) },
+      { tone: "mark", d: "M52 44C68 44 82 56 82 70C82 84 70 92 56 90C50 89 46 89 40 90C26 92 16 84 16 70C16 56 36 44 52 44Z" },
+    ],
+  },
+  bell: {
+    name: "Bell",
+    paths: [
+      { tone: "mark", d: "M50 8C56 8 60 12 60 18C74 24 80 40 80 58L88 74H12L20 58C20 40 26 24 40 18C40 12 44 8 50 8Z" },
+      { tone: "accent", d: disc(50, 84, 9) },
+      { tone: "cut", d: "M34 58C34 42 40 30 50 30V64Z" },
+    ],
+  },
+  flag: {
+    name: "Flag",
+    paths: [
+      { tone: "mark", d: "M20 6H30V94H20Z" },
+      { tone: "accent", d: "M30 12C48 4 66 20 86 12V50C66 58 48 42 30 50Z" },
+      { tone: "cut", d: "M30 24C44 19 58 27 70 26V38C58 39 44 31 30 36Z" },
+    ],
+  },
   arrow: {
     name: "Arrow",
     paths: [
@@ -311,7 +349,7 @@ export const FRANCHISE_EMBLEMS = {
   knicks: "shield",
   thunder: "bolt",
   magic: "star",
-  sixers: "star",
+  sixers: "bell",
   suns: "sun",
   blazers: "flame",
   kings: "crown",
@@ -323,7 +361,7 @@ export const FRANCHISE_EMBLEMS = {
   // ---- NFL ----
   "nfl-bills": "bull",
   "nfl-dolphins": "fish",
-  "nfl-patriots": "star",
+  "nfl-patriots": "flag",
   "nfl-jets": "rocket",
   "nfl-ravens": "bird",
   "nfl-bengals": "bigcat",
@@ -346,10 +384,10 @@ export const FRANCHISE_EMBLEMS = {
   "nfl-packers": "gear",
   "nfl-vikings": "ship",
   "nfl-falcons": "bird",
-  "nfl-panthers": "bigcat",
+  "nfl-panthers": "paw",
   "nfl-saints": "clover",
   "nfl-buccaneers": "skull",
-  "nfl-cardinals": "bird",
+  "nfl-cardinals": "feather",
   "nfl-rams": "ram",
   "nfl-49ers": "mountain",
   "nfl-seahawks": "bird",
@@ -380,18 +418,76 @@ function inkOn(bg) {
  */
 export const MIN_MARK_CONTRAST = 3;
 
+/**
+ * Minimum perceptual distance between two teams' icons before they read as the
+ * same picture. CIE76 dE, same units and same reasoning as MIN_KIT_SEPARATION
+ * in js/kits.js - under 10 is "same colour to most people", 25 is comfortably
+ * distinct at a glance.
+ *
+ * 25 rather than something looser because these are compared at 34px in a grid
+ * of sixty other circles, not held up side by side.
+ */
+export const MIN_ICON_SEPARATION = 25;
+
 export function emblemPalette(colors = []) {
   const field = colors[0] || "#3a3f45";
   const second = colors[1] || WHITE;
-  const mark = contrastRatio(second, field) >= MIN_MARK_CONTRAST ? second : inkOn(field);
+  const secondReads = contrastRatio(second, field) >= MIN_MARK_CONTRAST;
+  const mark = secondReads ? second : inkOn(field);
   return {
     field,
     mark,
     // The accent sits on the field alongside the mark, so it is held to the
     // field; the cut is knocked out of the mark and is held to the mark.
-    accent: contrastRatio(second, field) >= MIN_MARK_CONTRAST ? inkOn(field) : second,
+    accent: secondReads ? inkOn(field) : second,
     cut: field,
+    // THE RIM IS WHY THE SECOND COLOUR IS NEVER WASTED.
+    //
+    // When a team's two colours are both dark - Utah is navy on forest green -
+    // the mark falls back to white or black and the second colour disappears
+    // from the icon entirely. That is what made Orlando and Philadelphia the
+    // same picture: near-identical blue discs, and both second colours thrown
+    // away in favour of the same white mark.
+    //
+    // Drawn as a ring around the disc, the second colour is always somewhere on
+    // the icon, so every team gets two colour channels rather than one. It sits
+    // on the outside edge where it borders the page rather than the mark, so it
+    // is not held to the mark's contrast rule - it only has to be visible, and
+    // a ring of the team's own colour against a dark page always is.
+    rim: second,
   };
+}
+
+/**
+ * How far apart two teams' icons are, as one number.
+ *
+ * Disc and rim, combined as a root-mean-square weighted by how much of the
+ * circle each one covers. A 9-unit rim on a 100-unit circle is the annulus
+ * from r=41 to r=50, which is a third of the area - substantial enough that a
+ * colour difference living entirely in the rim really does separate two icons.
+ *
+ * WHY NOT THE SIMPLER OPTIONS. Taking the minimum of the two channels was tried
+ * first and is far too strict: Baltimore and Atlanta both have black as their
+ * second colour, so their rims are identical and the minimum is zero, even
+ * though one disc is deep purple and the other is crimson and nobody would
+ * confuse them. Taking the mean is too lax in the opposite direction - it lets
+ * a small difference in each channel add up to a passing number when neither
+ * one is visible. RMS keeps a real difference in EITHER channel while still
+ * going to zero when the whole icon matches.
+ *
+ * The mark is deliberately excluded. It is white on both sides of many pairs
+ * by contrast fallback, so counting it would report near-identical icons as
+ * separated by an accident of the palette rather than by anything a player
+ * can see.
+ */
+const RIM_AREA_SHARE = 1 - ((50 - RIM_WIDTH) / 50) ** 2;
+
+export function iconSeparation(colorsA = [], colorsB = []) {
+  const a = emblemPalette(colorsA);
+  const b = emblemPalette(colorsB);
+  const field = colourDistance(a.field, b.field);
+  const rim = colourDistance(a.rim, b.rim);
+  return Math.sqrt((1 - RIM_AREA_SHARE) * field ** 2 + RIM_AREA_SHARE * rim ** 2);
 }
 
 /**
@@ -432,10 +528,23 @@ export function emblemSvg(emblemId, colors, label = "") {
   field.setAttribute("fill", palette.field);
   svg.appendChild(field);
 
+  // The rim, in the team's second colour - see emblemPalette. Drawn as a
+  // stroked circle inset by half its width so it sits fully inside the
+  // viewBox; a stroke centred on the edge would be clipped to half its
+  // thickness and read as a hairline.
+  const rim = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  rim.setAttribute("cx", "50");
+  rim.setAttribute("cy", "50");
+  rim.setAttribute("r", String(50 - RIM_WIDTH / 2));
+  rim.setAttribute("fill", "none");
+  rim.setAttribute("stroke", palette.rim);
+  rim.setAttribute("stroke-width", String(RIM_WIDTH));
+  svg.appendChild(rim);
+
   // Glyphs are drawn edge to edge in a 100-unit box; inset so nothing clips
   // against the rim of the disc.
   const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  group.setAttribute("transform", "translate(50 50) scale(0.72) translate(-50 -50)");
+  group.setAttribute("transform", "translate(50 50) scale(0.62) translate(-50 -50)");
   for (const path of emblem.paths) {
     const el = document.createElementNS("http://www.w3.org/2000/svg", "path");
     el.setAttribute("d", path.d);

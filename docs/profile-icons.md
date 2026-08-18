@@ -20,7 +20,7 @@ you rank highest in, and everything else on the shelf is something you earned.
 
 | File | Holds |
 | --- | --- |
-| `js/emblems.js` | The artwork. 24 original cartoon glyphs as SVG path data, the franchise → glyph mapping, and `emblemSvg()` — the only place in the app that builds SVG. |
+| `js/emblems.js` | The artwork. 28 original cartoon glyphs as SVG path data, the franchise → glyph mapping, the disc/rim/mark palette resolution, and `emblemSvg()` — the only place in the app that builds SVG. |
 | `js/icons.js` | The catalogue: the default icon, the general ladders, one icon per franchise, and progress/unlock rules. Same shape as `js/banners.js`. |
 | `js/ui.js` | `renderPlayerIcon()` (home card and profile, one renderer) and `renderIcons()` (the Rewards and Customize grids). |
 | `js/profile.js` | `equippedIcon` / `grantedIcons` / `mvpTeams` on the normalized profile, and `setEquippedIcon()`. |
@@ -34,14 +34,28 @@ has to run one way only.
 Every real NBA and NFL logo is a registered trademark. None of these are
 derived from one — not traced, not redrawn, not "cartoonified". They are
 generic mascot silhouettes: a bear is *a* bear, and the only thing tying one to
-a franchise is that franchise's own colours and abbreviation, which this app
-already generates its banner art from.
+a franchise is that franchise's own two colours — the disc in the first, the rim
+in the second — which is what this app already generates its banner art from.
+The emblems carry no lettering: at 34px on the identity card an abbreviation is
+unreadable, and the reward tile prints the team's full name underneath anyway.
 
 **A Bulls icon therefore looks like a cartoon bull in Bulls colours. It does not
 look like the Bulls logo, and it is not meant to.**
 
-24 glyphs cover 62 franchises, so teams share marks (six franchises wear
-`bird`). Colour is what separates them.
+28 glyphs cover 62 franchises, so teams still share marks. **Two colour
+channels are what separate them:** the disc takes the franchise's first colour
+and the rim its second, so the second colour is on the icon even when it is too
+dark to carry the mark. Without the rim, Orlando and Philadelphia were the same
+picture — near-identical blue discs, both second colours discarded by the
+contrast fallback in favour of the same white mark.
+
+`scripts/verify-icons.mjs` enforces it: any two franchises **in the same sport**
+sharing a glyph must clear `MIN_ICON_SEPARATION` (25 dE, the same units and the
+same reasoning as `MIN_KIT_SEPARATION` in `js/kits.js`), measured as an
+area-weighted RMS over disc and rim. The mark is excluded from that measurement
+because contrast fallback makes it white on both sides of many pairs, which
+would report a difference no player can see. The check fails the build, so a
+franchise added later cannot quietly land on a twin.
 
 Two of the glyphs — the gear and the sun — are generated from a `spokes()`
 helper rather than hand-drawn, because evenly spaced radial teeth look subtly
@@ -103,6 +117,25 @@ argument names, so adding a parameter would publish a second function and every
 client that had not reloaded would quietly stop recording MVPs. The new value
 travels inside the existing `p_profile_a` / `p_profile_b` jsonb payloads.
 
+### Live schema audit
+
+`db/` is documentation of what was applied, not a migration runner, and this
+repository has real precedent for the two drifting: `award_banner_progress` and
+`profiles.team_banners` exist in the database and appear nowhere in `db/`. So
+the applied state was checked directly rather than assumed. On 2026-08-18:
+
+| Checked | Result |
+| --- | --- |
+| `finalize_match_result` overloads | **1** — no second function was published |
+| Signature | `(uuid, jsonb, text, jsonb, jsonb, bigint, text, text, text)` — unchanged |
+| `mvp_teams` coalesce, both sides | present for `p_profile_a` and `p_profile_b` |
+| `protect_mvp_teams` trigger on `profiles` | attached |
+| `equipped_icon` / `granted_icons` / `mvp_teams` columns | all three present |
+
+CI cannot repeat this — the only database secret available to a workflow is a
+Management API token, not a connection — so it is a manual step, and it belongs
+in the release checklist for any change that touches this RPC.
+
 ## Staged deploys
 
 Client, Edge Function and migration land separately, so both orders are safe:
@@ -129,9 +162,11 @@ same tile renderers, passed `onlyUnlocked`.
 
 ## Known limitations
 
-- **62 franchises, 24 glyphs.** Teams share marks. Distinguishing two `bird`
-  teams relies on their colours, which is fine for Ravens (purple/black) versus
-  Cardinals (red/black) and weaker for two teams with similar palettes.
+- **62 franchises, 28 glyphs.** Teams still share marks, and two teams sharing a
+  glyph are told apart by their disc and rim colours rather than by shape. The
+  enforced separation check means no pair is confusable today, but the icon for
+  a franchise is a colour scheme plus a generic animal — it is not, and cannot
+  be, that team's mark.
 - **No icon for a sport that is not live.** NHL and Soccer have no franchises
   yet, so their tabs are empty by construction.
 - **The ranked-MVP unlock has not been watched end to end.** It needs two live

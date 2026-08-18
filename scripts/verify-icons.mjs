@@ -33,7 +33,15 @@
 // going to tell you that.
 
 import { FRANCHISES } from "../js/banners.js";
-import { EMBLEMS, FRANCHISE_EMBLEMS, emblemPalette, MIN_MARK_CONTRAST, contrastRatio } from "../js/emblems.js";
+import {
+  EMBLEMS,
+  FRANCHISE_EMBLEMS,
+  emblemPalette,
+  MIN_MARK_CONTRAST,
+  MIN_ICON_SEPARATION,
+  iconSeparation,
+  contrastRatio,
+} from "../js/emblems.js";
 import { GENERAL_ICONS, TEAM_ICONS, iconById, iconProgress, equippedIcon, DEFAULT_ICON_ID } from "../js/icons.js";
 import { GENERAL_BANNERS } from "../js/banners.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
@@ -110,6 +118,42 @@ check(
   `Every team mark clears ${MIN_MARK_CONTRAST}:1 against its own disc`,
   dim.length === 0,
   dim.length ? `too dim: ${dim.join(", ")}` : `${FRANCHISES.length} franchises, worst case checked`
+);
+
+// ---- 3b. two teams in one sport must not wear the same icon -----------------
+//
+// 24 glyphs cover 62 franchises, so teams share marks and COLOUR is what
+// separates them. That works until two teams that share a glyph also share a
+// palette, and then they have literally the same icon. Measured before this
+// check existed: Orlando and Philadelphia were dE 5.5 apart on the disc and 0
+// on the mark - the same picture twice, for two teams a player is meant to be
+// able to tell apart at 34px.
+//
+// Perceptual distance (CIE76), not RGB arithmetic, using the colourDistance
+// already exported from js/kits.js - the same helper and the same reasoning as
+// MIN_KIT_SEPARATION, which exists for exactly this problem one layer down.
+// This is a FAIL rather than a warning because the failure mode is silent: two
+// teams look identical and nothing about the app misbehaves.
+const tooClose = [];
+for (let i = 0; i < FRANCHISES.length; i++) {
+  for (let j = i + 1; j < FRANCHISES.length; j++) {
+    const a = FRANCHISES[i];
+    const b = FRANCHISES[j];
+    // Only within a sport. A player only ever sees one sport's shelf at a time,
+    // and holding basketball against football would fail pairs nobody can
+    // confuse.
+    if (a.sport !== b.sport) continue;
+    if (FRANCHISE_EMBLEMS[a.id] !== FRANCHISE_EMBLEMS[b.id]) continue;
+    const separation = iconSeparation(a.colors, b.colors);
+    if (separation < MIN_ICON_SEPARATION) {
+      tooClose.push(`${a.id}/${b.id} (${FRANCHISE_EMBLEMS[a.id]}, dE ${separation.toFixed(1)})`);
+    }
+  }
+}
+check(
+  `No two teams in one sport wear the same glyph in confusable colours (dE >= ${MIN_ICON_SEPARATION})`,
+  tooClose.length === 0,
+  tooClose.length ? `too close: ${tooClose.join(", ")}` : "every same-glyph pair is separated by colour"
 );
 
 // ---- 4. ids ----------------------------------------------------------------
