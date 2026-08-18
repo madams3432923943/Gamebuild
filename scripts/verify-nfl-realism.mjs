@@ -26,6 +26,7 @@
 // threw for 76 yards a game is in the bottom tier because that is what he did.
 
 import { NFL } from "../js/sports/nfl/index.js";
+import { FG_RANGE_YARD } from "../js/sports/nfl/constants.js";
 import { setActiveSport } from "../js/sports/index.js";
 
 import { renderCheck, renderSection, renderTable, summarize, PASS, FAIL } from "./lib/report.mjs";
@@ -361,6 +362,9 @@ let unreconciledSacks = 0;
 // rate, not as an absence.
 let lastChanceDown4Plus = 0;
 let hopelessFieldGoals = 0;
+let puntsFromRange = 0;
+let puntTotal = 0;
+let worstPunt = null;
 for (let i = 0; i < 400; i++) {
   const rosterA = rosterWith({ QB: qbPool[i % qbPool.length], RB: rbPool[i % rbPool.length] });
   const rosterB = rosterWith({ QB: qbPool[(i * 3) % qbPool.length], RB: medianRB });
@@ -387,6 +391,15 @@ for (let i = 0; i < 400; i++) {
     before[drive.team] += drive.points;
   });
   for (const drive of result.drives) {
+    // Nobody punts from field-goal range. The outcome is drawn before the
+    // drive is placed on the field, so a drive labelled "punt" could be handed
+    // an end spot in the opponent's half - 11% of punts were, some from inside
+    // the 10, and it read on screen exactly as wrong as it was.
+    if (drive.outcome === "punt" && drive.endYard >= FG_RANGE_YARD) {
+      puntsFromRange += 1;
+      if (worstPunt === null || drive.endYard > worstPunt) worstPunt = drive.endYard;
+    }
+    puntTotal += drive.outcome === "punt" ? 1 : 0;
     if (drive.outcome === "touchdown") {
       touchdowns += 1;
       if (!drive.conversion) missingConversion += 1;
@@ -662,6 +675,17 @@ const checks = [
         backCarries.median >= 14 && backCarries.median <= 24 &&
         back.p95 <= 240,
     detail: `${back.median} yards on ${backCarries.median} carries (p95 ${back.p95}, max ${back.max})`,
+  },
+  {
+    // The complaint that found this was "sometimes a team punts inside the
+    // other half". It was 11% of punts, the worst from the opponent's 1.
+    // Zero tolerance rather than a small allowance: a punt from field-goal
+    // range is never a decision a team makes, so any at all is the bug back.
+    title: "Nobody punts from field-goal range",
+    ok: puntsFromRange === 0,
+    detail: puntsFromRange === 0
+      ? `0 of ${puntTotal} punts came from inside the ${FG_RANGE_YARD} yard line`
+      : `${puntsFromRange} of ${puntTotal} punts from inside FG range, worst from the ${worstPunt}`,
   },
   {
     title: "The drives still add up to the scoreboard",

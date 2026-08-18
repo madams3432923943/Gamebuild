@@ -487,6 +487,26 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     outcome = mustTouchdown ? "downs" : "fieldGoal";
   }
   let endYard = Math.max(1, Math.min(100, startYard + driveYards(outcome, startYard, mult, rand)));
+
+  // NOBODY PUNTS FROM FIELD-GOAL RANGE.
+  //
+  // The outcome is drawn before the drive is placed on the field, so a drive
+  // labelled "punt" could still be handed an end spot in the opponent's half -
+  // and 11% of punts were, some from inside the 10. It read exactly as wrong as
+  // it was: a team reaching the opponent's 20 and sending out the punt team.
+  //
+  // A fourth down inside FG_RANGE_YARD is a kick, so it becomes one here. The
+  // branch below then attempts it with the DRAFTED kicker's accuracy, and a
+  // miss already turns the ball over at the spot - which is the real cost of
+  // trying, and the reason this is not just free points.
+  //
+  // Note this deliberately does NOT touch the "downs" outcome. That one is a
+  // team choosing to go for it, which is a real decision a real team makes in
+  // exactly this territory.
+  // Rounded, because the drive record rounds before anyone sees it: an
+  // unrounded 61.6 is out of range by this test and a punt from the 62 on the
+  // screen, which is the same complaint in a smaller font.
+  if (outcome === "punt" && Math.round(endYard) >= FG_RANGE_YARD) outcome = "fieldGoal";
   let points = 0;
   let scorer = null;
   let scorerSlot = null;
