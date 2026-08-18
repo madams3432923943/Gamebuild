@@ -8,6 +8,7 @@ import { getSupabase, requireSession } from "./supabaseClient.js";
 import { eraRecordKey, statsKey, DEFAULT_SPORT_ID, activeSport, activeSportId, sportById } from "./sports/index.js";
 import { DEFAULT_BANNER_ID } from "./banners.js";
 import { DEFAULT_KIT_ID, kitById } from "./kits.js";
+import { DEFAULT_ICON_ID, iconById } from "./icons.js";
 import { GENERAL_TIERS, tierAt, tierAbove } from "./ranks.js";
 import { ratingFor, overallRating, percentileOf, RANK_GAMES_FLOOR } from "./rating.js";
 
@@ -269,10 +270,15 @@ function normalize(row) {
     // the default too, so this is belt and braces on a column that may predate
     // the row reading it.
     equippedKit: row.equipped_kit || DEFAULT_KIT_ID,
+    // Same never-null contract again. Null here is the ordinary state, not an
+    // error: it means nothing has been chosen and the default icon - the one
+    // that follows your best sport - is what should be drawn.
+    equippedIcon: row.equipped_icon || DEFAULT_ICON_ID,
     // The owner's override. Arrays so "is this id present" is the only
     // question; a missing column reads as an empty grant rather than undefined.
     grantedBanners: Array.isArray(row.granted_banners) ? row.granted_banners : [],
     grantedBadges: Array.isArray(row.granted_badges) ? row.granted_badges : [],
+    grantedIcons: Array.isArray(row.granted_icons) ? row.granted_icons : [],
     featuredBadges: row.featured_badges || [],
     createdAt: row.created_at || null,
     history: row.history || [],
@@ -280,6 +286,13 @@ function normalize(row) {
     largestMarginGame: row.largest_margin_game || null,
     tripleDoubleCounts: row.triple_double_counts || {},
     mvpCounts: row.mvp_counts || {},
+    // Ranked MVPs per RAW team name, written only by the trusted server (see
+    // finalize_match_result). Distinct from mvpCounts above, which is the
+    // OFFLINE tally keyed by player - the two count different things and the
+    // team icons deliberately read this one, because an offline MVP is
+    // self-reportable. An empty object is the correct reading of a server that
+    // has not been migrated yet: no MVPs recorded, so no team icons unlocked.
+    mvpTeams: row.mvp_teams || {},
     // { nba: { rating, wins, losses, games, peak }, nfl: {...} } - one ELO per
     // sport, written only by simulate-match (protect_sport_ratings).
     sportRatings: row.sport_ratings || {},
@@ -559,6 +572,24 @@ export async function setEquippedKit(kitId) {
   const { error } = await supabase
     .from("profiles")
     .update({ equipped_kit: kit.id })
+    .eq("id", session.user.id);
+  if (error) throw error;
+}
+
+/** Equips a profile icon - the mark on your identity card. Cosmetic, so the
+ * client writes it directly.
+ *
+ * Validated against the catalogue before it is stored, for the same reason
+ * setEquippedKit is: storing an id nobody can resolve is a silent way to pin
+ * somebody to the default forever. */
+export async function setEquippedIcon(iconId) {
+  const icon = iconById(iconId);
+  if (!icon) throw new Error(`Unknown icon: ${iconId}`);
+  const session = await requireSession();
+  const supabase = await getSupabase();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ equipped_icon: icon.id })
     .eq("id", session.user.id);
   if (error) throw error;
 }

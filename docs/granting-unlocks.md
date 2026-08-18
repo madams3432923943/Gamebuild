@@ -1,4 +1,4 @@
-# Granting banners and badges
+# Granting banners, badges and icons
 
 The owner's override. A grant is a row edit, not a release: it takes effect on
 the player's next page load, with no deploy and no wait on GitHub Pages.
@@ -27,6 +27,12 @@ Two `jsonb` arrays of ids on `public.profiles`:
 | ----------------- | ------------------------------------------------------ |
 | `granted_banners` | banner ids from `FRANCHISES` + `GENERAL_BANNERS` (`js/banners.js`) |
 | `granted_badges`  | badge ids from `BADGES` (`js/badges.js`)               |
+| `granted_icons`   | icon ids from `GENERAL_ICONS` + `TEAM_ICONS` (`js/icons.js`) |
+
+Icon ids follow the same rules. Team icons are namespaced `team-<franchise>`
+(`team-bulls`, `team-nfl-packers`) so they cannot be confused with the bare
+franchise id a **banner** grant uses; `scripts/verify-icons.mjs` fails the build
+if the two namespaces ever overlap.
 
 Arrays, not maps of booleans: the only question ever asked is "is this id in the
 list", and an array cannot drift into holding `false` values that read as

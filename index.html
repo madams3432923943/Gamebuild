@@ -38,7 +38,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=186cc2f" />
+  <link rel="stylesheet" href="css/style.css?v=f1762c1" />
 </head>
 <body>
   <header class="top-nav">
@@ -117,7 +117,7 @@
     </section>
 
     <section id="screen-home" class="screen hidden">
-      <div class="home-top-left">
+      <div class="home-top">
         <!-- How to Play and the rank ladder used to sit here, app-wide. They
              are per-sport now and live on each sport's own row, because with
              two sports there is no such thing as "the" rules or "the" ladder.
@@ -127,10 +127,19 @@
           <span class="online-dot" aria-hidden="true"></span>
           <span id="online-ticker-count">—</span>
         </div>
+        <!-- Your wardrobe: banner, badges and icon, only the ones you've
+             unlocked. It sits here, above the identity card, because this is
+             the screen that card is on - customizing it used to mean leaving
+             for the Profile tab and finding a button that only did banners. -->
+        <button type="button" id="btn-customize-profile" class="sport-card-action">🎨 Customize</button>
       </div>
 
       <div class="player-banner card" id="player-banner">
         <div class="pb-top">
+          <!-- Filled by renderPlayerIcon (js/ui.js) from the equipped icon.
+               This was a literal basketball for every player of either sport
+               until icons existed; the fallback character is kept only so the
+               circle is never empty in the instant before the profile loads. -->
           <span class="player-avatar" id="home-avatar">🏀</span>
           <div class="pb-identity">
             <div class="player-name" id="home-username">Player</div>
@@ -377,6 +386,8 @@
            gratuitous way to break it. -->
       <div class="profile-header">
         <div class="profile-identity">
+          <!-- Same mark as the home card, same renderer. aria-hidden because
+               the icon repeats identity the heading beside it already gives. -->
           <span class="profile-avatar" id="profile-avatar" aria-hidden="true">★</span>
           <div class="profile-identity-text">
             <h2 class="profile-name" id="profile-display-name">Player</h2>
@@ -405,7 +416,7 @@
 
         <div class="profile-header-actions">
           <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
-          <button type="button" id="btn-customize-banner" class="btn btn-secondary btn-small">Customize Banner</button>
+          <button type="button" id="btn-customize-banner" class="btn btn-secondary btn-small">Customize Profile</button>
         </div>
 
         <!-- Closed by default. Editing your name or recovery email is a rare,
@@ -509,6 +520,12 @@
         <div class="subtabs" id="banner-sport-tabs"></div>
         <p class="hint-text" id="banner-summary"></p>
         <div id="banner-grid" class="banner-grid"></div>
+      </div>
+
+      <div id="unlockables-icons" class="hidden">
+        <div class="subtabs" id="icon-sport-tabs"></div>
+        <p class="hint-text" id="icon-summary"></p>
+        <div id="icon-grid" class="icon-grid"></div>
       </div>
     </section>
 
@@ -629,6 +646,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=186cc2f"></script>
+  <script type="module" src="js/main.js?v=f1762c1"></script>
 </body>
 </html>

@@ -440,8 +440,13 @@ function isGranted(profile, id) {
   return Array.isArray(granted) && granted.includes(id);
 }
 
-/** Every team string that belongs to a franchise, current name included. */
-function teamNamesFor(franchise) {
+/** Every team string that belongs to a franchise, current name included.
+ *
+ * Exported because team ICONS fold a server-side counter across a franchise's
+ * renames and relocations exactly as banner progress does (see js/icons.js).
+ * Two copies of the alias fold is how the Bullets stop counting toward the
+ * Wizards on one screen and keep counting on the other. */
+export function teamNamesFor(franchise) {
   return [franchise.name, ...franchise.aliases];
 }
 

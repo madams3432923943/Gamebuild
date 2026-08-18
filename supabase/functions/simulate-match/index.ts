@@ -77,6 +77,10 @@ function buildMatchOutcome(
   scoreFor: number,
   scoreAgainst: number,
   mvpName: string,
+  // The MVP's TEAM, but only when the MVP is on this player's own roster -
+  // null otherwise. Resolved by the caller rather than here, because only the
+  // caller knows which side this profile is.
+  mvpTeam: string | null,
   ownLines: { playerName: string; season?: number | null; line: Record<string, number> }[],
   statKeys: string[],
   friendly: boolean,
@@ -144,6 +148,25 @@ function buildMatchOutcome(
     update.online_losses = Number(profile.online_losses || 0) + (won ? 0 : 1);
     update.era_records = bumpEraRecord(profile.era_records, eraRecordKey(sport, era), won);
     if (nextSportRatings) update.sport_ratings = nextSportRatings;
+
+    // Ranked MVPs per franchise - what unlocks a team icon (see js/icons.js).
+    //
+    // Three conditions, all of them deliberate. RANKED, because this sits
+    // inside the not-friendly branch and practice never reaches this server at
+    // all: an award you can hand yourself is not an award. WON, because the
+    // icon is meant to mark a game you took, not a losing effort. And OWN
+    // ROSTER, which is what mvpTeam being non-null already encodes - the
+    // opponent's MVP is not yours to wear.
+    //
+    // Keyed by the RAW team name off the drafted player, not by a franchise
+    // id: the alias table that folds the Bullets into the Wizards lives on the
+    // client, and a second copy of it here is a second source of truth that
+    // drifts. See the 20260818_01 migration.
+    if (won && mvpTeam) {
+      const mvpTeams: Record<string, number> = { ...(profile.mvp_teams || {}) };
+      mvpTeams[mvpTeam] = (mvpTeams[mvpTeam] || 0) + 1;
+      update.mvp_teams = mvpTeams;
+    }
   }
 
   return update;
@@ -292,6 +315,7 @@ Deno.serve(async (req: Request) => {
     result.teamScoreA,
     result.teamScoreB,
     result.mvp.player.name,
+    result.mvp.side === "A" ? result.mvp.player.team ?? null : null,
     ownLinesFor(rosterA, result.boxA),
     sportEngine.statKeys,
     match.is_friendly,
@@ -318,6 +342,7 @@ Deno.serve(async (req: Request) => {
     result.teamScoreB,
     result.teamScoreA,
     result.mvp.player.name,
+    result.mvp.side === "B" ? result.mvp.player.team ?? null : null,
     ownLinesFor(rosterB, result.boxB),
     sportEngine.statKeys,
     match.is_friendly,
