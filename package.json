@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "bundle": "esbuild js/main.js --bundle --format=iife --outfile=dist/bundle.js",
-    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable && npm run verify:pick-eligibility && npm run verify:era-rotation && npm run verify:online-strategy && npm run verify:ranked-search && npm run verify:box-score && npm run verify:nfl-box-score && npm run verify:nfl-defense-grade && npm run verify:game-stage && npm run verify:nfl-playback && npm run verify:nfl-live-stats && npm run verify:nfl-live-playback && npm run verify:nfl-gameplans && npm run verify:nfl-realism && npm run verify:nfl-parity && npm run verify:server-dataset && npm run verify:profile-history && npm run verify:startup && npm run verify:simulation && npm run verify:nba-shot-ledger && npm run verify:sound && npm run verify:cross-sport && npm run verify:provenance && npm run verify:kits && npm run verify:banner-grants && npm run verify:banner-resolution",
+    "verify": "npm run stamp && node scripts/verify-build.js && npm run verify:contract && npm run verify:playable && npm run verify:pick-eligibility && npm run verify:era-rotation && npm run verify:online-strategy && npm run verify:ranked-search && npm run verify:box-score && npm run verify:nfl-box-score && npm run verify:nfl-defense-grade && npm run verify:game-stage && npm run verify:nfl-playback && npm run verify:nfl-live-stats && npm run verify:nfl-live-playback && npm run verify:nfl-gameplans && npm run verify:nfl-realism && npm run verify:nfl-parity && npm run verify:server-dataset && npm run verify:profile-history && npm run verify:startup && npm run verify:simulation && npm run verify:nba-shot-ledger && npm run verify:sound && npm run verify:cross-sport && npm run verify:provenance && npm run verify:kits && npm run verify:banner-grants && npm run verify:banner-resolution && npm run verify:bot-difficulty && npm run verify:icons && npm run verify:edge-outcome",
     "verify:parity": "node scripts/verify-parity.mjs",
     "verify:nfl-parity": "node scripts/verify-nfl-parity.mjs",
     "verify:simulation": "node scripts/verify-simulation-statistics.mjs",
@@ -18,6 +18,9 @@
     "verify:kits": "node scripts/verify-kits.mjs",
     "verify:banner-grants": "node scripts/verify-banner-grants.mjs",
     "verify:banner-resolution": "node scripts/verify-banner-resolution.mjs",
+    "verify:bot-difficulty": "node scripts/verify-bot-difficulty.mjs",
+    "verify:icons": "node scripts/verify-icons.mjs",
+    "verify:edge-outcome": "node scripts/verify-edge-outcome.mjs",
     "verify:online": "node scripts/verify-build.js --online",
     "verify:selftest": "node scripts/selftest/run-selftest.mjs",
     "verify:mobile": "node scripts/verify-build.js --mobile",

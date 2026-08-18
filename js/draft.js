@@ -1,7 +1,7 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { BOT_POOL_SIZE, MIN_SEARCH_CHARS } from "./constants.js";
+import { BOT_POOL_SIZE, BOT_TOP_PICK_BAN, BOT_MIN_CHOICES, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists are default parameter values (see ui.js). The helpers below are
 // per-pick calls and go through the active sport.
 import { activeSport } from "./sports/index.js";
@@ -120,6 +120,35 @@ function eligibleCombos(squad, roster, slots = defaultSlots()) {
     }
   }
   return combos;
+}
+
+/** The distinct PLAYERS in a combo list, best first.
+ *
+ * Combos are per (player, slot) over per-season rows, so the same person can
+ * appear several times over - see botAutoPick for why that matters. A player
+ * is worth his BEST entry here, matching how the practice board orders a
+ * squad: you can draft that season, so it is what he offers. */
+function rankedPlayerNames(combos) {
+  const best = new Map();
+  for (const c of combos) {
+    const current = best.get(c.player.name);
+    if (current === undefined || c.score > current) best.set(c.player.name, c.score);
+  }
+  return [...best.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+}
+
+/** `combos` with the `banTop` best distinct players removed.
+ *
+ * Never returns an empty list while it was given a non-empty one: the ban
+ * shrinks so that BOT_MIN_CHOICES distinct players always survive it. A pick
+ * with fewer legal names than that keeps all of them - an opponent that
+ * forfeits a slot is not a harder or an easier opponent, it is a broken one. */
+function withoutTopPlayers(combos, banTop = BOT_TOP_PICK_BAN) {
+  const ranked = rankedPlayerNames(combos);
+  const ban = Math.min(banTop, Math.max(0, ranked.length - BOT_MIN_CHOICES));
+  if (ban <= 0) return [...combos];
+  const banned = new Set(ranked.slice(0, ban));
+  return combos.filter((c) => !banned.has(c.player.name));
 }
 
 // ---- Typed-name search (the draft board shows no visible list - you type
@@ -407,23 +436,36 @@ export class DraftState {
     this.history.push({ side, squad: this.currentSquad, player, slot });
   }
 
-  /** Bot pick: one of the BOT_POOL_SIZE best legal (player, slot) combos,
-   * chosen uniformly - so each has an equal (1-in-5, by default) shot.
+  /** Bot pick: the top BOT_TOP_PICK_BAN players on the board are off limits,
+   * and it draws uniformly from the BOT_POOL_SIZE best combos left under them.
    *
-   * This used to take the single best combo most of the time and a fully
-   * random one otherwise, which made the bot swing between perfect and
-   * careless. Always drafting from the top of the board keeps it credible,
-   * while never insisting on the very best pick leaves a knowledgeable
-   * drafter room to win the draft outright - the difficulty comes from the
-   * width of the pool, which is one number to tune.
+   * WHY THE BAN EXISTS. The bot used to draw from the BOT_POOL_SIZE best
+   * combos outright, which meant it took a top-five player every single round.
+   * Widening that pool was the only difficulty knob and it did not work: a
+   * wider pool still starts at the top of the board, so the bot's roster was
+   * elite either way and the human could at best draw level with it. Banning
+   * the top of the board is a different lever - the best players are there for
+   * the human to take if they know who they are, and the bot builds from
+   * what's under them. Knowing the players is what the game is about, so that
+   * is what the difficulty should turn on.
    *
-   * Fewer than BOT_POOL_SIZE legal combos left (late rounds, thin squads)
-   * just means a narrower pool, not a crash. */
-  botAutoPick(side = "B") {
+   * BY DISTINCT PLAYER, NOT BY COMBO. Two reasons, and both would have made a
+   * naive top-15-combos ban far weaker than it looks. The dataset is one row
+   * PER SEASON, so a squad holds Jordan '91, '92 and '93 as three separate
+   * combos - fifteen combos can be four people. And a player eligible at two
+   * open slots contributes a combo each, double-counting him. So combos are
+   * collapsed by name and each name is worth its best season, the same way the
+   * practice board ranks a squad (see ui.js).
+   *
+   * A thin board narrows the ban rather than emptying it - see
+   * BOT_MIN_CHOICES. `banTop` is an override for the calibration harnesses,
+   * which draft both sides with the bot and need full-strength rosters. */
+  botAutoPick(side = "B", { banTop = BOT_TOP_PICK_BAN } = {}) {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
     const combos = eligibleCombos(this.currentSquad, roster, this.slots);
-    const pool = [...combos].sort((a, b) => b.score - a.score).slice(0, BOT_POOL_SIZE);
+    const legal = withoutTopPlayers(combos, banTop);
+    const pool = legal.sort((a, b) => b.score - a.score).slice(0, BOT_POOL_SIZE);
     const choice = pool[Math.floor(Math.random() * pool.length)];
     this.makePick(side, choice.player, choice.slot);
     return choice;

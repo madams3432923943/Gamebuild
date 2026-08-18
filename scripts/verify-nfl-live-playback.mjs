@@ -253,6 +253,42 @@ async function main() {
     }
     await page.locator("#screen-game:not(.hidden)").waitFor({ state: "visible", timeout: 60000 });
 
+    // ---- record every scoreboard write, exactly ---------------------------
+    //
+    // WHY A RECORDER AND NOT THE SAMPLER BELOW. The score assertion used to be
+    // computed from the 220ms polling loop, which made it a measure of how fast
+    // this script happens to be running rather than of what the page did. Two
+    // scores landing inside one interval collapsed into one observed step, and
+    // a busy machine stretched the interval - so the check could fail on a
+    // playback that was completely correct. It did, once, in a full chain run,
+    // while passing every time it was run alone.
+    //
+    // A MutationObserver cannot miss one. It fires on the write itself, so the
+    // log below is the complete list of scoreboard states this game passed
+    // through, in order, regardless of what the poller saw.
+    await page.evaluate(() => {
+      const read = () =>
+        [...document.querySelectorAll("#live-scoreboard .scoreboard-score")]
+          .map((el) => Number(el.textContent.trim()) || 0);
+      window.__bkScoreLog = [];
+      const push = () => {
+        const [a = 0, b = 0] = read();
+        const last = window.__bkScoreLog[window.__bkScoreLog.length - 1];
+        if (last && last.a === a && last.b === b) return;
+        window.__bkScoreLog.push({ a, b, t: Date.now() });
+      };
+      push();
+      // The scoreboard is re-rendered rather than mutated in place, so the
+      // observer watches the document and re-reads - narrowing it to the
+      // scoreboard element would stop firing the moment that element is
+      // replaced.
+      new MutationObserver(push).observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
+    });
+
     // ---- watch it ---------------------------------------------------------
     // Sampled densely enough that a quarter's worth of playback produces many
     // readings, so "the table filled in gradually" is a measurement rather
@@ -282,12 +318,24 @@ async function main() {
     const monotonicPeriods = periodCounts.every((n, i) => i === 0 || n >= periodCounts[i - 1]);
     const distinctPeriodCounts = new Set(periodCounts).size;
 
-    // The score only ever climbs, and it climbs in more than one step - a
-    // scoreboard that jumped straight to the final score would pass a
-    // "non-decreasing" test on its own.
-    const scoreTotals = samples.map((s) => s.scoreA + s.scoreB);
-    const monotonicScore = scoreTotals.every((n, i) => i === 0 || n >= scoreTotals[i - 1]);
-    const scoreSteps = new Set(scoreTotals).size;
+    // The score only ever climbs, and it climbs in as many steps as the game it
+    // played actually contained.
+    //
+    // THE BAR IS DERIVED, NOT PICKED. This used to require 3 distinct scores,
+    // which is wrong in both directions: a real 3-0 or 7-0 game has two and
+    // would fail, while a 45-point game could dump 40 of them in one jump and
+    // still pass. The most points a single football play can put on the board
+    // is 8 (touchdown plus a two-point conversion), so a correct playback of a
+    // game ending on `total` points must show at least ceil(total / 8)
+    // increments. That number comes from the game that was actually played, so
+    // it cannot be too strict for a low-scoring one or too lax for a high one.
+    const scoreLog = await page.evaluate(() => window.__bkScoreLog || []);
+    const logTotals = scoreLog.map((s) => s.a + s.b);
+    const monotonicScore = logTotals.every((n, i) => i === 0 || n >= logTotals[i - 1]);
+    const finalTotal = logTotals.length ? logTotals[logTotals.length - 1] : 0;
+    const increments = Math.max(0, new Set(logTotals).size - 1);
+    const MAX_POINTS_PER_PLAY = 8;
+    const minIncrements = Math.ceil(finalTotal / MAX_POINTS_PER_PLAY);
 
     // The box score fills in over the game rather than arriving complete.
     //
@@ -371,8 +419,9 @@ async function main() {
         detail: first ? `${first.periods.length} quarter columns, ${first.scoreA}-${first.scoreB} on the board` : "no samples" },
       { title: "Quarter columns appear as quarters end, never all at once", ok: monotonicPeriods && distinctPeriodCounts >= 3,
         detail: `${distinctPeriodCounts} distinct column counts, ending at ${last?.periods.length ?? 0}` },
-      { title: "The score only climbs, and in more than one step", ok: monotonicScore && scoreSteps >= 3,
-        detail: `${scoreSteps} distinct scores over ${samples.length} readings` },
+      { title: "The score only climbs, in at least as many steps as the game needed",
+        ok: monotonicScore && increments >= minIncrements && increments >= 1,
+        detail: `${increments} increments recorded to ${finalTotal} points; at most ${MAX_POINTS_PER_PLAY} per play means ${minIncrements} were required` },
       { title: "The box score fills in play by play, not quarter by quarter", ok: monotonicBox && boxSteps >= 25 && boxGrew,
         detail: `${boxSteps} distinct totals (a quarter-at-a-time reveal gives 5), ending at ${boxTotals[boxTotals.length - 1]}, worst dip ${maxBoxBackstep}` },
       { title: "The box score moves repeatedly within the first quarter", ok: q1BoxSteps >= 8,

@@ -39,6 +39,17 @@ import {
   generalBannerProgress,
   DEFAULT_BANNER_ID,
 } from "./banners.js";
+import {
+  GENERAL_ICONS,
+  teamIconsForSport,
+  iconById,
+  iconGlyph,
+  iconProgress,
+  iconSummary,
+  equippedIcon,
+  DEFAULT_ICON_ID,
+} from "./icons.js";
+import { emblemSvg } from "./emblems.js";
 import { squadTierForRep } from "./squads.js";
 
 /** Default roster shape: the ACTIVE SPORT's, never basketball's.
@@ -982,6 +993,7 @@ export function renderHomeHeader(refs, profile, rankInfo) {
   refs.joined.textContent = joinTag || "";
   refs.joined.classList.toggle("hidden", !joinTag);
 
+  renderPlayerIcon(refs.avatar, profile);
   renderFeaturedBadges(refs.featured, profile);
 
   // The banner carries the GENERAL rank - the one on js/ranks.js's sport-
@@ -1014,6 +1026,40 @@ export function renderHomeHeader(refs, profile, rankInfo) {
  * from locked to unlocked once, so an unearned badge still shows what it
  * tracks and how far along you are.
  */
+/**
+ * The mark on a player's identity card, drawn into `container`.
+ *
+ * ONE renderer for both places it appears - the home card and the profile
+ * header - because they are the same thing and drifted apart the last time
+ * they were not: the home card was a hardcoded basketball and the profile a
+ * hardcoded star, so the same player had two identities depending on which
+ * screen you were looking at.
+ *
+ * Two kinds of mark come back from iconGlyph and both are handled here, so no
+ * caller has to know that some icons are characters and others are drawings.
+ */
+export function renderPlayerIcon(container, profile) {
+  if (!container) return;
+  const icon = equippedIcon(profile);
+  const glyph = iconGlyph(icon, profile);
+  container.innerHTML = "";
+  container.classList.toggle("has-emblem-icon", glyph.kind === "emblem");
+  // The name is on the container rather than inside the SVG so it reads the
+  // same for the emoji case, which has no element to hang a title on.
+  container.title = icon ? icon.name : "";
+
+  if (glyph.kind === "emblem") {
+    const svg = emblemSvg(glyph.emblem, glyph.colors, glyph.label);
+    // A glyph id that does not resolve falls back to the character rather than
+    // leaving an empty circle - see emblemSvg on why it returns null.
+    if (svg) {
+      container.appendChild(svg);
+      return;
+    }
+  }
+  container.textContent = glyph.glyph || "★";
+}
+
 /** The up-to-three badges a player chose to show off on their banner. Empty
  * slots are drawn as outlines so the feature reads as "you can fill these"
  * rather than looking broken. */
@@ -1046,12 +1092,13 @@ function renderFeaturedBadges(container, profile) {
   }
 }
 
-/** The two kinds of thing under the Rewards tab. Both get their own
+/** The kinds of thing under the Rewards tab. Both get their own
  * sport-scoped subtabs underneath (see renderBadgeSportTabs/
  * renderBannerSportTabs) now that franchise banners come per-sport too. */
 const UNLOCKABLE_KINDS = [
   { id: "badges", label: "Badges" },
   { id: "banners", label: "Banners" },
+  { id: "icons", label: "Icons" },
 ];
 
 export function renderUnlockableTabs(container, active, onSelect) {
@@ -1082,7 +1129,20 @@ export function renderBadgeSportTabs(container, activeId, onSelect) {
   }
 }
 
-export function renderBadgeCollection(container, summaryEl, profile, sport = "nba", onToggleFeature) {
+/**
+ * @param onlyEarned  show only badges this player has actually earned.
+ *   The Customize view passes true - it is a wardrobe, and a shelf of things
+ *   you cannot wear is the Rewards screen's job, not a picker's. The Rewards
+ *   screen passes false and shows the whole ladder with its progress.
+ */
+export function renderBadgeCollection(
+  container,
+  summaryEl,
+  profile,
+  sport = "nba",
+  onToggleFeature,
+  onlyEarned = false
+) {
   const list = badgesForSport(sport);
   container.innerHTML = "";
 
@@ -1109,7 +1169,18 @@ export function renderBadgeCollection(container, summaryEl, profile, sport = "nb
         x.badge.name.localeCompare(y.badge.name)
     );
 
-  for (const { badge, progress } of ranked) {
+  const shown = onlyEarned ? ranked.filter((entry) => entry.progress.tierIndex >= 0) : ranked;
+  if (onlyEarned) {
+    summaryEl.textContent = shown.length
+      ? `${shown.length} badge${shown.length === 1 ? "" : "s"} you can show off`
+      : "";
+    if (shown.length === 0) {
+      renderNote(container, "No badges earned in this sport yet — play a few games and they'll show up here.");
+      return;
+    }
+  }
+
+  for (const { badge, progress } of shown) {
     const earnedIt = progress.tierIndex >= 0;
 
     const tile = document.createElement("div");
@@ -1474,6 +1545,117 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
   }
 }
 
+/**
+ * The icon shelf: General icons on their own tab, then one team emblem per
+ * franchise under each sport.
+ *
+ * Reuses renderBannerSportTabs for its subtabs rather than growing a third
+ * near-identical tab renderer - General/NBA/NFL means the same thing on both
+ * shelves, and a player who learns the banner tabs has already learned these.
+ *
+ * `onlyUnlocked` is the same switch banners take, for the same reason: the
+ * Customize view is a wardrobe and the Rewards view is a ladder.
+ */
+export function renderIcons(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false) {
+  container.innerHTML = "";
+  const general = sport === GENERAL_BANNERS_TAB.id;
+  const list = general ? GENERAL_ICONS : teamIconsForSport(sport);
+
+  if (!general && list.length === 0) {
+    const name = (SPORTS.find((s) => s.id === sport) || {}).name || sport;
+    summaryEl.textContent = `${name} icons arrive with ${name} teams.`;
+    renderNote(container, `No ${name} icons yet — this sport isn't playable at the moment.`);
+    return;
+  }
+
+  if (general) {
+    const unlocked = list.filter((icon) => iconProgress(icon, profile).unlocked).length;
+    summaryEl.textContent = onlyUnlocked
+      ? `${unlocked} of ${list.length} icons unlocked — pick one for your card.`
+      : `${unlocked} of ${list.length} general icons unlocked`;
+  } else {
+    const { unlocked, total } = iconSummary(profile, sport);
+    summaryEl.textContent = onlyUnlocked
+      ? `${unlocked} of ${total} team icons unlocked — pick one for your card.`
+      : `${unlocked} of ${total} team icons unlocked · win a ranked MVP with one of a team's players to earn its icon` +
+        " (practice doesn't count)";
+  }
+
+  let shown = 0;
+  for (const icon of list) {
+    const progress = iconProgress(icon, profile);
+    if (onlyUnlocked && !progress.unlocked) continue;
+    shown += 1;
+    const equipped = (profile.equippedIcon || DEFAULT_ICON_ID) === icon.id;
+
+    const tile = document.createElement("div");
+    tile.className = "icon-tile" + (progress.unlocked ? "" : " locked") + (equipped ? " equipped" : "");
+
+    // The mark itself, drawn exactly as it will appear on the identity card -
+    // a preview that renders differently from the real thing is not a preview.
+    const art = document.createElement("div");
+    art.className = "icon-art";
+    const glyph = iconGlyph(icon, profile);
+    if (glyph.kind === "emblem") {
+      const svg = emblemSvg(glyph.emblem, glyph.colors, glyph.label);
+      if (svg) art.appendChild(svg);
+      else art.textContent = "★";
+    } else {
+      art.textContent = glyph.glyph;
+      art.classList.add("is-emoji");
+    }
+    tile.appendChild(art);
+
+    const name = document.createElement("div");
+    name.className = "icon-name";
+    name.textContent = icon.name;
+    tile.appendChild(name);
+
+    const track = document.createElement("div");
+    track.className = "progress-bar-track";
+    const fill = document.createElement("div");
+    fill.className = "progress-bar-fill";
+    fill.style.width = `${progress.percent}%`;
+    track.appendChild(fill);
+    tile.appendChild(track);
+
+    const caption = document.createElement("div");
+    caption.className = "icon-progress";
+    caption.textContent = progress.unlocked
+      ? equipped
+        ? "Worn now"
+        : progress.granted
+          ? "Unlocked (granted)"
+          : "Unlocked"
+      : icon.franchise
+        ? `${progress.value} / ${progress.required} ranked MVPs`
+        : `${progress.value} / ${progress.required} — ${icon.blurb}`;
+    tile.appendChild(caption);
+
+    if (progress.unlocked && onEquip) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn btn-secondary icon-equip";
+      // The default icon has nothing to fall back TO, so it never offers to be
+      // taken off - removing it would leave the card with no mark at all.
+      const removable = icon.id !== DEFAULT_ICON_ID;
+      btn.textContent = equipped ? (removable ? "Take off" : "Worn") : "Wear this";
+      btn.disabled = equipped && !removable;
+      btn.addEventListener("click", () => onEquip(equipped ? DEFAULT_ICON_ID : icon.id));
+      tile.appendChild(btn);
+    }
+
+    container.appendChild(tile);
+  }
+
+  if (onlyUnlocked && shown === 0) {
+    renderNote(
+      container,
+      "No icons unlocked here yet — win a ranked game where one of this team's players is MVP to earn its icon."
+    );
+  }
+}
+
 /** One row per era bracket, online and offline broken out separately - a
  * rank earned in Modern Ball says nothing about Grandpa's Game, so folding
  * them into one number would hide more than it showed. Lives on the Profile
@@ -1551,6 +1733,7 @@ export function renderProfileScreen(
   // and a profile whose only statement of who you are is an editable field
   // reads as a form rather than as yours.
   if (refs.displayName) refs.displayName.textContent = profile.username || "Player";
+  renderPlayerIcon(refs.avatar, profile);
   renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
 
   if (refs.sportRankHeading) refs.sportRankHeading.textContent = `${sport.name} Rank`;

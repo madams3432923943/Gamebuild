@@ -33,15 +33,35 @@ jobs:
         with:
           version: latest
 
-      # Parity is checked against the files in this same checkout, so a commit
-      # that changed the client engine without copying it across fails HERE
-      # rather than by quietly diverging in production. This is the one moment
-      # both halves are guaranteed to be looking at the same tree.
+      # Everything below is checked against the files in this same checkout, so
+      # a commit that changed the client engine without copying it across fails
+      # HERE rather than by quietly diverging in production. This is the one
+      # moment both halves are guaranteed to be looking at the same tree.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci --no-audit --no-fund
       - run: npm run verify:parity -- --no-network
+
+      # Basketball parity alone was the whole gate, which left three ways for a
+      # broken server to ship clean:
+      #
+      #   nfl-parity      verify:parity's numeric checks are wired to the NBA
+      #                   directories, so a divergence between the client and
+      #                   the vendored FOOTBALL engine deployed unnoticed - and
+      #                   football is half the games this function simulates.
+      #   server-dataset  the function builds its rating context from a
+      #                   PostgREST query that silently caps at 1000 rows
+      #                   unless it pages. It shipped that way once: the
+      #                   simulation still ran, the box score still added up,
+      #                   and it was a different game.
+      #   edge-outcome    executes buildMatchOutcome itself - the ranked/
+      #                   friendly boundary and the profile bookkeeping. Until
+      #                   this existed nothing in the repo had ever RUN
+      #                   index.ts; it was checked by regex and a parse.
+      - run: npm run verify:nfl-parity
+      - run: npm run verify:server-dataset
+      - run: npm run verify:edge-outcome
 
       - name: Deploy simulate-match
         env:

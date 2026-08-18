@@ -28,6 +28,7 @@ import {
   recordDraftPicks,
   setUsername,
   setEquippedBanner,
+  setEquippedIcon,
   setEquippedKit,
   setFeaturedBadges,
   FEATURED_BADGE_SLOTS,
@@ -83,6 +84,8 @@ import {
   renderBadgeSportTabs,
   renderUnlockableTabs,
   renderBanners,
+  renderIcons,
+  renderPlayerIcon,
   renderBannerSportTabs,
   renderEquippedBanner,
   renderMatchupSide,
@@ -402,6 +405,7 @@ onPasswordRecovery(() => {
 
 const homeHeaderRefs = {
   card: document.getElementById("player-banner"),
+  avatar: document.getElementById("home-avatar"),
   username: document.getElementById("home-username"),
   record: document.getElementById("home-record"),
   featured: document.getElementById("home-featured-badges"),
@@ -3943,6 +3947,7 @@ btnGameHome.addEventListener("click", () => {
 
 const profileRefs = {
   usernameInput: document.getElementById("input-profile-username"),
+  avatar: document.getElementById("profile-avatar"),
   displayName: document.getElementById("profile-display-name"),
   kitPicker: document.getElementById("profile-kit-picker"),
   kitName: document.getElementById("profile-kit-name"),
@@ -4034,7 +4039,13 @@ async function renderProfileFor(profile) {
   });
 }
 
-btnCustomizeBanner.addEventListener("click", () => openCustomizeBannerModal());
+// Both routes into the wardrobe open the SAME modal. The profile button kept
+// its id (the screen is wired by id, and renaming it to match its new label
+// would be a gratuitous break) and gained the icon and badge shelves; the home
+// button is the one that makes it reachable without leaving the screen the
+// identity card is on.
+btnCustomizeBanner.addEventListener("click", () => openCustomizeModal());
+document.getElementById("btn-customize-profile").addEventListener("click", () => openCustomizeModal());
 
 // ---- Recovery email ----
 // Attaching one is the whole point of the account rework: an account with no
@@ -4241,37 +4252,102 @@ document.getElementById("btn-overall-ladder").addEventListener("click", openOver
 // screen's app-wide one is gone: each sport card opens its own.
 document.getElementById("btn-rank-ladder").addEventListener("click", () => openRankLadder(profileStatsSportId));
 
-/** "Customize Banner" from the Profile screen - the same sport-tabbed
- * banner grid Rewards > Banners shows, just reached from Profile too
- * (rather than duplicating renderBanners/renderBannerSportTabs) since
- * equipping a banner is really a profile customization, not an unlock. */
-function openCustomizeBannerModal() {
+/** Which shelf the Customize modal is open on. Module-level like the Rewards
+ * tabs beside it, so re-opening lands where you left off. */
+let activeCustomizeTab = "banners";
+
+/**
+ * "Customize" - your wardrobe: banner, badges and icon in one place.
+ *
+ * WHAT THIS REPLACED. There used to be a "Customize Banner" button on the
+ * Profile screen and nothing else: badges were featured from the Rewards
+ * screen, banners were equipped from two different places, and the icon on
+ * your card could not be changed at all. Three cosmetics, three unrelated
+ * routes, none of them on the screen the card actually appears on.
+ *
+ * ONLY WHAT YOU HAVE UNLOCKED, on every tab. That is the difference between
+ * this and Rewards, and it is the whole reason both exist: Rewards is the
+ * ladder - everything there is to earn and how close you are - and this is the
+ * wardrobe. Offering to "customize" with something you have not earned is the
+ * Rewards tab with extra steps.
+ *
+ * Every grid here is the SAME renderer Rewards uses, passed onlyUnlocked. A
+ * second set of tile renderers for the picker is how the two would end up
+ * disagreeing about what a locked tile looks like.
+ */
+function openCustomizeModal(kind = activeCustomizeTab) {
+  activeCustomizeTab = kind;
+
   const wrap = document.createElement("div");
+  const kindTabs = document.createElement("div");
+  kindTabs.className = "subtabs";
   const tabs = document.createElement("div");
   tabs.className = "subtabs";
   const summary = document.createElement("p");
   summary.className = "hint-text";
   const grid = document.createElement("div");
-  grid.className = "banner-grid";
-  wrap.append(tabs, summary, grid);
+  wrap.append(kindTabs, tabs, summary, grid);
 
-  renderBannerSportTabs(tabs, activeBannerSport, (sport) => {
-    activeBannerSport = sport;
-    openCustomizeBannerModal();
-  });
+  renderUnlockableTabs(kindTabs, activeCustomizeTab, (next) => openCustomizeModal(next));
 
-  openModal("Customize Banner", wrap);
+  // Badges have no General shelf and their own sport tabs; banners and icons
+  // share the General/NBA/NFL set.
+  if (kind === "badges") {
+    grid.className = "badge-grid";
+    renderBadgeSportTabs(tabs, activeBadgeSport, (sport) => {
+      activeBadgeSport = sport;
+      openCustomizeModal(kind);
+    });
+  } else if (kind === "icons") {
+    grid.className = "icon-grid";
+    renderBannerSportTabs(tabs, activeIconSport, (sport) => {
+      activeIconSport = sport;
+      openCustomizeModal(kind);
+    });
+  } else {
+    grid.className = "banner-grid";
+    renderBannerSportTabs(tabs, activeBannerSport, (sport) => {
+      activeBannerSport = sport;
+      openCustomizeModal(kind);
+    });
+  }
 
-  // Friend count drives the friend banner ladder; it isn't on the profile
-  // row, so it's fetched alongside it rather than inferred.
+  openModal("Customize", wrap);
+
+  // Friend count drives the friend ladders on both the banner and icon
+  // shelves; it isn't on the profile row, so it's fetched alongside it rather
+  // than inferred.
   loadProfileForBanners()
     .then((profile) => {
-      renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
+      if (kind === "badges") {
+        renderBadgeCollection(grid, summary, profile, activeBadgeSport, onFeatureBadgeFromProfile, true);
+      } else if (kind === "icons") {
+        renderIcons(grid, summary, profile, onEquipIconFromProfile, activeIconSport, true);
+      } else {
+        renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
+      }
     })
     .catch((e) => {
-      console.error("Failed to load banners:", e);
-      summary.textContent = "Couldn't load your banners right now.";
+      console.error("Failed to load customization options:", e);
+      summary.textContent = "Couldn't load your unlocks right now.";
     });
+}
+
+/** What every equip from this modal has to do afterwards.
+ *
+ * refreshHome() is the part that used to be missing. Equipping from here
+ * repainted the profile screen and nothing else, so the identity card on the
+ * home screen - the one the change is FOR - kept showing the old cosmetic
+ * until some unrelated reload happened to fire. Changing what you are wearing
+ * and watching it not change is indistinguishable from the save failing.
+ */
+async function afterCustomize() {
+  openCustomizeModal();
+  const profile = await loadProfile();
+  currentProfile = profile;
+  renderEquippedBanner(profileEquippedBannerEl, profile);
+  renderPlayerIcon(profileRefs.avatar, profile);
+  await refreshHome();
 }
 
 async function onEquipBannerFromProfile(franchiseId) {
@@ -4281,10 +4357,22 @@ async function onEquipBannerFromProfile(franchiseId) {
     console.error("Failed to equip banner:", e);
     return;
   }
-  openCustomizeBannerModal();
-  const profile = await loadProfile();
-  currentProfile = profile;
-  renderEquippedBanner(profileEquippedBannerEl, profile);
+  await afterCustomize();
+}
+
+async function onEquipIconFromProfile(iconId) {
+  try {
+    await setEquippedIcon(iconId);
+  } catch (e) {
+    console.error("Failed to equip icon:", e);
+    return;
+  }
+  await afterCustomize();
+}
+
+async function onFeatureBadgeFromProfile(badgeId) {
+  await toggleFeaturedBadge(badgeId);
+  await afterCustomize();
 }
 
 /** Opens the box score a stored record was set in.
@@ -4322,11 +4410,19 @@ const badgeSportTabsEl = document.getElementById("badge-sport-tabs");
 const bannerGridEl = document.getElementById("banner-grid");
 const bannerSummaryEl = document.getElementById("banner-summary");
 const bannerSportTabsEl = document.getElementById("banner-sport-tabs");
+const unlockablesIconsEl = document.getElementById("unlockables-icons");
+const iconGridEl = document.getElementById("icon-grid");
+const iconSummaryEl = document.getElementById("icon-summary");
+const iconSportTabsEl = document.getElementById("icon-sport-tabs");
 
-// Which sport's badges/banners are on screen, and which of Badges/Banners.
+// Which sport's badges/banners/icons are on screen, and which shelf.
 // Kept across visits so switching tabs and coming back doesn't reset any pick.
 let activeBadgeSport = "nba";
 let activeBannerSport = "nba";
+// Icons open on the General shelf: the default icon and the ranked-win ladder
+// live there, and a new player has no team icons at all, so landing on a wall
+// of locked emblems would read as an empty feature.
+let activeIconSport = "general";
 let activeUnlockablesTab = "badges";
 
 /** The profile, plus the friend count the friends banner ladder needs.
@@ -4349,6 +4445,19 @@ async function openBadgesScreen() {
   });
   unlockablesBadgesEl.classList.toggle("hidden", activeUnlockablesTab !== "badges");
   unlockablesBannersEl.classList.toggle("hidden", activeUnlockablesTab !== "banners");
+  unlockablesIconsEl.classList.toggle("hidden", activeUnlockablesTab !== "icons");
+
+  if (activeUnlockablesTab === "icons") {
+    renderIconSportTabs();
+    try {
+      const profile = await loadProfileForBanners();
+      renderIcons(iconGridEl, iconSummaryEl, profile, onEquipIcon, activeIconSport, false);
+    } catch (e) {
+      console.error("Failed to load icons:", e);
+      iconSummaryEl.textContent = "Couldn't load your icons right now.";
+    }
+    return;
+  }
 
   if (activeUnlockablesTab === "banners") {
     renderBannerSportTabs(bannerSportTabsEl, activeBannerSport, (sport) => {
@@ -4378,10 +4487,22 @@ async function openBadgesScreen() {
   }
 }
 
+/** Icons share the banner shelf's General/NBA/NFL tabs - one tab renderer,
+ * because the two shelves are scoped the same way. */
+function renderIconSportTabs() {
+  renderBannerSportTabs(iconSportTabsEl, activeIconSport, (sport) => {
+    activeIconSport = sport;
+    openBadgesScreen();
+  });
+}
+
 /** Toggles a badge on your banner. At the slot limit the oldest pick drops
  * out rather than erroring - silently swapping is friendlier than telling
- * someone to go unfeature something first. */
-async function onToggleFeaturedBadge(badgeId) {
+ * someone to go unfeature something first.
+ *
+ * Split from its Rewards-screen handler so the Customize modal can perform the
+ * same toggle without repainting the Rewards screen underneath it. */
+async function toggleFeaturedBadge(badgeId) {
   try {
     const profile = await loadProfile();
     const current = profile.featuredBadges || [];
@@ -4391,9 +4512,25 @@ async function onToggleFeaturedBadge(badgeId) {
     await setFeaturedBadges(next);
   } catch (e) {
     console.error("Failed to update featured badges:", e);
+  }
+}
+
+async function onToggleFeaturedBadge(badgeId) {
+  await toggleFeaturedBadge(badgeId);
+  await openBadgesScreen();
+}
+
+/** Equipping an icon is cosmetic, so it writes straight from the client -
+ * same contract as the banner beside it. */
+async function onEquipIcon(iconId) {
+  try {
+    await setEquippedIcon(iconId);
+  } catch (e) {
+    console.error("Failed to equip icon:", e);
     return;
   }
   await openBadgesScreen();
+  await refreshHome();
 }
 
 /** Equipping is cosmetic, so it writes straight from the client. Repaints
@@ -4408,6 +4545,7 @@ async function onEquipBanner(franchiseId) {
     return;
   }
   await openBadgesScreen();
+  await refreshHome();
 }
 
 profileRefs.usernameInput.addEventListener("change", async () => {

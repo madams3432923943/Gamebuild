@@ -16,6 +16,35 @@
 // narrow it to make it sharper (1 = always optimal).
 export const BOT_POOL_SIZE = 5;
 
+// How many of the best players on the board the bot is FORBIDDEN to take,
+// counted per pick and by distinct player rather than by (player, slot) combo
+// - see DraftState.botAutoPick.
+//
+// BOT_POOL_SIZE alone could not make the bot beatable. Whatever its width, the
+// pool was always measured from the top of the board, so the bot walked away
+// with an elite player every single round and a human could at best match it.
+// Banning the top of the board instead changes what the bot is ALLOWED to
+// know: the best fifteen players in front of it are yours to take if you know
+// who they are, and its roster is built from the sixteenth onward.
+//
+// Fifteen is deliberately large relative to a squad. A round drafts from one
+// team-decade squad, and those hold a median of 31 distinct players in
+// basketball and 51 in football, so this hands the human the top third to
+// half of the board while still leaving the bot a real roster to build.
+export const BOT_TOP_PICK_BAN = 15;
+
+// The floor under that ban: however wide BOT_TOP_PICK_BAN is, the bot always
+// keeps at least this many distinct players to choose between.
+//
+// It has to exist because the ban is measured against ONE PICK'S eligible
+// players, not the whole dataset. The thinnest basketball squad has 12
+// distinct players in it, and a late pick with a single position-locked slot
+// still open can be down to a handful of legal names - ban fifteen there and
+// the bot has nothing legal left, which is a forfeited slot and a broken
+// roster rather than an easier opponent. So a thin board narrows the ban
+// instead of emptying it, the same way a thin board already narrows the pool.
+export const BOT_MIN_CHOICES = 5;
+
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.
 // Time a finished period holds on screen before the next tips off. Generous
