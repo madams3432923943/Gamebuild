@@ -156,6 +156,48 @@ check(
   tooClose.length ? `too close: ${tooClose.join(", ")}` : "every same-glyph pair is separated by colour"
 );
 
+// ---- 3c. every franchise has a city, and no two icons share a label ---------
+//
+// Team icons are labelled by CITY, never by nickname - the nickname is the
+// registered trademark and the city is a place (see cityLabel in js/icons.js).
+// Two things can go wrong with that and both are silent:
+//
+//   A MISSING CITY falls back to the full team name, which quietly puts the
+//   nickname back on the shelf for that one team. Deriving the city by chopping
+//   the last word off the name was rejected for the same reason - "Portland
+//   Trail Blazers" and "Thunder / SuperSonics" both defeat it, and the wrong
+//   answer looks plausible.
+//
+//   A DUPLICATE LABEL is what happens when two teams in one sport share a city:
+//   both New York football teams, both Los Angeles ones, both LA basketball
+//   ones. Two tiles reading "New York" is not a shelf a player can use.
+const cityless = FRANCHISES.filter((f) => !f.city).map((f) => f.id);
+check(
+  "Every franchise has an explicit city",
+  cityless.length === 0,
+  cityless.length ? `no city for: ${cityless.join(", ")}` : `${FRANCHISES.length} franchises`
+);
+
+const nicknamed = TEAM_ICONS.filter((icon) => icon.name === icon.franchise.name).map((i) => i.id);
+check(
+  "No team icon is labelled with the team's nickname",
+  nicknamed.length === 0,
+  nicknamed.length ? `still using the full name: ${nicknamed.join(", ")}` : "every label is a city"
+);
+
+const labels = new Map();
+const clashes = [];
+for (const icon of TEAM_ICONS) {
+  const key = `${icon.sport}|${icon.name}`;
+  if (labels.has(key)) clashes.push(`${labels.get(key)} / ${icon.id} both read "${icon.name}"`);
+  labels.set(key, icon.id);
+}
+check(
+  "No two team icons in one sport share a label",
+  clashes.length === 0,
+  clashes.length ? clashes.join("; ") : `${TEAM_ICONS.length} labels, all distinct within their sport`
+);
+
 // ---- 4. ids ----------------------------------------------------------------
 const allIcons = [...GENERAL_ICONS, ...TEAM_ICONS];
 const seen = new Map();

@@ -20,7 +20,7 @@ you rank highest in, and everything else on the shelf is something you earned.
 
 | File | Holds |
 | --- | --- |
-| `js/emblems.js` | The artwork. 28 original cartoon glyphs as SVG path data, the franchise → glyph mapping, the disc/rim/mark palette resolution, and `emblemSvg()` — the only place in the app that builds SVG. |
+| `js/emblems.js` | The artwork. 49 original cartoon glyphs as SVG path data, the franchise → glyph mapping, the disc/rim/mark/accent palette resolution, and `emblemSvg()` — the only place in the app that builds SVG. |
 | `js/icons.js` | The catalogue: the default icon, the general ladders, one icon per franchise, and progress/unlock rules. Same shape as `js/banners.js`. |
 | `js/ui.js` | `renderPlayerIcon()` (home card and profile, one renderer) and `renderIcons()` (the Rewards and Customize grids). |
 | `js/profile.js` | `equippedIcon` / `grantedIcons` / `mvpTeams` on the normalized profile, and `setEquippedIcon()`. |
@@ -28,6 +28,30 @@ you rank highest in, and everything else on the shelf is something you earned.
 `topSportId()` lives in `js/icons.js` rather than `js/profile.js` deliberately:
 `profile.js` imports the icon catalogue for `DEFAULT_ICON_ID`, so the dependency
 has to run one way only.
+
+### Naming: the city, never the nickname
+
+A team icon is labelled **"Buffalo"**, not "Buffalo Bills". The nickname is the
+registered trademark; the city is a place, and naming the place a team plays in
+is not a use of anyone's mark.
+
+Cities are an explicit `city` field on each franchise rather than the team name
+with its last word removed — "Portland Trail Blazers" and "Thunder /
+SuperSonics" both defeat that trick, and a franchise whose city came out wrong
+would be the plausible-looking kind of error nobody notices. `verify-icons`
+fails the build if one is missing or if any label is still the full team name.
+
+Three cities have two teams in one sport (both New York football teams, both
+Los Angeles ones, both LA basketball ones). Those get the emblem's own
+plain-English name appended — "New York · Rocket", "New York · Shield" — which
+describes the picture on the tile rather than borrowing a nickname.
+
+**This does not make the app trademark-free and is not meant to read that way.**
+The draft board, squad banners and reward banners all still name real teams in
+full, because a game about recalling real players cannot avoid naming the teams
+they played for. The sign-in screen carries a disclaimer stating that Draft Nova
+is unofficial and unaffiliated. The icon shelf is simply the one surface where
+the full name bought nothing.
 
 ### The artwork is original, and it is not the team's logo
 
@@ -42,20 +66,23 @@ unreadable, and the reward tile prints the team's full name underneath anyway.
 **A Bulls icon therefore looks like a cartoon bull in Bulls colours. It does not
 look like the Bulls logo, and it is not meant to.**
 
-28 glyphs cover 62 franchises, so teams still share marks. **Two colour
-channels are what separate them:** the disc takes the franchise's first colour
-and the rim its second, so the second colour is on the icon even when it is too
-dark to carry the mark. Without the rim, Orlando and Philadelphia were the same
-picture — near-identical blue discs, both second colours discarded by the
-contrast fallback in favour of the same white mark.
+**Every team in a sport wears a different glyph.** Sharing one and leaning on
+colour worked until two teams shared a palette too, and it left whole stretches
+of the shelf as one silhouette in slightly different colours — five of
+football's birds were literally the same bird. Glyphs *are* reused across
+sports, since a player only ever sees one sport's shelf at a time: San Antonio
+and Dallas both wear the cowboy hat.
 
-`scripts/verify-icons.mjs` enforces it: any two franchises **in the same sport**
-sharing a glyph must clear `MIN_ICON_SEPARATION` (25 dE, the same units and the
-same reasoning as `MIN_KIT_SEPARATION` in `js/kits.js`), measured as an
-area-weighted RMS over disc and rim. The mark is excluded from that measurement
-because contrast fallback makes it white on both sides of many pairs, which
-would report a difference no player can see. The check fails the build, so a
-franchise added later cannot quietly land on a twin.
+Colour still does work on top of that. The disc takes the franchise's first
+colour and the **rim** its second, so the second colour is on the icon even when
+it is too dark to carry the mark.
+
+`scripts/verify-icons.mjs` enforces both: any two franchises **in the same
+sport** sharing a glyph must clear `MIN_ICON_SEPARATION` (25 dE, the same units
+and reasoning as `MIN_KIT_SEPARATION` in `js/kits.js`), measured as an
+area-weighted RMS over disc and rim, and no two icons in a sport may share a
+label. Both fail the build, so a franchise added later cannot quietly land on a
+twin.
 
 Two of the glyphs — the gear and the sun — are generated from a `spokes()`
 helper rather than hand-drawn, because evenly spaced radial teeth look subtly
@@ -63,14 +90,22 @@ wrong when eyeballed, and subtly wrong at 34px reads as a rendering bug.
 
 ### Contrast
 
-`emblemPalette()` resolves a franchise's two colours into a disc, a mark and an
-accent. Several real palettes are two dark colours — Utah is navy on forest
+`emblemPalette()` resolves a franchise's two colours into a disc, a rim, a mark
+and an accent. Several real palettes are two dark colours — Utah is navy on forest
 green, the Browns are brown on near-black — and drawing the mark in colour two
 on a disc of colour one makes those teams a dark smudge. So the second colour
 is used only when it clears **3:1** against the first (the WCAG non-text
 threshold `js/kits.js` already holds a worn colour to); otherwise the mark falls
 back to white or black, whichever the disc can carry.
 `scripts/verify-icons.mjs` asserts every franchise clears it.
+
+The **accent** — the tone carrying a glyph's identifying detail, a beak or a
+pair of horns — gets the same treatment for the same reason. It used to be set
+to the raw second colour whenever that colour was too dark to be the mark, which
+is precisely when it is also too dark to be seen: Baltimore is purple and black,
+so the raven's beak was black on dark purple and the bird rendered as a
+featureless blob. `readableOn()` now pushes it toward the ink until it clears
+3:1, mixing rather than replacing so the team's hue survives.
 
 ## Unlocking
 
@@ -162,11 +197,12 @@ same tile renderers, passed `onlyUnlocked`.
 
 ## Known limitations
 
-- **62 franchises, 28 glyphs.** Teams still share marks, and two teams sharing a
-  glyph are told apart by their disc and rim colours rather than by shape. The
-  enforced separation check means no pair is confusable today, but the icon for
-  a franchise is a colour scheme plus a generic animal — it is not, and cannot
-  be, that team's mark.
+- **The icon is a colour scheme plus a generic animal.** It is not, and cannot
+  be, that team's mark. Someone who does not already know the team will not
+  identify it from the emblem alone; the city label is what names it.
+- **Glyphs repeat across sports.** San Antonio and Dallas both wear the cowboy
+  hat, Chicago and Memphis both a bear. Only within one sport is uniqueness
+  enforced, because only one sport's shelf is ever on screen.
 - **No icon for a sport that is not live.** NHL and Soccer have no franchises
   yet, so their tabs are empty by construction.
 - **The ranked-MVP unlock has not been watched end to end.** It needs two live

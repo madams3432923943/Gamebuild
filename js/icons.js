@@ -40,7 +40,7 @@
 // here touches a rating, a record or a simulation.
 
 import { FRANCHISES, franchisesForSport, teamNamesFor } from "./banners.js";
-import { emblemIdFor } from "./emblems.js";
+import { emblemIdFor, EMBLEMS } from "./emblems.js";
 import { SPORTS, sportById, DEFAULT_SPORT_ID } from "./sports/index.js";
 
 /** MVPs from a franchise's players, in won ranked games, to wear its mark. */
@@ -169,16 +169,62 @@ export const GENERAL_ICONS = [
   })),
 ];
 
+/**
+ * What a team icon is CALLED: the city, never the nickname.
+ *
+ * "Buffalo", not "Buffalo Bills". The nickname is the registered trademark -
+ * the city is a place, and naming the place a team plays in is not a use of
+ * anyone's mark. The emblem beside it is original art in the team's colours,
+ * so between the two nothing on this shelf is a team's mark or a team's logo,
+ * which is exactly what the shelf should be able to say for itself.
+ *
+ * This does NOT make the app trademark-free, and it is not meant to read that
+ * way: the draft board, the squad banners and the reward banners all still
+ * name real teams in full, because a game about recalling real players cannot
+ * avoid naming the teams they played for. See the disclaimer on the sign-in
+ * screen. This is the one surface where the full name bought nothing.
+ *
+ * Cities are an explicit field on each franchise rather than the team name
+ * with the last word chopped off. "Portland Trail Blazers" and "Thunder /
+ * SuperSonics" both defeat that trick, and a franchise whose city silently
+ * came out wrong would be the kind of plausible-looking error that never gets
+ * noticed - scripts/verify-icons.mjs fails the build if one is missing.
+ */
+function cityLabel(franchise) {
+  return franchise.city || franchise.name;
+}
+
+/**
+ * Two teams in one sport can share a city - Los Angeles and New York each have
+ * two football teams, and LA has two basketball teams - so the city alone is
+ * not a label. Where it collides, the emblem's own plain-English name comes
+ * along: "New York · Rocket", "New York · Shield". That describes the picture
+ * on the tile, which is the thing that actually tells them apart, and it is a
+ * description of our own drawing rather than anyone's nickname.
+ */
+function labelFor(franchise) {
+  const sameCity = FRANCHISES.filter(
+    (f) => f.sport === franchise.sport && cityLabel(f) === cityLabel(franchise)
+  );
+  if (sameCity.length < 2) return cityLabel(franchise);
+  const emblem = EMBLEMS[emblemIdFor(franchise.id)];
+  return emblem ? `${cityLabel(franchise)} · ${emblem.name}` : cityLabel(franchise);
+}
+
 /** One icon per franchise, derived from the franchise table rather than
  * restated - a franchise added there gets its icon the same day. */
 function teamIcon(franchise) {
+  const label = labelFor(franchise);
   return {
     id: `${TEAM_ICON_PREFIX}${franchise.id}`,
-    name: franchise.name,
+    name: label,
+    city: cityLabel(franchise),
     sport: franchise.sport,
     franchise,
     emblem: emblemIdFor(franchise.id),
-    blurb: `Win a ranked MVP with a ${franchise.name} player.`,
+    // "a player from Atlanta" rather than "a Atlanta player": the city goes
+    // after the noun so the sentence never has to pick between a and an.
+    blurb: `Win a ranked MVP with a player from ${cityLabel(franchise)}.`,
     progress: (profile) => {
       const value = mvpsForFranchise(franchise, profile);
       return { value, required: ICON_MVP_THRESHOLD, unlocked: value >= ICON_MVP_THRESHOLD };

@@ -1,5 +1,11 @@
 # Draft Nova
 
+> **Unofficial fan project.** Draft Nova is not affiliated with, endorsed by, or
+> sponsored by the NFL, the NBA, or any team. Team names and statistics are used
+> to identify real teams and players for a game about recalling them. Team
+> emblems in this app are original artwork and are not any team's logo — see
+> `docs/profile-icons.md`.
+
 An NBA draft-battle game. Each round rolls a shared team-and-decade squad
 (e.g. "Chicago Bulls 1990s"); both sides draft from that same squad into open
 roster slots, then the finished rosters play a simulated game.
