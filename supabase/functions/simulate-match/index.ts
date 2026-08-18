@@ -70,7 +70,13 @@ function snapshotRoster(roster: Record<string, any>) {
   return out;
 }
 
-function buildMatchOutcome(
+// Exported so it can be TESTED. Nothing in this repo has ever executed this
+// file - the verify chain regexes it as text and CI bundles it only to see
+// whether it parses - so the profile bookkeeping below, including the
+// ranked/friendly boundary that protects the ladder, had no coverage at all.
+// scripts/verify-edge-outcome.mjs bundles this module and drives this function
+// directly. Deno neither needs nor minds the export.
+export function buildMatchOutcome(
   profile: Record<string, any>,
   opponentLabel: string,
   won: boolean,
