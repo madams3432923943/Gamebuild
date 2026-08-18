@@ -1249,7 +1249,16 @@ export function renderBadgeCollection(
  * jersey banner. The look comes entirely from the franchise entry's colors
  * and abbreviation - no commissioned asset, no player likeness anywhere
  * near it, and it reads as a real banner rather than a badge/icon. */
-export function bannerArt(franchise) {
+/**
+ * @param eager  fetch the artwork immediately, at high priority.
+ *
+ * Lazy is right for the Rewards grid, where sixty banners draw at once and
+ * most are below the fold. It is wrong for the matchup intro, which shows
+ * exactly two images that are the entire point of the screen: deferred behind
+ * an intersection check, the artwork arrived after the animation had already
+ * played and both players watched a bare colour gradient fly in.
+ */
+export function bannerArt(franchise, { eager = false } = {}) {
   const el = document.createElement("div");
   // `art` (general banners only - see GENERAL_BANNERS in banners.js) swaps the
   // flat two-color gradient for a real pattern. The two colors still drive it
@@ -1270,8 +1279,9 @@ export function bannerArt(franchise) {
     img.alt = "";
     // Every banner in the Rewards grid draws at once, so decoding them eagerly
     // stalls that screen on a phone for no benefit - most are below the fold.
-    img.loading = "lazy";
+    img.loading = eager ? "eager" : "lazy";
     img.decoding = "async";
+    if (eager) img.fetchPriority = "high";
     // A missing file falls back to the gradient already painted underneath,
     // instead of leaving a broken-image glyph on the card.
     img.addEventListener("error", () => img.remove());
@@ -1336,11 +1346,48 @@ export function renderEquippedBanner(container, profile) {
  * main.js): the player's equipped banner art (or a neutral placeholder if
  * they haven't equipped one), username, and rank label. `refs` is
  * { bannerSlot, username, rank } - the three elements for one side. */
+/**
+ * Warms the artwork for a set of banner ids, resolving when they are decoded
+ * or when `timeoutMs` runs out, whichever comes first.
+ *
+ * The intro is an animation with a fixed running time, so the art has to be in
+ * the browser BEFORE it starts - marking the image eager only helps if there is
+ * something to wait on, and the animation does not wait. Hence a real preload.
+ *
+ * The timeout is the important half. A player on a slow connection should see
+ * the intro late-loading its artwork, not sit on a frozen screen waiting for a
+ * decorative image: whatever has arrived by then flies in, and the rest appears
+ * when it appears.
+ */
+export function preloadBannerArt(bannerIds, timeoutMs = 1200) {
+  const sources = bannerIds
+    .map((id) => (id ? bannerById(id) : null))
+    .filter((b) => b && b.image)
+    .map((b) => b.image);
+  if (sources.length === 0) return Promise.resolve();
+
+  const loads = sources.map(
+    (src) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        // Resolve either way: a banner whose file is missing must not hold the
+        // intro for the full timeout on every single match.
+        img.addEventListener("load", () => resolve());
+        img.addEventListener("error", () => resolve());
+        img.src = src;
+      })
+  );
+  return Promise.race([
+    Promise.all(loads),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 export function renderMatchupSide(refs, { username, tierLabel, bannerId }) {
   refs.bannerSlot.innerHTML = "";
   const banner = bannerId ? bannerById(bannerId) : null;
   if (banner) {
-    refs.bannerSlot.appendChild(bannerArt(banner));
+    refs.bannerSlot.appendChild(bannerArt(banner, { eager: true }));
   } else {
     const placeholder = document.createElement("div");
     placeholder.className = "matchup-banner-placeholder";
