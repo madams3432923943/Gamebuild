@@ -2201,6 +2201,18 @@ table.box-table th, table.history-table th {
   display: block;
 }
 
+/* Quieter than a hint - it is not instruction, it is a statement of record -
+   but not hidden either, which would defeat the point of making it. */
+.legal-note {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+}
+
 .player-name {
   font-family: var(--font-display);
   font-weight: 900;

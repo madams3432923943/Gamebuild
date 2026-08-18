@@ -38,7 +38,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=fc24a6a" />
+  <link rel="stylesheet" href="css/style.css?v=2b91174" />
 </head>
 <body>
   <header class="top-nav">
@@ -112,6 +112,21 @@
         </p>
         <p class="hint-text auth-switch" id="auth-forgot-row">
           <button id="btn-auth-forgot" class="link-btn" type="button">Forgot your password?</button>
+        </p>
+
+        <!-- WHY THIS IS ON THE SIGN-IN SCREEN AND NOT BURIED IN A FOOTER.
+             This app names real teams and uses real players' real statistics,
+             which is what a game about recall has to do. Trademark law is about
+             whether a reader could believe the leagues made this or endorsed
+             it, so the one useful thing to do about it is say plainly that they
+             did not - on the first screen anybody sees, before they have formed
+             an impression. It is not a legal shield and is not meant to be one;
+             it is an accurate statement of what this is. -->
+        <p class="legal-note">
+          Draft Nova is an unofficial fan project. It is not affiliated with,
+          endorsed by, or sponsored by the NFL, the NBA, or any team. Team names
+          and statistics are used to identify real teams and players for a game
+          about recalling them.
         </p>
       </div>
     </section>
@@ -646,6 +661,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=fc24a6a"></script>
+  <script type="module" src="js/main.js?v=2b91174"></script>
 </body>
 </html>
