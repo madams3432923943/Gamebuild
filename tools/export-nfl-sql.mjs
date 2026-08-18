@@ -19,10 +19,19 @@
 // cannot disagree.
 //
 // Output is idempotent - delete, then insert - so re-running after a dataset
-// rebuild converges instead of accumulating duplicates. The delete and the
-// inserts are wrapped in a transaction so a failure leaves the previous rows
-// in place: a draft against stale players is wrong, a draft against no players
-// is dead.
+// rebuild converges instead of accumulating duplicates.
+//
+// THE TRANSACTION IN THIS FILE DOES NOT PROTECT YOU. The begin/commit is
+// written out, but tools/apply-seed.mjs strips it: the Management API runs
+// each statement on its own connection, so a stray `begin` would leave an open
+// transaction rather than group anything. The delete therefore commits on its
+// own, and the table is EMPTY from then until the last insert lands - about a
+// minute, during which an online football match would find no players.
+//
+// That is survivable because the workflow is manual and football is quiet, and
+// the wrapper is kept because a client that does honour it should. If this ever
+// needs to be safe under traffic, load into a second table and swap it in with
+// a rename - do not reach for the transaction, it is not doing anything.
 //
 // Usage:  node tools/export-nfl-sql.mjs
 //         then apply db/seed/nfl-seed.sql (see tools/apply-seed.mjs)

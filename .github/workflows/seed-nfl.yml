@@ -8,6 +8,12 @@
 # runs, offline games use the new dataset and online games use the old one -
 # the client and the Edge Function read different copies, and nothing warns
 # about the gap except scripts/verify-server-dataset.mjs.
+#
+# While it runs, nfl_players is briefly EMPTY: the seed deletes before it
+# inserts, and the statements are applied one at a time rather than in one
+# transaction (see tools/export-nfl-sql.mjs). An online football match started
+# in that window would find no players. It takes about a minute - run it when
+# nobody is playing.
 name: Seed NFL
 
 on:
