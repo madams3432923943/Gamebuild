@@ -62,6 +62,23 @@ function spokes(count, inner, outer, halfWidth) {
   return parts.join(" ");
 }
 
+/** A five-pointed star, as path data.
+ *
+ * Generated for the same reason spokes() is: a hand-eyeballed star is subtly
+ * lopsided, and three of them at different sizes in one glyph makes that
+ * obvious. `inner` is the waist radius as a fraction of `r` - 0.4 is the
+ * classic proportion.
+ */
+function starPath(cx, cy, r, inner = 0.4) {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : r * inner;
+    pts.push(`${(cx + rad * Math.cos(a)).toFixed(1)} ${(cy + rad * Math.sin(a)).toFixed(1)}`);
+  }
+  return `M${pts.join(" L")} Z`;
+}
+
 /** A circle as path data, so every glyph is the same kind of thing. */
 function disc(cx, cy, r) {
   return `M${cx - r} ${cy} a${r} ${r} 0 1 0 ${r * 2} 0 a${r} ${r} 0 1 0 ${-r * 2} 0 Z`;
@@ -80,14 +97,6 @@ function disc(cx, cy, r) {
  * anything finer than a few pixels of stroke disappears into the background.
  */
 export const EMBLEMS = {
-  bird: {
-    name: "Bird",
-    paths: [
-      { tone: "mark", d: "M42 14C64 14 78 32 78 52C78 74 62 90 42 90C22 90 10 74 10 52C10 30 20 14 42 14Z" },
-      { tone: "accent", d: "M72 42L98 54L72 68L66 55Z" },
-      { tone: "cut", d: disc(38, 44, 8) },
-    ],
-  },
   bigcat: {
     name: "Big cat",
     paths: [
@@ -193,10 +202,6 @@ export const EMBLEMS = {
       { tone: "cut", d: "M50 50C58 60 64 66 64 74C64 82 58 88 50 88C42 88 36 82 36 74C36 66 42 60 50 50Z" },
     ],
   },
-  star: {
-    name: "Star",
-    paths: [{ tone: "mark", d: "M50 6L62 38H96L68 58L79 92L50 71L21 92L32 58L4 38H38Z" }],
-  },
   crown: {
     name: "Crown",
     paths: [
@@ -268,14 +273,6 @@ export const EMBLEMS = {
       { tone: "cut", d: "M38 66H62V76H38Z" },
     ],
   },
-  feather: {
-    name: "Feather",
-    paths: [
-      { tone: "mark", d: "M74 8C40 12 20 36 18 66L12 92L34 78C64 76 84 54 82 24Z" },
-      { tone: "cut", d: "M74 16L26 76L22 84L30 80Z" },
-      { tone: "accent", d: "M62 24C50 30 42 40 38 52L46 56C50 44 56 36 66 30Z" },
-    ],
-  },
   paw: {
     name: "Paw",
     paths: [
@@ -302,6 +299,241 @@ export const EMBLEMS = {
       { tone: "cut", d: "M30 24C44 19 58 27 70 26V38C58 39 44 31 30 36Z" },
     ],
   },
+  // ---- Birds. Seven teams wear a bird and they all used to wear the SAME
+  // bird, which made half the football shelf one silhouette in different
+  // colours. Each is now its own species-ish shape: a raptor head, a whole
+  // perched bird, spread wings, a dive, a long bill, a crest. ----
+  hawk: {
+    name: "Hawk",
+    paths: [
+      { tone: "mark", d: "M16 46C16 26 32 12 52 12C66 12 78 19 84 30L60 44L84 52C78 68 66 78 50 78C32 78 16 66 16 46Z" },
+      { tone: "cut", d: "M26 34L54 26L52 38L28 43Z" },
+      { tone: "cut", d: disc(38, 50, 6) },
+      { tone: "accent", d: "M34 78L44 94L54 78Z" },
+    ],
+  },
+  pelican: {
+    name: "Pelican",
+    paths: [
+      { tone: "mark", d: "M32 10C48 10 58 22 58 38C58 46 55 52 50 57L30 62C16 57 10 46 10 33C10 20 20 10 32 10Z" },
+      { tone: "accent", d: "M52 34L94 46C96 52 92 58 84 60L50 58C55 51 54 42 52 34Z" },
+      { tone: "accent", d: "M54 54C66 72 80 78 92 68L88 60L54 50Z" },
+      { tone: "cut", d: disc(30, 28, 6) },
+    ],
+  },
+  raven: {
+    name: "Raven",
+    paths: [
+      { tone: "mark", d: "M76 10C58 6 40 14 30 28C20 42 20 60 28 74L16 90L40 84C58 86 76 74 82 58C88 42 86 20 76 10Z" },
+      { tone: "accent", d: "M30 30L2 36L28 46Z" },
+      { tone: "cut", d: disc(42, 32, 6) },
+      { tone: "cut", d: "M52 50C64 54 72 62 74 74C64 70 56 62 52 50Z" },
+    ],
+  },
+  eagle: {
+    name: "Eagle",
+    paths: [
+      { tone: "mark", d: "M46 34L2 8L16 36L4 46L28 58L46 58Z" },
+      { tone: "mark", d: "M54 34L98 8L84 36L96 46L72 58L54 58Z" },
+      { tone: "mark", d: "M50 10C58 10 64 17 64 26C64 32 61 37 57 40L54 94H46L43 40C39 37 36 32 36 26C36 17 42 10 50 10Z" },
+      { tone: "accent", d: "M63 22L86 28L63 34Z" },
+      { tone: "cut", d: disc(55, 24, 4) },
+    ],
+  },
+  falcon: {
+    name: "Falcon",
+    paths: [
+      { tone: "mark", d: "M46 24L2 70L26 78L46 52Z" },
+      { tone: "mark", d: "M54 24L98 70L74 78L54 52Z" },
+      { tone: "mark", d: "M50 4C58 4 64 11 64 21C64 29 60 35 55 38L53 96H47L45 38C40 35 36 29 36 21C36 11 42 4 50 4Z" },
+      { tone: "accent", d: "M62 17L84 23L62 29Z" },
+      { tone: "cut", d: disc(54, 19, 4) },
+    ],
+  },
+  seahawk: {
+    name: "Seahawk",
+    paths: [
+      { tone: "mark", d: "M42 14C64 14 78 32 78 52C78 74 62 90 42 90C22 90 10 74 10 52C10 30 20 14 42 14Z" },
+      { tone: "accent", d: "M72 42L98 54L72 68L66 55Z" },
+      { tone: "cut", d: disc(38, 44, 8) },
+      { tone: "cut", d: "M14 30L44 24L42 34L18 38Z" },
+    ],
+  },
+  cardinal: {
+    name: "Cardinal",
+    paths: [
+      { tone: "mark", d: "M32 34C48 24 68 26 80 38C92 50 90 70 76 80L84 94L58 88C40 88 26 74 26 58C26 50 28 40 32 34Z" },
+      { tone: "mark", d: "M34 32L24 8L44 20L54 2L56 28Z" },
+      { tone: "accent", d: "M28 48L6 54L28 62Z" },
+      { tone: "cut", d: disc(44, 48, 5) },
+    ],
+  },
+
+  // ---- Everything else that used to double up ----
+  hoop: {
+    name: "Hoop",
+    paths: [
+      { tone: "mark", d: "M12 26H88V40H12Z" },
+      { tone: "accent", d: "M20 40H80L58 88H42Z" },
+      { tone: "cut", d: "M44 44H56L54 82H46Z" },
+      { tone: "cut", d: "M28 46H36L44 78H36Z" },
+      { tone: "cut", d: "M64 46H72L64 78H56Z" },
+    ],
+  },
+  sword: {
+    name: "Sword",
+    paths: [
+      { tone: "mark", d: "M50 2L62 26V58H38V26Z" },
+      { tone: "accent", d: "M16 58H84V70H16Z" },
+      { tone: "mark", d: "M43 70H57V88H43Z" },
+      { tone: "accent", d: disc(50, 92, 8) },
+    ],
+  },
+  bridge: {
+    name: "Bridge",
+    paths: [
+      { tone: "accent", d: "M4 44C20 20 26 16 32 16C38 16 46 34 50 34C54 34 62 16 68 16C74 16 80 20 96 44V56C80 32 74 26 68 26C62 26 54 44 50 44C46 44 38 26 32 26C26 26 20 32 4 56Z" },
+      { tone: "mark", d: "M26 12H38V66H26Z" },
+      { tone: "mark", d: "M62 12H74V66H62Z" },
+      { tone: "mark", d: "M4 66H96V78H4Z" },
+    ],
+  },
+  checkflag: {
+    name: "Checkered flag",
+    paths: [
+      { tone: "mark", d: "M12 4H22V96H12Z" },
+      { tone: "accent", d: "M22 10H90V56H22Z" },
+      { tone: "cut", d: "M22 10H39V33H22Z" },
+      { tone: "cut", d: "M56 10H73V33H56Z" },
+      { tone: "cut", d: "M39 33H56V56H39Z" },
+      { tone: "cut", d: "M73 33H90V56H73Z" },
+    ],
+  },
+  tower: {
+    name: "Tower",
+    paths: [
+      { tone: "mark", d: "M34 22H58V94H34Z" },
+      { tone: "accent", d: "M62 46H86V94H62Z" },
+      { tone: "accent", d: "M10 56H30V94H10Z" },
+      { tone: "mark", d: "M40 2L46 22H38Z" },
+      { tone: "cut", d: "M40 34H52V44H40Z" },
+      { tone: "cut", d: "M40 54H52V64H40Z" },
+    ],
+  },
+  pine: {
+    name: "Pine",
+    paths: [
+      { tone: "mark", d: "M50 4L70 32H60L78 58H64L88 84H12L36 58H22L40 32H30Z" },
+      { tone: "accent", d: "M43 84H57V98H43Z" },
+    ],
+  },
+  hat: {
+    name: "Cowboy hat",
+    paths: [
+      { tone: "mark", d: "M32 60C30 40 32 22 40 14C46 7 56 7 62 14C70 22 72 40 70 60Z" },
+      { tone: "mark", d: "M4 64C4 53 25 46 50 46C75 46 96 53 96 64C96 75 75 82 50 82C25 82 4 75 4 64Z" },
+      { tone: "cut", d: "M28 52C38 57 62 57 72 52V63C62 68 38 68 28 63Z" },
+    ],
+  },
+  stars: {
+    name: "Stars",
+    paths: [
+      { tone: "mark", d: starPath(38, 42, 30) },
+      { tone: "accent", d: starPath(76, 22, 17) },
+      { tone: "accent", d: starPath(72, 74, 20) },
+    ],
+  },
+  wizardhat: {
+    name: "Wizard hat",
+    paths: [
+      { tone: "mark", d: "M52 2C58 26 68 50 78 70H26C36 50 46 26 52 2Z" },
+      { tone: "accent", d: "M8 70H92C92 80 73 88 50 88C27 88 8 80 8 70Z" },
+      { tone: "cut", d: starPath(56, 48, 11) },
+      { tone: "cut", d: starPath(44, 26, 6) },
+    ],
+  },
+  note: {
+    name: "Double note",
+    paths: [
+      { tone: "mark", d: "M34 22H41V74H34Z" },
+      { tone: "mark", d: "M67 14H74V64H67Z" },
+      { tone: "accent", d: "M34 14H74V30H34Z" },
+      { tone: "mark", d: disc(24, 76, 13) },
+      { tone: "mark", d: disc(57, 66, 13) },
+    ],
+  },
+  buffalo: {
+    name: "Buffalo",
+    paths: [
+      { tone: "accent", d: "M6 42C0 24 16 10 32 18L28 32C20 28 14 34 16 44Z" },
+      { tone: "accent", d: "M94 42C100 24 84 10 68 18L72 32C80 28 86 34 84 44Z" },
+      { tone: "mark", d: "M50 18C70 18 82 32 82 52C82 64 76 74 66 80L62 94H38L34 80C24 74 18 64 18 52C18 32 30 18 50 18Z" },
+      { tone: "cut", d: disc(36, 48, 6) },
+      { tone: "cut", d: disc(64, 48, 6) },
+      { tone: "cut", d: "M38 68H62V80H38Z" },
+    ],
+  },
+  cheese: {
+    name: "Cheese",
+    paths: [
+      { tone: "mark", d: "M8 80L82 14C90 22 94 32 94 44V80Z" },
+      { tone: "cut", d: disc(62, 52, 9) },
+      { tone: "cut", d: disc(80, 68, 6) },
+      { tone: "cut", d: disc(44, 68, 5) },
+    ],
+  },
+  tiger: {
+    name: "Tiger",
+    paths: [
+      { tone: "mark", d: "M10 8L38 28L18 42Z" },
+      { tone: "mark", d: "M90 8L62 28L82 42Z" },
+      { tone: "mark", d: "M50 20C72 20 86 38 86 56C86 78 70 94 50 94C30 94 14 78 14 56C14 38 28 20 50 20Z" },
+      { tone: "cut", d: "M14 40L32 48L14 52Z" },
+      { tone: "cut", d: "M16 58L34 64L16 68Z" },
+      { tone: "cut", d: "M86 40L68 48L86 52Z" },
+      { tone: "cut", d: "M84 58L66 64L84 68Z" },
+      { tone: "cut", d: "M50 64L60 72L50 80L40 72Z" },
+    ],
+  },
+  lion: {
+    name: "Lion",
+    paths: [
+      { tone: "mark", d: spokes(11, 26, 50, 0.42) },
+      { tone: "mark", d: disc(50, 50, 36) },
+      { tone: "cut", d: disc(50, 52, 24) },
+      { tone: "mark", d: disc(41, 46, 4) },
+      { tone: "mark", d: disc(59, 46, 4) },
+      { tone: "mark", d: "M50 56C58 56 63 62 63 67C63 73 57 77 50 77C43 77 37 73 37 67C37 62 42 56 50 56Z" },
+    ],
+  },
+  helmet: {
+    name: "Helmet",
+    paths: [
+      { tone: "mark", d: "M14 52C14 28 32 12 54 12C76 12 92 28 92 52C92 60 88 66 82 68H46C28 68 14 64 14 52Z" },
+      { tone: "accent", d: "M44 68H88V80H50C44 80 42 74 44 68Z" },
+      { tone: "cut", d: "M52 13H62L59 44H49Z" },
+    ],
+  },
+  horseshoe: {
+    name: "Horseshoe",
+    paths: [
+      { tone: "mark", d: "M50 6C74 6 90 26 90 52V92H66V52C66 40 60 32 50 32C40 32 34 40 34 52V92H10V52C10 26 26 6 50 6Z" },
+      { tone: "cut", d: disc(20, 62, 5) },
+      { tone: "cut", d: disc(20, 80, 5) },
+      { tone: "cut", d: disc(80, 62, 5) },
+      { tone: "cut", d: disc(80, 80, 5) },
+    ],
+  },
+  anchor: {
+    name: "Anchor",
+    paths: [
+      { tone: "mark", d: disc(50, 14, 11) },
+      { tone: "cut", d: disc(50, 14, 5) },
+      { tone: "mark", d: "M45 22H55V88H45Z" },
+      { tone: "accent", d: "M22 32H78V43H22Z" },
+      { tone: "mark", d: "M10 56C10 76 27 92 50 94C73 92 90 76 90 56H78C78 70 66 81 50 83C34 81 22 70 22 56Z" },
+    ],
+  },
   arrow: {
     name: "Arrow",
     paths: [
@@ -321,76 +553,84 @@ export const EMBLEMS = {
  * scripts/verify-icons.mjs asserts both in each direction, so a franchise
  * added without a mark fails the build rather than shipping a blank avatar.
  *
+ * EVERY TEAM IN A SPORT WEARS A DIFFERENT GLYPH. Sharing a glyph and relying
+ * on colour to separate two teams worked until two teams shared a palette too,
+ * and it made whole stretches of the shelf one silhouette in slightly
+ * different colours - five of football's birds were literally the same bird.
+ * Glyphs ARE reused across sports, since a player only ever sees one sport's
+ * shelf at a time (San Antonio and Dallas both wear the hat).
+ *
  * The pairings are the obvious generic reading of the nickname. Where a
- * nickname has no creature behind it - Jazz, Knicks, 76ers - the mark is a
- * neutral shape and the franchise's colours and abbreviation do the work.
+ * nickname has no creature behind it - Knicks, 76ers, Pacers - the mark is
+ * something plainly associated with the city or the sport rather than a
+ * stand-in shape, so it still says something.
  */
 export const FRANCHISE_EMBLEMS = {
   // ---- NBA ----
-  hawks: "bird",
+  hawks: "hawk",
   celtics: "clover",
-  nets: "shield",
+  nets: "hoop",
   hornets: "insect",
   bulls: "bull",
-  cavaliers: "shield",
+  cavaliers: "sword",
   mavericks: "horse",
   nuggets: "mountain",
   pistons: "gear",
-  warriors: "shield",
+  warriors: "bridge",
   rockets: "rocket",
-  pacers: "bolt",
+  pacers: "checkflag",
   clippers: "ship",
   lakers: "wave",
   grizzlies: "bear",
   heat: "flame",
   bucks: "ram",
   timberwolves: "wolf",
-  pelicans: "bird",
-  knicks: "shield",
+  pelicans: "pelican",
+  knicks: "tower",
   thunder: "bolt",
-  magic: "star",
+  magic: "stars",
   sixers: "bell",
   suns: "sun",
-  blazers: "flame",
+  blazers: "pine",
   kings: "crown",
-  spurs: "star",
+  spurs: "hat",
   raptors: "claw",
-  jazz: "mountain",
-  wizards: "star",
+  jazz: "note",
+  wizards: "wizardhat",
 
   // ---- NFL ----
-  "nfl-bills": "bull",
+  "nfl-bills": "buffalo",
   "nfl-dolphins": "fish",
   "nfl-patriots": "flag",
   "nfl-jets": "rocket",
-  "nfl-ravens": "bird",
-  "nfl-bengals": "bigcat",
-  "nfl-browns": "shield",
+  "nfl-ravens": "raven",
+  "nfl-bengals": "tiger",
+  "nfl-browns": "helmet",
   "nfl-steelers": "gear",
   "nfl-texans": "bull",
-  "nfl-colts": "horse",
+  "nfl-colts": "horseshoe",
   "nfl-jaguars": "bigcat",
   "nfl-titans": "flame",
   "nfl-broncos": "horse",
   "nfl-chiefs": "arrow",
   "nfl-raiders": "skull",
   "nfl-chargers": "bolt",
-  "nfl-cowboys": "star",
+  "nfl-cowboys": "hat",
   "nfl-giants": "shield",
-  "nfl-eagles": "bird",
-  "nfl-commanders": "shield",
+  "nfl-eagles": "eagle",
+  "nfl-commanders": "sword",
   "nfl-bears": "bear",
-  "nfl-lions": "bigcat",
-  "nfl-packers": "gear",
+  "nfl-lions": "lion",
+  "nfl-packers": "cheese",
   "nfl-vikings": "ship",
-  "nfl-falcons": "bird",
+  "nfl-falcons": "falcon",
   "nfl-panthers": "paw",
   "nfl-saints": "clover",
-  "nfl-buccaneers": "skull",
-  "nfl-cardinals": "feather",
+  "nfl-buccaneers": "anchor",
+  "nfl-cardinals": "cardinal",
   "nfl-rams": "ram",
   "nfl-49ers": "mountain",
-  "nfl-seahawks": "bird",
+  "nfl-seahawks": "seahawk",
 };
 
 const WHITE = "#ffffff";
@@ -399,6 +639,47 @@ const BLACK = "#151515";
 /** Legible against `bg`, whichever way the background leans. */
 function inkOn(bg) {
   return contrastRatio(WHITE, bg) >= contrastRatio(BLACK, bg) ? WHITE : BLACK;
+}
+
+function mix(a, b, t) {
+  const pa = hexToRgbLocal(a);
+  const pb = hexToRgbLocal(b);
+  const ch = (x, y) => Math.round(x + (y - x) * t).toString(16).padStart(2, "0");
+  return `#${ch(pa.r, pb.r)}${ch(pa.g, pb.g)}${ch(pa.b, pb.b)}`;
+}
+
+function hexToRgbLocal(hex) {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16),
+  };
+}
+
+/**
+ * `colour` pushed toward whichever ink the field can carry, just far enough to
+ * be visible on it.
+ *
+ * WHY THIS EXISTS. The accent is the tone that carries a glyph's identifying
+ * DETAIL - a bird's beak, a bull's horns, a rocket's fins. It used to be set to
+ * the franchise's raw second colour whenever that colour was too dark to be the
+ * mark, which is exactly the case where it is also too dark to be seen: the
+ * Ravens are purple and black, so the beak was black on dark purple and the
+ * bird rendered as a featureless blob. A detail nobody can see is not a detail.
+ *
+ * Mixing rather than replacing keeps the team's hue - a black second colour on
+ * purple becomes grey, not white - so the icon still reads as that team's
+ * palette. Ten steps is finer than the eye needs and terminates.
+ */
+function readableOn(colour, field) {
+  const ink = inkOn(field);
+  let out = colour;
+  for (let i = 1; i <= 10 && contrastRatio(out, field) < MIN_MARK_CONTRAST; i++) {
+    out = mix(colour, ink, i / 10);
+  }
+  return out;
 }
 
 /**
@@ -439,7 +720,10 @@ export function emblemPalette(colors = []) {
     mark,
     // The accent sits on the field alongside the mark, so it is held to the
     // field; the cut is knocked out of the mark and is held to the mark.
-    accent: secondReads ? inkOn(field) : second,
+    // When the second colour is already carrying the mark, the accent is the
+    // ink; when it is not, the accent is that second colour dragged far enough
+    // toward the ink to actually be visible - see readableOn.
+    accent: secondReads ? inkOn(field) : readableOn(second, field),
     cut: field,
     // THE RIM IS WHY THE SECOND COLOUR IS NEVER WASTED.
     //
