@@ -54,8 +54,14 @@ function rosterPair() {
   const g = new DraftState(PLAYERS, [], RANKED_SLOTS);
   while (!g.isComplete()) {
     if (!g.rollNextSquad()) break;
-    g.botAutoPick("A");
-    g.botAutoPick("B");
+    // banTop: 0 keeps the bot at FULL STRENGTH here. The bot is deliberately
+    // barred from the top of the board in a real game (see BOT_TOP_PICK_BAN),
+    // but this harness drafts BOTH sides with it to produce evenly matched
+    // rosters for solving balance constants against. Letting the difficulty
+    // nerf in would re-solve TALENT_PARITY and the variance range against
+    // rosters no online game is ever played with.
+    g.botAutoPick("A", { banTop: 0 });
+    g.botAutoPick("B", { banTop: 0 });
   }
   return g;
 }
