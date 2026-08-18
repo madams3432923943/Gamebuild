@@ -116,21 +116,49 @@ async function runInPage(page) {
     );
 
     // ---- every live sport declares a stage that the page actually has -----
+    // A stage either resolves to an element on the page or is the one name
+    // that deliberately has none. Basketball's live stage is "board": the
+    // scoreboard IS the stage, and it lives outside this rotation because
+    // every sport shows it - so "board" correctly reveals no field art at all.
+    // Spelled out as an allow-list rather than "missing is fine", because
+    // "missing is fine" is how a typo becomes a blank screen.
+    const ARTLESS_STAGES = new Set(["board"]);
     const declared = {};
     for (const id of ["nba", "nfl"]) {
       setActiveSport(id);
       declared[id] = activeSport().presentation?.stage;
+      const resolves = !!stage.querySelector(`[data-stage="${declared[id]}"]`);
       check(
         `${id.toUpperCase()} declares a stage the page provides`,
-        !!declared[id] && !!stage.querySelector(`[data-stage="${declared[id]}"]`),
-        `stage=${declared[id]}`
+        !!declared[id] && (resolves || ARTLESS_STAGES.has(declared[id])),
+        `stage=${declared[id]}${resolves ? "" : " (artless by declaration)"}`
       );
+      // A sport that draws a chart after the game must say where, and that one
+      // HAS to be a real element - it is drawn into.
+      const recap = activeSport().presentation?.recapStage;
+      if (recap) {
+        check(
+          `${id.toUpperCase()}'s recap stage is a real element`,
+          !!stage.querySelector(`[data-stage="${recap}"]`),
+          `recapStage=${recap}`
+        );
+      }
     }
 
     // ---- NBA: court, and no field ----------------------------------------
     setActiveSport("nba");
     showStage(activeSport().presentation.stage);
-    check("NBA shows the court and nothing else", visible().join(",") === "court", `visible: ${visible().join(",") || "none"}`);
+    // During play basketball shows NO field art: the board is the stage. The
+    // court is still there and still gets filled in, hidden, and it is
+    // revealed at the buzzer - which is the next check.
+    check("NBA plays on the board, with no court on screen", visible().length === 0, `visible: ${visible().join(",") || "none"}`);
+    showStage(activeSport().presentation.recapStage);
+    check(
+      "NBA reveals the court at the buzzer",
+      visible().join(",") === "court",
+      `visible: ${visible().join(",") || "none"}`
+    );
+    showStage(activeSport().presentation.stage);
     check(
       "NBA opens on Tip-off",
       openingLabel() === "Tip-off",
@@ -166,8 +194,8 @@ async function runInPage(page) {
     setActiveSport("nba");
     showStage(activeSport().presentation.stage);
     check(
-      "switching NFL -> NBA restores the court with no stale field",
-      visible().join(",") === "court",
+      "switching NFL -> NBA leaves no stale field",
+      visible().length === 0,
       `visible: ${visible().join(",") || "none"}`
     );
     renderScoreboard(board, "A", "B", [], 4, 0, 0, openingLabel(), true);

@@ -130,7 +130,12 @@ export const NBA = {
   // authoritative result, decomposed into the events a shot chart can draw.
   // Declared here so shared code asks the SPORT for its playback rather than
   // learning what a shot is.
-  presentation: { stage: "court", buildShotLedger, zoneSummary },
+  // stage is what is on screen DURING play; recapStage is where the shot
+  // chart is drawn once it is over. They used to be the same thing, and the
+  // court was the live stage - 510px of mostly-empty rectangle that a person
+  // glances at while the scoreboard beside it does the actual work. A shot
+  // chart is studied, not watched, so it moved to the buzzer.
+  presentation: { stage: "board", recapStage: "court", buildShotLedger, zoneSummary },
 
   // ---- Roster shape -------------------------------------------------------
   slots: {

@@ -719,20 +719,34 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
   // the same job .scoreboard-period.live's blink does for the status line -
   // together they read as a broadcast that's actually in progress, not a
   // static final score sitting on screen early.
+  // Split by side so each score can wear its own team's kit colour. Both
+  // digits were one class and therefore one colour, which is why the board
+  // carried no team identity at all - the thing the kits were built for.
+  // Each name sits directly above ITS OWN score. They used to be laid out
+  // name / score / score / name across one row, which put both numbers in the
+  // middle and both names at the far edges - so a glance had to travel to the
+  // rim of the board to find out whose 80 that was.
   const scoreClass = "scoreboard-score" + (isLive ? " pulse" : "");
   teams.innerHTML = `
-    <span class="scoreboard-team-name">${labelA}</span>
-    <span class="${scoreClass}">${Math.round(totalA)}</span>
-    <span class="scoreboard-dash">–</span>
-    <span class="${scoreClass}">${Math.round(totalB)}</span>
-    <span class="scoreboard-team-name">${labelB}</span>
+    <div class="scoreboard-side scoreboard-side-a">
+      <span class="scoreboard-team-name">${labelA}</span>
+      <span class="${scoreClass} scoreboard-score-a">${Math.round(totalA)}</span>
+    </div>
+    <div class="scoreboard-middle"></div>
+    <div class="scoreboard-side scoreboard-side-b">
+      <span class="scoreboard-team-name">${labelB}</span>
+      <span class="${scoreClass} scoreboard-score-b">${Math.round(totalB)}</span>
+    </div>
   `;
   container.appendChild(teams);
 
+  // The status belongs BETWEEN the scores, where a real board puts the period
+  // and where the eye already is. It used to sit on its own line underneath,
+  // which left the middle of the board holding nothing but a dash.
   const period = document.createElement("div");
   period.className = "scoreboard-period" + (isLive ? " live" : "");
   period.textContent = statusLabel;
-  container.appendChild(period);
+  teams.querySelector(".scoreboard-middle").appendChild(period);
 
   const headerCells = periods.map((p, i) => `<th${i === periods.length - 1 && isLive ? ' class="period-current"' : ""}>${p.label}</th>`).join("");
   const pendingCells = Array.from({ length: periodsRemaining }, () => `<th>–</th>`).join("");
@@ -2789,6 +2803,14 @@ function calloutAt(refs, mark, event, opts) {
         ? "AT THE RIM"
         : "2PT";
   chip.textContent = `${surname} · ${verdict}`;
+
+  // A callout is placed on the floor, so it needs a floor with a width. The
+  // court is hidden during play now - the board is the stage, and the chart is
+  // revealed at the buzzer - which makes clientWidth 0 and every position
+  // meaningless. Placing one anyway put chips at negative x, off the left of
+  // the viewport. The live equivalent is the play feed, which main.js writes
+  // instead; here there is simply nothing to draw on.
+  if (!refs.layer.clientWidth) return;
 
   chip.style.left = mark.style.left;
   chip.style.top = mark.style.top;

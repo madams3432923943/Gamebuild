@@ -1012,6 +1012,13 @@ export async function runBrowserChecks(opts = {}) {
         for (const r of records) {
           for (const node of r.addedNodes) {
             if (node.nodeType !== 1) continue;
+            // The live naming moved. Callouts used to be chips on the court;
+            // the court is hidden during play now (the board is the stage, the
+            // chart is revealed at the buzzer), so the line a commentator would
+            // say lands in the play feed instead. Both are counted, because the
+            // property under test is "the game gets narrated as it happens",
+            // not "a particular element exists".
+            if (node.classList?.contains("play-card")) window.__bkCallouts += 1;
             if (node.classList?.contains("shot-callout")) {
               window.__bkCallouts += 1;
               const court = document.querySelector('[data-stage="court"]');
@@ -1163,7 +1170,7 @@ export async function runBrowserChecks(opts = {}) {
         check(
           "browser:live-drama",
           dramaOk
-            ? `Live callouts fire on the shots worth naming (${drama.callouts} callouts, ${drama.moments} run/lead moments, none overhanging)`
+            ? `The game gets narrated as it happens (${drama.callouts} live lines, ${drama.moments} run/lead moments, none overhanging)`
             : drama.callouts === 0
               ? `No shot callout ever appeared: ${JSON.stringify(drama)}`
               : `A callout hung ${drama.overhangPx}px off the side of the floor (${drama.callouts} callouts)`,

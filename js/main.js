@@ -2959,6 +2959,12 @@ function openingLabel() {
  * football's field, and switching back from a sport that DID hide something
  * would otherwise leave the previous sport's stage behind.
  */
+/** Shows the one stage a sport declared and hides the rest.
+ *
+ * A stage name with NO element is legitimate and deliberate: basketball's
+ * live stage is "board", which has no field art at all - the scoreboard is
+ * the stage, and it lives outside this rotation because every sport shows it.
+ * So "board" correctly hides the court and the field and shows nothing else. */
 function showStage(stage) {
   for (const el of document.querySelectorAll("#court-stage [data-stage]")) {
     el.classList.toggle("hidden", el.dataset.stage !== stage);
@@ -3036,7 +3042,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // Inside the STAGE THIS SPORT DECLARED, not the stage container. The
     // markers are positioned as a percentage of their parent, so handing them
     // the whole container put corner threes on the scoreboard.
-    shotChartRefs = renderShotChart(courtStageEl.querySelector(`[data-stage="${sport().presentation.stage}"]`));
+    // Drawn into the stage the chart BELONGS to, which is no longer the one
+    // on screen during play: basketball fills the court in while it is hidden
+    // and reveals the whole thing at the buzzer. Rendering into a hidden
+    // element is fine because every mark is positioned as a percentage of its
+    // parent - nothing here measures pixels.
+    const chartStage = sport().presentation.recapStage || sport().presentation.stage;
+    shotChartRefs = renderShotChart(courtStageEl.querySelector(`[data-stage="${chartStage}"]`));
   }
 
   /**
@@ -3098,6 +3110,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         const worthSaying =
           event.made && (event.shotType === "three" || event.strong || event.runPoints || event.leadChange || event.endOfPeriod);
         plotShot(shotChartRefs, event, { callout: worthSaying });
+        // The line a commentator would say, on the thing that is actually on
+        // screen. The chart's own callouts are drawn on a hidden court while
+        // the board is the stage, so this is where they land during play.
+        if (worthSaying) {
+          const verdict = event.shotType === "three" ? "for three" : event.strong ? "at the rim" : "for two";
+          pushPlayHeadline(playFeedEl, `${event.player} ${verdict}`, event.leadChange ? "lead-change" : "");
+        }
 
         // The sound names the KIND of shot, and the throttle in sound.js keeps
         // a busy quarter from turning into a buzz. A miss is quieter than a
@@ -3394,6 +3413,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // becomes the thing worth reading. During playback the settled marks sit at
     // 0.16 so the newest shot is findable; at the buzzer they all lift to an
     // even weight, which is what a shot chart is FOR.
+    // The buzzer is when the chart earns the screen. Up to here the board has
+    // had it, which is the whole point of the change: you watch a scoreboard
+    // and you study a shot chart, and doing both at once did neither well.
+    if (shotChartRefs && sport().presentation.recapStage) showStage(sport().presentation.recapStage);
     shotChartRefs?.layer.classList.add("shot-chart-final");
     // And the numbers over the marks. A hundred and forty markers say where the
     // shots came from; these say whether they went in, which is the question

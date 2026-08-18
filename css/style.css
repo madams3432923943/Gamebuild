@@ -1267,20 +1267,61 @@ input[type="text"]:focus-visible {
    Modeled on a broadcast score bug: big score up top for drama, a
    quarter-by-quarter grid underneath that fills in as the game plays out -
    the recognizable "NBA on TV" scoreboard shape. */
+/* ---- The board ----
+   An arena light board rather than a panel with numbers on it. The court used
+   to be the stage during play and it was the wrong thing to look at: 510px of
+   mostly-empty rectangle carrying less information than the scoreboard under
+   it. This is what a person watching actually reads, so it is what gets the
+   room - and the shot chart moved to the recap, where a chart is studied
+   rather than glanced at.
+
+   The bulb texture is a 6px dot grid over a dark gradient. Cheap - one
+   repeating radial-gradient, no image - and it is what stops the panel reading
+   as a div with a big font. */
 .scoreboard {
-  background: var(--bg);
-  border: 1px solid var(--line);
+  position: relative;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 1px) 0 0 / 6px 6px,
+    linear-gradient(180deg, #12161d, #080a0e);
+  border: 2px solid var(--line);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1.4rem 1.6rem;
   margin-bottom: 1rem;
   text-align: center;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.85), 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
+/* Three columns: each side owns a name-over-score stack, and the dash keeps
+   the middle. Sides are equal columns so a long team name cannot shove the
+   scores off centre. */
 .scoreboard-teams {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr minmax(6ch, auto) 1fr;
+  margin-bottom: 1.1rem;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+.scoreboard-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.scoreboard-side-a { color: var(--team-a-ink, var(--text)); }
+.scoreboard-side-b { color: var(--team-b-ink, var(--text)); }
+
+.scoreboard-side .scoreboard-team-name {
+  color: inherit;
+  /* A drafted squad's label can be long. Truncate rather than wrap: two lines
+     under one score and one under the other puts the numbers on different
+     baselines, which looks broken in a way a clipped name does not. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scoreboard-team-name {
@@ -1288,19 +1329,30 @@ input[type="text"]:focus-visible {
   text-transform: uppercase;
   font-weight: 800;
   font-size: 1rem;
+  letter-spacing: 0.1em;
   color: var(--text);
-  flex: 1;
 }
 
 .scoreboard-score {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 2.6rem;
+  font-size: 3.2rem;
   color: var(--scoreboard);
   font-variant-numeric: tabular-nums;
   min-width: 3.5ch;
-  text-shadow: 0 0 16px rgba(255, 209, 102, 0.35);
+  /* currentColor, so the glow follows whatever the team's colour turns out to
+     be instead of being a second place the colour has to be kept in step. */
+  text-shadow: 0 0 18px currentColor, 0 0 44px currentColor;
 }
+
+/* The kits, finally on the board. --team-a-ink/--team-b-ink are set on
+   #court-stage by dressStage() in js/main.js, and the scoreboard lives inside
+   it, so they arrive by inheritance with nothing to wire. The fallback is the
+   old single colour, which is what a sport that dresses no kits still gets. */
+.scoreboard-score-a { color: var(--team-a-ink, var(--scoreboard)); }
+.scoreboard-score-b { color: var(--team-b-ink, var(--scoreboard)); }
+.scoreboard-team-a { color: var(--team-a-ink, var(--text)); }
+.scoreboard-team-b { color: var(--team-b-ink, var(--text)); }
 
 /* While the game's actually playing (renderScoreboard's isLive flag), same
    idea as .scoreboard-period.live's blink - a constant, low-key "this is
@@ -1320,8 +1372,25 @@ input[type="text"]:focus-visible {
   font-size: 1.6rem;
 }
 
+/* On a phone the centre column is competing with two glowing scores for a
+   390px row, so the status gives ground first - it is the least urgent of the
+   three and the only one that can shrink without becoming unreadable. */
+@media (max-width: 560px) {
+  .scoreboard { padding: 1.1rem 0.9rem; }
+  .scoreboard-score { font-size: 2.4rem; }
+  .scoreboard-period { font-size: 0.68rem; letter-spacing: 0.04em; }
+  .scoreboard-middle { min-width: 5ch; }
+}
+
+.scoreboard-middle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 7ch;
+}
+
 .scoreboard-period {
-  margin: 0.75rem 0 1.1rem;
+  margin: 0;
   font-family: var(--font-mono);
   color: var(--muted);
   letter-spacing: 0.08em;
@@ -1342,6 +1411,22 @@ input[type="text"]:focus-visible {
    lands on a period's real total - period-flash for an ordinary quarter
    end, the bigger buzzer-red lead-flash (reusing final-banner's own
    buzzer-flash keyframe) when that period also flipped the lead. */
+/* The split-flap's motion without its cream tiles. Keyed to the classes the
+   period tick already flashes, so it fires ONCE when a period lands rather
+   than on every frame of the count-up - the count-up is its own motion, and
+   flipping under it would be noise on top of noise. */
+.scoreboard.period-flash .scoreboard-score,
+.scoreboard.lead-flash .scoreboard-score {
+  animation: score-flip 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes score-flip {
+  0% { transform: perspective(320px) rotateX(0deg); }
+  45% { transform: perspective(320px) rotateX(-88deg); filter: brightness(0.55); }
+  55% { transform: perspective(320px) rotateX(88deg); filter: brightness(0.55); }
+  100% { transform: perspective(320px) rotateX(0deg); }
+}
+
 .scoreboard.period-flash {
   animation: period-flash 0.6s ease;
 }
@@ -1398,6 +1483,12 @@ input[type="text"]:focus-visible {
 .scoreboard-grid th.period-current {
   color: var(--buzzer);
 }
+
+/* The totals repeat the score, so they wear the same colour as the digits
+   above them - an amber total under an orange score reads as two numbers
+   rather than the same one twice. */
+.scoreboard-grid tbody tr:first-child td.grid-total { color: var(--team-a-ink, var(--scoreboard)); }
+.scoreboard-grid tbody tr:last-child td.grid-total { color: var(--team-b-ink, var(--scoreboard)); }
 
 .scoreboard-grid td.grid-total {
   color: var(--scoreboard);
@@ -2740,6 +2831,11 @@ table.box-table th, table.history-table th {
 .court {
   position: relative;
   width: 100%;
+  /* Capped. At full page width this drew 515px tall - the single biggest thing
+     on screen and the least informative, which is what "the court is too big"
+     meant. It is a chart to be read now, not a stage, so it takes a chart's
+     room. Width rather than height, so the 1.88 stays true. */
+  max-width: 720px;
   /* A basketball court is 94x50 feet - 1.88. Drawn at very close to true,
      because the squashed 1.8 made the keys look tall and the arcs look wrong,
      and letterboxing on a phone is the lesser problem. */
@@ -2806,16 +2902,16 @@ table.box-table th, table.history-table th {
 .court-key-left {
   left: 0;
   border-left-width: 0;
-  background: color-mix(in srgb, var(--team-a-trim, transparent) 22%, transparent);
-  border-color: color-mix(in srgb, var(--team-a-trim, rgba(var(--accent-rgb), 0.38)) 55%, transparent);
+  background: color-mix(in srgb, var(--team-a-ink, transparent) 30%, transparent);
+  border-color: color-mix(in srgb, var(--team-a-ink, rgba(var(--accent-rgb), 0.38)) 70%, transparent);
 }
 
 .court-key-right {
   right: 0;
   border-right-width: 0;
   border-radius: 4px 0 0 4px;
-  background: color-mix(in srgb, var(--team-b-trim, transparent) 22%, transparent);
-  border-color: color-mix(in srgb, var(--team-b-trim, rgba(var(--accent-rgb), 0.38)) 55%, transparent);
+  background: color-mix(in srgb, var(--team-b-ink, transparent) 30%, transparent);
+  border-color: color-mix(in srgb, var(--team-b-ink, rgba(var(--accent-rgb), 0.38)) 70%, transparent);
 }
 
 /* The three-point line. A circle wider than it is tall, clipped by the
@@ -2829,13 +2925,41 @@ table.box-table th, table.history-table th {
   border-radius: 50%;
 }
 
-.court-arc-left { left: -15%; }
-.court-arc-right { right: -15%; }
+.court-arc-left {
+  left: -15%;
+  border-color: color-mix(in srgb, var(--team-a-ink, rgba(var(--accent-rgb), 0.45)) 60%, transparent);
+}
 
+.court-arc-right {
+  right: -15%;
+  border-color: color-mix(in srgb, var(--team-b-ink, rgba(var(--accent-rgb), 0.45)) 60%, transparent);
+}
+
+/* Each side of the floor in that side's colour. Kept faint - 9% - because the
+   markers are the only thing here carrying information and a strong floor
+   fights them. Faint across a whole half still reads as "their end", which the
+   paint alone did not: at 22% of a dark trim it was invisible, which is why
+   the court looked like it had no team colours at all. */
+.court::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--team-a-ink, transparent) 9%, transparent) 0%,
+      transparent 45%,
+      transparent 55%,
+      color-mix(in srgb, var(--team-b-ink, transparent) 9%, transparent) 100%);
+}
+
+/* The board keeps its own surface here. This used to strip it flat, which was
+   right when the COURT was the stage and the scoreboard was a caption beneath
+   it. The board is the stage now, so flattening it removed the only thing
+   making it look like a board. */
 .court-stage .scoreboard {
   position: relative;
-  background: transparent;
-  border: none;
   margin-bottom: 0;
 }
 
