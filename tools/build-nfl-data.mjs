@@ -166,13 +166,18 @@ function readSeasonFiles(prefix) {
 // Load
 // ---------------------------------------------------------------------------
 
-// The offence file is player_stats_YYYY; the other two carry an infix, so a
-// bare "player_stats_" prefix would swallow all three.
-const offence = readSeasonFiles("player_stats_2").filter((r) => r.season_type === SEASON_TYPE);
-const defence = readSeasonFiles("player_stats_def_").filter((r) => r.season_type === SEASON_TYPE);
-const kicking = readSeasonFiles("player_stats_kicking_").filter((r) => r.season_type === SEASON_TYPE);
+// One file per season now, carrying offence, defence and kicking together -
+// nflverse merged them when it moved to the `stats_player` release (see
+// tools/fetch-nfl-seasons.mjs). The three names are kept because the passes
+// below read genuinely different column families off the same rows, and a
+// player appears in more than one: a QB who took a sack is in the offensive
+// pass, and a returner who also made a tackle is in both the other two.
+const weekly = readSeasonFiles("stats_player_week_").filter((r) => r.season_type === SEASON_TYPE);
+const offence = weekly;
+const defence = weekly;
+const kicking = weekly;
 
-console.log(`rows: ${offence.length} offence, ${defence.length} defence, ${kicking.length} kicking`);
+console.log(`rows: ${weekly.length} weekly (offence, defence and kicking merged)`);
 
 const teamOf = (row) => TEAMS[row.recent_team || row.team] || null;
 
@@ -215,19 +220,40 @@ for (const row of offence) {
     });
   }
   const rec = players.get(key);
+  // A GAME here means a game the player was involved in on offence, not merely
+  // one he was active for. That distinction used to be free: the old
+  // player_stats file only carried a row when a player recorded something. The
+  // merged stats_player file carries a row for every active player every week,
+  // so without this test `games` would silently change meaning - and it is the
+  // denominator under every per-game rate in the dataset.
+  //
+  // Measured when the source moved: counting active weeks instead moved 42% of
+  // historical rows and admitted 1,398 mostly-replacement-level players whose
+  // median output was 3.4 yds/game against the existing pool's 36.8. Adding a
+  // season must not re-rate every player who has ever played; if the standard
+  // "games played" denominator is wanted, that is a deliberate change with a
+  // balance recalibration behind it, not a side effect of a source migration.
+  const involved =
+    num(row.attempts) > 0 || num(row.carries) > 0 || num(row.targets) > 0 ||
+    num(row.receptions) > 0 || num(row.passing_yards) !== 0 ||
+    num(row.rushing_yards) !== 0 || num(row.receiving_yards) !== 0;
+  if (!involved) continue;
   rec.games += 1;
   rec.posGames[slot] = (rec.posGames[slot] || 0) + 1;
   const s = rec.sums;
   s.pass_yds += num(row.passing_yards);
   s.pass_td += num(row.passing_tds);
-  s.ints += num(row.interceptions);
+  // interceptions -> passing_interceptions in the stats_player release.
+  s.ints += num(row.passing_interceptions ?? row.interceptions);
   s.rush_yds += num(row.rushing_yards);
   s.rush_td += num(row.rushing_tds);
   s.rec += num(row.receptions);
   s.rec_yds += num(row.receiving_yards);
   s.rec_td += num(row.receiving_tds);
   s.fum += num(row.rushing_fumbles_lost) + num(row.receiving_fumbles_lost) + num(row.sack_fumbles_lost);
-  s.sacked += num(row.sacks);
+  // sacks -> sacks_suffered. The old name now means sacks MADE on defence,
+  // so reading it unqualified would credit a quarterback for pass rushing.
+  s.sacked += num(row.sacks_suffered ?? row.sacks);
   s.carries += num(row.carries);
   s.targets += num(row.targets);
 }
@@ -315,7 +341,10 @@ for (const row of defence) {
   countMember(u, row.player_display_name || row.player_name,
               num(row.def_interceptions), num(row.def_fumbles_forced));
   const s = u.sums;
-  s.tackles += num(row.def_tackles);
+  // def_tackles was split into solo and assisted.
+  s.tackles += row.def_tackles !== undefined
+    ? num(row.def_tackles)
+    : num(row.def_tackles_solo) + num(row.def_tackle_assists);
   // Disruption, not volume. A bad defence racks up tackles by being on the
   // field while the offence moves; nobody accumulates a tackle for loss or a
   // quarterback hit except by beating a block. These separate a unit that was
@@ -324,7 +353,8 @@ for (const row of defence) {
   s.qbh += num(row.def_qb_hits);
   // A recovery is a takeaway the forced-fumble column misses - the fumble was
   // forced by someone else and this unit came up with the ball.
-  s.fr += num(row.def_fumble_recovery_opp);
+  // def_fumble_recovery_opp lost its prefix; it is not defence-specific.
+  s.fr += num(row.fumble_recovery_opp ?? row.def_fumble_recovery_opp);
   s.sacks += num(row.def_sacks);
   s.ints += num(row.def_interceptions);
   s.pd += num(row.def_pass_defended);
@@ -332,10 +362,17 @@ for (const row of defence) {
   s.td += num(row.def_tds);
 }
 
+// The old kicking FILE contained only specialists, so this pass needed no
+// position filter. The merged file contains every player in the league, and
+// without a filter every one of them would be counted a member of their team's
+// special-teams unit - the sums would stay right (nobody else has an fg_att)
+// while the roster and its games-played counts silently became the whole team.
+const KICK_POS = new Set(["K", "P"]);
 for (const row of kicking) {
   const era = eraOf(num(row.season));
   const team = teamOf(row);
   if (!era || !team) continue;
+  if (!KICK_POS.has(row.position) && !num(row.fg_att) && !num(row.pat_att)) continue;
   const u = ensureUnit(team, era, num(row.season), "ST");
   countMember(u, row.player_display_name || row.player_name);
   const s = u.sums;

@@ -1,0 +1,35 @@
+# Loads the NFL dataset into the database.
+#
+# Manual only, for the same reason as Seed Players: this replaces every row in
+# `nfl_players`, which is not something a push should ever do by accident. It
+# runs when someone decides the server should catch up to a rebuilt dataset.
+#
+# Run it after any change to data/nfl-players.js or data/nfl-units.js. Until it
+# runs, offline games use the new dataset and online games use the old one -
+# the client and the Edge Function read different copies, and nothing warns
+# about the gap except scripts/verify-server-dataset.mjs.
+name: Seed NFL
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Generated here rather than committed: it is derivable from the dataset
+      # in one command, and generating it in the same run that applies it means
+      # the two can never disagree.
+      - name: Generate the seed
+        run: node tools/export-nfl-sql.mjs
+
+      - name: Apply it
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node tools/apply-seed.mjs --seed db/seed/nfl-seed.sql --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}

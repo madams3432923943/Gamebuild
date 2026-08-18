@@ -16,13 +16,21 @@
 // disappearing into a partial load.
 //
 // Usage:  SUPABASE_ACCESS_TOKEN=... node tools/apply-seed.mjs [--project-ref X]
+//         SUPABASE_ACCESS_TOKEN=... node tools/apply-seed.mjs --seed db/seed/nfl-seed.sql
 
 import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SEED = join(here, "..", "db", "seed", "players-seed.sql");
+
+// Which seed to apply. Defaults to basketball's for backward compatibility -
+// the workflow that predates football calls this with no --seed argument.
+const seedArg = process.argv.indexOf("--seed");
+const SEED =
+  seedArg === -1
+    ? join(here, "..", "db", "seed", "players-seed.sql")
+    : join(here, "..", process.argv[seedArg + 1]);
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 if (!token) {
@@ -34,7 +42,7 @@ const refArg = process.argv.indexOf("--project-ref");
 const ref = refArg === -1 ? process.env.SUPABASE_PROJECT_REF || "aauvgiygwrwdbtruhxta" : process.argv[refArg + 1];
 
 if (!existsSync(SEED)) {
-  console.error(`Missing ${SEED}. Run: node tools/export-players-sql.mjs`);
+  console.error(`Missing ${SEED}. Run the matching exporter: tools/export-players-sql.mjs or tools/export-nfl-sql.mjs`);
   process.exit(1);
 }
 

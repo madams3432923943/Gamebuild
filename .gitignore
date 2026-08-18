@@ -28,3 +28,8 @@ db/seed/players-seed.sql
 # Full-resolution banner originals. Not committed - 48 MB of source for 8 MB of
 # shipped output. See the header of tools/build-banner-art.mjs.
 tools/banner-source/
+
+# The NFL seed: 5.7MB of generated INSERTs, regenerable from data/nfl-*.js in
+# one command and generated fresh inside the workflow that applies it, so the
+# file and the dataset can never disagree.
+db/seed/nfl-seed.sql

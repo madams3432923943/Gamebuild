@@ -23,7 +23,7 @@ const files = readdirSync(sourceDir)
       season: seasonMatch ? Number(seasonMatch[1]) : null,
       bytes: statSync(path).size,
       sha256: createHash("sha256").update(bytes).digest("hex"),
-      upstream: `https://github.com/nflverse/nflverse-data/releases/download/player_stats/${name}`,
+      upstream: `https://github.com/nflverse/nflverse-data/releases/download/stats_player/${name}`,
     };
   });
 
@@ -31,7 +31,7 @@ if (files.length === 0) throw new Error("No NFL source CSV files found.");
 
 const manifest = {
   schema_version: 1,
-  source: "nflverse/nflverse-data player_stats release assets",
+  source: "nflverse/nflverse-data stats_player release assets",
   generated_at: new Date().toISOString(),
   file_count: files.length,
   seasons: [...new Set(files.map((file) => file.season).filter(Number.isInteger))],

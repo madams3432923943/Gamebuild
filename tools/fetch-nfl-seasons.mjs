@@ -8,10 +8,20 @@
 // nflverse publishes them as GitHub release assets, which are plain HTTP and
 // need no API token:
 //
-//   https://github.com/nflverse/nflverse-data/releases/download/player_stats/
-//     player_stats_YYYY.csv          offence, per player per week
-//     player_stats_def_YYYY.csv      defence
-//     player_stats_kicking_YYYY.csv  kicking and punting
+//   https://github.com/nflverse/nflverse-data/releases/download/stats_player/
+//     stats_player_week_YYYY.csv     one file: offence, defence and kicking
+//
+// MIGRATED from the older `player_stats` release, which published three files
+// per season (player_stats_, player_stats_def_, player_stats_kicking_). That
+// release is frozen: it serves 2000-2024 and has no 2025, so a season could no
+// longer be added without moving. The replacement carries the full 2000-2025
+// history in a single 150-column file per season, so the whole pipeline moved
+// rather than special-casing one year against a second source.
+//
+// Column renames that came with it are handled in tools/build-nfl-data.mjs:
+// interceptions -> passing_interceptions, sacks -> sacks_suffered,
+// recent_team -> team, def_tackles -> def_tackles_solo + def_tackle_assists,
+// def_fumble_recovery_opp -> fumble_recovery_opp.
 //
 // Output lands in tools/seasons-nfl/, which is gitignored exactly like
 // tools/seasons/ - raw source data is an input to the build, not something the
@@ -25,7 +35,7 @@ import { fileURLToPath } from "url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(here, "seasons-nfl");
-const BASE = "https://github.com/nflverse/nflverse-data/releases/download/player_stats";
+const BASE = "https://github.com/nflverse/nflverse-data/releases/download/stats_player";
 
 // 2000 rather than 1999, because the eras are plain decades and a single
 // orphan 1999 season belongs to none of them. nflverse has nothing earlier -
@@ -33,9 +43,10 @@ const BASE = "https://github.com/nflverse/nflverse-data/releases/download/player
 // 2000s/2010s/2020s rather than the rule-change ones docs/nfl-plan.md
 // originally proposed.
 const DEFAULT_FROM = 2000;
+// An NFL season is named for the year it STARTS but finishes the following
+// February, so the most recent complete season is last calendar year's. A
+// season still in progress simply 404s and is skipped, so this errs safe.
 const DEFAULT_TO = new Date().getFullYear() - 1;
-
-const KINDS = ["", "def_", "kicking_"];
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -50,8 +61,8 @@ mkdirSync(OUT_DIR, { recursive: true });
 
 /** A season that doesn't exist yet (the current one mid-year, say) 404s rather
  * than failing the run - the dataset is simply built from what exists. */
-async function fetchOne(year, kind) {
-  const name = `player_stats_${kind}${year}.csv`;
+async function fetchOne(year) {
+  const name = `stats_player_week_${year}.csv`;
   const dest = join(OUT_DIR, name);
 
   if (!force && existsSync(dest) && statSync(dest).size > 0) return { name, status: "cached" };
@@ -68,12 +79,10 @@ async function fetchOne(year, kind) {
 const summary = { downloaded: 0, cached: 0, missing: 0, bytes: 0 };
 
 for (let year = from; year <= to; year++) {
-  for (const kind of KINDS) {
-    const r = await fetchOne(year, kind);
-    summary[r.status] += 1;
-    summary.bytes += r.bytes || 0;
-    if (r.status === "missing") console.warn(`  missing: ${r.name}`);
-  }
+  const r = await fetchOne(year);
+  summary[r.status] += 1;
+  summary.bytes += r.bytes || 0;
+  if (r.status === "missing") console.warn(`  missing: ${r.name}`);
   process.stdout.write(`\r  ${year}…`);
 }
 

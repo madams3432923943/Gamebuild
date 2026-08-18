@@ -16,16 +16,21 @@ if (manifest.schema_version !== 1 || !Array.isArray(manifest.files) || manifest.
   throw new Error("Invalid NFL source manifest.");
 }
 
+// One file per season now, carrying offence, defence and kicking together -
+// nflverse merged them in the `stats_player` release. The columns checked here
+// are the ones the build cannot work without, one from each family, so a
+// truncated or reshaped file fails before it can produce a plausible-looking
+// but wrong dataset.
 const requiredHeaders = {
-  offense: ["season", "week", "season_type", "player_display_name", "position", "recent_team"],
-  defense: ["season", "week", "season_type", "player_display_name", "position", "recent_team"],
-  kicking: ["season", "week", "season_type", "player_display_name", "recent_team"],
+  weekly: [
+    "season", "week", "season_type", "player_display_name", "position", "team",
+    "passing_yards", "passing_interceptions", "sacks_suffered",
+    "def_tackles_solo", "def_sacks", "fg_att",
+  ],
 };
 
-function kindFor(name) {
-  if (name.includes("_def_")) return "defense";
-  if (name.includes("_kicking_")) return "kicking";
-  return "offense";
+function kindFor() {
+  return "weekly";
 }
 
 const seen = new Map();
