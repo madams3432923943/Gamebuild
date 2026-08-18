@@ -190,9 +190,9 @@ add(
   `${first.events.length} events, byte-identical on a second build`
 );
 add(
-  "A different seed lays the floor out differently",
+  "A different seed produces a different game",
   JSON.stringify(first) !== JSON.stringify(differentSeed),
-  "ordering and placement are seeded, not fixed"
+  "who shoots, from which zone and in what order is seeded, not fixed"
 );
 
 console.log(renderSection(`NBA shot ledger vs the engine (${GAMES} games, ${sampledEvents} events)`));

@@ -1346,7 +1346,7 @@ input[type="text"]:focus-visible {
 }
 
 /* The kits, finally on the board. --team-a-ink/--team-b-ink are set on
-   #court-stage by dressStage() in js/main.js, and the scoreboard lives inside
+   #game-stage by dressStage() in js/main.js, and the scoreboard lives inside
    it, so they arrive by inheritance with nothing to wire. The fallback is the
    old single colour, which is what a sport that dresses no kits still gets. */
 .scoreboard-score-a { color: var(--team-a-ink, var(--scoreboard)); }
@@ -2777,7 +2777,7 @@ table.box-table th, table.history-table th {
 /* ---- Court backdrop ----
    Drawn with borders and radial gradients rather than an image, so it stays
    crisp at any size and ships nothing extra to the app build. */
-.court-stage {
+.game-stage {
   position: relative;
   border-radius: 14px;
   overflow: hidden;
@@ -2788,17 +2788,17 @@ table.box-table th, table.history-table th {
 
 /* A slow ambient sweep behind the whole stage so the screen feels alive even
    between period reveals, not just when something is actively animating. */
-.court-stage::before {
+.game-stage::before {
   content: "";
   position: absolute;
   inset: 0;
   background: radial-gradient(ellipse at 50% 30%, rgba(var(--accent-rgb), 0.18) 0%, transparent 65%);
   opacity: 0.35;
-  animation: court-glow-pulse 4s ease-in-out infinite;
+  animation: stage-glow-pulse 4s ease-in-out infinite;
   pointer-events: none;
 }
 
-@keyframes court-glow-pulse {
+@keyframes stage-glow-pulse {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.7; }
 }
@@ -2806,11 +2806,11 @@ table.box-table th, table.history-table th {
 /* The final-buzzer payoff, fired once from finish() - a bigger, warmer flash
    than any in-game period-flash, so the end of the game reads as the
    biggest moment on screen. */
-.court-stage.final-flash {
-  animation: final-court-flash 1s ease;
+.game-stage.final-flash {
+  animation: final-stage-flash 1s ease;
 }
 
-@keyframes final-court-flash {
+@keyframes final-stage-flash {
   0% { box-shadow: 0 0 0 rgba(255, 209, 102, 0); }
   25% { box-shadow: 0 0 40px rgba(255, 209, 102, 0.6); }
   100% { box-shadow: 0 0 0 rgba(255, 209, 102, 0); }
@@ -2828,7 +2828,7 @@ table.box-table th, table.history-table th {
    right when the COURT was the stage and the scoreboard was a caption beneath
    it. The board is the stage now, so flattening it removed the only thing
    making it look like a board. */
-.court-stage .scoreboard {
+.game-stage .scoreboard {
   position: relative;
   margin-bottom: 0;
 }
@@ -4039,11 +4039,11 @@ html, body {
 }
 
 /* Respect a reduced-motion preference across everything added for feel this
-   round - the ambient court glow, the live score pulse, the diamond sheen and
+   round - the ambient stage glow, the live score pulse, the diamond sheen and
    the hot-card glow all loop forever, which is exactly what this setting is
    meant to stop. */
 @media (prefers-reduced-motion: reduce) {
-  .court-stage::before,
+  .game-stage::before,
   .scoreboard-score.pulse,
   .play-card.hot:first-child,
   .banner-art-camo-diamond::after,
@@ -4647,7 +4647,7 @@ html, body {
 }
 
 /* ---- Football field -----------------------------------------------------
-   Football's stage, the counterpart to .court above. Shown only when the
+   Football's stage, the counterpart to basketball's scoreboard. Shown only when the
    active sport declares presentation.stage === "field" (see showStage() in
    js/main.js). Every moving part is positioned as a percentage of the turf so
    the field scales to any width without recomputing anything in JS. */
@@ -4749,7 +4749,7 @@ html, body {
 /* The two end zones are the two drafters' ends of the field, named so you can
    see whose goal line the ball is approaching without reading a label. */
 /* Each team's endzone in that team's colour - football's version of "their side
-   of the court". Falls back to the sport accent, so a field drawn before the
+   of the board". Falls back to the sport accent, so a field drawn before the
    kits are known is tinted rather than blank. */
 .ff-endzone {
   flex: 0 0 11%;

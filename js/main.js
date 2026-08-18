@@ -102,8 +102,6 @@ import {
   renderFriendChallenges,
   renderFriendRequests,
   renderFriendsLeaderboard,
-  renderFootballField,
-  showFootballEvent,
   accumulatePeriodStats,
   liveStatKeys,
   formatMvpStatLine,
@@ -2643,7 +2641,7 @@ poolSearch.addEventListener("input", () => {
 
 // ---- Game screen (live scoreboard + final box score) - shared by all modes ----
 
-const courtStageEl = document.getElementById("court-stage");
+const gameStageEl = document.getElementById("game-stage");
 const liveScoreboard = document.getElementById("live-scoreboard");
 const finalBanner = document.getElementById("final-banner");
 
@@ -2834,7 +2832,7 @@ function renderWhyBreakdown(result, ctx) {
  * cleared, which surfaced as "the game screen never appeared" in the football
  * playback test rather than as anything mentioning colour.
  *
- * Scoped to #court-stage, NEVER to documentElement. --accent is the SPORT's
+ * Scoped to #game-stage, NEVER to documentElement. --accent is the SPORT's
  * identity and themes 121 rules across the app; a player's kit has no business
  * overwriting it, which is why applyTheme() stays global and this does not.
  *
@@ -2879,7 +2877,7 @@ function dressStage(homeSide, kitA, kitB) {
   const worn = wornColours(aIsHome ? kitA : kitB, aIsHome ? kitB : kitA);
   const forA = aIsHome ? worn.home : worn.away;
   const forB = aIsHome ? worn.away : worn.home;
-  const style = courtStageEl.style;
+  const style = gameStageEl.style;
   style.setProperty("--team-a-ink", forA.ink);
   style.setProperty("--team-a-ink-rgb", rgbString(forA.ink));
   style.setProperty("--team-a-trim", forA.trim);
@@ -2907,13 +2905,10 @@ function resetGameScreen() {
   // content renderScoreboard rebuilds each tick - so a leftover class from a
   // previous game would otherwise survive into this one.
   liveScoreboard.classList.remove("period-flash", "lead-flash");
-  courtStageEl.classList.remove("final-flash");
-  // Last game's shot chart is not this game's. It accumulates all the way to
-  // the final buzzer by design, so nothing else ever clears it.
-  courtStageEl.querySelector(".shot-chart")?.remove();
+  gameStageEl.classList.remove("final-flash");
   // The kits, decided before the first paint for the same reason the stage is:
   // whatever is on this screen is visible while the online flow awaits the
-  // server, and a court in last game's colours is a worse lie than a blank one.
+  // server, and a stage in last game's colours is a worse lie than a blank one.
   // Offline you are always home - it is your floor and there is no second
   // profile to consult. The bot wears a fixed neutral kit so the two sides still
   // read as two teams.
@@ -2928,8 +2923,8 @@ function resetGameScreen() {
   finalBanner.removeAttribute("aria-label");
   // The stage belongs to the RESET, not to playback. playOutResult sets it
   // too, but that runs after the online flow has awaited the server for
-  // seconds - and the court is the stage index.html leaves unhidden, so an
-  // NFL match sat on a basketball court for the whole cold start. Whoever
+  // seconds - and whatever index.html leaves unhidden is what shows, so an
+  // NFL match sat on the wrong stage for the whole cold start. Whoever
   // clears the game screen is the one who knows a sport is about to be
   // watched on it; deciding the stage here means it is already correct the
   // first time the screen is painted, in every flow, rather than each caller
@@ -2950,19 +2945,16 @@ function openingLabel() {
  *
  * Keyed on data-stage in index.html rather than on ids, so adding a sport
  * means adding a sibling element and declaring its name - not editing a
- * condition here. Hiding the others is the half that was missing: the court
- * had no code path that ever removed it, so it stayed on screen under
- * football's field, and switching back from a sport that DID hide something
- * would otherwise leave the previous sport's stage behind.
- */
-/** Shows the one stage a sport declared and hides the rest.
+ * condition here. Hiding the others is the half that was once missing:
+ * switching from a sport with field art to one without would otherwise leave
+ * the previous sport's stage on screen underneath.
  *
  * A stage name with NO element is legitimate and deliberate: basketball's
  * live stage is "board", which has no field art at all - the scoreboard is
  * the stage, and it lives outside this rotation because every sport shows it.
- * So "board" correctly hides the court and the field and shows nothing else. */
+ * So "board" correctly hides the field and shows nothing else. */
 function showStage(stage) {
-  for (const el of document.querySelectorAll("#court-stage [data-stage]")) {
+  for (const el of document.querySelectorAll("#game-stage [data-stage]")) {
     el.classList.toggle("hidden", el.dataset.stage !== stage);
   }
 }
@@ -3008,8 +3000,8 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
   // The stage is whichever one this sport declares, and every other stage is
   // hidden. Previously the field was toggled on the presence of `drives` and
-  // the court was never hidden at all, so football played on a basketball
-  // court with a field drawn underneath it.
+  // nothing ever hid the other sport's stage, so football played with a
+  // basketball floor drawn over its field.
   showStage(sport().presentation.stage);
   const footballFieldEl = document.getElementById("football-field");
   let fieldRefs = null;
@@ -3017,12 +3009,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   let timeline = { events: [], totalMs: 0 };
   const fieldTimers = [];
   if (sport().presentation.stage === "field" && Array.isArray(result.drives) && result.drives.length) {
-    fieldRefs = renderFootballField(footballFieldEl, labelA, labelB);
+    fieldRefs = sport().presentation.renderField(footballFieldEl, labelA, labelB);
     timeline = sport().presentation.buildTimeline?.(result.drives) || timeline;
   }
 
   // Basketball's equivalent: a ledger of shots decomposed from the same result
-  // the box score is built from, plotted onto the court as the game reveals.
+  // the box score is built from, narrated in the feed as the game reveals.
   //
   // The seed has to be the SAME on both machines watching an online game, so
   // it is derived from the result itself rather than drawn fresh - the stored
@@ -3088,13 +3080,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       const at = (elapsed / total) * spread;
       elapsed += weights[i];
       shotTimers.push(setTimeout(() => {
-        // The callout is what turns a chart filling in into a game being
+        // The play line is what turns a score ticking up into a game being
         // watched. Withheld from ordinary misses: naming every brick is noise,
-        // and the marker already says the shot happened.
+        // and the score already says whether the shot fell.
         const worthSaying =
           event.made && (event.shotType === "three" || event.strong || event.runPoints || event.leadChange || event.endOfPeriod);
-        // The line a commentator would say. It used to be a chip drawn on the
-        // floor; there is no floor, so it goes to the feed under the board -
+        // The line a commentator would say, in the feed under the board -
         // which is the thing a person is actually looking at.
         if (worthSaying) {
           const verdict = event.shotType === "three" ? "for three" : event.strong ? "at the rim" : "for two";
@@ -3163,7 +3154,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     for (const event of ofPeriod) {
       fieldTimers.push(
         setTimeout(() => {
-          showFootballEvent(fieldRefs, event, { clock: event.clock });
+          sport().presentation.showEvent(fieldRefs, event, { clock: event.clock });
           // Only the moments worth reading go to the feed. Every snap would
           // be a wall of text nobody follows, and the ball already showed the
           // ordinary ones.
@@ -3387,13 +3378,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     for (const t of scoreTickIntervals) clearInterval(t);
     // Nothing should still be waiting to draw on a field the game has left.
     for (const t of fieldTimers) clearTimeout(t);
-    // Same for the court: a pending marker firing after the game ends would
-    // land on the next game's chart, or on a screen that has moved on.
+    // Same for the shot ledger: a pending play line firing after the game ends
+    // would land on the next game's feed, or on a screen that has moved on.
     for (const t of shotTimers) clearTimeout(t);
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
-    flashClass(courtStageEl, "final-flash");
-    // The chart stops being the quiet background to whatever just happened and
-    // becomes the thing worth reading. During playback the settled marks sit at
+    flashClass(gameStageEl, "final-flash");
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.
     pushPlayHeadline(playFeedEl, sport().buildGameScript(periodsSoFar, labelA, labelB), "final");
@@ -3583,7 +3572,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           runningA = score.A;
           runningB = score.B;
 
-          if (fieldRefs) showFootballEvent(fieldRefs, event, { clock: event.clock });
+          if (fieldRefs) sport().presentation.showEvent(fieldRefs, event, { clock: event.clock });
           // Only the moments worth reading go to the feed - every snap would
           // be a wall of text nobody follows, and the ball already showed the
           // ordinary ones.
@@ -3819,7 +3808,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   // for the renderer closes an import cycle. Left here until the football
   // renderer moves out of shared UI, which is its own piece of work.
   if (sport().presentation.stage === "field") {
-    renderFootballField(document.getElementById("football-field"), "You", o.oppUsername);
+    sport().presentation.renderField(document.getElementById("football-field"), "You", o.oppUsername);
   }
 
   try {

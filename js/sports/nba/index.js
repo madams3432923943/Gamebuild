@@ -127,7 +127,7 @@ export const NBA = {
   // that draws something - which is how football ended up playing on a
   // basketball court with a field drawn underneath it.
   // buildShotLedger is basketball's answer to football's buildTimeline: the
-  // authoritative result, decomposed into the events a shot chart can draw.
+  // authoritative result, decomposed into the events a play-by-play can narrate.
   // Declared here so shared code asks the SPORT for its playback rather than
   // learning what a shot is.
   // The scoreboard is basketball's whole stage - "board" names a stage with no

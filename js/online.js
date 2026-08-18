@@ -303,8 +303,8 @@ export async function getOpponentSummary(userId) {
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
-    // A failed read still has to produce a wearable kit, or the opponent's half
-    // of the court renders unstyled. The default is a real kit, not null.
+    // A failed read still has to produce a wearable kit, or the opponent's side
+    // of the stage renders unstyled. The default is a real kit, not null.
     return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null, equippedKit: DEFAULT_KIT_ID, sportRatings: {} };
   }
   return {

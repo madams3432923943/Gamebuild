@@ -85,6 +85,7 @@ import {
   planFor, normalizeStrategy, plansFor, randomStrategy, formatStrategy,
   serializeStrategy, parseStrategy,
 } from "./tactics.js";
+import { renderField, showEvent } from "./field.js";
 import { buildTimeline, createLiveState, applyEvent, liveBox, liveScore } from "./playback.js";
 
 /** The order a football roster is READ in, which is not the order it is
@@ -209,7 +210,16 @@ export const NFL = {
   // instead of accumulating a finished quarter line the moment the quarter
   // starts. A sport that does not declare them keeps the period-reveal path,
   // which is what basketball still uses.
-  presentation: { stage: "field", buildTimeline, createLiveState, applyEvent, liveBox, liveScore },
+  // renderField/showEvent are football's stage, declared here so shared code
+  // draws it through the registry instead of importing football. They live in
+  // ./field.js - a sport's presentation belongs with the sport, the same as its
+  // engine and its gamestyles.
+  presentation: {
+    stage: "field",
+    renderField,
+    showEvent,
+    buildTimeline, createLiveState, applyEvent, liveBox, liveScore,
+  },
 
   // Seven individuals and five units. The provisional lineup this replaces
   // (QB, RB1, RB2, WR1, WR2, TE, FLEX, K, DEF, BENCH1) modelled fantasy

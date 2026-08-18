@@ -3,11 +3,10 @@
 //
 // WHY THIS IS CURATED RATHER THAN A COLOUR PICKER
 //
-// The shot chart's legibility rests on team identity being the LOUD channel:
-// js/sports/nba/playback.js places every shot, and the chart, the callouts and
-// the buzzer zone summary all distinguish the two teams by colour before
-// anything else. Before kits that was the sport accent against a cool grey -
-// two colours chosen once, by us, guaranteed to be far apart.
+// A live game's legibility rests on team identity being the LOUD channel: the
+// scoreboard digits and the play feed distinguish the two teams by colour
+// before anything else. Before kits that was the sport accent against a cool
+// grey - two colours chosen once, by us, guaranteed to be far apart.
 //
 // Handing that channel to players is the whole point of this feature and also
 // its only real danger: two people can both pick navy, and at that moment the
@@ -22,7 +21,7 @@
 // if that is still too close to what home is wearing the away colour is shifted
 // around the wheel until it is not. So a clash is impossible rather than
 // unlikely, and each player still sees their own colours - they dress their own
-// half of the court and their own endzone either way.
+// side of the board and their own endzone either way.
 
 /** The surface a kit colour has to be legible ON.
  *

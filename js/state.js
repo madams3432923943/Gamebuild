@@ -38,8 +38,3 @@ export const strategy = {
   rotationMinutes: null,
   matchups: null,
 };
-
-export function resetStrategy() {
-  strategy.rotationMinutes = null;
-  strategy.matchups = null;
-}

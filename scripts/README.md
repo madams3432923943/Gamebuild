@@ -91,8 +91,8 @@ On failure: full-page screenshot, serialized DOM and video per session, under
 #### The layout audit is deliberately narrow
 
 An element wider than the viewport is only a defect if nothing contains it.
-This app leans on containment on purpose - the court arcs sit outside
-`.court-stage` and are clipped by its `overflow:hidden`, and the box-score
+This app leans on containment on purpose - the football field's markings sit
+outside `.game-stage` and are clipped by its `overflow:hidden`, and the box-score
 table is *meant* to be wider than a phone and scroll inside `#full-box-score`'s
 `overflow-x:auto`. Flagging those reported 162 "failures" on a phone, every one
 of them working as designed. The audit now only reports an element whose entire

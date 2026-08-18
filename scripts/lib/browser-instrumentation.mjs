@@ -153,7 +153,7 @@ export const LAYOUT_AUDIT = `
 
   // An element wider than the viewport is only a defect if nothing contains
   // it. The design deliberately relies on both kinds of containment - the
-  // court arcs are positioned outside .court-stage and clipped by its
+  // court arcs are positioned outside .game-stage and clipped by its
   // overflow:hidden, and the box-score table is meant to be wider than a
   // phone and scroll inside #full-box-score's overflow-x:auto. Reporting
   // those flags ~160 elements on a phone, all of them working as designed,

@@ -993,43 +993,18 @@ export async function runBrowserChecks(opts = {}) {
     }
 
     // ---- simulation -------------------------------------------------------
-    // Callouts and moment banners are transient by design - up for about a
-    // second and then removed, so nothing about them survives to the end of the
-    // run to be counted. Both are the difference between a chart filling in and
-    // a game being watched, and neither leaves a trace a post-hoc query could
-    // find. Counted as they happen.
+    // The play feed scrolls: a card is appended as the play happens and older
+    // ones are trimmed off the top, so the count at the buzzer is not the count
+    // over the game. What is under test is that the game gets narrated WHILE it
+    // runs, which no post-hoc query can answer. Counted as they happen.
     const simStart = Date.now();
     await Promise.all(sessions.map(({ page }) => page.evaluate(() => {
       window.__bkCallouts = 0;
-      window.__bkMoments = 0;
-      // Worst horizontal overhang past the floor, in px. A callout is centred
-      // on its shot with nowrap text, so one taken from the corner hangs off
-      // the side - on a phone that ran past the viewport edge. It cannot be
-      // caught after the fact: callouts are removed after about a second, so
-      // by the time any layout audit runs there is nothing left to measure.
-      window.__bkCalloutOverhangPx = 0;
       new MutationObserver((records) => {
         for (const r of records) {
           for (const node of r.addedNodes) {
             if (node.nodeType !== 1) continue;
-            // The live naming moved. Callouts used to be chips on the court;
-            // the court is hidden during play now (the board is the stage, the
-            // chart is revealed at the buzzer), so the line a commentator would
-            // say lands in the play feed instead. Both are counted, because the
-            // property under test is "the game gets narrated as it happens",
-            // not "a particular element exists".
             if (node.classList?.contains("play-card")) window.__bkCallouts += 1;
-            if (node.classList?.contains("shot-callout")) {
-              window.__bkCallouts += 1;
-              const court = document.querySelector('[data-stage="court"]');
-              if (court) {
-                const cr = court.getBoundingClientRect();
-                const nr = node.getBoundingClientRect();
-                const over = Math.max(0, cr.left - nr.left, nr.right - cr.right);
-                if (over > window.__bkCalloutOverhangPx) window.__bkCalloutOverhangPx = over;
-              }
-            }
-            if (node.classList?.contains("court-moment")) window.__bkMoments += 1;
           }
         }
       }).observe(document.body, { childList: true, subtree: true });
@@ -1121,28 +1096,18 @@ export async function runBrowserChecks(opts = {}) {
     if ((process.env.SELFTEST_SPORT || "nba") === "nba") {
       const drama = await sessions[0].page.evaluate(() => ({
         callouts: window.__bkCallouts || 0,
-        moments: window.__bkMoments || 0,
-        overhangPx: Math.round(window.__bkCalloutOverhangPx || 0),
       }));
-      // Callouts are withheld from ordinary misses on purpose, so the count is
+      // Lines are withheld from ordinary misses on purpose, so the count is
       // well below the shot count - but a game with none means the whole
-      // "worth saying" branch never fired. Moments are rarer still: a game can
-      // legitimately have no lead change, so only callouts are required.
-      // browser:zone-summary lived here. The zone overlay was numbers drawn on
-      // the court, and went with it.
-
-      // Firing is half of it. A callout that fires and then hangs off the side
-      // of the floor is the mobile failure, and one pixel of slack is allowed
-      // only for sub-pixel rounding.
-      const dramaOk = drama.callouts > 0 && drama.overhangPx <= 1;
+      // "worth saying" branch never fired and the screen sat still while a
+      // game happened behind it.
+      const dramaOk = drama.callouts > 0;
       checks.push(
         check(
           "browser:live-drama",
           dramaOk
-            ? `The game gets narrated as it happens (${drama.callouts} live lines, ${drama.moments} run/lead moments, none overhanging)`
-            : drama.callouts === 0
-              ? `No shot callout ever appeared: ${JSON.stringify(drama)}`
-              : `A callout hung ${drama.overhangPx}px off the side of the floor (${drama.callouts} callouts)`,
+            ? `The game gets narrated as it happens (${drama.callouts} live lines)`
+            : "No play line ever appeared during the simulation",
           dramaOk ? PASS : FAIL
         )
       );
@@ -1153,7 +1118,7 @@ export async function runBrowserChecks(opts = {}) {
     // custom properties and the cascade - a kit that is computed correctly and
     // then never applied looks exactly like no kit at all.
     const kits = await sessions[0].page.evaluate(() => {
-      const stage = document.getElementById("court-stage");
+      const stage = document.getElementById("game-stage");
       const cs = getComputedStyle(stage);
       const a = cs.getPropertyValue("--team-a-ink").trim();
       const b = cs.getPropertyValue("--team-b-ink").trim();

@@ -24,22 +24,6 @@ function statKeysFor(sportId) {
   return Object.keys(sportById(sportId).statLabels || {});
 }
 
-/** The active sport's ladder. Where a player stands is sport-agnostic maths -
- * a percentile against everyone else's rating - but what that percentile is
- * CALLED is not: "NBA MVP" means nothing in football. Each sport declares its
- * own `tiers`, and the arithmetic (js/ranks.js) is shared. */
-function tiers() {
-  return activeSport().tiers || [];
-}
-
-export function tierForPercentile(percentile) {
-  return tierAt(tiers(), percentile);
-}
-
-export function nextTierAbove(percentile) {
-  return tierAbove(tiers(), percentile);
-}
-
 /** Every profile's ratings, for working out where one player stands.
  *
  * `profiles` is publicly readable (the "profiles are publicly readable" RLS

@@ -74,7 +74,7 @@ async function runInPage(page) {
 
     // The real markup, lifted from index.html rather than mocked - the point
     // is that the page's stages and the sports' declarations agree.
-    const stage = document.getElementById("court-stage");
+    const stage = document.getElementById("game-stage");
     const board = document.getElementById("live-scoreboard");
 
     // Mirrors showStage() in js/main.js. Kept as its own copy on purpose:
@@ -123,11 +123,24 @@ async function runInPage(page) {
     // Spelled out as an allow-list rather than "missing is fine", because
     // "missing is fine" is how a typo becomes a blank screen.
     const ARTLESS_STAGES = new Set(["board"]);
+    // A sport that DOES draw field art has to bring the code that draws it.
+    // Shared code calls presentation.renderField/showEvent through the
+    // registry - it never imports a sport - so a stage declared without them
+    // is a TypeError at the first play, not a missing picture.
+    const STAGE_RENDERERS = ["renderField", "showEvent"];
     const declared = {};
     for (const id of ["nba", "nfl"]) {
       setActiveSport(id);
       declared[id] = activeSport().presentation?.stage;
       const resolves = !!stage.querySelector(`[data-stage="${declared[id]}"]`);
+      if (resolves) {
+        const missing = STAGE_RENDERERS.filter((fn) => typeof activeSport().presentation?.[fn] !== "function");
+        check(
+          `${id.toUpperCase()} brings the code that draws its stage`,
+          missing.length === 0,
+          missing.length === 0 ? STAGE_RENDERERS.join(", ") : `missing: ${missing.join(", ")}`
+        );
+      }
       check(
         `${id.toUpperCase()} declares a stage the page provides`,
         !!declared[id] && (resolves || ARTLESS_STAGES.has(declared[id])),

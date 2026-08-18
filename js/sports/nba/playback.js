@@ -1,4 +1,4 @@
-// Basketball's presentation ledger: the shot chart's source of truth.
+// Basketball's presentation ledger: the play-by-play's source of truth.
 //
 // WHAT THIS IS, AND WHAT IT IS CAREFULLY NOT
 //
@@ -47,42 +47,35 @@ import { shotLine } from "./shooting.js";
  *
  * Ordered inside-out. `weight` is how often a shot of that class lands in the
  * zone - a presentation distribution, loosely league-shaped, NOT something the
- * engine produced. `strong` marks the finishes worth a louder animation. */
+ * engine produced. `strong` marks the finishes worth a louder animation.
+ *
+ * Each zone used to carry a `label` ("at the rim", "from the corner") for the
+ * chart's callouts. The chart is gone with the court; the play-by-play builds
+ * its wording from shotType and strong instead, so the labels were read by
+ * nothing and are removed. */
 export const ZONES = {
-  rim: { points: 2, weight: 0.34, strong: true, label: "at the rim" },
-  paint: { points: 2, weight: 0.24, label: "in the paint" },
-  "short-mid": { points: 2, weight: 0.22, label: "from short midrange" },
-  "long-mid": { points: 2, weight: 0.2, label: "from midrange" },
-  "corner-three": { points: 3, weight: 0.26, label: "from the corner" },
-  "wing-three": { points: 3, weight: 0.37, label: "from the wing" },
-  "above-break-three": { points: 3, weight: 0.37, label: "from above the break" },
+  rim: { points: 2, weight: 0.34, strong: true },
+  paint: { points: 2, weight: 0.24 },
+  "short-mid": { points: 2, weight: 0.22 },
+  "long-mid": { points: 2, weight: 0.2 },
+  "corner-three": { points: 3, weight: 0.26 },
+  "wing-three": { points: 3, weight: 0.37 },
+  "above-break-three": { points: 3, weight: 0.37 },
 };
 
 const TWO_ZONES = Object.keys(ZONES).filter((z) => ZONES[z].points === 2);
 const THREE_ZONES = Object.keys(ZONES).filter((z) => ZONES[z].points === 3);
 
-/**
- * Where a zone sits on a half-court drawn as a unit square.
- *
- * x runs 0 (left sideline) to 1 (right sideline), y runs 0 (baseline, under
- * the basket) to 1 (half-court). `spread` is how far a shot may scatter from
- * the anchor, so a zone reads as a cluster rather than a single dot.
- */
-const ZONE_ANCHORS = {
-  rim: { x: 0.5, y: 0.07, spread: 0.05 },
-  paint: { x: 0.5, y: 0.17, spread: 0.09 },
-  "short-mid": { x: 0.5, y: 0.3, spread: 0.16 },
-  "long-mid": { x: 0.5, y: 0.42, spread: 0.2 },
-  // The corners are the two ends of the baseline, so they get placed on one
-  // side or the other rather than scattered around a centre that is nowhere.
-  "corner-three": { x: 0.08, y: 0.08, spread: 0.04, mirrorX: true },
-  "wing-three": { x: 0.16, y: 0.42, spread: 0.08, mirrorX: true },
-  "above-break-three": { x: 0.5, y: 0.62, spread: 0.14 },
-};
+/* ZONE_ANCHORS and placeInZone() lived here. They gave each shot an x/y on a
+ * half-court drawn as a unit square, so a marker had somewhere to sit. Nothing
+ * draws a marker now - the court is gone and the scoreboard is the stage - and
+ * no consumer ever read the coordinates for anything else, so they went with
+ * it. The ZONE itself stays: it is what decides two points from three and what
+ * makes a finish "strong", both of which the play-by-play still uses. */
 
-/** Free throws are not shot-chart events - they have no location on the floor
- * worth plotting, and plotting them at the line would put a dense stack of
- * markers where no field goal was ever taken. They still exist in the ledger
+/** Free throws are marked apart from field goals: they are not shot attempts,
+ * so they must not be counted as ones anywhere the ledger is aggregated, and
+ * the play-by-play describes them differently. They still exist in the ledger
  * as scoring events so the running score stays exact. */
 const FREE_THROW = "free-throw";
 
@@ -91,7 +84,7 @@ const FREE_THROW = "free-throw";
  *
  * The ledger has to be REPRODUCIBLE: an online game is simulated once on the
  * server and then played back on two clients, and two players watching the
- * same game must see the same shot chart. Math.random would give them
+ * same game must see the same play-by-play. Math.random would give them
  * different ones. Seeded from the match's own numbers by the caller.
  */
 function rng(seed) {
@@ -114,16 +107,6 @@ function pickWeighted(keys, rand, weightOf) {
   return keys[keys.length - 1];
 }
 
-function placeInZone(zone, rand) {
-  const a = ZONE_ANCHORS[zone];
-  if (!a) return { x: 0.5, y: 0.3 };
-  let x = a.x + (rand() * 2 - 1) * a.spread;
-  const y = a.y + (rand() * 2 - 1) * a.spread;
-  // A zone that exists on both sides of the floor is mirrored rather than
-  // duplicated in the table, so the corner three is genuinely either corner.
-  if (a.mirrorX && rand() < 0.5) x = 1 - x;
-  return { x: Math.max(0.02, Math.min(0.98, x)), y: Math.max(0.02, Math.min(0.98, y)) };
-}
 
 /**
  * One player's quarter, decomposed into the shots that produced it.
@@ -138,8 +121,8 @@ function shotsForQuarter(player, points, rand) {
   const shots = [];
   if (!line) {
     // No shooting profile - the player still scored, so the points are emitted
-    // as unplaced scoring rather than dropped. Better a shot chart missing a
-    // marker than a scoreboard missing points.
+    // as unplaced scoring rather than dropped. Better a play line missing its
+    // detail than a scoreboard missing points.
     if (points > 0) shots.push({ made: true, points, shotType: FREE_THROW, zone: null });
     return shots;
   }
@@ -158,7 +141,6 @@ function shotsForQuarter(player, points, rand) {
       shotType: kind === 3 ? "three" : "two",
       zone,
       strong: !!(made && ZONES[zone].strong),
-      ...placeInZone(zone, rand),
     });
   };
 
@@ -174,8 +156,8 @@ function shotsForQuarter(player, points, rand) {
   // RECONCILIATION. shooting.js rounds each share independently, so its
   // implied total can sit a point or two either side of what the engine
   // decided. The engine wins, always: the scoreboard is the thing players
-  // check against, and a shot chart that quietly disagrees with it is worse
-  // than no shot chart. Settled in free throws, which are the only scoring
+  // check against, and a play-by-play that quietly disagrees with it is worse
+  // than no play-by-play. Settled in free throws, which are the only scoring
   // unit worth 1 and so the only one that can close any gap exactly.
   //
   // One loop in both directions, not two passes. Removing a made two swings
@@ -357,25 +339,6 @@ function assignAssists(pending, period, rand) {
   }
 }
 
-/**
- * The floor, in four bands, per team.
- *
- * SEVEN zones is the right granularity for placing a shot and the wrong one for
- * reading a chart: fourteen labels on one court is clutter, and on a phone it
- * is unreadable. Four bands is what a person actually says about a game - they
- * killed us inside, we could not hit from outside - and each one still maps
- * cleanly onto the zones underneath it.
- *
- * Counts come straight from the ledger, which reconciles to the engine, so
- * these percentages are the simulation's own shooting rather than a second
- * opinion about it. Zones with no attempts are omitted: "0%" and "never tried"
- * are different claims and only one of them is true.
- */
-// `at` is a fraction of the FULL court from that team's own baseline. Kept
-// clear of the edge on purpose: a label is centred on its anchor and has a
-// minimum readable width, so a band at 0.10 clips past the sideline on a 360px
-// phone - which showed up as an intermittently failing layout audit rather
-// than an obviously broken screen, the worst way for it to show up.
 // ZONE_BANDS and zoneSummary lived here and are gone with the court they were
 // drawn on. The shape they aggregated is still in the ledger - every shot
 // carries its zone - so a text version of the same thing is a reduce away if
