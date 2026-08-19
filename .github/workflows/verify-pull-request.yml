@@ -13,9 +13,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The whole suite, not a hand-picked subset.
+  #
+  # This job used to name eleven steps out of the ~32 in `npm run verify`. Every
+  # check outside that list - pick eligibility, era rotation, the online strategy
+  # contract, NFL realism and gameplans, provenance, kits, banners, icons, bot
+  # difficulty, the Edge Function's outcome builder - ran only on someone's
+  # laptop, if they remembered. A suite that large is worth having only if it is
+  # the thing that gates the merge.
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -27,44 +35,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify sport contracts
-        run: npm run verify:contract
-
-      - name: Verify playable configuration
-        run: npm run verify:playable
-
-      # The rendered screens have to be checked in a real browser. Both bugs
-      # these cover were DOM-render throws that every module-level test walked
-      # straight past - one blanked the draft board, one misaligned every
-      # NBA box score.
+      # Several verify steps drive a real browser, so Chromium is installed
+      # before the suite rather than partway through it.
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Verify ranked search renders
-        run: npm run verify:ranked-search
-
-      - name: Verify box scores render per sport
-        run: npm run verify:box-score
-
-      - name: Verify NFL box-score attribution
-        run: npm run verify:nfl-box-score
-
-      - name: Verify live box-score accumulation and MVP line
-        run: npm run verify:nfl-live-stats
-
-      - name: Verify each sport's game-screen stage
-        run: npm run verify:game-stage
-
-      - name: Verify NFL drive playback and pacing
-        run: npm run verify:nfl-playback
-
-      - name: Verify client/server parity
-        run: npm run verify:parity -- --no-network
-
-      - name: Verify simulation statistically
+      - name: Verify
         env:
           SIM_RUNS: 5000
-        run: npm run verify:simulation
+        run: npm run verify
+
+      # `verify` proves the modules parse and the contracts hold. It does not
+      # prove the app runs - two blank-screen bugs shipped past a green verify
+      # because nothing loaded a page. These do, at desktop and at 360px.
+      - name: Verify the app actually plays
+        run: npm run verify:selftest
+
+      - name: Verify the app plays on a phone
+        run: npm run verify:selftest:mobile
 
       - name: Bundle browser app
         run: npm run bundle
@@ -74,3 +62,15 @@ jobs:
           npx esbuild supabase/functions/simulate-match/index.ts
           --bundle --platform=neutral --format=esm
           --external:jsr:* --outfile=/tmp/simulate-match.js
+
+      # The build stamp is what busts browser caches on deploy, and it is
+      # rewritten by `npm run verify` above. If that rewrite changed the file,
+      # the branch is carrying a stale stamp and the deploy would serve old
+      # modules to anyone with the page cached.
+      - name: Build stamp is current
+        run: |
+          if ! git diff --quiet -- index.html; then
+            echo "index.html's build stamp is out of date. Run 'npm run verify' and commit the result."
+            git --no-pager diff -- index.html
+            exit 1
+          fi

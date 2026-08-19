@@ -231,7 +231,32 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
   const positions = allPos || p.pos || [];
   const eligibleSlots = eligibleOpenSlots({ ...p, pos: positions }, roster, slots);
   const eligible = eligibleSlots.length > 0;
-  const card = document.createElement("div");
+  // A BUTTON when it can be drafted, a div when it cannot.
+  //
+  // These were divs with a click listener, which made the draft board - the
+  // screen where the whole game happens - unusable without a mouse: no focus,
+  // no Enter or Space, and nothing announcing the card as something you can
+  // press. A button is the element that already does all three, so the fix is
+  // to use one rather than to reimplement it with tabindex and a keydown
+  // handler.
+  //
+  // Ineligible players stay divs on purpose. A disabled button is still read
+  // out by some screen readers, and a squad's pool runs to dozens of cards
+  // where only a few fit the open slot - tabbing through the rest to reach
+  // them would be worse than not being able to tab at all.
+  const card = document.createElement(eligible ? "button" : "div");
+  if (eligible) {
+    card.type = "button";
+    // Says what pressing it DOES, because the visible text is a name and a
+    // stat line. Multi-season players open a picker rather than drafting, and
+    // a control that says "Draft" and then asks a question is a small lie.
+    card.setAttribute(
+      "aria-label",
+      seasons.length > 1 ? `${p.name} - choose a season` : `Draft ${p.name}`
+    );
+  } else {
+    card.setAttribute("aria-disabled", "true");
+  }
   card.className =
     "player-card" +
     (eligible ? "" : " disabled") +

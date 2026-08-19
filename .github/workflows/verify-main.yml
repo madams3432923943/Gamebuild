@@ -1,0 +1,69 @@
+name: Verify main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-main
+  cancel-in-progress: false
+
+jobs:
+  # Nothing ran on push to main before this. The PR check was the only gate,
+  # and it is skippable by pushing straight to the branch - which is how a
+  # commit reaches GitHub Pages, since Pages serves the repo root from main.
+  #
+  # WHAT THIS DOES AND DOES NOT DO. Pages deploys from the branch, so this
+  # cannot block a bad deploy: by the time it fails, the site is already
+  # serving that commit. What it does is tell you within minutes instead of
+  # whenever someone next opens a pull request, and it puts a red mark on the
+  # commit that did it.
+  #
+  # To make main genuinely gated, switch the Pages source from "deploy from a
+  # branch" to "GitHub Actions" and have this workflow publish the artifact
+  # after the suite passes. That is a repository setting as much as a workflow
+  # change, so it is written down here rather than done silently - flipping it
+  # without the setting means the site stops updating at all.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify
+        env:
+          SIM_RUNS: 5000
+        run: npm run verify
+
+      - name: Verify the app actually plays
+        run: npm run verify:selftest
+
+      - name: Verify the app plays on a phone
+        run: npm run verify:selftest:mobile
+
+      # The stamp is what stops browsers serving cached modules after a deploy.
+      # A stale one on main means the live site may not pick this commit up at
+      # all, which is the failure mode that produced four "the fix did not work"
+      # reports in a row.
+      - name: Build stamp is current
+        run: |
+          if ! git diff --quiet -- index.html; then
+            echo "index.html's build stamp is out of date on main - the live site may serve stale modules."
+            git --no-pager diff -- index.html
+            exit 1
+          fi

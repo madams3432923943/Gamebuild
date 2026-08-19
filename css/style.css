@@ -1217,6 +1217,25 @@ input[type="text"]:focus-visible {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* An eligible card is a <button> so it can be reached and pressed from a
+     keyboard (renderPlayerCard in js/ui.js). These four undo what the UA
+     stylesheet gives a button and the surrounding rules never expected: its
+     own font, centred text, and a full-width block that the flex row above
+     already handles. Declared on .player-card rather than on button.player-card
+     so both element types stay byte-identical on screen. */
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+/* The whole point of the button: a visible focus ring. Without this the card
+   is reachable by keyboard and invisible while you are on it, which is worse
+   than not being reachable - you cannot tell what Enter would draft. */
+.player-card:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  border-color: var(--accent);
 }
 
 /* Only on devices that actually hover. On a touchscreen there's no hover to
