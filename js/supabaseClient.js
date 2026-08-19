@@ -102,6 +102,22 @@ function siteUrl() {
  */
 export async function signUp(email, username, password) {
   const supabase = await getSupabase();
+
+  // Asked BEFORE sign-up, because afterwards the reason is unrecoverable. The
+  // server rejects a blocked username from a trigger on `profiles`, which fires
+  // inside the handle_new_user trigger on auth.users - so the useful message
+  // ("That username is reserved") is raised deep inside Supabase's own sign-up
+  // transaction, and what reaches the browser is "Database error saving new
+  // user". A player was told the site was broken when what happened was that
+  // they picked a taken word.
+  //
+  // username_rejection_reason() is the same rule the trigger enforces, exposed
+  // as a question instead of an exception, and is the one function anon is
+  // granted (db/migrations/20260819_01) precisely so it can be asked here -
+  // before there is a session to ask with.
+  const rejection = await usernameRejectionReason(username);
+  if (rejection) throw new Error(rejection);
+
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
@@ -109,6 +125,28 @@ export async function signUp(email, username, password) {
   });
   if (error) throw new Error(translateAuthError(error));
   return { session: data.session, needsConfirmation: !data.session };
+}
+
+/**
+ * Why a username would be refused, or null if it is fine.
+ *
+ * Returns null when the RPC itself cannot be reached - a server that has not
+ * had the moderation migration applied has no opinion to offer, and blocking
+ * sign-up on a missing function would be worse than the raw error this exists
+ * to replace. The trigger is still the authority either way; this only decides
+ * whether we can explain the refusal in advance.
+ */
+export async function usernameRejectionReason(username) {
+  const name = (username || "").trim();
+  if (!name) return null;
+  try {
+    const supabase = await getSupabase();
+    const { data, error } = await supabase.rpc("username_rejection_reason", { p_username: name });
+    if (error) return null;
+    return data || null;
+  } catch {
+    return null;
+  }
 }
 
 /** @param identifier an email address, or a legacy username. */
@@ -197,6 +235,15 @@ function translateAuthError(error) {
   }
   if (/rate|too many/i.test(message)) {
     return "Too many attempts - wait a minute and try again.";
+  }
+  // The backstop for a server-side rule the client could not ask about first.
+  // Supabase collapses ANY exception raised inside the sign-up transaction -
+  // including the username moderation trigger's own readable message - into
+  // this one string, so "database error" here almost never means the database
+  // is broken. signUp() checks username_rejection_reason() up front to avoid
+  // ever landing here; this covers the case where that check could not run.
+  if (/database error (saving|creating)/i.test(message)) {
+    return "Couldn't create that account. Try a different username - some are reserved or not allowed.";
   }
   return message;
 }
