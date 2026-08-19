@@ -2220,6 +2220,28 @@ table.box-table th, table.history-table th {
   text-align: center;
 }
 
+/* Privacy and Terms, directly under the disclaimer they belong with. No rule
+   of its own above them - two stacked hairlines read as a broken border - and
+   a real tap target on a phone, where 0.68rem text with default link padding
+   is under every minimum. */
+.legal-links {
+  margin-top: 0.35rem;
+  padding-top: 0;
+  border-top: none;
+}
+
+.legal-links a {
+  color: var(--muted);
+  text-decoration: underline;
+  display: inline-block;
+  padding: 0.35rem 0.25rem;
+}
+
+.legal-links a:hover,
+.legal-links a:focus-visible {
+  color: var(--accent-bright);
+}
+
 .player-name {
   font-family: var(--font-display);
   font-weight: 900;

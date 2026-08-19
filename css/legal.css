@@ -1,0 +1,92 @@
+/* The legal pages: privacy.html and terms.html.
+ *
+ * These are the only two documents outside the app shell, and they are read
+ * rather than operated - so they get reading measure, not app layout. They
+ * still load css/style.css first, so every colour here comes from the same
+ * custom properties the game uses. A second palette on a page about trust
+ * would be the wrong signal to send.
+ *
+ * Small enough to be one file for both pages: splitting it would create the
+ * duplication this exists to avoid. */
+
+.legal-page {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2.5rem var(--page-gutter) 5rem;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.legal-page a {
+  color: var(--accent-bright);
+}
+
+.legal-page .legal-back {
+  display: inline-block;
+  margin-bottom: 2rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.legal-page .legal-back:hover,
+.legal-page .legal-back:focus-visible {
+  color: var(--accent-bright);
+  text-decoration: underline;
+}
+
+.legal-page h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  line-height: 1.15;
+  margin: 0 0 0.35rem;
+}
+
+.legal-page .legal-updated {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 0 0 2.5rem;
+}
+
+.legal-page h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 2.5rem 0 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-page p,
+.legal-page li {
+  margin: 0 0 0.9rem;
+}
+
+.legal-page ul {
+  padding-left: 1.25rem;
+}
+
+.legal-page li::marker {
+  color: var(--accent);
+}
+
+/* The plain-language summary at the top of each document. A person who reads
+ * only this box should still come away with an accurate picture. */
+.legal-page .legal-summary {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 2rem;
+}
+.legal-page .legal-summary p:last-child {
+  margin-bottom: 0;
+}
+
+.legal-page code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+}

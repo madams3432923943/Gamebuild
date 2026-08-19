@@ -1,0 +1,16 @@
+{
+  "name": "Draft Nova",
+  "short_name": "Draft Nova",
+  "description": "Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#d9741f",
+  "icons": [
+    { "src": "/assets/brand/draft-nova-app-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/brand/draft-nova-app-icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/brand/draft-nova-app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

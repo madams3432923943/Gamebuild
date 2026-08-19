@@ -15,7 +15,13 @@
        originally - it needs no network - but the real mark leads. -->
   <link rel="icon" type="image/png" href="assets/brand/draft-nova-icon.png" />
   <link rel="alternate icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌟</text></svg>" />
-  <link rel="apple-touch-icon" href="assets/brand/draft-nova-icon.png" />
+  <!-- A SQUARE icon, not the top-bar mark. iOS does not letterbox what it is
+       given: it stretches it into a square and composites on black, so the
+       258x139 mark arrived on home screens distorted and on the wrong ground.
+       Built by tools/build-app-icons.mjs. -->
+  <link rel="apple-touch-icon" href="assets/brand/draft-nova-app-icon-192.png" />
+  <link rel="manifest" href="site.webmanifest" />
+  <link rel="canonical" href="https://draftnovagame.com/" />
   <title>Draft Nova</title>
 
   <!-- Shared into a chat or a group, the link is the app's first impression.
@@ -25,12 +31,12 @@
   <meta property="og:site_name" content="Draft Nova" />
   <meta property="og:title" content="Draft Nova" />
   <meta property="og:description" content="Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
-  <meta property="og:url" content="https://madams3432923943.github.io/gamebuild/" />
-  <meta property="og:image" content="https://madams3432923943.github.io/gamebuild/assets/brand/draft-nova-lockup.png" />
+  <meta property="og:url" content="https://draftnovagame.com/" />
+  <meta property="og:image" content="https://draftnovagame.com/assets/brand/draft-nova-lockup.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Draft Nova" />
   <meta name="twitter:description" content="Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
-  <meta name="twitter:image" content="https://madams3432923943.github.io/gamebuild/assets/brand/draft-nova-lockup.png" />
+  <meta name="twitter:image" content="https://draftnovagame.com/assets/brand/draft-nova-lockup.png" />
   <script type="importmap">
   {
     "imports": {
@@ -38,7 +44,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=81cf894" />
+  <link rel="stylesheet" href="css/style.css?v=6335a8b" />
 </head>
 <body>
   <header class="top-nav">
@@ -127,6 +133,14 @@
           endorsed by, or sponsored by the NFL, the NBA, or any team. Team names
           and statistics are used to identify real teams and players for a game
           about recalling them.
+        </p>
+        <!-- Under the disclaimer rather than in a footer, for the same reason
+             the disclaimer is here: this is the first screen anybody sees, and
+             it is the screen that asks for an email address. Anything a person
+             should read before handing that over belongs where they are being
+             asked, not one navigation away. -->
+        <p class="legal-note legal-links">
+          <a href="privacy.html">Privacy</a> &middot; <a href="terms.html">Terms</a>
         </p>
       </div>
     </section>
@@ -661,6 +675,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=81cf894"></script>
+  <script type="module" src="js/main.js?v=6335a8b"></script>
 </body>
 </html>
