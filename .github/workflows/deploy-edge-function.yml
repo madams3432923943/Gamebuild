@@ -61,6 +61,20 @@ jobs:
       #                   index.ts; it was checked by regex and a parse.
       - run: npm run verify:nfl-parity
       - run: npm run verify:server-dataset
+
+      # The committed dataset against the LIVE `players` table.
+      #
+      # This lives here and NOT in the PR gate on purpose. It compares the repo
+      # against mutable production state, so it can go red without anyone
+      # touching the code - which is exactly what happened when the PR job was
+      # widened to the whole suite: an unrelated PR was blocked by a dataset
+      # drift that had been sitting in the table for weeks. A check a
+      # contributor cannot fix from their branch does not belong on their PR.
+      #
+      # A deploy is the right place for it: datasetStats normalizes every
+      # matchup, so shipping an engine against a drifted table changes online
+      # box scores even with identical engine code.
+      - run: npm run verify:live
       - run: npm run verify:edge-outcome
 
       - name: Deploy simulate-match
