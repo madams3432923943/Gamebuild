@@ -78,6 +78,7 @@ import {
   subjectVerb,
   renderFullBoxScore,
   renderScoreboard,
+  setScoreboardStatus,
   renderProfileScreen,
   renderHomeHeader,
   renderBadgeCollection,
@@ -3027,6 +3028,14 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // The whole game's playback, built as data before a single timer starts.
   let timeline = { events: [], totalMs: 0 };
   const fieldTimers = [];
+  // The board's centre cell has TWO writers: the per-play loop below, and
+  // tickScoreTo's 60ms score animation, which re-renders the whole board for
+  // QUARTER_TICK_MS at the start of every period. Without one value they both
+  // read, the score animation spends the first 1.5s of each quarter painting
+  // "Q3 in progress" over a clock that is trying to count down, and the clock
+  // appears to freeze at every period break. Whoever writes last wins is not a
+  // design; this is.
+  let liveStatus = null;
   if (sport().presentation.stage === "field" && Array.isArray(result.drives) && result.drives.length) {
     fieldRefs = sport().presentation.renderField(footballFieldEl, labelA, labelB);
     timeline = sport().presentation.buildTimeline?.(result.drives) || timeline;
@@ -3173,7 +3182,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     for (const event of ofPeriod) {
       fieldTimers.push(
         setTimeout(() => {
-          sport().presentation.showEvent(fieldRefs, event, { clock: event.clock });
+          sport().presentation.showEvent(fieldRefs, event);
+          // The clock belongs on the board, where a broadcast puts it and
+          // where the eye already is. Sports without a play clock leave this
+          // hook off and keep the board's plain period text.
+          liveStatus = sport().presentation.liveStatusLabel?.(event) || liveStatus;
+          setScoreboardStatus(liveScoreboard, liveStatus);
           // Only the moments worth reading go to the feed. Every snap would
           // be a wall of text nobody follows, and the ball already showed the
           // ordinary ones.
@@ -3286,10 +3300,18 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         remaining,
         Math.round(fromA2 + (toA - fromA2) * eased),
         Math.round(fromB2 + (toB - fromB2) * eased),
-        done ? doneLabel : duringLabel,
+        done ? doneLabel : liveStatus || duringLabel,
         true
       );
+      // renderScoreboard REBUILDS the centre cell, so the ticking state has to
+      // go back on after it. Without this the class survives exactly until the
+      // next score frame and the clock blinks anyway - which is precisely how
+      // this shipped the first time.
+      if (!done && liveStatus) setScoreboardStatus(liveScoreboard, liveStatus);
       if (done) {
+        // The period is over: drop the last clock reading so the next quarter
+        // does not open showing the previous one's final seconds.
+        liveStatus = null;
         clearInterval(tick);
         if (onDone) onDone();
       }
@@ -3547,7 +3569,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       return { idx, label: idx >= REGULATION_PERIODS ? `OT${idx - REGULATION_PERIODS + 1}` : `Q${idx + 1}` };
     };
 
-    const paint = (statusLabel) => {
+    const paint = (statusLabel, ticking = false) => {
       const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
       renderScoreboard(
         liveScoreboard,
@@ -3560,6 +3582,8 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         statusLabel,
         true
       );
+      // Same rebuild, same reason as tickScoreTo above.
+      if (ticking) setScoreboardStatus(liveScoreboard, statusLabel);
     };
 
     /**
@@ -3591,7 +3615,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           runningA = score.A;
           runningB = score.B;
 
-          if (fieldRefs) sport().presentation.showEvent(fieldRefs, event, { clock: event.clock });
+          if (fieldRefs) sport().presentation.showEvent(fieldRefs, event);
           // Only the moments worth reading go to the feed - every snap would
           // be a wall of text nobody follows, and the ball already showed the
           // ordinary ones.
@@ -3634,7 +3658,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
             publishPeriod(event.quarter);
           } else {
             const named = labelForQuarter(event.quarter);
-            paint(named ? `${named.label} in progress` : openingLabel());
+            // Football puts the running clock in the board's centre cell.
+            // Online repaints the board once per event anyway, so unlike the
+            // offline path this needs no second writer - the clock is just a
+            // better status label.
+            const ticking = sport().presentation.liveStatusLabel?.(event);
+            paint(ticking || (named ? `${named.label} in progress` : openingLabel()), !!ticking);
           }
         }, event.atMs)
       );

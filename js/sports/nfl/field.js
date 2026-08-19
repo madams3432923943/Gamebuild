@@ -35,10 +35,14 @@ export function renderField(container, labelA, labelB) {
 
   const status = document.createElement("div");
   status.className = "ff-status";
+  // Down & distance and possession only. The quarter, the clock and the score
+  // used to sit here too, and all three were already on the scoreboard six
+  // inches above - the strip was reprinting the board and burying the clock,
+  // the one number that changes every play, at the far left of a row nobody
+  // was reading. The clock now lives in the board's centre cell, where a real
+  // broadcast puts it; see liveStatusLabel() below. What is left here is what
+  // the board genuinely cannot show.
   status.innerHTML =
-    `<span class="ff-quarter"></span>` +
-    `<span class="ff-clock"></span>` +
-    `<span class="ff-score"></span>` +
     `<span class="ff-downdist"></span>` +
     // Whose ball it is, said in a chip rather than only in prose. The colour
     // and the side it sits on carry it for anyone not reading the words.
@@ -94,13 +98,30 @@ export function renderField(container, labelA, labelB) {
   container.append(status, field, call);
   return {
     container, turf, trail, ball, call, scrimmage, firstDown, arrow,
-    quarter: status.querySelector(".ff-quarter"),
-    clock: status.querySelector(".ff-clock"),
-    score: status.querySelector(".ff-score"),
     downDist: status.querySelector(".ff-downdist"),
     possession: status.querySelector(".ff-possession"),
     labelA, labelB,
   };
+}
+
+/**
+ * What the scoreboard's centre cell should read during football playback -
+ * "Q3 · 12:29", or "OT1 · 4:02" past regulation.
+ *
+ * FOOTBALL ANSWERS THIS, SHARED CODE ASKS IT. js/ui.js renders one scoreboard
+ * for every sport, so it cannot know that football has a play clock and
+ * basketball does not. It calls activeSport().presentation.liveStatusLabel and
+ * uses whatever comes back; a sport that returns null keeps the plain
+ * "Q3 in progress" the board has always shown. A football branch inside ui.js
+ * would be the same mistake that once dealt PG/SG/SF/PF/C in an NFL draft.
+ *
+ * Returns null rather than a partial label when the event carries no clock -
+ * half a status line is worse than the static one it replaced.
+ */
+export function liveStatusLabel(event) {
+  if (!event || !event.clock) return null;
+  const period = event.quarter > 4 ? `OT${event.quarter - 4}` : `Q${event.quarter || 1}`;
+  return `${period} · ${event.clock}`;
 }
 
 /** Ordinal for the down. "1st and 10" - never "1th". */
@@ -115,7 +136,7 @@ function ordinalDown(down) {
  * this never has to remember what came before. That is what stops the ball and
  * the chains drifting apart if playback is resumed or a frame is missed.
  */
-export function showEvent(refs, event, opts = {}) {
+export function showEvent(refs, event) {
   if (!refs || !event) return;
 
   // WHOSE BALL IT IS, WITHOUT READING ANYTHING.
@@ -181,10 +202,6 @@ export function showEvent(refs, event, opts = {}) {
     refs.arrow.classList.add("hidden");
   }
 
-  const periodName = event.quarter > 4 ? `OT${event.quarter - 4}` : `Q${event.quarter || 1}`;
-  refs.quarter.textContent = periodName;
-  refs.clock.textContent = opts.clock || "";
-  refs.score.textContent = `${refs.labelA} ${Math.round(event.scoreA || 0)} — ${Math.round(event.scoreB || 0)} ${refs.labelB}`;
   refs.downDist.textContent =
     event.down && event.distance
       ? `${ordinalDown(event.down)} & ${event.distance}${event.possession ? ` · ${event.possession === "A" ? refs.labelA : refs.labelB}` : ""}`

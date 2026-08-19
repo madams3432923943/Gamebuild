@@ -85,7 +85,7 @@ import {
   planFor, normalizeStrategy, plansFor, randomStrategy, formatStrategy,
   serializeStrategy, parseStrategy,
 } from "./tactics.js";
-import { renderField, showEvent } from "./field.js";
+import { renderField, showEvent, liveStatusLabel } from "./field.js";
 import { buildTimeline, createLiveState, applyEvent, liveBox, liveScore } from "./playback.js";
 
 /** The order a football roster is READ in, which is not the order it is
@@ -218,6 +218,10 @@ export const NFL = {
     stage: "field",
     renderField,
     showEvent,
+    // The scoreboard's centre cell during playback. Football has a play clock
+    // to put there; basketball does not implement this and keeps the board's
+    // plain period text.
+    liveStatusLabel,
     buildTimeline, createLiveState, applyEvent, liveBox, liveScore,
   },
 
