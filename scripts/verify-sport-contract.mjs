@@ -66,6 +66,23 @@ const REQUIRED_SHAPES = {
   gradeDraft: { fields: ["letter", "headline", "reasons"], arrays: ["reasons"] },
 };
 
+/** Hooks inside `presentation`, per stage.
+ *
+ * "presentation" in REQUIRED_VALUES only checks that the KEY exists, so an
+ * empty object passed - and a sport declaring stage "field" with no renderField
+ * would fail at the first snap rather than at the build. These are the ones
+ * shared code calls unconditionally once a stage is declared. */
+const REQUIRED_PRESENTATION = {
+  field: ["renderField", "showEvent", "buildTimeline", "createLiveState", "applyEvent", "liveBox", "liveScore"],
+  board: [],
+};
+
+/** liveStatusLabel writes straight into the scoreboard's centre cell, so a
+ * sport returning anything but a string or null puts "[object Object]" between
+ * the two scores. Optional by design: basketball has no play clock and omits
+ * it, which is why shared code calls it with ?. */
+const SAMPLE_EVENT = { quarter: 3, clock: "12:29", scoreA: 9, scoreB: 7, possession: "A", down: 4, distance: 1 };
+
 
 /** WCAG 2.1 relative luminance, then the contrast ratio between two colours.
  *
@@ -110,6 +127,29 @@ for (const meta of SPORTS) {
   for (const key of Object.keys(sport?.statLabels || {})) {
     if (!(sport.lineKeys || []).includes(key)) missing.push(`statLabels.${key} is not in lineKeys`);
   }
+  // The stage a sport declares brings obligations with it.
+  const stage = sport?.presentation?.stage;
+  if (stage && !(stage in REQUIRED_PRESENTATION)) {
+    missing.push(`presentation.stage "${stage}" is not a stage shared code knows how to show`);
+  }
+  for (const hook of REQUIRED_PRESENTATION[stage] || []) {
+    if (typeof sport?.presentation?.[hook] !== "function") missing.push(`presentation.${hook}`);
+  }
+  // Optional, but if present it has to answer with something a board can print.
+  if (sport?.presentation?.liveStatusLabel !== undefined) {
+    if (typeof sport.presentation.liveStatusLabel !== "function") {
+      missing.push("presentation.liveStatusLabel is not a function");
+    } else {
+      const label = sport.presentation.liveStatusLabel(SAMPLE_EVENT);
+      if (label !== null && typeof label !== "string") {
+        missing.push(`presentation.liveStatusLabel returned ${typeof label}, not a string or null`);
+      }
+      if (sport.presentation.liveStatusLabel({}) === undefined) {
+        missing.push("presentation.liveStatusLabel returned undefined for an event with no clock - return null");
+      }
+    }
+  }
+
   // Hooks are CALLED, not just counted. Everything above checks that a
   // function exists; this checks it returns what shared code reads.
   for (const [fn, spec] of Object.entries(REQUIRED_SHAPES)) {

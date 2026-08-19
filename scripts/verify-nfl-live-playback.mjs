@@ -85,6 +85,16 @@ const SAMPLE = () => {
     periods: periodHeads,
     boxTotal,
     status: text("#live-scoreboard .scoreboard-period"),
+    // The clock must not inherit .scoreboard-period.live's blink: that rule
+    // drops the cell to 0.35 opacity twice a second, which is fine under
+    // static text and unreadable under digits that change every play.
+    // renderScoreboard rebuilds this element, so the state has to be re-applied
+    // after every board paint - it was not, the first time this shipped.
+    statusBlinking: (() => {
+      const el = document.querySelector("#live-scoreboard .scoreboard-period");
+      if (!el) return false;
+      return getComputedStyle(el).animationName !== "none";
+    })(),
     finalShown: !document.querySelector("#final-banner")?.classList.contains("hidden"),
     finalText: text("#final-banner"),
     // The way OUT of the game. These are unhidden at the very end of the
@@ -412,9 +422,35 @@ async function main() {
     const maxDriveSummaries = samples.reduce((m, s) => Math.max(m, s.driveSummaries || 0), 0);
     const sawManyDriveSummaries = maxDriveSummaries >= 2;
 
+    // THE CLOCK IS ON THE BOARD, AND IT MOVES.
+    //
+    // It used to sit in the field strip below, at the left end of a row that
+    // also reprinted the quarter and the score the board already showed. Two
+    // things have to hold now: the board's centre cell reads as a clock, and
+    // the reading CHANGES - a clock that renders once and freezes looks fine
+    // in a screenshot and is the actual bug worth catching. tickScoreTo
+    // re-renders the whole board every 60ms for the first 1.5s of each
+    // quarter, so a frozen clock here means that race came back.
+    const clockLike = /^(Q[1-4]|OT\d+) · \d+:\d{2}$/;
+    const clockSamples = samples.map((s) => s.status).filter((t) => clockLike.test(t || ""));
+    const distinctClocks = new Set(clockSamples).size;
+    const sawClockOnBoard = clockSamples.length > 0;
+    const clockCountsDown = distinctClocks >= 3;
+    const blinkingClocks = samples.filter((s) => clockLike.test(s.status || "") && s.statusBlinking).length;
+
     checks.push(
       { title: "A football game plays to a final score in the browser", ok: reachedFinal,
         detail: reachedFinal ? `${last.finalText} after ${(elapsedMs / 1000).toFixed(1)}s` : "no final banner appeared" },
+      { title: "The game clock is in the scoreboard, not the field strip", ok: sawClockOnBoard,
+        detail: sawClockOnBoard
+          ? `board centre read "${clockSamples[0]}"`
+          : `no sample matched a clock; board centre read "${samples.find((s) => s.status)?.status || "(empty)"}"` },
+      { title: "The clock on the board counts down as plays run", ok: clockCountsDown,
+        detail: `${distinctClocks} distinct readings across ${clockSamples.length} samples` },
+      { title: "The clock does not blink", ok: blinkingClocks === 0,
+        detail: blinkingClocks === 0
+          ? `all ${clockSamples.length} clock samples had the blink suppressed`
+          : `${blinkingClocks} of ${clockSamples.length} clock samples were mid-blink - .live's animation is reaching the clock` },
       { title: "Playback opens with nothing revealed", ok: !!cleanStart,
         detail: first ? `${first.periods.length} quarter columns, ${first.scoreA}-${first.scoreB} on the board` : "no samples" },
       { title: "Quarter columns appear as quarters end, never all at once", ok: monotonicPeriods && distinctPeriodCounts >= 3,

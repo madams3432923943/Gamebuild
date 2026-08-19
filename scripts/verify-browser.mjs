@@ -1051,7 +1051,8 @@ export async function runBrowserChecks(opts = {}) {
               const t = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
               const nums = (t("#live-scoreboard .scoreboard-score") || "").trim();
               return {
-                clock: t(".ff-clock"),
+                // The clock lives in the board's centre cell, not the field strip.
+                clock: t("#live-scoreboard .scoreboard-period"),
                 score: nums || t("#live-scoreboard"),
                 feed: document.querySelectorAll("#play-feed .play-card").length,
                 gameVisible: !document.querySelector("#screen-game")?.classList.contains("hidden"),

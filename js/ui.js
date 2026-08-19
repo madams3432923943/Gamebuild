@@ -808,6 +808,32 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
   container.appendChild(grid);
 }
 
+/**
+ * Rewrites just the scoreboard's centre cell, leaving the rest of the board
+ * alone.
+ *
+ * WHY NOT CALL renderScoreboard AGAIN. Football updates this on every play -
+ * roughly 130 times a game - and renderScoreboard rebuilds the team rows and
+ * the whole period table from scratch. Throwing away and re-parsing a table to
+ * change one string is the kind of per-row rebuild that has already frozen this
+ * app once. One textContent write costs nothing.
+ *
+ * Silently does nothing if the board has not been rendered yet, so a caller
+ * racing the first paint cannot throw.
+ */
+export function setScoreboardStatus(container, text) {
+  if (!container || !text) return;
+  const period = container.querySelector(".scoreboard-period");
+  if (!period) return;
+  period.textContent = text;
+  // A ticking clock IS the liveness tell, so it must not also blink.
+  // .scoreboard-period.live fades to 0.35 opacity twice a second, which was a
+  // low-key "this is live" cue under static text and is unreadable under a
+  // number that changes every play - the one thing on the board you are
+  // actually trying to read would be missing half the time it is on screen.
+  period.classList.add("ticking");
+}
+
 export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
   badgeContainer.innerHTML = "";
   const badge = document.createElement("span");

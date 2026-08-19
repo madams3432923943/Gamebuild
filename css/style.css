@@ -1429,6 +1429,17 @@ input[type="text"]:focus-visible {
   animation: blink-live 1s steps(2, start) infinite;
 }
 
+/* Football's clock counts down in here, and a blinking clock is unreadable -
+   the digits would be at 0.35 opacity half the time they are on screen. The
+   movement of the clock says "live" on its own, which is the whole job the
+   blink was doing. Set by setScoreboardStatus in js/ui.js; a sport with no
+   play clock never gets the class and keeps the blink. */
+.scoreboard-period.live.ticking {
+  animation: none;
+  color: var(--scoreboard);
+  opacity: 1;
+}
+
 @keyframes blink-live {
   50% { opacity: 0.35; }
 }
@@ -4866,18 +4877,11 @@ html, body {
   color: var(--muted);
 }
 
-.ff-quarter,
-.ff-clock {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: var(--accent-bright);
-}
-
-.ff-score {
-  font-weight: 700;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
+/* .ff-quarter, .ff-clock and .ff-score used to live here. All three reprinted
+   what the scoreboard directly above already showed, and the clock - the one
+   number that changes every play - was buried at the left end of the row. The
+   clock now sits in the board's centre cell; see liveStatusLabel() in
+   js/sports/nfl/field.js. */
 
 .ff-downdist {
   font-weight: 600;
