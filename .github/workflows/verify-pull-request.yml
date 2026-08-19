@@ -15,7 +15,7 @@ concurrency:
 jobs:
   # The whole suite, not a hand-picked subset.
   #
-  # This job used to name eleven steps out of the ~32 in `npm run verify`. Every
+  # This job used to name eleven steps out of the ~34 in `npm run verify`. Every
   # check outside that list - pick eligibility, era rotation, the online strategy
   # contract, NFL realism and gameplans, provenance, kits, banners, icons, bot
   # difficulty, the Edge Function's outcome builder - ran only on someone's
@@ -26,6 +26,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # verify:stamp compares this commit against its parent.
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         with:
@@ -34,6 +37,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # BEFORE the suite, because `npm run verify` re-stamps index.html as a
+      # side effect and would mask exactly what this looks for.
+      #
+      # It asks whether the stamp MOVED when js/ or css/ moved - not whether it
+      # equals HEAD. stamp-build.mjs runs before the commit containing its own
+      # output exists, so the stamp is always one commit behind by construction
+      # and two behind on a merge. A check demanding equality goes red on every
+      # merge and trains everyone to ignore it.
+      - name: Build stamp moved with the code
+        run: npm run verify:stamp
 
       # Several verify steps drive a real browser, so Chromium is installed
       # before the suite rather than partway through it.
@@ -63,14 +77,3 @@ jobs:
           --bundle --platform=neutral --format=esm
           --external:jsr:* --outfile=/tmp/simulate-match.js
 
-      # The build stamp is what busts browser caches on deploy, and it is
-      # rewritten by `npm run verify` above. If that rewrite changed the file,
-      # the branch is carrying a stale stamp and the deploy would serve old
-      # modules to anyone with the page cached.
-      - name: Build stamp is current
-        run: |
-          if ! git diff --quiet -- index.html; then
-            echo "index.html's build stamp is out of date. Run 'npm run verify' and commit the result."
-            git --no-pager diff -- index.html
-            exit 1
-          fi
