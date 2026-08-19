@@ -11,9 +11,32 @@ below are a partial history rather than a complete one. A preview database
 built from them alone would come up missing `profiles`, `matches`, `players`
 and everything else.
 
-To apply a new change: write the file here, then run it against the project
-(Supabase SQL editor, CLI, or MCP). Keep the two in step — a file here that was
-never applied, or a change applied without a file, is worse than neither.
+To apply a new change: write the file here, run it against the project
+(Supabase SQL editor, CLI, or MCP), and add a row to `applied.tsv`. All three.
+A file here that was never applied, or a change applied without a file, is
+worse than neither.
+
+## `applied.tsv`
+
+The map from an applied migration to the file describing it, because the live
+migration NAME and the repo FILENAME are different identifiers and always will
+be. `npm run verify:schema` reads the project's own
+`supabase_migrations.schema_migrations` and fails on anything missing from it.
+
+It is not in `npm run verify`: it needs a database connection.
+
+    SUPABASE_DB_URL=postgres://... npm run verify:schema
+
+Run it before a release and after applying anything. Without the connection
+string it still checks the offline half - that every row points at a real file,
+and that every file is claimed by a row - and says plainly that it could not
+reach the database.
+
+This check exists because both halves of a real failure went unnoticed for over
+a week: two features (`account_deletion`, `content_moderation`) were applied
+with no file at all, and a P0 fix was silently reverted by a later migration
+that had a perfectly good file of its own. Nothing was comparing either against
+the live database.
 
 If the schema ever needs to become fully reproducible, the way there is to dump
 the live database as a baseline migration, move this directory back under

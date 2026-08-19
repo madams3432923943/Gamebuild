@@ -1,0 +1,97 @@
+# Which applied migration is documented by which file.
+#
+# WHY THIS FILE EXISTS
+#
+# db/ is documentation of what was applied, and it had drifted badly: 65
+# migrations were applied to the live project and 39 files described them. Two
+# whole features - account deletion and content moderation - existed only in
+# production. A P0 fix (security_invoker on matches_public) was silently undone
+# by a later migration and nothing noticed for eight days.
+#
+# The live migration NAME and the repo FILENAME do not match each other, and
+# should not have to: one is a Supabase identifier, the other is a date-ordered
+# document. So the mapping is written down rather than guessed at, and
+# scripts/verify-schema-documented.mjs fails when a version applied to the
+# project is missing from this list.
+#
+# Columns are tab-separated: version, name, file.
+#
+# The file column takes one of three values:
+#   db/migrations/<name>.sql   the file documenting it
+#   PRE-DB                     applied before db/ existed. db/README.md is
+#                              explicit that this directory is a partial
+#                              history, not a baseline - these are the part it
+#                              never covered, and backfilling them means
+#                              dumping the schema, which is a different job
+#                              (see db/README.md's last paragraph).
+#   FOLDED:<file>              applied as its own migration, documented inside
+#                              a file that covers the whole change.
+#
+# ADDING A MIGRATION: write the file, apply it, add its row here. All three, or
+# the check fails - which is the point.
+
+20260721204003	ball_knowledge_core_schema	PRE-DB
+20260721204051	ball_knowledge_rpc_functions	PRE-DB
+20260721204529	restrict_internal_helper_functions	PRE-DB
+20260721204555	restrict_internal_helpers_from_public	PRE-DB
+20260721204825	profile_history_and_tamper_protection	PRE-DB
+20260721205346	restrict_match_roster_visibility	PRE-DB
+20260727165603	add_career_totals_to_profiles	PRE-DB
+20260727185320	add_banner_progress_to_profiles	PRE-DB
+20260727185821	add_featured_badges_to_profiles	PRE-DB
+20260727190011	award_banner_progress_on_ranked_win	PRE-DB
+20260729190855	presence_ticker	db/migrations/20260729_01_presence.sql
+20260729191226	era_records	db/migrations/20260729_02_era_records.sql
+20260729191749	presence_lock_down_table_grants	FOLDED:db/migrations/20260729_01_presence.sql
+20260730031507	add_profile_stat_records	db/migrations/20260730_01_profile_stat_records.sql
+20260730032915	add_profile_mvp_counts	db/migrations/20260730_02_profile_mvp_counts.sql
+20260730123052	create_squads	db/migrations/20260730_03_squads.sql
+20260730123114	squads_helpers_and_policies	FOLDED:db/migrations/20260730_03_squads.sql
+20260730123155	squads_rpcs	FOLDED:db/migrations/20260730_03_squads.sql
+20260730123301	fix_create_squad_broken_placeholder	FOLDED:db/migrations/20260730_03_squads.sql
+20260730123332	squads_join_leave_rpcs	FOLDED:db/migrations/20260730_03_squads.sql
+20260730123358	squads_management_rpcs	FOLDED:db/migrations/20260730_03_squads.sql
+20260730130118	add_squad_rep	db/migrations/20260730_04_squad_rep.sql
+20260730134124	create_friendships	db/migrations/20260730_06_friends.sql
+20260730134413	add_friendly_matches	FOLDED:db/migrations/20260730_06_friends.sql
+20260730150428	sport_scope_matchmaking	db/migrations/20260731_01_sport_scope_matchmaking.sql
+20260730155545	players_add_shooting_columns	FOLDED:db/migrations/20260730_01_players_sync_real_dataset.sql
+20260730155805	enable_http_extension	FOLDED:db/migrations/20260730_01_players_sync_real_dataset.sql
+20260730155844	players_sync_real_dataset	db/migrations/20260730_01_players_sync_real_dataset.sql
+20260730173004	stale_match_cleanup_and_cancel	db/migrations/20260730_02_stale_match_cleanup_and_cancel.sql
+20260730181323	online_ranked_parity_and_era_scoping	db/migrations/20260730_03_online_ranked_parity_and_era_scoping.sql
+20260730181517	submit_pick_shooting_fields	FOLDED:db/migrations/20260730_03_online_ranked_parity_and_era_scoping.sql
+20260730195333	add_show_top_era_to_profiles	FOLDED:db/migrations/20260731_02_default_rookie_banner.sql
+20260730224614	default_rookie_banner_and_drop_show_top_era	db/migrations/20260731_02_default_rookie_banner.sql
+20260730224820	squad_rep_tournaments_only	db/migrations/20260731_03_squad_rep_tournaments_only.sql
+20260731053012	per_sport_records	db/migrations/20260731_05_per_sport_records.sql
+20260731053208	harden_protect_sport_ratings_search_path	FOLDED:db/migrations/20260731_05_per_sport_records.sql
+20260731135549	fix_match_results_read_permission	db/migrations/20260731_06_fix_match_results_read.sql
+20260804174558	forfeited_picks	db/migrations/20260803_01_forfeited_picks.sql
+20260804174924	username_from_signup_metadata	db/migrations/20260804_01_username_from_signup_metadata.sql
+20260805155230	players_by_season	db/migrations/20260805_02_players_by_season.sql
+20260805160318	submit_pick_with_season	FOLDED:db/migrations/20260805_02_players_by_season.sql
+20260805164910	match_picks_season	db/migrations/20260805_03_match_picks_season.sql
+20260805165011	submit_pick_records_season	db/migrations/20260805_04_submit_pick_records_season.sql
+20260806005951	ranked_integrity_hardening_phase1	db/migrations/20260805_01_ranked_integrity_hardening.sql
+20260806010024	anonymous_rpc_and_private_table_hardening	FOLDED:db/migrations/20260805_01_ranked_integrity_hardening.sql
+20260806010041	atomic_match_finalizer	FOLDED:db/migrations/20260805_01_ranked_integrity_hardening.sql
+20260806013042	rls_and_index_performance_hardening	db/migrations/20260805_02_rls_and_index_performance_hardening.sql
+20260806013452	security_definer_permissions_manifest	db/migrations/20260805_03_security_definer_permissions.sql
+20260811042636	nfl_dual_gameplans	db/migrations/20260811_01_nfl_dual_gameplans.sql
+20260811162556	http_get_wrapper	db/migrations/20260811_00_http_get_wrapper.sql
+20260811162650	online_sport_mode_matchmaking	db/migrations/20260811_01_online_sport_mode_matchmaking.sql
+20260811162917	online_pool_authenticated_grants	db/migrations/20260811_02_online_pool_grants.sql
+20260811163927	sport_result_payload	db/migrations/20260811_03_sport_result_payload.sql
+20260812031109	sport_aware_challenges	db/migrations/20260812_01_sport_aware_challenges.sql
+20260813040844	account_deletion	db/migrations/20260813_01_account_deletion.sql
+20260813040935	content_moderation	db/migrations/20260813_02_content_moderation.sql
+20260814210812	era_balanced_squad_rolls_helper	db/migrations/20260814_01_era_balanced_squad_rolls.sql
+20260814211053	era_balanced_squad_rolls_callers	FOLDED:db/migrations/20260814_01_era_balanced_squad_rolls.sql
+20260815054048	matchups_match_the_roster	db/migrations/20260815_01_matchups_match_the_roster.sql
+20260817161744	team_kits	db/migrations/20260816_01_team_kits.sql
+20260817181953	granted_unlocks	db/migrations/20260817_01_granted_unlocks.sql
+20260818165701	profile_icons_and_mvp_teams	db/migrations/20260818_01_profile_icons_and_mvp_teams.sql
+20260818165815	protect_mvp_teams	FOLDED:db/migrations/20260818_01_profile_icons_and_mvp_teams.sql
+20260819145220	definer_grant_sweep_and_view_invoker	db/migrations/20260819_01_definer_grant_sweep_and_view_invoker.sql
+20260819145435	rpc_rate_limits	db/migrations/20260819_02_rpc_rate_limits.sql
