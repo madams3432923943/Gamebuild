@@ -8,9 +8,16 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: verify-main
-  cancel-in-progress: false
+# NO CONCURRENCY GROUP, deliberately.
+#
+# This had `group: verify-main` with cancel-in-progress: false, on the theory
+# that runs would queue. They do not: GitHub keeps at most ONE pending run per
+# group and cancels the older one, so a burst of merges leaves every commit but
+# the last unverified. Four runs, three cancelled, zero completed - main was
+# never actually verified once.
+#
+# Every commit on main gets its own run. That is the entire point of a workflow
+# whose job is to tell you which commit broke something.
 
 jobs:
   # Nothing ran on push to main before this. The PR check was the only gate,
@@ -28,9 +35,13 @@ jobs:
   # after the suite passes. That is a repository setting as much as a workflow
   # change, so it is written down here rather than done silently - flipping it
   # without the setting means the site stops updating at all.
-  verify:
+  # Split node/browser for the same reason as verify-pull-request.yml: only six
+  # of the 34 steps drive Chromium, and one serial job ran 25-30 minutes
+  # against a 30-minute ceiling.
+  node:
+    name: verify (node)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,13 +68,31 @@ jobs:
       - name: Build stamp moved with the code
         run: npm run verify:stamp
 
+      - name: Verify (node)
+        env:
+          SIM_RUNS: 5000
+        run: npm run verify:node
+
+  browser:
+    name: verify (browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Verify
-        env:
-          SIM_RUNS: 5000
-        run: npm run verify
+      - name: Verify (browser)
+        run: npm run verify:browser
 
       - name: Verify the app actually plays
         run: npm run verify:selftest
