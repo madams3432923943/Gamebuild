@@ -521,9 +521,17 @@ export const NFL = {
   // draftAnalysis below passes the array.
   gradeDraft: (roster, ctx, opts) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), opts),
   // Football's counterpart to basketball's counterplay read: how your roster
-  // stacks against theirs, side of the ball by side of the ball.
+  // stacks against theirs, slot by slot.
+  //
+  // This used to accept oppRoster and pass only `forfeits`, so the opponent was
+  // silently discarded and the "counterplay read" was the solo draft grade a
+  // second time. It is passed through now, in the options shape draftGrade
+  // normalises - which is also why draftGrade grew opponentRoster().
   draftAnalysis: (roster, oppRoster, ctx, forfeits) =>
-    draftGrade(roster, ctx ?? NFL.computeDatasetStats(), forfeits),
+    draftGrade(roster, ctx ?? NFL.computeDatasetStats(), {
+      forfeits: Array.isArray(forfeits) ? forfeits : [],
+      oppRoster,
+    }),
   shotLine: () => null,
   formatShotLine: () => "",
 

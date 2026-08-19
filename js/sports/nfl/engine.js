@@ -100,7 +100,7 @@ import {
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
 } from "./constants.js";
 import { buildRatingContext, rateEntry, isUnit } from "./units.js";
-import { composedModsFor } from "./tactics.js";
+import { composedModsFor, affinityRevealFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
   const ctx = buildRatingContext(players, units);
@@ -1505,6 +1505,15 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     quarterBoxScores, drives, overtimePeriods,
     coinToss: { winner: tossWinner, elected, firstHalfReceiver },
     winner: teamScoreA === teamScoreB ? null : teamScoreA > teamScoreB ? "A" : "B",
-    analysis: { offA, offB, defA, defB },
+    analysis: {
+      offA, offB, defA, defB,
+      // Which of each side's players were built for the plan that side ran.
+      // Computed here rather than in the recap because this is the only place
+      // that holds both the roster and the strategy - and it travels in the
+      // result so an online game, whose simulation happened on the server,
+      // reveals exactly what an offline one does.
+      affinityA: affinityRevealFor(opts.strategyA ?? opts.tacticA, rosterA),
+      affinityB: affinityRevealFor(opts.strategyB ?? opts.tacticB, rosterB),
+    },
   };
 }

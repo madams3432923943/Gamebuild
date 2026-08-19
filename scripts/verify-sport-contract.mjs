@@ -135,6 +135,63 @@ for (const meta of SPORTS) {
       missing.push(`${fn}() threw: ${e.message}`);
     }
   }
+  // The opponent is READ, not just accepted.
+  //
+  // NFL.draftAnalysis took (roster, oppRoster, ctx, forfeits) and passed only
+  // the forfeits on, so football's "how your roster stacks against theirs" was
+  // the solo draft grade printed twice. Nothing caught it because the output
+  // was a plausible grade with plausible sentences under it - the failure mode
+  // CLAUDE.md names, where a believable wrong answer outlives an obvious one.
+  //
+  // Checked on the OUTPUT rather than by diffing two runs: a roster comparison
+  // can legitimately come out even, so "these two readings differ" is not a
+  // property that always holds. "The grade named one of their players" is.
+  if (typeof sport?.gradeDraft === "function") {
+    try {
+      const ctx = sport.computeDatasetStats(sport.players(), sport.units?.());
+      const all = ctx.__allEntries || sport.playersInEra(sport.players(), sport.defaultEra);
+      const build = (pool) => {
+        const roster = {};
+        const used = new Set();
+        for (const slot of sport.slots.quickPlay) {
+          const base = String(sport.basePosition(slot)).toUpperCase();
+          const fit = pool.find(
+            (e) =>
+              !used.has(e.name) &&
+              (String(e.group || "").toUpperCase() === base ||
+                (e.pos || []).some((p) => String(p).toUpperCase() === base))
+          );
+          if (fit) {
+            roster[slot] = fit;
+            used.add(fit.name);
+          }
+        }
+        return roster;
+      };
+
+      const mine = build(all);
+      // Drawn from the other end of the pool, so the two rosters share no names
+      // and "did it name one of THEIRS" is an unambiguous question.
+      const theirs = build([...all].reverse());
+      const myNames = new Set(Object.values(mine).map((p) => p.name));
+      const theirNames = Object.values(theirs)
+        .map((p) => p.name)
+        .filter((n) => !myNames.has(n));
+
+      const graded = sport.gradeDraft(mine, ctx, { oppRoster: theirs, forfeits: [] });
+      const text = (graded?.reasons || []).join(" ");
+      const named = theirNames.filter((n) => text.includes(n));
+
+      if (theirNames.length === 0) {
+        missing.push("could not build two distinct rosters to check the opponent read");
+      } else if (named.length === 0) {
+        missing.push("gradeDraft() with an oppRoster never names an opponent - the matchup read is missing");
+      }
+    } catch (e) {
+      missing.push(`gradeDraft() with an oppRoster threw: ${e.message}`);
+    }
+  }
+
   // A sport's identity is four custom properties, and one of them is the text
   // colour that prints on the other. CLAUDE.md has required 4.5:1 between them
   // since the theme hook existed, and nothing enforced it - both live sports

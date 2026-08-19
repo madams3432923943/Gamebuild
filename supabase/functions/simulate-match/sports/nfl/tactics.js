@@ -155,6 +155,22 @@ export function planFor(groupKey, id) {
   return groupKey === "defense" ? defensivePlanById(id) : offensivePlanById(id);
 }
 
+/** A plan by id across BOTH catalogues, or null.
+ *
+ * Deliberately not planFor(): that one falls back to the balanced plan for an
+ * unknown id, which is right for the engine - a missing plan would multiply it
+ * by undefined and produce a scoreless game nobody can explain - and wrong for
+ * anything asking "what is this id called", which got "Balanced Offense" as the
+ * name of Run Wall. A lookup for display has to be able to say "no". */
+export function planById(id) {
+  if (!id) return null;
+  return (
+    OFFENSIVE_PLANS.find((p) => p.id === id) ||
+    DEFENSIVE_PLANS.find((p) => p.id === id) ||
+    null
+  );
+}
+
 /**
  * A selection, normalised.
  *
@@ -280,11 +296,150 @@ export const FIT = {
   "keep-it-in-front": (r) => 0.5 * scale((r.CB || {}).pd, 3) + 0.5 * scale((r.S || {}).pd, 2.2),
 };
 
+// ---------------------------------------------------------------------------
+// AFFINITY: the plan a player was made for, which you are not told
+// ---------------------------------------------------------------------------
+//
+// FIT above reads the roster as a whole, from stats that are on the card. That
+// makes plan choice a calculation: a player who studies the numbers can work
+// out the best plan before kickoff, every time, and a decision with a knowable
+// right answer is a lookup rather than a read.
+//
+// Affinity is the part you cannot look up. Every drafted player and unit has
+// ONE plan they are built for, derived from their own line rather than the
+// roster's, and it is not shown on the draft board. Choosing a plan several of
+// your players were made for is worth more than the roster averages suggest -
+// so a lineup rewards being learned, and two teams with identical aggregate
+// numbers can want different plans.
+//
+// DERIVED, NOT ASSIGNED. It is a deterministic function of the player's own
+// stats, for three reasons: a random affinity would be fabricated data, which
+// CLAUDE.md forbids outright; it has to be identical on the client and in the
+// Edge Function or online games diverge from offline ones (verify:nfl-parity);
+// and a Lamar Jackson whose affinity is Vertical Attack this week and Ground
+// Control next week is not a thing to learn, it is noise.
+//
+// It is revealed AFTER the game, in the recap, so the knowledge is earned by
+// playing rather than by reading a table.
+
+/** How well one entry, on its own, suits each plan. Same shape as FIT, but
+ *  reading a single player's line rather than the roster's. Deliberately a
+ *  different set of questions from FIT's: FIT asks "can this roster run this",
+ *  affinity asks "is this the plan this player was born for". */
+// Ceilings are the 90th percentile of each stat among the entries that record
+// it at all, measured over the shipped dataset - so "1.0 on this term" means
+// "top tenth of the league at it" for every term, and the eight plans are
+// scored on the same scale. Guessed ceilings do not work here: the first pass
+// used round numbers and produced 3,248 West Coast players against 6 for Power
+// Red Zone, which is not eight plans, it is two.
+//
+// `comp` was in that first pass too. No entry in the dataset carries it, so
+// that term contributed exactly zero to every West Coast score - the quiet kind
+// of wrong that still returns a plausible number.
+/** Touchdowns per ten yards of offence. The discriminator between a back who
+ *  finishes drives and one who merely gains ground. Guarded against a tiny
+ *  denominator: six yards and one touchdown is not a red-zone specialist, it is
+ *  one carry. */
+function touchdownRate(entry) {
+  const yards = (Number(entry.rush_yds) || 0) + (Number(entry.rec_yds) || 0);
+  if (yards <= 5) return 0;
+  const tds = (Number(entry.rush_td) || 0) + (Number(entry.rec_td) || 0);
+  return tds / (yards / 10);
+}
+
+const AFFINITY = {
+  "ground-control": (e) => 0.6 * scale(e.rush_yds, 60) + 0.4 * scale(e.rush_td, 0.62),
+  // No `ints` term: a receiver has none, so "does not throw interceptions"
+  // would hand every wideout most of a West Coast affinity for free.
+  "west-coast": (e) => 0.7 * scale(e.rec, 5.9) + 0.3 * scale(e.rec_yds, 50),
+  // ypt has a 1165 in it - a single catch on a single target - so it is read
+  // only alongside real volume. scale() clamps, but a clamped outlier is still
+  // a 1.0 for someone who caught one pass.
+  "vertical-attack": (e) => 0.5 * scale(e.ypt, 9.5) + 0.3 * scale(e.pass_td, 1.94) + 0.2 * scale(e.rec_yds, 55),
+  // Scoring RATE, not scoring volume - otherwise this is Ground Control with a
+  // different name, because the back with the most touchdowns is usually also
+  // the one with the most yards, and Ground Control's rush_yds term outbids it
+  // every time. First pass produced 16 Power Red Zone players in 14,388.
+  // A goal-line back is defined by finishing drives per yard gained, which is
+  // exactly what the plan is about.
+  "power-red-zone": (e) => 0.5 * scale(touchdownRate(e), 0.149) + 0.3 * scale(e.rush_td, 0.62) + 0.2 * scale(e.rec_td, 0.5),
+  "blitz-pressure": (e) => scale(e.sacks, 1.63),
+  "run-wall": (e) => scale(e.tackles, 20.9),
+  "ball-hawks": (e) => 0.6 * scale(e.ints, 0.94) + 0.4 * scale(e.ff, 0.47),
+  "keep-it-in-front": (e) => scale(e.pd, 2.31),
+};
+
+/** Below this, a player is not "made for" anything - they are simply a player.
+ *  Without a floor every entry would claim an affinity, including the ones
+ *  whose best score is 0.04, and a bonus everybody carries is not a bonus. */
+const AFFINITY_FLOOR = 0.5;
+
+/** The most a full roster of specialists can add to a plan's fit. Small on
+ *  purpose: this is a reward for reading your lineup, not a second, larger
+ *  version of FIT. At 0.12 a perfectly-matched roster moves scalePlan's
+ *  strength by about 0.16, which is a noticeable edge and not a decisive one. */
+const AFFINITY_WEIGHT = 0.12;
+
+/**
+ * The one plan this entry was built for, or null.
+ *
+ * Exported so the recap can reveal it after the whistle - nothing before the
+ * game may call this, and nothing in the draft UI does.
+ */
+export function affinityFor(entry) {
+  if (!entry) return null;
+  let bestId = null;
+  let bestScore = 0;
+  for (const [id, score] of Object.entries(AFFINITY)) {
+    const value = Number(score(entry)) || 0;
+    // Ties break by id order rather than by whichever key enumerated first,
+    // so the answer does not depend on object ordering across engines.
+    if (value > bestScore || (value === bestScore && bestId && id < bestId)) {
+      bestScore = value;
+      bestId = id;
+    }
+  }
+  return bestScore >= AFFINITY_FLOOR ? bestId : null;
+}
+
+/**
+ * Who on this roster was built for the plans it actually ran - the reveal.
+ *
+ * Returns [{ slot, name, plan }] for the matches only. This is the payoff for
+ * affinity being hidden: you find out after the whistle that your third
+ * receiver was made for the Vertical Attack you happened to call, and next time
+ * you know it before you call it.
+ *
+ * Both plans are checked, so a defensive specialist can show up here too.
+ */
+export function affinityRevealFor(strategy, roster) {
+  const { offense, defense } = plansFor(strategy);
+  const ran = new Set([offense?.id, defense?.id].filter(Boolean));
+  const out = [];
+  for (const [slot, entry] of Object.entries(roster || {})) {
+    if (!entry) continue;
+    const plan = affinityFor(entry);
+    if (plan && ran.has(plan)) out.push({ slot, name: entry.name, plan });
+  }
+  return out;
+}
+
+/** The share of a roster built for this plan, 0..1. */
+function affinityShare(planId, roster) {
+  const entries = Object.values(roster || {}).filter(Boolean);
+  if (!entries.length) return 0;
+  const matched = entries.filter((entry) => affinityFor(entry) === planId).length;
+  return matched / entries.length;
+}
+
 export const fitFor = (plan, roster) => {
   const fn = FIT[plan?.id];
   if (!fn || !roster) return 0.5;
   const v = fn(roster);
-  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5;
+  const base = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5;
+  // Added on top of the visible fit rather than replacing it, and clamped, so
+  // a plan can never exceed the ceiling scalePlan already solves against.
+  return Math.max(0, Math.min(1, base + AFFINITY_WEIGHT * affinityShare(plan?.id, roster)));
 };
 
 /** One plan's mods, scaled by how well the roster suits it. A perfect fit gets

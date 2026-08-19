@@ -5,6 +5,7 @@
 import { OFFENSE_WEIGHTS, DEFENSE_WEIGHTS } from "./constants.js";
 import { rateEntry } from "./units.js";
 import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
+import { matchupReads } from "../../matchups.js";
 
 const canonicalSlot = (slot) => String(slot || "").replace(/\d+$/, "").toUpperCase();
 
@@ -71,8 +72,15 @@ function forfeitList(value) {
   return [];
 }
 
+/** The opponent's roster, from either shape the third argument arrives in.
+ *  A bare array is a forfeit list and carries no opponent. */
+function opponentRoster(value) {
+  return Array.isArray(value) ? null : value?.oppRoster || null;
+}
+
 export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const forfeits = forfeitList(forfeitsOrOpts);
+  const oppRoster = opponentRoster(forfeitsOrOpts);
   const offense = sideScore(roster, OFFENSE_WEIGHTS, ctx);
   const defense = sideScore(roster, DEFENSE_WEIGHTS, ctx);
   const defenseGroups = defensiveBreakdown(roster, ctx);
@@ -97,6 +105,25 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   if (offense - defense > 0.15) notes.push("Offence-heavy - your defence will give it back.");
   else if (defense - offense > 0.15) notes.push("Defence-first. You will need to win low-scoring games.");
   if (forfeits.length) notes.push(`${forfeits.length} slot${forfeits.length === 1 ? "" : "s"} left empty.`);
+
+  // Football's counterplay read, and until now it did not exist. NFL.draftAnalysis
+  // accepted an opponent roster and dropped it on the floor, so the "how your
+  // roster stacks against theirs" line was this same solo grade printed again -
+  // believable output, which is why it survived so long.
+  //
+  // Units and individuals compare the same way here because rateEntry() already
+  // returns one number for both: a secondary and a quarterback are not alike,
+  // but "how good is this at its job" is the same question asked of each.
+  if (oppRoster) {
+    notes.push(
+      ...matchupReads(roster, oppRoster, {
+        rate: (entry) => rateEntry(entry, ctx),
+        // "WR", not "WR2". The depth number is a roster-shape detail and the
+        // sentence is about a position.
+        label: canonicalSlot,
+      })
+    );
+  }
 
   return {
     letter,

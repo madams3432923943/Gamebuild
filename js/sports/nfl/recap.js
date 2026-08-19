@@ -5,6 +5,8 @@
 // off drives can say the game turned on three straight takeaways in the second
 // quarter, and name the unit that got them. The second is worth reading.
 
+import { planById } from "./tactics.js";
+
 const teamDrives = (drives, side) => drives.filter((d) => d.team === side);
 const scoring = (drives) => drives.filter((d) => d.points > 0);
 
@@ -66,6 +68,13 @@ export function buildGameScript(periods, labelA, labelB) {
 /** Why you won or lost, in terms of the picks that caused it. Reads the
  * side ratings the engine already computed rather than recomputing them, so
  * the explanation cannot disagree with the simulation it explains. */
+/** A plan's display name, so the reveal reads "Ground Control" rather than
+ *  "ground-control". Falls back to the id, which is what a stored result from
+ *  before a plan was renamed would still carry. */
+function planName(id) {
+  return planById(id)?.name || id;
+}
+
 export function buildPostGameAnalysis(result, side = "A") {
   const a = result.analysis || {};
   const mine = side === "A" ? { off: a.offA, def: a.defA } : { off: a.offB, def: a.defB };
@@ -89,6 +98,21 @@ export function buildPostGameAnalysis(result, side = "A") {
   const mySide = result.drives.filter((d) => d.team === side);
   const stalls = mySide.filter((d) => d.outcome === "downs").length;
   if (stalls >= 2) notes.push(`${stalls} of your drives stalled in kicking range - the ST pick showed.`);
+
+  // THE AFFINITY REVEAL. Which of your players were built for the gameplan you
+  // called - the one thing the draft board deliberately does not show, handed
+  // over once the game it helped decide is over. That is the whole design: the
+  // plan is a read on your lineup, and the way to learn a lineup is to play it.
+  const matched = side === "A" ? a.affinityA : a.affinityB;
+  if (matched?.length) {
+    const named = matched.slice(0, 3).map((m) => `${m.name} (${planName(m.plan)})`).join(", ");
+    const more = matched.length > 3 ? `, and ${matched.length - 3} more` : "";
+    notes.push(
+      matched.length === 1
+        ? `${named} was made for that gameplan.`
+        : `${named}${more} were made for the gameplans you called.`
+    );
+  }
 
   return notes.join(" ");
 }
