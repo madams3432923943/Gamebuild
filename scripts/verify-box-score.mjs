@@ -75,10 +75,14 @@ async function runInPage(page) {
       }
     };
 
-    const { setActiveSport, activeSport, ensureSportData } = await import("/js/sports/index.js");
-    // Football loads its dataset on demand; this harness renders its box
-    // score, so it has to be asked for first.
-    await ensureSportData("nfl");
+    const { SPORTS, setActiveSport, activeSport, ensureSportData } = await import("/js/sports/index.js");
+    // EVERY live sport loads its dataset on demand now - basketball joined
+    // football when its 2.3MB came off the boot path. This harness renders
+    // both box scores, so it loads the lot rather than naming one sport and
+    // going red the next time another one goes lazy.
+    for (const meta of SPORTS) {
+      if (meta.live) await ensureSportData(meta.id);
+    }
     const { DraftState } = await import("/js/draft.js");
     const { renderFullBoxScore, buildShotLines } = await import("/js/ui.js");
     // Imported for its SIDE EFFECT, not its exports. The workaround this

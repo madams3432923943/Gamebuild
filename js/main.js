@@ -140,6 +140,12 @@ function datasetStatsFor(sportId = getSport()) {
  * scoreboard starts moving. */
 function warmDatasetStats(sportId = getSport()) {
   if (datasetStatsCache.has(sportId) || !isLive(sportId)) return;
+  // Both live sports now fetch their dataset on selection rather than at boot,
+  // so at this point the pool may simply not be here yet. Warming would have to
+  // DOWNLOAD it to compute anything, which is the cost the lazy load exists to
+  // avoid - so the warm-up waits instead. selectSport() calls this again once
+  // ensureSportData() has resolved, which is where the work actually lands.
+  if (!sportById(sportId).dataReady()) return;
   const run = () => {
     try {
       datasetStatsFor(sportId);

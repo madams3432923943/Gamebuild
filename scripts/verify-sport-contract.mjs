@@ -31,6 +31,11 @@ const REQUIRED_FUNCTIONS = [
   "players", "playersInEra", "eraById",
   "buildRecap", "buildGameScript", "gradeDraft",
   "defaultMinutes", "botMinutes", "defaultMatchups",
+  // Both live sports fetch their dataset on selection, so shared code has to be
+  // able to ask whether the pool is here yet WITHOUT triggering the download -
+  // js/main.js warmDatasetStats() would otherwise pull 2.3MB at boot to warm a
+  // cache, which is the cost the lazy load exists to avoid.
+  "dataReady",
 ];
 
 const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels",

@@ -324,6 +324,7 @@ export const NFL = {
   // Play's DEF - with nothing eligible. The draft filled its skill positions
   // and then hung with two slots open and no legal pick on the board.
   preload,
+  dataReady: () => NFL_PLAYERS !== null && NFL_UNITS !== null,
   isLoaded: () => !!(NFL_PLAYERS && NFL_UNITS),
   players: () => (loaded(), [...NFL_PLAYERS, ...NFL_UNITS]),
   individuals: () => (loaded(), NFL_PLAYERS),

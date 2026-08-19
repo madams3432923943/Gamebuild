@@ -1244,6 +1244,14 @@ export function renderBadgeCollection(
   }
 }
 
+/** The thumbnail beside a piece of banner art. tools/build-banner-tiles.mjs
+ * writes assets/banners/tiles/<same-name>.jpg, so the path is derived rather
+ * than stored - a second field on every banner entry would be one more thing
+ * to keep in step with a directory listing. */
+function tileVariant(imagePath) {
+  return imagePath.replace(/([^/]+)$/, "tiles/$1");
+}
+
 /** One franchise banner: a vertical field of the team's two colors with the
  * abbreviation ghosted large in the corner, like a number on a retired
  * jersey banner. The look comes entirely from the franchise entry's colors
@@ -1251,14 +1259,24 @@ export function renderBadgeCollection(
  * near it, and it reads as a real banner rather than a badge/icon. */
 /**
  * @param eager  fetch the artwork immediately, at high priority.
+ * @param tile   use the 424x144 thumbnail instead of the 2120x720 card art.
  *
  * Lazy is right for the Rewards grid, where sixty banners draw at once and
  * most are below the fold. It is wrong for the matchup intro, which shows
  * exactly two images that are the entire point of the screen: deferred behind
  * an intersection check, the artwork arrived after the animation had already
  * played and both players watched a bare colour gradient fly in.
+ *
+ * `tile` defaults to the opposite of `eager` because today those two questions
+ * have the same answer everywhere: the only eager banner is the matchup intro,
+ * which draws full-bleed, and every deferred one is a thumbnail in a grid or a
+ * friend row. They are still separate arguments, because "when do I fetch" and
+ * "which file do I fetch" are separate questions and the next screen that shows
+ * a large banner lazily should not have to fetch a 424px image to get there.
+ * Card art is up to 640 KB and the grid draws twenty of them; the tiles are
+ * 360 KB for the whole set (tools/build-banner-tiles.mjs).
  */
-export function bannerArt(franchise, { eager = false } = {}) {
+export function bannerArt(franchise, { eager = false, tile = !eager } = {}) {
   const el = document.createElement("div");
   // `art` (general banners only - see GENERAL_BANNERS in banners.js) swaps the
   // flat two-color gradient for a real pattern. The two colors still drive it
@@ -1275,16 +1293,28 @@ export function bannerArt(franchise, { eager = false } = {}) {
   if (franchise.image) {
     const img = document.createElement("img");
     img.className = "banner-art-img";
-    img.src = franchise.image;
+    img.src = tile ? tileVariant(franchise.image) : franchise.image;
     img.alt = "";
     // Every banner in the Rewards grid draws at once, so decoding them eagerly
     // stalls that screen on a phone for no benefit - most are below the fold.
     img.loading = eager ? "eager" : "lazy";
     img.decoding = "async";
     if (eager) img.fetchPriority = "high";
-    // A missing file falls back to the gradient already painted underneath,
-    // instead of leaving a broken-image glyph on the card.
-    img.addEventListener("error", () => img.remove());
+    // A missing TILE falls back to the card art rather than to nothing: the
+    // tiles are generated from the card art, so a banner added without a
+    // re-run of build-banner-tiles.mjs still shows its artwork - heavier than
+    // intended, which is the right way round for a build step someone forgot.
+    // A missing card file falls back to the gradient already painted
+    // underneath, instead of leaving a broken-image glyph.
+    let triedFullSize = !tile;
+    img.addEventListener("error", () => {
+      if (!triedFullSize) {
+        triedFullSize = true;
+        img.src = franchise.image;
+        return;
+      }
+      img.remove();
+    });
     el.appendChild(img);
   } else if (franchise.art) {
     el.className = `banner-art banner-art-${franchise.art}`;
