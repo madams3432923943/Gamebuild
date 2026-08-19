@@ -15,6 +15,7 @@
 import { constructionMetrics, rosterTilt, impact } from "./engine.js";
 import { isBenchSlot, orderedRosterSlots, basePosition, RANKED_SLOTS } from "./constants.js";
 import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
+import { matchupReads } from "../../matchups.js";
 
 // Weighted toward how the roster is BUILT rather than how good its players
 // are. Talent still counts - a grade that ignored it would call a squad of
@@ -193,10 +194,25 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   }
 
   if (opts.oppRoster) {
+    // Two readings of the same board, and they answer different questions.
+    // counterRead is about SHAPE - "they are big, you are small" - which is
+    // what the simulation's counterFactor actually multiplies by. The matchup
+    // lines are about PEOPLE, and they are the ones a drafter can act on:
+    // knowing their small forward eats yours tells you where to send help.
     const mine = rosterTilt(roster, datasetStats);
     const theirs = rosterTilt(opts.oppRoster, datasetStats);
     const read = counterRead(mine, theirs);
     if (read) reasons.push(read);
+
+    reasons.push(
+      ...matchupReads(roster, opts.oppRoster, {
+        rate: impact,
+        // "SF", not "SF2" - the bench slot's number is a roster-shape detail,
+        // and a sentence about a position should name the position.
+        label: basePosition,
+        slots: orderedRosterSlots(roster),
+      })
+    );
   }
 
   if (forfeits.length > 0) {

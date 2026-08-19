@@ -31,6 +31,11 @@ const REQUIRED_FUNCTIONS = [
   "players", "playersInEra", "eraById",
   "buildRecap", "buildGameScript", "gradeDraft",
   "defaultMinutes", "botMinutes", "defaultMatchups",
+  // Both live sports fetch their dataset on selection, so shared code has to be
+  // able to ask whether the pool is here yet WITHOUT triggering the download -
+  // js/main.js warmDatasetStats() would otherwise pull 2.3MB at boot to warm a
+  // cache, which is the cost the lazy load exists to avoid.
+  "dataReady",
 ];
 
 const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels",
@@ -61,7 +66,32 @@ const REQUIRED_SHAPES = {
   gradeDraft: { fields: ["letter", "headline", "reasons"], arrays: ["reasons"] },
 };
 
+
+/** WCAG 2.1 relative luminance, then the contrast ratio between two colours.
+ *
+ * Inlined rather than pulled from a package: it is twelve lines of arithmetic
+ * from a published formula, and a dependency for it would be the only runtime
+ * package in a repo that deliberately has none. */
+function relativeLuminance(hex) {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? [...h].map((c) => c + c).join("") : h;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrastRatio(a, b) {
+  const [la, lb] = [relativeLuminance(a), relativeLuminance(b)];
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** WCAG AA for normal text. accentContrast is the colour that prints ON the
+ *  accent - button labels, the scoreboard, the active pill - so it is normal
+ *  text at normal weight and this is the threshold that applies. */
+const MIN_CONTRAST = 4.5;
+
 let failures = 0;
+const contrastNotes = [];
 for (const meta of SPORTS) {
   if (!meta.live) {
     console.log(`  ${meta.name.padEnd(6)} not live - skipped`);
@@ -105,6 +135,83 @@ for (const meta of SPORTS) {
       missing.push(`${fn}() threw: ${e.message}`);
     }
   }
+  // The opponent is READ, not just accepted.
+  //
+  // NFL.draftAnalysis took (roster, oppRoster, ctx, forfeits) and passed only
+  // the forfeits on, so football's "how your roster stacks against theirs" was
+  // the solo draft grade printed twice. Nothing caught it because the output
+  // was a plausible grade with plausible sentences under it - the failure mode
+  // CLAUDE.md names, where a believable wrong answer outlives an obvious one.
+  //
+  // Checked on the OUTPUT rather than by diffing two runs: a roster comparison
+  // can legitimately come out even, so "these two readings differ" is not a
+  // property that always holds. "The grade named one of their players" is.
+  if (typeof sport?.gradeDraft === "function") {
+    try {
+      const ctx = sport.computeDatasetStats(sport.players(), sport.units?.());
+      const all = ctx.__allEntries || sport.playersInEra(sport.players(), sport.defaultEra);
+      const build = (pool) => {
+        const roster = {};
+        const used = new Set();
+        for (const slot of sport.slots.quickPlay) {
+          const base = String(sport.basePosition(slot)).toUpperCase();
+          const fit = pool.find(
+            (e) =>
+              !used.has(e.name) &&
+              (String(e.group || "").toUpperCase() === base ||
+                (e.pos || []).some((p) => String(p).toUpperCase() === base))
+          );
+          if (fit) {
+            roster[slot] = fit;
+            used.add(fit.name);
+          }
+        }
+        return roster;
+      };
+
+      const mine = build(all);
+      // Drawn from the other end of the pool, so the two rosters share no names
+      // and "did it name one of THEIRS" is an unambiguous question.
+      const theirs = build([...all].reverse());
+      const myNames = new Set(Object.values(mine).map((p) => p.name));
+      const theirNames = Object.values(theirs)
+        .map((p) => p.name)
+        .filter((n) => !myNames.has(n));
+
+      const graded = sport.gradeDraft(mine, ctx, { oppRoster: theirs, forfeits: [] });
+      const text = (graded?.reasons || []).join(" ");
+      const named = theirNames.filter((n) => text.includes(n));
+
+      if (theirNames.length === 0) {
+        missing.push("could not build two distinct rosters to check the opponent read");
+      } else if (named.length === 0) {
+        missing.push("gradeDraft() with an oppRoster never names an opponent - the matchup read is missing");
+      }
+    } catch (e) {
+      missing.push(`gradeDraft() with an oppRoster threw: ${e.message}`);
+    }
+  }
+
+  // A sport's identity is four custom properties, and one of them is the text
+  // colour that prints on the other. CLAUDE.md has required 4.5:1 between them
+  // since the theme hook existed, and nothing enforced it - both live sports
+  // happen to pass (5.85 and 4.70), so the next sport would have been the one
+  // to find out, in production, on the only colour a player cannot avoid.
+  const theme = sport?.theme;
+  if (theme?.accent && theme?.accentContrast) {
+    const ratio = contrastRatio(theme.accent, theme.accentContrast);
+    if (ratio < MIN_CONTRAST) {
+      missing.push(
+        `theme.accentContrast ${theme.accentContrast} on accent ${theme.accent} ` +
+          `is ${ratio.toFixed(2)}:1, under the ${MIN_CONTRAST}:1 minimum`
+      );
+    } else {
+      contrastNotes.push(`${meta.name} ${ratio.toFixed(2)}:1`);
+    }
+  } else {
+    missing.push("theme.accent/accentContrast");
+  }
+
   for (const [fn, arity] of Object.entries(REQUIRED_ARITY)) {
     if (typeof sport?.[fn] === "function" && sport[fn].length < arity) {
       missing.push(`${fn}() takes ${sport[fn].length} args, shared code passes ${arity}`);
@@ -123,4 +230,5 @@ if (failures) {
   console.error(`\nSport contract FAILED for ${failures} sport(s) - shared UI would throw on a live sport.`);
   process.exit(1);
 }
+console.log(`\n  accent contrast: ${contrastNotes.join(", ")} (minimum ${MIN_CONTRAST}:1)`);
 console.log("\nSport contract passed.");

@@ -130,15 +130,25 @@ async function main() {
         : "no NFL data fetched before a sport was chosen",
     });
     checks.push({
-      // 3.5MB, not a round number picked to pass. The default sport's dataset
-      // is the floor: the hub opens on basketball, so basketball's 2.3MB is
-      // genuinely needed to boot, and the remaining ~850KB is the app itself.
-      // Deferring that too would mean the hub no longer defaults to a sport,
-      // which is a product decision rather than a performance one - noted as
-      // the next move rather than done quietly here.
-      title: "Boot payload stays under 3.5MB",
-      ok: bootBytes < 3.5 * 1024 * 1024,
+      // Basketball used to be the floor here, because the hub opened on it and
+      // its 2.3MB was a static import - the budget was 3.5MB and the measured
+      // boot was 3548KB, roughly 1% of headroom. NBA now loads on demand like
+      // NFL, so the floor is the app itself and the budget is set against that
+      // instead: ~1.2MB measured, 1.5MB allowed. Raising this number back up is
+      // how the regression would hide, so it should be argued for, not nudged.
+      title: "Boot payload stays under 1.5MB",
+      ok: bootBytes < 1.5 * 1024 * 1024,
       detail: `${kb(bootBytes)} across ${bootFiles.length} files (basketball's dataset is ${kb(sumBytes(nbaOnBoot))} of it)`,
+    });
+    checks.push({
+      // The other half of the same rule. Without this, restoring the static
+      // import would still pass every check above except the byte budget, and a
+      // budget is easier to raise than a named assertion is to delete.
+      title: "Basketball's dataset is not loaded to open the app either",
+      ok: nbaOnBoot.length === 0,
+      detail: nbaOnBoot.length
+        ? `${kb(sumBytes(nbaOnBoot))} of NBA data fetched on boot: ${nbaOnBoot.map((f) => f.path).join(" ")}`
+        : "no NBA data fetched before a sport was chosen",
     });
     checks.push({
       title: "The app reaches an interactive screen inside 10s",

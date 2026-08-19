@@ -75,7 +75,7 @@ js/                 shared app code - never imports a sport directly
   constants.js    app-wide timings only (pick clocks, queue timeouts)
   state.js        shared mutable state (the match, the post-draft choices)
   shell.js        screens, nav and the one modal - app chrome, no basketball
-  screens/        one module per screen (squads/friends so far)
+  screens/        one module per screen (squads and friends so far)
   draft.js        draft mechanics, squad rolling, typed-name search, bot picks
   ui.js           rendering helpers
   online.js       Supabase-backed online play
@@ -86,9 +86,10 @@ js/                 shared app code - never imports a sport directly
   celebrate.js    confetti, buzzer and fanfare (DOM + WebAudio, no assets)
   sports/
     index.js      the registry: which sports exist, which is active
-    nba/          engine, constants, tactics, shooting, recap, draftgrade
-    nfl/          declared and scaffolded; live:false until it has an engine
-tools/            data import and balance-calibration scripts (Node)
+    nba/          engine, constants, tactics, shooting, recap, draftgrade, playback
+    nfl/          engine, constants, tactics, units, recap, draftgrade, playback, field
+    pending.js    the shape a declared-but-unbuilt sport shares (NHL, Soccer)
+tools/            data import, artwork and balance-calibration scripts (Node)
 ```
 
 ## Balance

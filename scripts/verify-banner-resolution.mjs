@@ -23,6 +23,7 @@
 //   2. it is big enough to fill the card
 //   3. it is shaped like the card, so `cover` does not crop away the picture
 //   4. it is not so heavy that the Rewards grid becomes a download
+//   5. the grid's own tile variant exists, so it never falls back to card art
 //
 // Case matters. GitHub Pages serves from a case-sensitive filesystem while
 // macOS does not, so `Blossom.png` for `blossom.png` works locally and 404s in
@@ -50,6 +51,15 @@ const FULL_BLEED_MIN_WIDTH = 900;
 // The Rewards grid renders every banner at once. The uploaded originals came in
 // at 1.1-3.4 MB each, 48 MB in total, which is a download rather than a page.
 const MAX_FILE_KB = 700;
+
+// The Rewards grid's own budget. Tiles are built by tools/build-banner-tiles.mjs
+// at exactly a fifth of the card in both axes, so `cover` crops them identically
+// and no separate aspect check is needed. 600 KB for the whole set is roughly
+// what ONE card banner used to cost, which is the point of them existing.
+const TILE_DIR = "assets/banners/tiles";
+const TILE_WIDTH = 424;
+const TILE_HEIGHT = 144;
+const MAX_TILE_SET_KB = 600;
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -174,6 +184,53 @@ if (missing.length === 0 && notPng.length === 0) {
     heavy.length === 0
       ? `${resolved.length} files, ${totalMb.toFixed(1)} MB total, largest ${Math.round(Math.max(...resolved.map((r) => r.bytes)) / 1024)} KB`
       : `over ${MAX_FILE_KB} KB: ${heavy.slice(0, 5).map((r) => `${r.name} ${Math.round(r.bytes / 1024)} KB`).join(", ")} (${totalMb.toFixed(1)} MB total)`
+  );
+
+  // ---- 5. the grid draws tiles, not card art --------------------------------
+  // Check 4 above measures the CARD files, and the Rewards grid stopped loading
+  // those - js/ui.js bannerArt() asks for the tile whenever it is not drawing
+  // full-bleed. So the number that decides whether that screen is a page or a
+  // download is this one, and it needs its own assertion or the tiles can go
+  // missing without anything failing: the img falls back to the card art, which
+  // looks correct and quietly restores the 8 MB.
+  const tiles = [];
+  const missingTiles = [];
+  const misSizedTiles = [];
+  for (const r of resolved) {
+    const path = `${TILE_DIR}/${r.name}`;
+    const info = imageInfo(path);
+    if (!info) {
+      missingTiles.push(r.name);
+      continue;
+    }
+    tiles.push({ name: r.name, ...info });
+    if (info.width !== TILE_WIDTH || info.height !== TILE_HEIGHT) {
+      misSizedTiles.push(`${r.name} ${info.width}x${info.height}`);
+    }
+  }
+
+  add(
+    "Every banner has a grid tile, so the Rewards screen never falls back to card art",
+    missingTiles.length === 0,
+    missingTiles.length === 0
+      ? `${tiles.length} tiles in ${TILE_DIR}/`
+      : `no tile for: ${missingTiles.slice(0, 5).join(", ")} - run node tools/build-banner-tiles.mjs`
+  );
+
+  add(
+    "Tiles are the size the grid asks for, at the card's aspect ratio",
+    misSizedTiles.length === 0 && tiles.length > 0,
+    misSizedTiles.length === 0
+      ? `all ${tiles.length} at ${TILE_WIDTH}x${TILE_HEIGHT}`
+      : `wrong size: ${misSizedTiles.slice(0, 5).join(", ")}`
+  );
+
+  const tileTotalKb = tiles.reduce((sum, t) => sum + t.bytes, 0) / 1024;
+  add(
+    "The whole tile set costs less than one card banner",
+    tiles.length > 0 && tileTotalKb < MAX_TILE_SET_KB,
+    `${tiles.length} tiles, ${Math.round(tileTotalKb)} KB total (budget ${MAX_TILE_SET_KB} KB; ` +
+      `the card set is ${totalMb.toFixed(1)} MB)`
   );
 }
 

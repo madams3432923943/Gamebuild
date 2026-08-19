@@ -116,6 +116,11 @@ check(
 );
 
 // ---- real rosters, real payloads -------------------------------------------
+// Basketball's dataset loads on demand (js/sports/nba/index.js), so it has to
+// be asked for before the pool is read. Awaited at top level rather than inside
+// draftPair(), because every check below wants the same loaded pool.
+await NBA.preload();
+
 const slots = NBA.slots.ranked;
 const players = NBA.players();
 

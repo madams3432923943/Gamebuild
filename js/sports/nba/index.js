@@ -18,7 +18,45 @@ import {
   eraById,
   playersInEra,
 } from "./constants.js";
-import { PLAYERS } from "../../../data/nba-players.js";
+// Basketball's dataset is 2.3 MB, and it used to be a STATIC import - so every
+// visitor downloaded it during first paint, before choosing a sport, including
+// the ones who came for football. scripts/verify-startup-performance.mjs
+// measured 3548 KB on boot with 2337 KB of it this file, against its own 3.5 MB
+// budget: one more asset and that check went red.
+//
+// Football already loaded its data on demand (js/sports/nfl/index.js). This is
+// the same pattern, and the same refusal to fall back to an empty list: an
+// empty pool would look like a sport with no players rather than a bug, which
+// is exactly the plausible-wrong-answer failure CLAUDE.md warns about. Calling
+// these before preload() is a programming error and says so.
+let PLAYERS = null;
+let loading = null;
+
+function loadedPlayers() {
+  if (!PLAYERS) {
+    throw new Error(
+      "NBA data has not been loaded. Call NBA.preload() (or ensureSportData('nba')) before using basketball's players."
+    );
+  }
+  return PLAYERS;
+}
+
+async function preload() {
+  if (PLAYERS) return;
+  if (!loading) {
+    loading = import("../../../data/nba-players.js")
+      .then((mod) => {
+        PLAYERS = mod.PLAYERS;
+      })
+      .catch((error) => {
+        // A failed load must not leave a permanently poisoned promise - the
+        // next attempt should be able to try again rather than reject forever.
+        loading = null;
+        throw error;
+      });
+  }
+  return loading;
+}
 import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
 import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./recap.js";
@@ -158,10 +196,14 @@ export const NBA = {
   eraById,
 
   // ---- Data ---------------------------------------------------------------
-  // Bundled with the client for NBA because the offline modes have to work
-  // with no network at all. `table` is where the SERVER reads the same data
-  // from, and the two are held in step by scripts/verify-parity.mjs.
-  players: () => PLAYERS,
+  // Shipped with the client rather than fetched from the server, because the
+  // offline modes have to work with no network at all - but fetched on demand
+  // rather than at boot, so opening the app costs nothing until basketball is
+  // actually chosen. `table` is where the SERVER reads the same data from, and
+  // the two are held in step by scripts/verify-parity.mjs.
+  preload,
+  dataReady: () => PLAYERS !== null,
+  players: () => loadedPlayers(),
   playersInEra,
   table: "players",
 
@@ -179,9 +221,10 @@ export const NBA = {
 
   // ---- Simulation ---------------------------------------------------------
   computeDatasetStats: (players) => {
-    const ctx = computeDatasetStats(players ?? PLAYERS);
+    const pool = players ?? loadedPlayers();
+    const ctx = computeDatasetStats(pool);
     // For the grade curve to sample real rosters - see js/gradecurve.js.
-    ctx.__allEntries = players ?? PLAYERS;
+    ctx.__allEntries = pool;
     return ctx;
   },
   simulate: simulateGame,

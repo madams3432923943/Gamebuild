@@ -1,0 +1,12 @@
+# Draft Nova is a game, not a corpus. Everything a crawler can usefully index
+# lives on one page; the rest is a signed-in app whose URLs are all the same URL.
+User-agent: *
+Allow: /
+# Generated datasets and build tooling: thousands of player rows that say
+# nothing about the game and cost a crawl budget to fetch.
+Disallow: /data/
+Disallow: /tools/
+Disallow: /scripts/
+Disallow: /db/
+
+Sitemap: https://draftnovagame.com/sitemap.xml

@@ -52,6 +52,10 @@ export function pendingSport({ id, name, icon, status = "Coming soon", labels = 
     tiers: [],
     howToPlay: [],
 
+    // A pending sport has no dataset to load, so it is never "ready" - and
+    // never asked to be: shared code checks isLive() first. Declared so the
+    // shape still matches a real sport's, same reason as theme/tiers above.
+    dataReady: () => false,
     players: notReady(name, "player data"),
     playersInEra: notReady(name, "era brackets"),
     computeDatasetStats: notReady(name, "dataset statistics"),

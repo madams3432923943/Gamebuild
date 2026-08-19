@@ -1,5 +1,21 @@
 # Attacking the NFL version
 
+> **Historical. This plan is done and shipped.** NFL has been `live: true` since
+> the engine landed; football has its own drive simulation, unit ratings,
+> playback, field, recap and draft grade, and it is playable online and ranked.
+> Kept as the record of how the second sport was reasoned about, because that
+> reasoning is what a third sport should follow.
+>
+> Two things below did NOT happen as written, and the code is the authority on
+> both:
+>
+> - **Era brackets are plain decades, not rule-change eras.** nflverse data
+>   starts in 1999, so the pre-2000 brackets would have been empty shelves. See
+>   the comment in `js/sports/nfl/index.js`.
+> - **Gamestyles were hand-solved, not calibrated.** Step 3's calibrator was
+>   written later than the rest; `js/sports/nfl/tactics.js` says where that
+>   stands.
+
 ## Context
 
 `js/sports/nfl.js` already declares the sport, `db/migrations/20260731_04_nfl_players.sql`

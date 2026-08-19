@@ -89,11 +89,16 @@ async function runInPage(page) {
       }
     };
 
-    const { setActiveSport, activeSport } = await import("/js/sports/index.js");
+    const { setActiveSport, activeSport, ensureSportData } = await import("/js/sports/index.js");
     const { buildSquads, resolveTypedInput, eligibleOpenSlots, DraftState } = await import("/js/draft.js");
     const { renderPool, groupBySeason, POOL_RENDER_ERROR_MESSAGE } = await import("/js/ui.js");
 
     setActiveSport("nba");
+    // Basketball's dataset loads on demand now, the same as football's, so the
+    // pool has to be asked for before it can be read. The app does this in
+    // selectSport(); a harness that jumps straight to the draft has to do it
+    // itself.
+    await ensureSportData("nba");
     const sport = activeSport();
     const allPlayers = sport.players();
     const rankedSlots = sport.slots.ranked;
