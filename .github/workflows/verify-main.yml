@@ -33,6 +33,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # verify:stamp compares this commit against its parent.
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         with:
@@ -41,6 +44,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The stamp is what stops browsers serving cached ES modules after a
+      # deploy. Checked BEFORE `npm run verify`, because verify re-stamps
+      # index.html as a side effect and would mask exactly what this looks for.
+      #
+      # It asks whether the stamp MOVED when js/ or css/ moved - not whether it
+      # equals HEAD. stamp-build.mjs runs before the commit containing its own
+      # output exists, so the stamp is always one commit behind by construction
+      # and two behind on a merge. A check demanding equality goes red on every
+      # merge and trains everyone to ignore it.
+      - name: Build stamp moved with the code
+        run: npm run verify:stamp
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -56,14 +71,3 @@ jobs:
       - name: Verify the app plays on a phone
         run: npm run verify:selftest:mobile
 
-      # The stamp is what stops browsers serving cached modules after a deploy.
-      # A stale one on main means the live site may not pick this commit up at
-      # all, which is the failure mode that produced four "the fix did not work"
-      # reports in a row.
-      - name: Build stamp is current
-        run: |
-          if ! git diff --quiet -- index.html; then
-            echo "index.html's build stamp is out of date on main - the live site may serve stale modules."
-            git --no-pager diff -- index.html
-            exit 1
-          fi
