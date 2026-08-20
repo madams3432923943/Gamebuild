@@ -1,18 +1,31 @@
-# Loads the per-season player dataset into the database.
-#
-# Manual only. This replaces every row in `players`, which is not something a
-# push should ever do by accident - it runs when someone decides the server
-# should catch up to a rebuilt dataset, and not otherwise.
+# Publishes the per-season NBA dataset to the database.
 #
 # It exists because the alternative was asking a human to generate a 1MB SQL
 # file and paste it into a query console. Every step of that is a step where a
 # batch goes missing, and a half-loaded players table is worse than an unloaded
 # one: the draft finds some of a player's seasons and not others, with no error
 # anywhere to say so.
+#
+# It runs AUTOMATICALLY on a push that changes the dataset, for the reasons set
+# out in seed-nfl.yml: the table is a derived artifact of data/nba-players.js,
+# and "someone runs the workflow afterwards" is a convention, not a mechanism.
+# The empty-table window that once made an automatic publish unsafe is gone -
+# rows land in a staging table nothing reads and one statement swaps them in.
+# See db/migrations/20260820_01_atomic_dataset_publish.sql.
 name: Seed Players
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "data/nba-players.js"
+      - "tools/export-players-sql.mjs"
+      - "tools/apply-seed.mjs"
   workflow_dispatch:
+
+concurrency:
+  group: seed-players
+  cancel-in-progress: false
 
 jobs:
   seed:
@@ -34,3 +47,12 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node tools/apply-seed.mjs --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}
+
+      # Asks the live table what it holds and compares it against data/, over
+      # the same public read path the client uses. A 200 from every request is
+      # not evidence that the pool the game reads was replaced.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Confirm the live pool is this repo's pool
+        run: npm run verify:dataset-published

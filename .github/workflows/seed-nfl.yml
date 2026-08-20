@@ -1,23 +1,45 @@
-# Loads the NFL dataset into the database.
+# Publishes the NFL dataset to the database.
 #
-# Manual only, for the same reason as Seed Players: this replaces every row in
-# `nfl_players`, which is not something a push should ever do by accident. It
-# runs when someone decides the server should catch up to a rebuilt dataset.
+# AUTOMATIC, BECAUSE "RUN IT AFTER ANY CHANGE TO data/" WAS NOT A MECHANISM.
 #
-# Run it after any change to data/nfl-players.js or data/nfl-units.js. Until it
-# runs, offline games use the new dataset and online games use the old one -
-# the client and the Edge Function read different copies, and nothing warns
-# about the gap except scripts/verify-server-dataset.mjs.
+# This used to be manual-only, on the reasoning that replacing every row in
+# `nfl_players` is not something a push should do by accident. The reasoning
+# was sound and the outcome was not: the DB copy only caught up when somebody
+# remembered, and when they did not, offline games used the new dataset and
+# online games used the old one indefinitely. Adding SAF to the unit map in
+# tools/build-nfl-data.mjs is the worked example - 43 safety units that 48
+# team-seasons had been missing, present offline the moment the commit landed
+# and absent online until this ran.
 #
-# While it runs, nfl_players is briefly EMPTY: the seed deletes before it
-# inserts, and the statements are applied one at a time rather than in one
-# transaction (see tools/export-nfl-sql.mjs). An online football match started
-# in that window would find no players. It takes about a minute - run it when
-# nobody is playing.
+# The dataset is a DERIVED ARTIFACT of the repo, so it is published the way any
+# derived artifact is: automatically, from the commit that changed it. What
+# made that unsafe before was the empty window, and that is now gone - the rows
+# load into a staging table nothing reads and one statement swaps them in. See
+# db/migrations/20260820_01_atomic_dataset_publish.sql.
+#
+# workflow_dispatch stays, for re-publishing after a manual database change or
+# recovering from a failed run.
 name: Seed NFL
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "data/nfl-players.js"
+      - "data/nfl-units.js"
+      # The generator and the publisher themselves: a change to either can alter
+      # what lands in the table without data/ moving at all.
+      - "tools/export-nfl-sql.mjs"
+      - "tools/apply-seed.mjs"
   workflow_dispatch:
+
+# One publish at a time, and never cancel one in flight. A cancelled run leaves
+# a half-filled staging table, which the publish function refuses rather than
+# acts on - but the live pool would then keep the old dataset with a green tick
+# next to it, which is the confusing failure this avoids.
+concurrency:
+  group: seed-nfl
+  cancel-in-progress: false
 
 jobs:
   seed:
@@ -39,3 +61,12 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node tools/apply-seed.mjs --seed db/seed/nfl-seed.sql --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}
+
+      # Every request returning 200 is not the same as the pool the game reads
+      # now holding this repo's rows. This asks the live table what it has and
+      # compares it against data/, over the public read path the client uses.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Confirm the live pool is this repo's pool
+        run: npm run verify:dataset-published
