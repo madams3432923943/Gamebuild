@@ -36,6 +36,11 @@ const REQUIRED_FUNCTIONS = [
   // js/main.js warmDatasetStats() would otherwise pull 2.3MB at boot to warm a
   // cache, which is the cost the lazy load exists to avoid.
   "dataReady",
+  // Which dataset this client is holding, in the same string the Edge Function
+  // stamps on a finished match. js/main.js compares the two before it shows a
+  // draft analysis, so a sport without one would have its analysis ranked
+  // against whatever pool happened to be loaded, silently.
+  "datasetVersion",
 ];
 
 const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels",

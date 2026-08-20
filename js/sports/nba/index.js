@@ -58,6 +58,7 @@ async function preload() {
   return loading;
 }
 import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
+import { datasetVersion } from "../../lib/dataset-version.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
 import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./recap.js";
 import { gradeDraft, rotationHint } from "./draftgrade.js";
@@ -206,6 +207,11 @@ export const NBA = {
   players: () => loadedPlayers(),
   playersInEra,
   table: "players",
+
+  // The fingerprint the Edge Function stamps onto every finished match. Same
+  // prefix, same formula - see js/lib/dataset-version.js for why the two copies
+  // of the pool need a way to say they are the same copy.
+  datasetVersion: () => datasetVersion("nba-players", loadedPlayers()),
 
   // The per-game columns this sport's box score and simulation are built on.
   // NFL's are a different set entirely, which is the reason its players live

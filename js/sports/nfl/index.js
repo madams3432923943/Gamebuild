@@ -73,6 +73,7 @@ async function preload() {
   return loading;
 }
 import { computeDatasetStats, simulate } from "./engine.js";
+import { datasetVersion } from "../../lib/dataset-version.js";
 
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
@@ -279,6 +280,12 @@ export const NFL = {
   // of mostly-null columns and every query would carry a filter it could
   // forget. See db/migrations for the schema.
   table: "nfl_players",
+
+  // Football's row count is players AND units, because that is what
+  // nfl_players holds and what the Edge Function counts when it stamps a
+  // finished match. Counting only the individuals here would report drift on
+  // every single game.
+  datasetVersion: () => (loaded(), datasetVersion("nfl-generated", [...NFL_PLAYERS, ...NFL_UNITS])),
   statKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
   // Kept in step with statLabels below: these are the columns a football box
   // score will carry, and the profile's records are read straight off them.
