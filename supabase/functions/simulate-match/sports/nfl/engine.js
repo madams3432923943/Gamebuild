@@ -641,10 +641,43 @@ const LEAGUE_YARDS_PER_CARRY = 4.3;
 const CARRIER_YARD_SCALE_MIN = 0.45;
 const CARRIER_YARD_SCALE_MAX = 1.7;
 
+/**
+ * Carries a starting back gets in a real season, per game. The divisor for
+ * deciding how much of a man's own rate to believe.
+ *
+ * THIS GAME HAS ONE RUNNING BACK SLOT AND NO BACKUPS, so whoever is drafted
+ * absorbs the whole backfield - about 22 carries. That is right, and it is also
+ * why a rate measured on far fewer carries cannot be used as-is: Mike James
+ * 2013 carried 8.6 times a game, which is a backup's workload, and handing him
+ * 22 carries at his small-sample 4.92 produced 105 yards a game against the
+ * 42 he really averaged. He was not a bell-cow and should not run like one.
+ *
+ * So his rate regresses toward the league's in proportion to how far short of a
+ * starter's load he really carried. A proven every-down back is believed
+ * outright; a backup is believed halfway and treated as ordinary for the rest.
+ * Nobody is forced DOWN - a regressed back moves toward 4.3 from whichever side
+ * he began on, which is the honest thing to do with a thin sample.
+ */
+const STARTER_CARRIES_PER_GAME = 16;
+
+function carrierWorkloadTrust(entry) {
+  const perGame = Number(entry?.car_pg);
+  // Rows built before car_pg existed carry no role information. Unknown must
+  // mean full trust, not "backup", or every pre-refresh dataset silently
+  // flattens its runners.
+  if (!Number.isFinite(perGame) || perGame <= 0) return 1;
+  return Math.max(0, Math.min(1, perGame / STARTER_CARRIES_PER_GAME));
+}
+
 function carrierYardScale(entry) {
   const ypc = Number(entry?.ypc) || 0;
   if (ypc <= 0) return 1;
-  return Math.max(CARRIER_YARD_SCALE_MIN, Math.min(CARRIER_YARD_SCALE_MAX, ypc / LEAGUE_YARDS_PER_CARRY));
+  const trust = carrierWorkloadTrust(entry);
+  const believed = LEAGUE_YARDS_PER_CARRY + (ypc - LEAGUE_YARDS_PER_CARRY) * trust;
+  return Math.max(
+    CARRIER_YARD_SCALE_MIN,
+    Math.min(CARRIER_YARD_SCALE_MAX, believed / LEAGUE_YARDS_PER_CARRY)
+  );
 }
 
 /**
@@ -937,7 +970,19 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
     // ones and a burner's are not.
     carriers[i] = isRun ? pickBySlotWeight(usage.rushers, rand) : null;
     const carrierBoost = isRun ? carrierYardScale(roster[carriers[i]]) / meanCarrierScale : 1;
-    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT * carrierBoost : 1);
+    // meanCarrierScale goes back IN as an absolute, having been divided out of
+    // carrierBoost above. The relative form alone decided only how a fixed pool
+    // of ground yards was SHARED, so with one running back slot and no backups
+    // it cancelled entirely: whoever was drafted got the same rushing total,
+    // and a backup's regressed rate reached nothing. The comment this replaces
+    // worried that an absolute scale would "hand a team with a 5.8-a-carry back
+    // extra offence and take it off his quarterback's passing line". That is
+    // not a bug, it is the run game mattering - and because every raw weight is
+    // normalised against the same gainPool below, it moves the RUN/PASS SPLIT
+    // of a drive rather than the drive's total. A weak back means fewer yards
+    // on the ground and more through the air, which is what a team with no run
+    // game actually does.
+    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT * carrierBoost * meanCarrierScale : 1);
   }
   const rawTotal = raw.reduce((s, v) => s + v, 0);
   // The productive plays make up whatever the sacks gave away.

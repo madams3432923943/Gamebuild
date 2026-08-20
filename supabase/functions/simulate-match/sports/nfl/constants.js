@@ -165,7 +165,7 @@ export const MIN_RATED_GAMES = 6;
  * Raising it widens the SPREAD without moving the mean, because edge is 1 at
  * parity. Two evenly matched teams play exactly the same game as before; a
  * mismatch now looks like a mismatch. */
-export const TALENT_PARITY = 0.95;
+export const TALENT_PARITY = 1.6;
 
 /** PROVISIONAL - see the header. Per-quarter multiplier on drive quality, so a
  * game can swing the way real ones do. Symmetric around 1 so it adds noise
