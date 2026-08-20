@@ -12,18 +12,29 @@ concurrency:
   group: verify-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# TWO JOBS, IN PARALLEL, BECAUSE ONE SERIAL JOB STOPPED FITTING.
+#
+# This was a single job running all 34 verify steps plus both browser
+# selftests end to end. It took 25-30 minutes against a 30-minute timeout -
+# close enough to its own ceiling that a slow runner would have failed a green
+# branch, and slow enough that every change cost half an hour before anyone
+# could merge it.
+#
+# Only six of the 34 steps drive Chromium. Those six plus the selftests are the
+# expensive half AND the only half that needs the ~170MB browser download; the
+# other 28 need nothing but `npm ci`. Splitting them means the node half
+# reports in a few minutes instead of waiting behind a browser it never uses,
+# and neither half carries the other's runtime.
+#
+# Both must pass. Nothing was dropped from the suite to make this fit - the
+# point of widening the gate was that the whole suite gates the merge.
+
 jobs:
-  # The whole suite, not a hand-picked subset.
-  #
-  # This job used to name eleven steps out of the ~34 in `npm run verify`. Every
-  # check outside that list - pick eligibility, era rotation, the online strategy
-  # contract, NFL realism and gameplans, provenance, kits, banners, icons, bot
-  # difficulty, the Edge Function's outcome builder - ran only on someone's
-  # laptop, if they remembered. A suite that large is worth having only if it is
-  # the thing that gates the merge.
-  verify:
+  # 28 of the 34 steps. No Chromium download at all.
+  node:
+    name: verify (node)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,24 +60,10 @@ jobs:
       - name: Build stamp moved with the code
         run: npm run verify:stamp
 
-      # Several verify steps drive a real browser, so Chromium is installed
-      # before the suite rather than partway through it.
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Verify
+      - name: Verify (node)
         env:
           SIM_RUNS: 5000
-        run: npm run verify
-
-      # `verify` proves the modules parse and the contracts hold. It does not
-      # prove the app runs - two blank-screen bugs shipped past a green verify
-      # because nothing loaded a page. These do, at desktop and at 360px.
-      - name: Verify the app actually plays
-        run: npm run verify:selftest
-
-      - name: Verify the app plays on a phone
-        run: npm run verify:selftest:mobile
+        run: npm run verify:node
 
       - name: Bundle browser app
         run: npm run bundle
@@ -77,3 +74,33 @@ jobs:
           --bundle --platform=neutral --format=esm
           --external:jsr:* --outfile=/tmp/simulate-match.js
 
+  # The six Chromium steps, plus the selftests that prove the app actually
+  # runs. `verify` proves the modules parse and the contracts hold; it does not
+  # prove the app starts - two blank-screen bugs shipped past a green verify
+  # because nothing loaded a page.
+  browser:
+    name: verify (browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify (browser)
+        run: npm run verify:browser
+
+      - name: Verify the app actually plays
+        run: npm run verify:selftest
+
+      - name: Verify the app plays on a phone
+        run: npm run verify:selftest:mobile
