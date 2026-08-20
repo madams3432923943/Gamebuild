@@ -48,14 +48,73 @@ if (!existsSync(SEED)) {
 
 const sql = readFileSync(SEED, "utf8");
 
-// The generated file wraps everything in begin/commit and chunks the inserts.
-// Each statement goes over separately, so the transaction wrapper is dropped -
-// the API runs each call on its own connection and a stray `begin` would leave
-// an open transaction that never commits.
-const statements = sql
-  .split(/;\s*\n/)
-  .map((s) => s.trim())
-  .filter((s) => s && !/^--/.test(s) && !/^(begin|commit)$/i.test(s))
+// SPLITTING SQL WITHOUT A PARSER.
+//
+// Each statement goes over separately, because the API runs every call on its
+// own connection - that is why the seed can no longer rely on a begin/commit
+// wrapper and stages its rows instead (see
+// db/migrations/20260820_01_atomic_dataset_publish.sql). Any `begin` or
+// `commit` still found is dropped rather than sent: on a per-call connection it
+// would only open a transaction nothing ever closes.
+//
+// Splitting on `;` alone is not enough any more. The seed now ends with a call
+// into a plpgsql function, and a future seed may inline a `do $$ ... $$` block;
+// both contain semicolons that belong to the body, not to the statement. So the
+// scan tracks dollar-quoted strings ($$ ... $$, $tag$ ... $tag$) and single
+// quotes, and only breaks on a semicolon found outside both. Getting this wrong
+// does not fail loudly - it sends half a function body as a statement and the
+// error names a syntax problem in generated SQL that is perfectly valid.
+function splitStatements(text) {
+  const out = [];
+  let buf = "";
+  let i = 0;
+  let dollarTag = null;
+  let inSingle = false;
+  while (i < text.length) {
+    const ch = text[i];
+    if (dollarTag) {
+      if (text.startsWith(dollarTag, i)) {
+        buf += dollarTag;
+        i += dollarTag.length;
+        dollarTag = null;
+        continue;
+      }
+    } else if (inSingle) {
+      // '' is an escaped quote inside a literal, not the end of one - and
+      // player names are full of apostrophes, so this branch is load-bearing.
+      if (ch === "'" && text[i + 1] === "'") {
+        buf += "''";
+        i += 2;
+        continue;
+      }
+      if (ch === "'") inSingle = false;
+    } else {
+      const tag = /^\$[A-Za-z_]*\$/.exec(text.slice(i));
+      if (tag) {
+        dollarTag = tag[0];
+        buf += dollarTag;
+        i += dollarTag.length;
+        continue;
+      }
+      if (ch === "'") inSingle = true;
+      else if (ch === ";") {
+        out.push(buf);
+        buf = "";
+        i += 1;
+        continue;
+      }
+    }
+    buf += ch;
+    i += 1;
+  }
+  if (buf.trim()) out.push(buf);
+  return out;
+}
+
+const statements = splitStatements(sql)
+  // Comment-only chunks are the file's header and the notes between sections.
+  .map((s) => s.split("\n").filter((line) => !/^\s*--/.test(line)).join("\n").trim())
+  .filter((s) => s && !/^(begin|commit)$/i.test(s))
   .map((s) => `${s};`);
 
 console.log(`${statements.length} statements to apply against ${ref}`);
@@ -74,14 +133,29 @@ async function run(query, label) {
   return res.json().catch(() => null);
 }
 
+let published = null;
 for (let i = 0; i < statements.length; i++) {
-  await run(statements[i], `statement ${i + 1}/${statements.length}`);
+  const res = await run(statements[i], `statement ${i + 1}/${statements.length}`);
+  // The seed's last statement is the publish call, and it returns the live row
+  // count. Reporting it is the difference between "every request returned 200"
+  // and "the pool the game reads now holds this many rows" - the staging table
+  // could load perfectly and still publish nothing if the function changed
+  // underneath us.
+  const row = Array.isArray(res) ? res[0] : null;
+  const value = row && Object.values(row)[0];
+  if (/^select public\.publish_/i.test(statements[i]) && Number.isFinite(Number(value))) {
+    published = Number(value);
+  }
   process.stdout.write(`\r  applied ${i + 1}/${statements.length}`);
 }
 
-const check = await run(
-  "select count(*) as rows, count(season) as with_season, count(distinct name) as players from public.players",
-  "verification"
-);
-console.log(`\n${JSON.stringify(check)}`);
+if (published === null) {
+  console.error(
+    "\nThe seed did not end in a publish call, so nothing confirms the live table was replaced. " +
+      "Re-generate it with tools/export-players-sql.mjs or tools/export-nfl-sql.mjs."
+  );
+  process.exit(1);
+}
+
+console.log(`\npublished ${published} rows`);
 console.log("done");

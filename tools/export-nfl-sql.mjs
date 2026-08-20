@@ -18,20 +18,26 @@
 // denormalised copies for filtering. Both come from the same object, so they
 // cannot disagree.
 //
-// Output is idempotent - delete, then insert - so re-running after a dataset
+// Output is idempotent - stage, then publish - so re-running after a dataset
 // rebuild converges instead of accumulating duplicates.
 //
-// THE TRANSACTION IN THIS FILE DOES NOT PROTECT YOU. The begin/commit is
-// written out, but tools/apply-seed.mjs strips it: the Management API runs
-// each statement on its own connection, so a stray `begin` would leave an open
-// transaction rather than group anything. The delete therefore commits on its
-// own, and the table is EMPTY from then until the last insert lands - about a
-// minute, during which an online football match would find no players.
+// THE LIVE TABLE IS NEVER EMPTY WHILE THIS RUNS.
 //
-// That is survivable because the workflow is manual and football is quiet, and
-// the wrapper is kept because a client that does honour it should. If this ever
-// needs to be safe under traffic, load into a second table and swap it in with
-// a rename - do not reach for the transaction, it is not doing anything.
+// It used to be. The file was `delete from nfl_players` followed by ~30 chunked
+// inserts, and tools/apply-seed.mjs sends each statement to the Management API
+// separately - one connection each - so a begin/commit wrapper grouped nothing
+// and had to be stripped. The delete committed alone and the pool was gone for
+// about a minute. An online football match started in that window found no
+// players, and because every rating is a percentile against the pool it was
+// computed from, an empty pool does not throw: it rates everything 0.5 and
+// produces a plausible, wrong game.
+//
+// The inserts now fill public.nfl_players_staging, which nothing reads, and a
+// single call to publish_nfl_players_from_staging() moves it across. One
+// statement is one implicit transaction, so the swap is atomic and a failure
+// leaves the previous dataset in place. See
+// db/migrations/20260820_01_atomic_dataset_publish.sql - including why the
+// rename swap this comment used to recommend would have been a bug.
 //
 // Usage:  node tools/export-nfl-sql.mjs
 //         then apply db/seed/nfl-seed.sql (see tools/apply-seed.mjs)
@@ -92,7 +98,7 @@ const CHUNK = 500;
 const statements = [];
 for (let i = 0; i < values.length; i += CHUNK) {
   statements.push(
-    `insert into public.nfl_players (${COLUMNS.join(", ")}) values\n` +
+    `insert into public.nfl_players_staging (${COLUMNS.join(", ")}) values\n` +
       values.slice(i, i + CHUNK).join(",\n") +
       ";"
   );
@@ -109,9 +115,11 @@ writeFileSync(
     `-- ${PLAYERS.length} player-seasons and ${UNITS.length} units, ` +
     `seasons ${seasons[0]}-${seasons[seasons.length - 1]}.\n` +
     `--\n` +
-    `-- Wrapped in a transaction so a failure leaves the old rows in place\n` +
-    `-- rather than an empty table.\n\n` +
-    `begin;\n\ndelete from public.nfl_players;\n\n${statements.join("\n\n")}\n\ncommit;\n`
+    `-- Staged, then published in one statement, so public.nfl_players goes\n` +
+    `-- straight from the old dataset to the new one with nothing in between.\n\n` +
+    `truncate table public.nfl_players_staging;\n\n` +
+    `${statements.join("\n\n")}\n\n` +
+    `select public.publish_nfl_players_from_staging();\n`
 );
 
 console.log(

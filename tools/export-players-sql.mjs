@@ -9,8 +9,16 @@
 // Writing a file keeps the data out of every human and every model: the script
 // reads the generated dataset and the file is applied whole.
 //
-// Output is deliberately idempotent - truncate, then insert - so re-running it
+// Output is deliberately idempotent - stage, then publish - so re-running it
 // after a dataset rebuild converges rather than accumulating duplicates.
+//
+// THE LIVE TABLE IS NEVER EMPTY WHILE THIS RUNS. The inserts fill
+// public.players_staging, which nothing reads, and one call to
+// publish_players_from_staging() moves it across in a single statement - so a
+// single implicit transaction. The previous shape deleted the live rows in
+// their own committed statement and left the pool empty for about a minute;
+// see db/migrations/20260820_01_atomic_dataset_publish.sql for why that
+// mattered and why a rename swap would not have fixed it.
 //
 // Usage:  node tools/export-players-sql.mjs
 //         then apply db/seed/players-seed.sql to the database
@@ -51,7 +59,7 @@ const CHUNK = 500;
 const statements = [];
 for (let i = 0; i < values.length; i += CHUNK) {
   statements.push(
-    `insert into public.players (${COLUMNS.join(", ")}) values\n` +
+    `insert into public.players_staging (${COLUMNS.join(", ")}) values\n` +
       values.slice(i, i + CHUNK).join(",\n") +
       ";"
   );
@@ -66,10 +74,13 @@ writeFileSync(
     `-- Apply AFTER db/migrations/20260805_02_players_by_season.sql, which adds\n` +
     `-- the season column and widens the identity constraint this relies on.\n` +
     `--\n` +
-    `-- Wrapped in a transaction so a failure leaves the old rows in place\n` +
-    `-- rather than an empty table: a draft against no players is a dead game,\n` +
-    `-- a draft against stale players is merely wrong.\n\n` +
-    `begin;\n\ndelete from public.players;\n\n${statements.join("\n\n")}\n\ncommit;\n`
+    `-- Staged, then published in one statement, so public.players goes\n` +
+    `-- straight from the old dataset to the new one with nothing in between:\n` +
+    `-- a draft against no players is a dead game, a draft against stale\n` +
+    `-- players is merely wrong.\n\n` +
+    `truncate table public.players_staging;\n\n` +
+    `${statements.join("\n\n")}\n\n` +
+    `select public.publish_players_from_staging();\n`
 );
 
 console.log(`${PLAYERS.length} rows -> ${OUT}`);
