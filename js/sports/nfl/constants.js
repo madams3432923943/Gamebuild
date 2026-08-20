@@ -155,17 +155,26 @@ export const MIN_RATED_GAMES = 6;
 
 /** How far talent separates a great offence from a poor one.
  *
- * SOLVED, at last, by tools/calibrate-nfl-variance.mjs. It was 0.42, which
- * was measured as far too compressed: `edge` moved by only about ten percent
- * across the entire talent range, so a replacement-level quarterback cost his
- * offence roughly four yards a drive. That is what let a backup post a
- * starter's line - Skylar Thompson 2022 threw for 76 yards a game in real
- * life and 280 in this simulation.
+ * MEASURED BY HAND, NOT SOLVED. This comment used to say it was "SOLVED, at
+ * last, by tools/calibrate-nfl-variance.mjs". That tool has never existed -
+ * only the two NBA calibrators do - so the claim was false the day it was
+ * written and stayed false through every reading of this file since. Football's
+ * balance levers have always been authored. Saying so is worth more than the
+ * reassurance was.
+ *
+ * How 1.6 was arrived at: sweeping the value and measuring two rosters whose
+ * ratings differ by eleven points. At 0.95 the better roster won 61.6% of 400
+ * games, which is close enough to a coin toss that a draft stops feeling like
+ * it decided anything. At 1.6 it wins 73.5%, and a 96-against-7 mismatch stays
+ * at 100% either way, so the top end is not distorted to buy the middle.
  *
  * Raising it widens the SPREAD without moving the mean, because edge is 1 at
  * parity. Two evenly matched teams play exactly the same game as before; a
- * mismatch now looks like a mismatch. */
-export const TALENT_PARITY = 0.95;
+ * mismatch now looks like a mismatch.
+ *
+ * It should still be solved. A calibrator for football would replace this
+ * paragraph with a number nobody had to argue about. */
+export const TALENT_PARITY = 1.6;
 
 /** PROVISIONAL - see the header. Per-quarter multiplier on drive quality, so a
  * game can swing the way real ones do. Symmetric around 1 so it adds noise

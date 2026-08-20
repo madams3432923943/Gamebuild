@@ -216,7 +216,7 @@ for (const row of offence) {
       season,
       posGames: {},
       games: 0,
-      sums: { pass_yds: 0, pass_td: 0, ints: 0, rush_yds: 0, rush_td: 0, rec: 0, rec_yds: 0, rec_td: 0, fum: 0, sacked: 0, carries: 0, targets: 0 },
+      sums: { pass_yds: 0, pass_td: 0, ints: 0, rush_yds: 0, rush_td: 0, rec: 0, rec_yds: 0, rec_td: 0, fum: 0, sacked: 0, carries: 0, targets: 0, comp: 0, att: 0 },
     });
   }
   const rec = players.get(key);
@@ -256,6 +256,13 @@ for (const row of offence) {
   s.sacked += num(row.sacks_suffered ?? row.sacks);
   s.carries += num(row.carries);
   s.targets += num(row.targets);
+  // Completions and attempts were read only to decide whether a man played,
+  // and thrown away after. Without them a quarterback can only be rated on
+  // VOLUME - yards and touchdowns - which is how a passer who threw for 238
+  // a game on 40 attempts outrated one who threw for 223 on 30. Efficiency
+  // needs the denominator.
+  s.comp += num(row.completions);
+  s.att += num(row.attempts);
 }
 
 const playerRows = [...players.values()]
@@ -285,6 +292,18 @@ const playerRows = [...players.values()]
       // alone cannot tell them apart.
       ypc: p.sums.carries > 0 ? r2(p.sums.rush_yds / p.sums.carries) : 0,
       ypt: p.sums.targets > 0 ? r2(p.sums.rec_yds / p.sums.targets) : 0,
+      // Passing efficiency. comp_pct and ypa are the two halves of "how well
+      // did he throw it" that yardage alone hides.
+      comp_pct: p.sums.att > 0 ? r3(p.sums.comp / p.sums.att) : 0,
+      ypa: p.sums.att > 0 ? r2(p.sums.pass_yds / p.sums.att) : 0,
+      // ROLE. Whether he was the starter, which per-game yardage cannot say: a
+      // back with 60 carries in a season was somebody's backup, and handing him
+      // a bell-cow's workload should not produce a bell-cow's line. Kept as
+      // per-game touches rather than season totals so a man who started seven
+      // games reads as a starter for those seven.
+      car_pg: r1(per("carries")),
+      tgt_pg: r1(per("targets")),
+      att_pg: r1(per("att")),
     };
   });
 

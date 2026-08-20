@@ -95,15 +95,77 @@ export function slotMatchups(roster, oppRoster, { rate, label, slots } = {}) {
 export function matchupSentence(read) {
   const theirName = read.theirs?.name ?? "their player";
   const myName = read.mine?.name ?? "yours";
+  // Same-slot reads (basketball) name one position on both sides. Cross reads
+  // (football) carry `against`, because the thing they face is a different
+  // position entirely.
+  //
+  // A UNIT NAMES ITS OWN POSITION - "Arizona Cardinals Defensive Line" already
+  // says what it is, so prefixing the label gives "their pass rush Arizona
+  // Cardinals Defensive Line". Players need the prefix ("your WR1 Justin
+  // Jefferson"); units do not.
+  const named = (entry, label) => (entry?.group ? "" : `${label} `);
+  const theirLabel = named(read.theirs, read.against ?? read.label);
+  const myLabel = named(read.mine, read.label);
 
   if (read.edge < 0) {
     return read.severity === "severe"
-      ? `Their ${read.label} ${theirName} badly outmatches your ${read.label} ${myName}.`
-      : `Their ${read.label} ${theirName} has an advantageous matchup against your ${read.label} ${myName}.`;
+      ? `Their ${theirLabel}${theirName} badly outmatches your ${myLabel}${myName}.`
+      : `Their ${theirLabel}${theirName} has an advantageous matchup against your ${myLabel}${myName}.`;
   }
   return read.severity === "severe"
-    ? `Your ${read.label} ${myName} badly outmatches their ${read.label} ${theirName}.`
-    : `Your ${read.label} ${myName} has an advantageous matchup against their ${read.label} ${theirName}.`;
+    ? `Your ${myLabel}${myName} badly outmatches their ${theirLabel}${theirName}.`
+    : `Your ${myLabel}${myName} has an advantageous matchup against their ${theirLabel}${theirName}.`;
+}
+
+/**
+ * The same read, but for a sport where the two sides do not line up slot for
+ * slot.
+ *
+ * WHY THIS IS SEPARATE FROM slotMatchups. Basketball has direct positional
+ * matchups - your small forward really does guard theirs - so comparing like
+ * slot to like slot is the game. Football has none. Nobody's tight end covers
+ * the other tight end, and nobody's offensive line blocks the other offensive
+ * line; football is offence against DEFENCE. Reading it slot-for-slot produced
+ * lines like "your TE badly outmatches their TE", which is true of the ratings
+ * and describes nothing that happens on a field.
+ *
+ * So the caller supplies the pairings, because only the sport knows them.
+ *
+ * @param pairings  [{ mine, theirs, label, against }] - `mine` and `theirs` are
+ *                  slot keys on the respective rosters, `label` names the unit
+ *                  the sentence is about, and `against` names what it faces.
+ * @returns the same shape slotMatchups returns, so matchupReads can rank and
+ *          phrase both without caring which sport it is looking at.
+ */
+export function crossMatchups(roster, oppRoster, { rate, pairings } = {}) {
+  if (!roster || !oppRoster || typeof rate !== "function" || !pairings?.length) return [];
+
+  const reads = [];
+  for (const pair of pairings) {
+    const mine = roster[pair.mine];
+    const theirs = oppRoster[pair.theirs];
+    // A slot either side left empty is a forfeit, which the draft grade already
+    // charges for. Counting it here would charge for it twice.
+    if (!mine || !theirs) continue;
+
+    const mineRating = rate(mine);
+    const theirRating = rate(theirs);
+    const best = Math.max(mineRating, theirRating);
+    if (!(best > 0)) continue;
+
+    const edge = (mineRating - theirRating) / best;
+    if (Math.abs(edge) < EDGE_THRESHOLD) continue;
+    reads.push({
+      slot: pair.mine,
+      label: pair.label ?? pair.mine,
+      against: pair.against ?? pair.theirs,
+      mine,
+      theirs,
+      edge,
+      severity: Math.abs(edge) >= SEVERE_THRESHOLD ? "severe" : "edge",
+    });
+  }
+  return reads.sort((a, b) => a.edge - b.edge);
 }
 
 /**
@@ -118,8 +180,12 @@ export function matchupSentence(read) {
  * reads as a missing feature, and "no mismatch anywhere" is real information
  * about a draft.
  */
-export function matchupReads(roster, oppRoster, { rate, label, slots, limit = 3 } = {}) {
-  const reads = slotMatchups(roster, oppRoster, { rate, label, slots });
+export function matchupReads(roster, oppRoster, { rate, label, slots, pairings, limit = 3 } = {}) {
+  // A sport that supplies pairings is telling us its slots do not face each
+  // other; one that does not is telling us they do.
+  const reads = pairings
+    ? crossMatchups(roster, oppRoster, { rate, pairings })
+    : slotMatchups(roster, oppRoster, { rate, label, slots });
   if (!reads.length) return [];
 
   const notable = reads.filter((r) => Math.abs(r.edge) >= EDGE_THRESHOLD);

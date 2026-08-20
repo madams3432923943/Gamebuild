@@ -9,6 +9,53 @@ import { matchupReads } from "../../matchups.js";
 
 const canonicalSlot = (slot) => String(slot || "").replace(/\d+$/, "").toUpperCase();
 
+/**
+ * Who actually lines up across from whom.
+ *
+ * FOOTBALL IS OFFENCE AGAINST DEFENCE, and reading a roster slot-for-slot the
+ * way basketball does produced sentences describing nothing that happens on a
+ * field: "your TE badly outmatches their TE" (no tight end covers a tight end),
+ * "their OL has an advantageous matchup against your OL" (offensive lines never
+ * meet). True of the ratings, meaningless as football.
+ *
+ * Both directions are listed, because a mismatch matters whichever side of the
+ * ball it is on - their pass rush eating your line is as much the story of a
+ * game as your receivers eating their corners.
+ *
+ * Special teams is the one pairing where like really does face like: your
+ * kicking game and theirs are measured against the same field, so it stays.
+ */
+const MATCHUPS = [
+  // The line of scrimmage, both ways.
+  { mine: "OL", theirs: "DL", label: "offensive line", against: "pass rush" },
+  { mine: "DL", theirs: "OL", label: "pass rush", against: "offensive line" },
+  // The passing game against the coverage behind it.
+  { mine: "WR1", theirs: "CB", label: "WR1", against: "secondary" },
+  { mine: "WR2", theirs: "CB", label: "WR2", against: "secondary" },
+  { mine: "CB", theirs: "WR1", label: "secondary", against: "WR1" },
+  // Tight ends are a safety and linebacker problem, not a tight end problem.
+  { mine: "TE", theirs: "S", label: "TE", against: "safeties" },
+  { mine: "S", theirs: "TE", label: "safeties", against: "TE" },
+  // The run game against the men paid to stop it.
+  { mine: "RB", theirs: "LB", label: "RB", against: "linebackers" },
+  { mine: "LB", theirs: "RB", label: "linebackers", against: "RB" },
+  // The one honest like-for-like in football.
+  { mine: "ST", theirs: "ST", label: "special teams", against: "special teams" },
+
+  // QUICK PLAY IS A DIFFERENT ROSTER SHAPE. Ranked drafts the defence in four
+  // units (DL/LB/CB/S); Quick Play drafts one combined DEF, and its receivers
+  // are a single WR rather than WR1-3. Pairings naming only the ranked slots
+  // resolved to nothing at all on a Quick Play roster - crossMatchups skips a
+  // pair when either side is unfilled, so the read came back silently empty.
+  // Both shapes are listed and each roster matches the half that applies to it.
+  { mine: "OL", theirs: "DEF", label: "offensive line", against: "defence" },
+  { mine: "DEF", theirs: "OL", label: "defence", against: "offensive line" },
+  { mine: "WR", theirs: "DEF", label: "WR", against: "defence" },
+  { mine: "RB", theirs: "DEF", label: "RB", against: "defence" },
+  { mine: "TE", theirs: "DEF", label: "TE", against: "defence" },
+  { mine: "QB", theirs: "DEF", label: "QB", against: "defence" },
+];
+
 /** Units identify themselves with `group` (DL/LB/CB/S/OL/ST), while players
  * expose `pos`. The old curve sampled only `pos`, so defensive unit slots had
  * no candidate pool and the resulting curve was not representative of an NFL
@@ -118,9 +165,7 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
     notes.push(
       ...matchupReads(roster, oppRoster, {
         rate: (entry) => rateEntry(entry, ctx),
-        // "WR", not "WR2". The depth number is a roster-shape detail and the
-        // sentence is about a position.
-        label: canonicalSlot,
+        pairings: MATCHUPS,
       })
     );
   }
