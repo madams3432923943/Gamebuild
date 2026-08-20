@@ -1609,7 +1609,12 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
  * and its hint have to say which game is actually being played. */
 function applyRulesetToDraftUI() {
   const easy = game.ruleset === "easy";
-  poolSearch.placeholder = easy ? "Filter this squad…" : "Type a player's name from memory…";
+  // The sport says what its own board accepts. Basketball's slots are all
+  // individuals, so it declares nothing and keeps the original wording;
+  // football's board takes a position for its six unit slots and says so,
+  // because "type a player's name" is a dead end at half its roster.
+  const fromMemory = sport().labels?.searchHint || "Type a player's name from memory…";
+  poolSearch.placeholder = easy ? "Filter this squad…" : fromMemory;
   knowledgeHintEl.textContent = easy
     ? "Practice mode — full squad and stats shown, no clock."
     : `No player list — draft from memory. ${MIN_SEARCH_CHARS}+ letters to search.`;

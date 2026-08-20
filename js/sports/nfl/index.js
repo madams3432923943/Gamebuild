@@ -143,9 +143,9 @@ const TIERS = [
 // offensive line is the exception) stay; everything else is trimmed to a line.
 const HOW_TO_PLAY = [
   ["The draft", "Each round rolls one team and era - say the 1985 Bears - and you both draft from it."],
-  ["Units, not just players", "You draft the skill positions man by man. The line and the whole defence go as units."],
-  ["One name takes a unit", "Type ANY player in it. Urlacher takes the 2006 Bears linebackers - all four. You never name eleven people."],
-  ["Except the line", "Type \"Offensive Line\" for that slot. Football's stat sheets name no linemen, so there is nobody to type."],
+  ["Units, not just players", "You draft the skill positions man by man - quarterback, running back, receivers, tight end. The line and the whole defence go as units."],
+  ["For a unit, type the position", "Not a name: type \"linebackers\", \"cornerbacks\", \"safeties\", \"defensive line\", \"offensive line\" or \"special teams\". That takes the squad's whole group in one pick."],
+  ["Why there is no name to type", "The stat sheets this is built from cover passers, rushers and receivers - nobody on defence or the line appears in them as an individual. There is no Ray Lewis to type, so the group is the pick."],
   ["Your roster", "Twelve picks: seven on offence, five on defence and special teams."],
   ["Game plan", "Three offered at random, and what one is worth depends on who you drew - Ground and Pound wants a running quarterback."],
   ["Coin toss", "Winner receives or kicks. Tied after four quarters, both sides get a possession in overtime."],
@@ -195,6 +195,12 @@ export const NFL = {
     periodPlural: "quarters",
     scoreVerb: "scored",
     opening: "kickoff",
+    // The draft box is shared, and its default - "type a player's name" - is
+    // wrong for more than half a football roster. Six of the twelve slots are
+    // units, and no defender or lineman exists in the data as an individual,
+    // so a player typing a name at those slots gets nothing back and no
+    // explanation. Each sport says what its own board accepts.
+    searchHint: "Type a player, or a position like \"linebackers\"…",
   },
 
   // Football is watched on a field, and it is watched as a TIMELINE - a
