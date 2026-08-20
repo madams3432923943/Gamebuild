@@ -73,6 +73,52 @@ jobs:
           SIM_RUNS: 5000
         run: npm run verify:node
 
+  # DOES THE SERVER PLAY ON THE POOL IN THIS COMMIT?
+  #
+  # Its own job rather than a step in `node`, because it is the one check here
+  # that asserts something about the WORLD rather than about the code: it reads
+  # the live tables. That makes it the check most likely to fail for reasons
+  # unrelated to the commit, and separating it means such a failure names itself
+  # instead of hiding behind "verify (node) failed".
+  #
+  # SKIPPED WHEN THIS PUSH CHANGED data/. The Seed workflows fire on the same
+  # push and are what makes the two agree again; running this alongside them is
+  # a race the seed usually loses, since it has ~14,000 rows to send. The seed
+  # workflows run this same check as their own last step, so the case skipped
+  # here is covered there - with the publish already done.
+  published:
+    name: verify (published dataset)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Did this push change a dataset?
+        id: data
+        run: |
+          changed=$(git diff --name-only HEAD~1 HEAD -- data tools/export-players-sql.mjs tools/export-nfl-sql.mjs tools/apply-seed.mjs || true)
+          if [ -n "$changed" ]; then
+            echo "seeding=true" >> "$GITHUB_OUTPUT"
+            echo "This push touched:"; echo "$changed"
+            echo "The Seed workflows own the comparison for this commit."
+          else
+            echo "seeding=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: The live pool is this commit's pool
+        if: steps.data.outputs.seeding != 'true'
+        run: npm run verify:dataset-published
+
   browser:
     name: verify (browser)
     runs-on: ubuntu-latest

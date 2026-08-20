@@ -73,6 +73,7 @@ async function preload() {
   return loading;
 }
 import { computeDatasetStats, simulate } from "./engine.js";
+import { datasetVersion } from "../../lib/dataset-version.js";
 
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
@@ -143,9 +144,9 @@ const TIERS = [
 // offensive line is the exception) stay; everything else is trimmed to a line.
 const HOW_TO_PLAY = [
   ["The draft", "Each round rolls one team and era - say the 1985 Bears - and you both draft from it."],
-  ["Units, not just players", "You draft the skill positions man by man. The line and the whole defence go as units."],
-  ["One name takes a unit", "Type ANY player in it. Urlacher takes the 2006 Bears linebackers - all four. You never name eleven people."],
-  ["Except the line", "Type \"Offensive Line\" for that slot. Football's stat sheets name no linemen, so there is nobody to type."],
+  ["Units, not just players", "You draft the skill positions man by man - quarterback, running back, receivers, tight end. The line and the whole defence go as units."],
+  ["For a unit, type the position", "Not a name: type \"linebackers\", \"cornerbacks\", \"safeties\", \"defensive line\", \"offensive line\" or \"special teams\". That takes the squad's whole group in one pick."],
+  ["Why there is no name to type", "The stat sheets this is built from cover passers, rushers and receivers - nobody on defence or the line appears in them as an individual. There is no Ray Lewis to type, so the group is the pick."],
   ["Your roster", "Twelve picks: seven on offence, five on defence and special teams."],
   ["Game plan", "Three offered at random, and what one is worth depends on who you drew - Ground and Pound wants a running quarterback."],
   ["Coin toss", "Winner receives or kicks. Tied after four quarters, both sides get a possession in overtime."],
@@ -195,6 +196,12 @@ export const NFL = {
     periodPlural: "quarters",
     scoreVerb: "scored",
     opening: "kickoff",
+    // The draft box is shared, and its default - "type a player's name" - is
+    // wrong for more than half a football roster. Six of the twelve slots are
+    // units, and no defender or lineman exists in the data as an individual,
+    // so a player typing a name at those slots gets nothing back and no
+    // explanation. Each sport says what its own board accepts.
+    searchHint: "Type a player, or a position like \"linebackers\"…",
   },
 
   // Football is watched on a field, and it is watched as a TIMELINE - a
@@ -273,6 +280,12 @@ export const NFL = {
   // of mostly-null columns and every query would carry a filter it could
   // forget. See db/migrations for the schema.
   table: "nfl_players",
+
+  // Football's row count is players AND units, because that is what
+  // nfl_players holds and what the Edge Function counts when it stamps a
+  // finished match. Counting only the individuals here would report drift on
+  // every single game.
+  datasetVersion: () => (loaded(), datasetVersion("nfl-generated", [...NFL_PLAYERS, ...NFL_UNITS])),
   statKeys: ["pass_yds", "rush_yds", "rec_yds", "tds", "turnovers"],
   // Kept in step with statLabels below: these are the columns a football box
   // score will carry, and the profile's records are read straight off them.

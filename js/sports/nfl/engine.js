@@ -285,7 +285,17 @@ function driveYards(outcome, startYard, mult, rand) {
   // floor outside the multiplier a hopeless offence still marched 18 yards a
   // drive for free, which is most of why a backup quarterback's yardage
   // looked like a starter's.
-  const reach = (18 + 42 * rand()) * mult;
+  //
+  // 22/50 rather than the 18/42 this shipped with. Adding SAF to the source
+  // data's defensive-unit map (tools/build-nfl-data.mjs) pulled 43 more safety
+  // units into the pool, most of them weaker than the ones already there. That
+  // moved the S percentile distribution, raised every safety's rating, and
+  // suppressed offence by about 8% - enough to drop yards per play to 4.45 and
+  // drive yardage to 23.2, both below what scripts/verify-nfl-realism.mjs
+  // accepts. Re-tuned by hand against that check, not by a calibrator: there is
+  // no tools/calibrate-nfl-* for football yet, and pretending otherwise in a
+  // comment is how the last stale note here got written.
+  const reach = (22 + 50 * rand()) * mult;
   if (outcome === "touchdown") return 100 - startYard;
   if (outcome === "fieldGoal") return Math.max(FG_RANGE_YARD - startYard, reach);
   // A DRIVE THAT DID NOT SCORE DID NOT GO FAR. This was `reach - 14`, about 25

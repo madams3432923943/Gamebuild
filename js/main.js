@@ -1609,7 +1609,12 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
  * and its hint have to say which game is actually being played. */
 function applyRulesetToDraftUI() {
   const easy = game.ruleset === "easy";
-  poolSearch.placeholder = easy ? "Filter this squad…" : "Type a player's name from memory…";
+  // The sport says what its own board accepts. Basketball's slots are all
+  // individuals, so it declares nothing and keeps the original wording;
+  // football's board takes a position for its six unit slots and says so,
+  // because "type a player's name" is a dead end at half its roster.
+  const fromMemory = sport().labels?.searchHint || "Type a player's name from memory…";
+  poolSearch.placeholder = easy ? "Filter this squad…" : fromMemory;
   knowledgeHintEl.textContent = easy
     ? "Practice mode — full squad and stats shown, no clock."
     : `No player list — draft from memory. ${MIN_SEARCH_CHARS}+ letters to search.`;
@@ -3944,11 +3949,46 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   // schema growing a column to carry commentary. The one thing it can't
   // recompute is the opponent's forfeits, which is deliberate - that is a
   // live read on how the other side is doing and the reveal rule withholds it.
+  //
+  // ...but "a pure function of the two rosters" is only true GIVEN A POOL.
+  // Every rating in the analysis is a percentile against the dataset that
+  // computed it, and this client recomputes against data/*.js while the server
+  // simulated against its own table. Those are two copies of one dataset and
+  // they are meant to be identical - see js/lib/dataset-version.js - but when
+  // they are not, the analysis is ranked against a different distribution than
+  // the score it is explaining. It would still read as confident commentary:
+  // "your safeties were elite" beside a result that disagrees.
+  //
+  // So the fingerprint the server stamped on the result is checked first, and
+  // the analysis is withheld rather than shown against the wrong pool. There is
+  // no local fix available at this point - reconstructing the server's pool
+  // would mean downloading the whole table - and a missing explanation is much
+  // better than a plausible wrong one.
   let analysisA = null;
+  const serverDataset = dbResult?.dataset_version || null;
+  let localDataset = null;
   try {
-    analysisA = sport().draftAnalysis(myRosterFinal, oppRosterFinal, datasetStatsFor(), o.forfeits || []);
+    localDataset = sport().datasetVersion();
   } catch (e) {
-    console.error("Could not rebuild the draft analysis:", e);
+    console.error("Could not compute this client's dataset version:", e);
+  }
+  // Older results predate the stamp, so a missing one is not drift - it is an
+  // unanswerable question, and refusing to show an analysis over it would break
+  // every historical game.
+  const datasetDrift = !!serverDataset && !!localDataset && serverDataset !== localDataset;
+
+  if (datasetDrift) {
+    console.error(
+      `Dataset mismatch: this game was simulated on ${serverDataset}, this client holds ${localDataset}. ` +
+        `Withholding the draft analysis - it would be ranked against a different pool than the result.`
+    );
+    showBannerMessage("Result saved. The draft breakdown is hidden: this game was played on a different dataset version than your app has loaded.");
+  } else {
+    try {
+      analysisA = sport().draftAnalysis(myRosterFinal, oppRosterFinal, datasetStatsFor(), o.forfeits || []);
+    } catch (e) {
+      console.error("Could not rebuild the draft analysis:", e);
+    }
   }
 
   playOutResult({
