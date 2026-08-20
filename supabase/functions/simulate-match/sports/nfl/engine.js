@@ -513,7 +513,20 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   if (outcome === "touchdown") {
     // Rushing scores are rarer than receiving ones and go to backs and
     // quarterbacks, which is why the kind is drawn before the man.
-    kind = rand() < 0.32 ? "rush" : "rec";
+    //
+    // 0.38, not the 0.32 this shipped with. The TOTAL was never the problem -
+    // the simulation produced 2.48 touchdowns a team a game against football's
+    // 2.40 - but only 31% of them came on the ground where the real game is
+    // about 40%. Every drafted back was quieter near the goal line than he had
+    // been and every quarterback more prolific, and because the total looked
+    // right nothing was measuring the half that was wrong.
+    //
+    // This constant is the DRAWN share, not the realised one - a roster with
+    // nobody to carry it falls through to a receiving score below, so the two
+    // never match exactly. 0.38 measures out at 41% on the ground.
+    // scripts/verify-nfl-realism.mjs is what measures it; re-read that after
+    // changing this rather than reasoning forward from the number here.
+    kind = rand() < 0.38 ? "rush" : "rec";
     // If nobody on this roster can carry it, the play was not a run. The
     // fallback used to draw from the OTHER pool while leaving `kind` alone, so
     // an empty backfield produced a receiver - very often the tight end -
