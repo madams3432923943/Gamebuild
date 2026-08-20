@@ -102,7 +102,12 @@ const DEF_UNIT = {
   DE: "DL", DT: "DL", NT: "DL", DL: "DL",
   ILB: "LB", OLB: "LB", MLB: "LB", LB: "LB",
   CB: "CB", DB: "CB",
-  FS: "S", SS: "S", S: "S",
+  // SAF is nflverse's dominant safety label in recent seasons - 1,533 rows in
+  // 2025 against 146 FS and 68 S - and its absence here cost 48 of 830
+  // team-seasons their entire Safeties unit. A squad rolled from one of those
+  // could not fill its S slot at all: a forced forfeit, charged to both
+  // drafters by the grade, with nothing anywhere saying why.
+  FS: "S", SS: "S", S: "S", SAF: "S",
 };
 
 const num = (v) => {
