@@ -295,6 +295,12 @@ console.log(
 // they are tight enough that the failure above could not pass any of them.
 const RATE_GAMES = 400;
 const rate = { plays: [], yards: [], rush: [], drives: [], carries: [], seconds: [], backYards: [], backCarries: [] };
+// HOW A TEAM SCORES, not just how much. The engine drew 32% of touchdowns as
+// runs and produced 1.75 passing against 0.73 rushing, where football is about
+// 1.45 and 0.95 - while the TOTAL, 2.48 against 2.40, looked perfect. A split
+// that wrong makes every drafted back quieter near the goal line than he was
+// and every quarterback more prolific, and nothing here was measuring it.
+const tds = { pass: 0, rush: 0, sides: 0 };
 for (let i = 0; i < RATE_GAMES; i++) {
   const rosterA = rosterWith({ QB: qbPool[i % qbPool.length], RB: rbPool[i % rbPool.length] });
   const rosterB = rosterWith({ QB: qbPool[(i * 7) % qbPool.length], RB: rbPool[(i * 3) % rbPool.length] });
@@ -313,10 +319,21 @@ for (let i = 0; i < RATE_GAMES; i++) {
     // came back at 297 yards.
     rate.backYards.push((box.RB || {}).rush_yds || 0);
     rate.backCarries.push((box.RB || {}).carries || 0);
+    tds.sides += 1;
+    for (const line of Object.values(box)) {
+      tds.pass += line.pass_tds || 0;
+      // Receiving and rushing scores are the same touchdown counted from the
+      // scorer's side; the passing number above is the quarterback's copy of
+      // the receiving ones, so only rushing is added here.
+      tds.rush += line.rush_tds || 0;
+    }
   }
   rate.seconds.push(result.teamStatsA.possessionSeconds + result.teamStatsB.possessionSeconds);
 }
 const mean = (list) => list.reduce((a, b) => a + b, 0) / Math.max(1, list.length);
+const passTdPerGame = tds.pass / Math.max(1, tds.sides);
+const rushTdPerGame = tds.rush / Math.max(1, tds.sides);
+const rushTdShare = rushTdPerGame / Math.max(1e-9, passTdPerGame + rushTdPerGame);
 const yardsPerPlay = mean(rate.yards) / mean(rate.plays);
 const yardsPerCarry = mean(rate.rush) / mean(rate.carries);
 const yardsPerDrive = mean(rate.yards) / mean(rate.drives);
@@ -613,6 +630,27 @@ const checks = [
     title: "A team that must have seven never kicks three",
     ok: hopelessFieldGoals === 0 && lastChanceDown4Plus > 0,
     detail: `${hopelessFieldGoals} of ${lastChanceDown4Plus} last-chance possessions down 4+ ended in a field goal`,
+  },
+  {
+    // THE SHARE, NOT THE TWO RATES. How MANY touchdowns a side scores depends
+    // on the rosters, and the rosters here are a fixed cast with the
+    // quarterback and back cycled through the pool - so the absolute rates
+    // below sit under a real league's simply because this cast is not a real
+    // league. How touchdowns SPLIT between the run and the pass is a property
+    // of the engine rather than of the cast, and it is what was wrong: 31% on
+    // the ground against football's ~40%, which made every drafted back
+    // quieter near the goal line than he was and every quarterback more
+    // prolific. The total, meanwhile, looked perfect, which is why nothing
+    // caught it.
+    //
+    // A wide band on purpose. This is a draft game: a roster of six 2007
+    // Patriots receivers SHOULD throw more touchdowns than a league average.
+    // What it must not do is move the whole distribution onto the quarterback.
+    title: "Touchdowns split between run and pass the way football's do",
+    ok: rushTdShare >= 0.34 && rushTdShare <= 0.46,
+    detail:
+      `${(rushTdShare * 100).toFixed(0)}% of touchdowns on the ground (real NFL about 40%) - ` +
+      `${passTdPerGame.toFixed(2)} passing and ${rushTdPerGame.toFixed(2)} rushing per team per game`,
   },
   {
     title: "Every touchdown plays out a conversion",
