@@ -1,6 +1,24 @@
 #!/usr/bin/env node
 // Does the man on the field matter, and does he play a football-shaped game?
 //
+// DESIGN TARGET: DRAFT NOVA IS DELIBERATELY MORE EXPLOSIVE THAN THE NFL.
+//
+// The "real NFL" column in the rate table below is a REFERENCE, not a goal.
+// Draft Nova aims for about 350 yards a team at 5.8 a play, against the real
+// league's 340 and 5.4. That is a product decision, not a calibration that
+// drifted: a roster drafted from every season ever played should not perform
+// like a league average, and a game people come back to is a game where things
+// happen. So a simulated number sitting ABOVE its reference in that table is
+// working as intended, and "fixing" it back down would be undoing the choice.
+//
+// The CHECKS are what constrain this, and they are bands rather than points -
+// yards per play must land in 4.8-6.2, a drive in 26-36 yards, a game in 56-70
+// snaps, a carry in 3.8-5.0. Football stopping being football is what they
+// forbid; where inside football's range this game sits is a decision, and it
+// sits high on purpose. Three constants hold it there and only work as a set:
+// driveYards' `reach`, the snaps divisor in buildPlays, and RUN_YARD_WEIGHT.
+// Each one carries the reasoning at its own definition in js/sports/nfl/engine.js.
+//
 // WHY THIS EXISTS
 //
 // Live testing produced three lines that a football fan would reject:

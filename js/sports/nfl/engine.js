@@ -286,16 +286,26 @@ function driveYards(outcome, startYard, mult, rand) {
   // drive for free, which is most of why a backup quarterback's yardage
   // looked like a starter's.
   //
-  // 22/50 rather than the 18/42 this shipped with. Adding SAF to the source
-  // data's defensive-unit map (tools/build-nfl-data.mjs) pulled 43 more safety
-  // units into the pool, most of them weaker than the ones already there. That
-  // moved the S percentile distribution, raised every safety's rating, and
-  // suppressed offence by about 8% - enough to drop yards per play to 4.45 and
-  // drive yardage to 23.2, both below what scripts/verify-nfl-realism.mjs
-  // accepts. Re-tuned by hand against that check, not by a calibrator: there is
-  // no tools/calibrate-nfl-* for football yet, and pretending otherwise in a
-  // comment is how the last stale note here got written.
-  const reach = (22 + 50 * rand()) * mult;
+  // 28/62. THIS IS ABOVE REAL FOOTBALL ON PURPOSE - read the DESIGN TARGET note
+  // at the top of scripts/verify-nfl-realism.mjs before "correcting" it. Draft
+  // Nova aims for 350 yards a team at 5.8 a play against the NFL's 340 and 5.4,
+  // because a drafted roster of all-time seasons playing to a league average is
+  // a disappointing product. The realism bands were always wide enough to hold
+  // this; what they forbid is football stopping being football.
+  //
+  // The number moved twice. First 18/42 -> 22/50, when adding SAF to
+  // tools/build-nfl-data.mjs pulled 43 more (mostly weaker) safety units into
+  // the pool, shifting the S percentile distribution, lifting every safety's
+  // rating and suppressing offence about 8%. Then 22/50 -> 28/62 for the target
+  // above.
+  //
+  // IT IS ONE OF THREE AND THEY ONLY WORK TOGETHER. Raising this alone also
+  // raises the snap count and the game clock, because buildPlays derives snaps
+  // from yardage - at 37/80 a game ran 69.8 plays across 64.9 minutes, which is
+  // not a football game at any scoring level. The snaps divisor absorbs that,
+  // and RUN_YARD_WEIGHT keeps the extra yardage off the ground game. Re-tuned by
+  // hand against verify:nfl-realism; there is still no calibrator for football.
+  const reach = (28 + 62 * rand()) * mult;
   if (outcome === "touchdown") return 100 - startYard;
   if (outcome === "fieldGoal") return Math.max(FG_RANGE_YARD - startYard, reach);
   // A DRIVE THAT DID NOT SCORE DID NOT GO FAR. This was `reach - 14`, about 25
@@ -866,8 +876,24 @@ const RUN_SHARE_MAX = 0.66;
 /** What a carry is worth against a COMPLETION, as a multiplier on the yardage
  * it draws. Not against an attempt: the incompletions are already carved out,
  * so the throws this competes with are the ones that were caught. Real football
- * is about 4.3 a carry against 11 a completion. */
-const RUN_YARD_WEIGHT = 0.30;
+ * is about 4.3 a carry against 11 a completion.
+ *
+ * 0.20, down from 0.30, and this is what decides WHERE the extra offence goes.
+ *
+ * Runs and passes draw their gains from one normalised pool, so without this
+ * weight yards per carry simply tracks yards per play - and lifting the game to
+ * 5.8 a play took carries to 5.63, past the 5.0 ceiling that keeps a ground
+ * game recognisable. Cutting the weight sends the increase through the air
+ * instead: 4.90 a carry, with the passing game absorbing nearly all of the
+ * extra 50 yards.
+ *
+ * That is the right shape for the target as well as the safe one. A
+ * high-scoring, explosive game is a PASSING game - chunk plays down the field,
+ * not a back averaging six a carry, which no era of football has looked like.
+ * The cost is the drafted back's median line falling from 86 yards to 74
+ * against a real 80; 0.21 would hold him at 75 but puts carries at 4.99 against
+ * a 5.0 band, close enough that a reseed could fail the build. */
+const RUN_YARD_WEIGHT = 0.20;
 
 /**
  * The plays inside one drive.
@@ -910,9 +936,17 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // a 90-yard drive in a shootout ran seventeen snaps and a game could reach
   // 108 offensive plays. No offence runs that many; twelve snaps is already a
   // long, chain-moving drive.
+  //
+  // The divisor is 16, up from 13, and it is the counterweight to driveYards'
+  // higher `reach`. Snaps come from yardage, so lifting yards to the 350-a-game
+  // design target dragged the snap count to 64.5 and the game clock past 60
+  // minutes with it. Sixteen holds the game at 60.4 plays over 56.3 minutes
+  // while the yards go up - which is the whole point: MORE YARDS PER SNAP, not
+  // more snaps. A drive that gains more without taking longer is an explosive
+  // offence; one that gains more by running more plays is just a longer game.
   const count = Math.min(
     12,
-    Math.max(1, (SNAPS_BASE[outcome] ?? 3) + Math.round(Math.abs(net) / 13) + Math.floor(rand() * 3))
+    Math.max(1, (SNAPS_BASE[outcome] ?? 3) + Math.round(Math.abs(net) / 16) + Math.floor(rand() * 3))
   );
   const plays = [];
 
