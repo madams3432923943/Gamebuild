@@ -752,6 +752,33 @@ export function buildShotLines(roster, box) {
  *   as "-" placeholder columns, e.g. 4 at tip-off, 0 once Q4 is in)
  */
 export function renderScoreboard(container, labelA, labelB, periods, periodsRemaining, totalA, totalB, statusLabel, isLive) {
+  // WHY THIS DOES NOT ALWAYS REBUILD.
+  //
+  // Callers treat this as an update, because from the outside it reads like
+  // one: football's playback paints on every event (~130 a game), basketball's
+  // count-up paints every 60ms for the length of a quarter tween, and the
+  // online flow repaints while it waits for the server. Tearing the board down
+  // and rebuilding it that often does two visible things. It restarts
+  // .scoreboard-score.pulse from frame zero every time, so a 0.9s glow that
+  // should breathe becomes a strobe - "the score totals were flashing nonstop"
+  // - and it throws away and re-parses a table to change two numbers, which is
+  // the per-row rebuild that has frozen this app before (see
+  // setScoreboardStatus, which already learned this lesson for the centre
+  // cell).
+  //
+  // So the board is rebuilt only when its STRUCTURE changes - the team names,
+  // the number of period columns, whether it is live. Scores and the status
+  // label are content: they are written into the elements that are already
+  // there. A running animation never notices.
+  const structure = [labelA, labelB, periodsRemaining, isLive, periods.map((p) => p.label).join(",")].join("|");
+  if (container.dataset.scoreboardKey === structure) {
+    updateScoreboardValues(container, periods, totalA, totalB, statusLabel);
+    return;
+  }
+
+  // Dropped before the rebuild, not after: a board that is half-built must not
+  // be mistaken for one that can be updated in place.
+  delete container.dataset.scoreboardKey;
   container.innerHTML = "";
 
   const teams = document.createElement("div");
@@ -806,6 +833,43 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
     </tbody>
   `;
   container.appendChild(grid);
+
+  container.dataset.scoreboardKey = structure;
+}
+
+/** Writes only what changes between frames into a board that is already up:
+ * the two big scores, the period grid, the totals column, the status line.
+ *
+ * Column positions are fixed by the structure key that got us here - same
+ * period labels, same number of pending columns - so the cells can be indexed
+ * rather than searched for. Every write is guarded on the value actually
+ * differing, so a frame that changes one number touches one text node.
+ */
+function updateScoreboardValues(container, periods, totalA, totalB, statusLabel) {
+  const setText = (el, text) => {
+    if (el && el.textContent !== text) el.textContent = text;
+  };
+
+  setText(container.querySelector(".scoreboard-score-a"), String(Math.round(totalA)));
+  setText(container.querySelector(".scoreboard-score-b"), String(Math.round(totalB)));
+
+  const period = container.querySelector(".scoreboard-period");
+  if (period) {
+    setText(period, statusLabel);
+    // A rebuild never carried the ticking state forward, and callers re-apply
+    // it through setScoreboardStatus on the very next line. Dropping it here
+    // keeps that contract: the class is the caller's to own, and one that has
+    // stopped ticking (a period ending) gets its blink back.
+    period.classList.remove("ticking");
+  }
+
+  const rows = container.querySelectorAll(".scoreboard-grid tbody tr");
+  for (const [rowIndex, key, total] of [[0, "a", totalA], [1, "b", totalB]]) {
+    const cells = rows[rowIndex]?.children;
+    if (!cells) continue;
+    periods.forEach((p, i) => setText(cells[i + 1], String(Math.round(p[key]))));
+    setText(cells[cells.length - 1], String(Math.round(total)));
+  }
 }
 
 /**

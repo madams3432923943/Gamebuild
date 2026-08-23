@@ -288,11 +288,32 @@ async function main() {
         window.__bkScoreLog.push({ a, b, t: Date.now() });
       };
       push();
-      // The scoreboard is re-rendered rather than mutated in place, so the
-      // observer watches the document and re-reads - narrowing it to the
-      // scoreboard element would stop firing the moment that element is
-      // replaced.
-      new MutationObserver(push).observe(document.documentElement, {
+
+      // HOW OFTEN THE BOARD IS THROWN AWAY.
+      //
+      // renderScoreboard rebuilds only when the board's structure changes; a
+      // score or a clock reading is written into the elements already there.
+      // It did not always: it rebuilt on every event, which restarted the
+      // score's 0.9s glow ~130 times a game and made the totals strobe. The
+      // score element being REPLACED is exactly what restarts that animation,
+      // so counting replacements is the measurement.
+      window.__bkScoreRebuilds = 0;
+      let scoreNode = document.querySelector("#live-scoreboard .scoreboard-score-a");
+      const countRebuild = () => {
+        const now = document.querySelector("#live-scoreboard .scoreboard-score-a");
+        if (now && now !== scoreNode) {
+          window.__bkScoreRebuilds += 1;
+          scoreNode = now;
+        }
+      };
+
+      // The observer watches the document and re-reads rather than binding to
+      // the scoreboard's children, so it keeps firing across the rebuilds that
+      // do legitimately happen.
+      new MutationObserver(() => {
+        push();
+        countRebuild();
+      }).observe(document.documentElement, {
         subtree: true,
         childList: true,
         characterData: true,
@@ -340,6 +361,12 @@ async function main() {
     // increments. That number comes from the game that was actually played, so
     // it cannot be too strict for a low-scoring one or too lax for a high one.
     const scoreLog = await page.evaluate(() => window.__bkScoreLog || []);
+
+    // One rebuild per quarter column published, plus the opening board and the
+    // final one. Anything beyond that is a board being rebuilt to change a
+    // number - the strobe this guards against ran to ~130.
+    const boardRebuilds = await page.evaluate(() => window.__bkScoreRebuilds || 0);
+    const allowedRebuilds = (last?.periods.length ?? 0) + 2;
     const logTotals = scoreLog.map((s) => s.a + s.b);
     const monotonicScore = logTotals.every((n, i) => i === 0 || n >= logTotals[i - 1]);
     const finalTotal = logTotals.length ? logTotals[logTotals.length - 1] : 0;
@@ -455,6 +482,11 @@ async function main() {
         detail: first ? `${first.periods.length} quarter columns, ${first.scoreA}-${first.scoreB} on the board` : "no samples" },
       { title: "Quarter columns appear as quarters end, never all at once", ok: monotonicPeriods && distinctPeriodCounts >= 3,
         detail: `${distinctPeriodCounts} distinct column counts, ending at ${last?.periods.length ?? 0}` },
+      { title: "The scoreboard is written into, not rebuilt, as plays run",
+        ok: boardRebuilds <= allowedRebuilds,
+        detail: `${boardRebuilds} score-element replacements over ${scoreLog.length} score states; ` +
+          `${allowedRebuilds} allowed (one per quarter column, plus opening and final). ` +
+          `Each one restarts the live glow from zero.` },
       { title: "The score only climbs, in at least as many steps as the game needed",
         ok: monotonicScore && increments >= minIncrements && increments >= 1,
         detail: `${increments} increments recorded to ${finalTotal} points; at most ${MAX_POINTS_PER_PLAY} per play means ${minIncrements} were required` },

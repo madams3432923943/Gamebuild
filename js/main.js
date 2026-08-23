@@ -3309,10 +3309,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         done ? doneLabel : liveStatus || duringLabel,
         true
       );
-      // renderScoreboard REBUILDS the centre cell, so the ticking state has to
-      // go back on after it. Without this the class survives exactly until the
-      // next score frame and the clock blinks anyway - which is precisely how
-      // this shipped the first time.
+      // renderScoreboard CLEARS the ticking state (it rebuilds the centre cell,
+      // and its in-place path drops the class for the same reason), so it has
+      // to go back on after it. Without this the class survives exactly until
+      // the next score frame and the clock blinks anyway - which is precisely
+      // how this shipped the first time.
       if (!done && liveStatus) setScoreboardStatus(liveScoreboard, liveStatus);
       if (done) {
         // The period is over: drop the last clock reading so the next quarter
@@ -3588,7 +3589,8 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         statusLabel,
         true
       );
-      // Same rebuild, same reason as tickScoreTo above.
+      // Same reason as tickScoreTo above: renderScoreboard leaves the centre
+      // cell un-ticked, so the clock has to say so again.
       if (ticking) setScoreboardStatus(liveScoreboard, statusLabel);
     };
 
