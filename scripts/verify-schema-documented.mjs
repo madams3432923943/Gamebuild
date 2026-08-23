@@ -162,6 +162,54 @@ async function main() {
           ? "security_invoker=true"
           : "security_invoker is OFF - a `create or replace view` strips it. Drop and recreate the view."
       );
+
+      // ---- online: and the caller can actually read through it ------------
+      // An invoker view checks the CALLER's privileges on the base table, so
+      // security_invoker=true is only half of a working read. `authenticated`
+      // held no SELECT on public.matches at all, and every online match died on
+      // "permission denied for table matches" the moment the view stopped
+      // running as its owner. The grant is column-level on purpose - see
+      // db/migrations/20260823_01_matches_read_grant.sql - so this compares the
+      // view's own column list against the grant rather than hardcoding either.
+      const ungranted = await sql`
+        select a.attname
+          from pg_attribute a
+         where a.attrelid = 'public.matches'::regclass
+           and a.attnum > 0 and not a.attisdropped
+           and a.attname in (
+             select column_name from information_schema.columns
+              where table_schema = 'public' and table_name = 'matches_public'
+           )
+           and not has_column_privilege('authenticated', a.attrelid, a.attnum, 'select')
+      `;
+      add(
+        "authenticated can read every column matches_public exposes",
+        ungranted.length === 0 ? PASS : FAIL,
+        ungranted.length === 0
+          ? "column-level SELECT on public.matches covers the whole view"
+          : `no SELECT on public.matches(${ungranted.map((r) => r.attname).join(", ")}) - ` +
+            "matches_public is security_invoker, so every read through it fails"
+      );
+
+      // The other direction: the hidden columns must stay hidden. A blanket
+      // `grant select on public.matches` would fix the check above and hand
+      // every client the opponent's unrevealed picks through PostgREST.
+      const leaked = await sql`
+        select a.attname
+          from pg_attribute a
+         where a.attrelid = 'public.matches'::regclass
+           and a.attname in ('roster_a', 'roster_b', 'rotation_a', 'rotation_b',
+                             'matchups_a', 'matchups_b', 'tactic_a', 'tactic_b')
+           and has_column_privilege('authenticated', a.attrelid, a.attnum, 'select')
+      `;
+      add(
+        "The hidden match columns stay hidden from clients",
+        leaked.length === 0 ? PASS : FAIL,
+        leaked.length === 0
+          ? "no SELECT on the roster/strategy columns"
+          : `authenticated can read public.matches(${leaked.map((r) => r.attname).join(", ")}) - ` +
+            "that is an opponent's unrevealed picks, readable straight off PostgREST"
+      );
     } finally {
       await sql.end({ timeout: 5 });
     }
