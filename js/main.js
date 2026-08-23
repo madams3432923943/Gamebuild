@@ -2300,8 +2300,9 @@ async function handleOnlineMatchState(match) {
 }
 
 /** Lets a player walk away from a stuck or unwanted online draft rather than
- * wait out the 15-minute server-side staleness window (see cancel_match) -
- * either side can leave, at any point before simulation starts. */
+ * wait out the server-side staleness window (see cancel_match, and the windows
+ * in db/migrations/20260823_02) - either side can leave, at any point before
+ * simulation starts. */
 btnLeaveMatch.addEventListener("click", async () => {
   // Doubles as the way out after an opponent leaves, where the online state
   // has already been torn down and there is no match left to cancel. Without
