@@ -12,7 +12,7 @@ import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
-import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
+import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
 // unpicking that is a separate change from this one.
@@ -68,6 +68,7 @@ import {
   watchMatch,
   cancelMatch,
   submitStrategy,
+  warmSimulator,
   fetchStatsForPicks,
 } from "./online.js";
 import {
@@ -80,7 +81,7 @@ import {
   renderScoreboard,
   setScoreboardStatus,
   renderProfileScreen,
-  renderHomeHeader,
+  renderPlayerBannerCard,
   renderBadgeCollection,
   renderBadgeSportTabs,
   renderUnlockableTabs,
@@ -165,10 +166,21 @@ function warmDatasetStats(sportId = getSport()) {
  * it is about a match in progress, not about app chrome - shell.js knows
  * nothing about basketball. */
 function cleanupOnlineWatcher() {
-  if (game.online && game.online.stopWatcher) {
-    game.online.stopWatcher();
-    game.online.stopWatcher = null;
+  if (game.online && game.online.watcher) {
+    game.online.watcher.stop();
+    game.online.watcher = null;
   }
+}
+
+/** "I just submitted something - stop waiting out the poll interval."
+ *
+ * Every online action this player takes is answered by the server before the
+ * watcher's next scheduled read, so without this the client sits on a stale
+ * screen for up to a full interval after each pick, each skip and the final
+ * gameplan submit. Safe to call when there is no watcher (the strategy phase
+ * can outlive it). */
+function pokeOnlineWatcher() {
+  if (game.online && game.online.watcher) game.online.watcher.poke();
 }
 
 // ---- Per-pick countdown timer (shared by local + online draft flows) ----
@@ -652,7 +664,7 @@ async function refreshHome() {
     // the standings below it are ranking against the same field.
     const population = await allSportRatings().catch(() => []);
     const rankInfo = await loadOverallRankInfo(profile, population);
-    renderHomeHeader(homeHeaderRefs, profile, rankInfo);
+    renderPlayerBannerCard(homeHeaderRefs, profile, rankInfo);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
     await renderHomeSportCards(profile, population);
   } catch (e) {
@@ -2003,31 +2015,22 @@ const matchupSideAEl = document.getElementById("matchup-side-a");
 const matchupSideBEl = document.getElementById("matchup-side-b");
 const matchupVsEl = document.getElementById("matchup-vs");
 const matchupCountdownEl = document.getElementById("matchup-countdown");
-const matchupRefsA = {
-  bannerSlot: document.getElementById("matchup-banner-a"),
-  username: document.getElementById("matchup-username-a"),
-  rank: document.getElementById("matchup-rank-a"),
-};
-const matchupRefsB = {
-  bannerSlot: document.getElementById("matchup-banner-b"),
-  username: document.getElementById("matchup-username-b"),
-  rank: document.getElementById("matchup-rank-b"),
-};
-
-function rankLabelFor(rankInfo) {
-  return rankInfo && !rankInfo.provisional ? rankInfo.tier.name : "Unranked";
-}
+const matchupRefsA = { slot: document.getElementById("matchup-card-a") };
+const matchupRefsB = { slot: document.getElementById("matchup-card-b") };
 
 /** The "you've been matched" beat between finding an opponent and the draft
  * actually starting.
  *
+ * Each side is that player's whole card - the same one they see on their home
+ * screen, banner artwork and all (see renderMatchupSide in js/ui.js) - so the
+ * screen introduces two players rather than two pieces of wallpaper.
+ *
  * It runs about 9 seconds now, roughly two longer than it did, and the extra
  * time is spent on presentation rather than on waiting: the screen fades up,
- * each side's banner flies in with its own beat (yours first, then theirs -
- * two banners landing simultaneously reads as a layout, one after the other
- * reads as an introduction), the names and ranks type in behind them, VS
- * lands with an impact flash and a shockwave, and only then does the
- * countdown start. A rising whoosh carries the fly-in and the buzzer lands on
+ * each side's card flies in with its own beat (yours first, then theirs -
+ * two cards landing simultaneously reads as a layout, one after the other
+ * reads as an introduction), VS lands with an impact flash and a shockwave,
+ * and only then does the countdown start. A rising whoosh carries the fly-in and the buzzer lands on
  * "GO!".
  *
  * Only for a genuinely fresh match (enterOnlineMatch only calls this when
@@ -2051,7 +2054,7 @@ async function playMatchupIntro(mySide, oppSide) {
   // the whole point of the screen - seeing what the two players are flying -
   // was missed. Capped, so a slow connection delays the intro by at most a
   // beat instead of holding the match up for a decoration.
-  await preloadBannerArt([mySide.bannerId, oppSide.bannerId]);
+  await preloadBannerArt([mySide.profile.equippedBanner, oppSide.profile.equippedBanner]);
 
   renderMatchupSide(matchupRefsA, mySide);
   renderMatchupSide(matchupRefsB, oppSide);
@@ -2145,7 +2148,7 @@ async function enterOnlineMatch(matchId) {
     myRoster: {},
     oppRoster: {},
     currentSquad: null,
-    stopWatcher: null,
+    watcher: null,
     // Set once the game reveal has been entered, so the watcher and the
     // post-strategy fallback poll can both aim for it without ever running
     // two reveals at once. See handleOnlineMatchState.
@@ -2156,13 +2159,18 @@ async function enterOnlineMatch(matchId) {
   };
 
   if (picks.length === 0) {
+    // Both cards carry the SPORT-NEUTRAL rank, the one the home card shows -
+    // a player's rank should read the same in the intro as it does on their
+    // own screen. One read of the ratings table serves both sides, since the
+    // two are being ranked against the same field.
+    const population = await allSportRatings().catch(() => []);
     const [myRankInfo, oppRankInfo] = await Promise.all([
-      loadRankInfo(myProfile),
-      loadRankInfo({ sportRatings: oppSummary.sportRatings }),
+      loadOverallRankInfo(myProfile, population),
+      loadOverallRankInfo(oppSummary, population),
     ]);
     await playMatchupIntro(
-      { username: myProfile.username || "You", tierLabel: rankLabelFor(myRankInfo), bannerId: myProfile.equippedBanner },
-      { username: oppUsername, tierLabel: rankLabelFor(oppRankInfo), bannerId: oppSummary.equippedBanner }
+      { profile: myProfile, rankInfo: myRankInfo },
+      { profile: oppSummary, rankInfo: oppRankInfo }
     );
   }
 
@@ -2179,7 +2187,7 @@ async function enterOnlineMatch(matchId) {
   // Harmless mid-draft, but for ready_to_simulate/complete it meant two
   // concurrent runOnlineSimulationFlow() calls racing over the same
   // scoreboard timers/DOM - a real cause of a frozen-looking game screen.
-  game.online.stopWatcher = watchMatch(
+  game.online.watcher = watchMatch(
     matchId,
     onOnlineMatchChange,
     undefined,
@@ -2479,6 +2487,9 @@ async function finalizeOnlinePick(player, slot, forfeited = false) {
   try {
     await submitPick(o.matchId, player, slot, forfeited);
     draftTurnBanner.textContent = "Waiting for opponent…";
+    // The round may already have advanced - if the opponent picked first, the
+    // server rolled the next squad while this request was in flight.
+    pokeOnlineWatcher();
   } catch (e) {
     draftTurnBanner.textContent = "That pick didn't go through (" + e.message + ") - refreshing round.";
     const match = await getMatch(o.matchId);
@@ -2493,6 +2504,7 @@ async function onlineSkip() {
   try {
     await submitSkip(o.matchId);
     draftTurnBanner.textContent = "Waiting for opponent…";
+    pokeOnlineWatcher();
   } catch (e) {
     const match = await getMatch(o.matchId);
     await renderOnlineDraftRound(match);
@@ -2519,6 +2531,13 @@ async function beginOnlineStrategyPhase(match) {
   // Visible feedback for the round-trip below, so a slow (not failed) load
   // reads as "working" instead of a blank, seemingly frozen screen.
   draftTurnBanner.textContent = "Loading final rosters…";
+
+  // The draft is over, so the next server call this match makes is the
+  // simulation. Start its cold start NOW, against the seconds the player is
+  // about to spend on a rotation and a gameplan, rather than after they have
+  // committed and are watching an empty scoreboard. Not awaited: nothing here
+  // depends on it, and a failed warm-up costs a cold start, not a game.
+  warmSimulator();
 
   const picks = await getVisiblePicks(o.matchId);
   const statsByKey = await fetchStatsForPicks(picks);
@@ -2568,6 +2587,10 @@ async function beginOnlineStrategyPhase(match) {
         sport().strategyGroups ? strategy.strategy : strategy.tactic
       );
       draftTurnBanner.textContent = "Waiting for opponent to finish their game plan…";
+      // If the opponent got their gameplan in first, the match flipped to
+      // ready_to_simulate inside the call that just returned, and the reveal
+      // can start now rather than after the next scheduled poll.
+      pokeOnlineWatcher();
       awaitSimulationStart();
       return;
     } catch (e) {
@@ -2631,16 +2654,22 @@ async function beginOnlineStrategyPhase(match) {
 function awaitSimulationStart() {
   const matchId = game.online && game.online.matchId;
   if (!matchId) return;
-  let tries = 0;
+  const startedAt = Date.now();
+  // Fast first, then backing off. The likeliest single moment for the match to
+  // already BE ready is the instant this starts - the opponent submitted while
+  // this player was still choosing - and that case used to cost a flat two
+  // seconds of "waiting for opponent" before anything looked at the match.
+  // After the first few reads the honest answer is that the opponent is still
+  // deciding, and there is nothing to be gained by asking quickly.
+  let gap = 250;
 
   async function poll() {
     // Left the match, or the reveal already started from the watcher.
     if (!game.online || game.online.matchId !== matchId || game.online.simulationStarted) return;
-    if (tries > 150) {
+    if (Date.now() - startedAt > SIMULATION_WAIT_MS) {
       draftTurnBanner.textContent = "Still waiting on your opponent - you can leave the match if they've dropped.";
       return;
     }
-    tries += 1;
     try {
       const match = await getMatch(matchId);
       if (match.status !== "strategy") {
@@ -2650,10 +2679,11 @@ function awaitSimulationStart() {
     } catch (e) {
       console.error("Waiting-for-simulation poll failed:", e);
     }
-    setTimeout(poll, 2000);
+    setTimeout(poll, gap);
+    gap = Math.min(2000, Math.round(gap * 1.6));
   }
 
-  setTimeout(poll, 2000);
+  poll();
 }
 
 poolSearch.addEventListener("input", () => {
@@ -3864,6 +3894,31 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
     sport().presentation.renderField(document.getElementById("football-field"), "You", o.oppUsername);
   }
 
+  // The final rosters are needed for the box score at the END of this
+  // function, and fetching them is a round trip that has nothing to do with
+  // the simulation - so it runs alongside it rather than after it. Started
+  // before the simulate call, awaited after the result lands; on the ordinary
+  // path it has been sitting finished for seconds by then.
+  //
+  // Better still when the strategy phase ran on this client: it already built
+  // both full rosters from a visible-picks read (the draft is over, so nothing
+  // is hidden any more and nothing about them can change), and re-fetching
+  // them would be asking the server a question this client has already
+  // answered. A reconnect straight into the reveal has no such state, which is
+  // why the fetch is still here at all.
+  const rostersReady =
+    o.strategyPhaseStarted && Object.keys(o.myRoster || {}).length && Object.keys(o.oppRoster || {}).length
+      ? Promise.resolve({
+          rosterA: o.mySide === "A" ? o.myRoster : o.oppRoster,
+          rosterB: o.mySide === "A" ? o.oppRoster : o.myRoster,
+        })
+      : getVisiblePicks(matchId)
+          .then((picks) => fetchStatsForPicks(picks).then((statsByKey) => buildVisibleState(picks, Infinity, statsByKey)));
+  // Nothing awaits this until well below, and an unhandled rejection in the
+  // meantime would be reported as a page error rather than as the handled
+  // failure it is. The catch below re-reads the settled value.
+  rostersReady.catch(() => {});
+
   try {
     await simulateMatch(matchId);
   } catch (e) {
@@ -3931,9 +3986,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   // has to report to finalBanner instead, which IS visible on this screen.
   let rosterA, rosterB;
   try {
-    const picks = await getVisiblePicks(matchId);
-    const statsByKey = await fetchStatsForPicks(picks);
-    ({ rosterA, rosterB } = buildVisibleState(picks, Infinity, statsByKey));
+    ({ rosterA, rosterB } = await rostersReady);
   } catch (e) {
     console.error("Failed to load final rosters for the result screen:", e);
     showBannerMessage("Result saved, but the box score couldn't load - check Profile > Recent Games.");

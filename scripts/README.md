@@ -15,6 +15,7 @@ Exits 0 when everything passed or was skipped, 1 on any failure, and writes
 | `npm run verify:selftest` | Verifies the harness itself against a local server + stubbed backend. |
 | `npm run verify:online-selftest` | Two browsers playing a real online match against a local fake backend. |
 | `npm run verify:abandon-selftest` | One player leaves mid-draft; the other must be told and able to leave. |
+| `npm run verify:matchup-intro` | Both players' cards on the pre-draft intro, against the home card's own markup. |
 
 Useful flags: `--no-browser`, `--no-parity`, `--no-network`, `--headed`,
 `--device="Pixel 7"`, `--base-url=…`, `--json=…`.

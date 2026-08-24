@@ -44,7 +44,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=fe629d5" />
+  <link rel="stylesheet" href="css/style.css?v=1584921" />
 </head>
 <body>
   <header class="top-nav">
@@ -242,16 +242,16 @@
          See playMatchupIntro() in main.js. -->
     <section id="screen-matchup-intro" class="screen hidden">
       <div class="matchup-intro" id="matchup-intro">
+        <!-- One slot per side. Each is filled with that player's whole card -
+             the same markup as #player-banner above, built by
+             createPlayerBannerCard (js/ui.js) rather than repeated here, so
+             the intro cannot drift from the home screen's version of it. -->
         <div class="matchup-side matchup-side-a" id="matchup-side-a">
-          <div class="matchup-banner-slot" id="matchup-banner-a"></div>
-          <div class="matchup-username" id="matchup-username-a"></div>
-          <div class="matchup-rank" id="matchup-rank-a"></div>
+          <div class="matchup-card-slot" id="matchup-card-a"></div>
         </div>
         <div class="matchup-vs" id="matchup-vs">VS</div>
         <div class="matchup-side matchup-side-b" id="matchup-side-b">
-          <div class="matchup-banner-slot" id="matchup-banner-b"></div>
-          <div class="matchup-username" id="matchup-username-b"></div>
-          <div class="matchup-rank" id="matchup-rank-b"></div>
+          <div class="matchup-card-slot" id="matchup-card-b"></div>
         </div>
         <div class="matchup-countdown hidden" id="matchup-countdown"></div>
       </div>
@@ -675,6 +675,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=fe629d5"></script>
+  <script type="module" src="js/main.js?v=1584921"></script>
 </body>
 </html>

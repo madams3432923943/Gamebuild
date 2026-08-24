@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matchup intro harness</title>
+<!-- Empty page for verify-matchup-intro.mjs. Real browser, real origin, the
+     app's own stylesheet - but no app boot and no backend, so the two cards
+     the intro renders are the only thing under test.
+
+     The intro's own markup is NOT copied in here: the script lifts it out of
+     index.html at run time, so a change to that screen cannot leave this
+     harness testing a layout the app no longer has. -->
+<!-- The app is served from the site root, and the card resolves its banner
+     artwork against document.baseURI (see renderPlayerBannerCard in js/ui.js).
+     Without this the harness would resolve those paths against this directory
+     and every banner would 404 into its colour fallback - a harness artefact
+     that would hide exactly the thing being tested. -->
+<base href="/">
+<link rel="stylesheet" href="/css/style.css">
+<div id="stage"></div>

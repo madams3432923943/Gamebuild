@@ -250,6 +250,35 @@ function snapshotRoster(roster) {
   return out;
 }
 
+/**
+ * The columns another player's PLAYER CARD needs - the card the matchup intro
+ * puts both players' faces on (see renderPlayerBannerCard in js/ui.js).
+ *
+ * Spelled out rather than `*` because a card is a display, not a dossier: this
+ * is the equipped cosmetics, the online record and rank, and the counters the
+ * three FEATURED badges are scored against - badges the player chose to show,
+ * so their tier is meant to be seen. Nothing else on the row (match history,
+ * era records, MVP tallies, the offline stats the Profile screen keeps
+ * private) travels with it.
+ *
+ * Not a security boundary and does not pretend to be one - profiles are
+ * row-readable, and the server, not this list, is what decides that. It is the
+ * boundary of what the app SHOWS about somebody else, kept in one place so the
+ * answer does not get re-decided at every call site.
+ */
+export const PUBLIC_CARD_COLUMNS =
+  "id, username, online_wins, online_losses, offline_wins, offline_losses, " +
+  "draft_counts, career_totals, personal_bests, featured_badges, " +
+  "equipped_banner, equipped_kit, equipped_icon, " +
+  "granted_banners, granted_badges, granted_icons, sport_ratings, created_at";
+
+/** Exported so an opponent's row becomes the same shape your own profile has.
+ * Every renderer downstream then treats the two identically, which is the only
+ * reason the intro can show a real card for a player who isn't you. */
+export function normalizeProfileRow(row) {
+  return normalize(row);
+}
+
 function normalize(row) {
   return {
     id: row.id,

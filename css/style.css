@@ -782,12 +782,19 @@ input[type="text"]:focus-visible {
    draft starts (see playMatchupIntro in main.js) - both banners fly in from
    the edges with a little overshoot, an impact flash lands as they settle,
    then a 3-2-1 countdown and a buzzer-red "GO!". --- */
+/* STACKED, not side by side. Each side is now a whole player card - artwork,
+   icon, name, badges, rep/rank/rating - and a card is a wide thing: two of
+   them in a row are two narrow columns where the stats wrap and the badges
+   drop, at every width including a desktop one. Stacked, each card gets the
+   full width it was designed for, VS sits between them, and the phone layout
+   is the same layout rather than a second one. */
 .matchup-intro {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
+  gap: 1rem;
   min-height: 60vh;
   padding: 2rem 1rem;
 }
@@ -818,9 +825,10 @@ input[type="text"]:focus-visible {
 .matchup-side {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 0.6rem;
-  width: min(260px, 40vw);
+  width: 100%;
+  max-width: 34rem;
   opacity: 0;
   /* A back-out curve on the way in - the side overshoots slightly and
      settles, a small bounce rather than a flat slide-and-stop. */
@@ -840,8 +848,63 @@ input[type="text"]:focus-visible {
   transform: translateX(0);
 }
 
-.matchup-banner-slot {
+.matchup-card-slot {
   width: 100%;
+}
+
+/* The card at intro scale. Everything on it is the home card's - only the
+   sizes step down, because two cards and a VS have to fit one screen without
+   the player scrolling to see who they are playing. Written as overrides on
+   the shared rules rather than as a second set of card styles: a copy would be
+   the same drift in CSS that the markup was fixed to avoid.
+
+   Every selector here carries `.player-banner` as well as `.matchup-card`,
+   which is not decoration: the rules being overridden are further down this
+   file and tie on class count without it, so the later one would win and the
+   star would go on rendering at 5rem over a card two-thirds the height. */
+.player-banner.matchup-card {
+  padding: 0.9rem 1rem;
+  gap: 0.6rem;
+}
+
+.player-banner.matchup-card .pb-badge {
+  width: 3.4rem;
+  height: 3.4rem;
+  font-size: 1.7rem;
+  border-radius: 10px;
+}
+
+.player-banner.matchup-card .pb-badge.empty {
+  font-size: 1.3rem;
+}
+
+.player-banner.matchup-card .pb-badge-tier {
+  font-size: 0.95rem;
+}
+
+.player-banner.matchup-card .pb-stat-value {
+  font-size: 1.05rem;
+}
+
+.player-banner.matchup-card .player-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.6rem;
+}
+
+.player-banner.matchup-card.has-banner::before {
+  font-size: 6rem;
+}
+
+.player-banner.matchup-card.has-banner > .pb-banner-emblem {
+  font-size: 3.4rem;
+  right: 1.1rem;
+}
+
+.player-banner.matchup-card.has-banner > .pb-banner-label {
+  font-size: 0.8rem;
+  right: 1rem;
+  bottom: 0.7rem;
 }
 
 /* Real artwork sits on top of the colour gradient already painted on
@@ -863,38 +926,6 @@ input[type="text"]:focus-visible {
   height: 100%;
   object-fit: cover;
   border-radius: inherit;
-}
-
-/* 5:2, matching .banner-art - a placeholder that stands in for a banner while
-   being a different shape makes the two sides of the intro jump when one
-   player is flying something and the other is not. */
-.matchup-banner-placeholder {
-  width: 100%;
-  aspect-ratio: 5 / 2;
-  border-radius: 6px;
-  border: 1px dashed var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0.5rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.matchup-username {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1.15rem;
-  text-align: center;
-  word-break: break-word;
-}
-
-.matchup-rank {
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .matchup-vs {
@@ -966,19 +997,87 @@ input[type="text"]:focus-visible {
   }
 }
 
+/* A phone held sideways: 360px of HEIGHT for two cards, a VS and a countdown.
+   The intro is a timed animation - it cannot be scrolled through while it
+   plays - so anything that does not fit is simply missed, which is how the
+   opponent's card ends up below the fold on the one screen that exists to
+   show it. Everything steps down together rather than any part being dropped:
+   a card missing its badges or its rating is the thin intro again, just at a
+   different width. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .matchup-intro {
+    min-height: 0;
+    gap: 0.3rem;
+    padding: 0.35rem 0.75rem;
+  }
+  .player-banner.matchup-card {
+    padding: 0.45rem 0.7rem;
+    gap: 0.3rem;
+  }
+  .player-banner.matchup-card .player-name {
+    font-size: 1.05rem;
+  }
+  .player-banner.matchup-card .player-avatar {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.3rem;
+  }
+  .player-banner.matchup-card .pb-badge {
+    width: 2.1rem;
+    height: 2.1rem;
+    font-size: 1.05rem;
+  }
+  .player-banner.matchup-card .pb-badges {
+    gap: 0.4rem;
+  }
+  .player-banner.matchup-card .pb-stat-value {
+    font-size: 0.95rem;
+  }
+  .player-banner.matchup-card.has-banner::before {
+    font-size: 4rem;
+  }
+  .player-banner.matchup-card.has-banner > .pb-banner-emblem {
+    font-size: 2.2rem;
+  }
+  .matchup-vs {
+    font-size: 1.6rem;
+  }
+  .matchup-countdown {
+    font-size: 3.4rem;
+  }
+}
+
+/* On a phone the cards are already the full column width, so the fly-in comes
+   from above and below instead of the sides - a card sliding in from off-screen
+   left would be travelling most of the viewport to arrive somewhere it barely
+   moved. */
 @media (max-width: 560px) {
   .matchup-intro {
-    flex-direction: column;
-    gap: 1.25rem;
-  }
-  .matchup-side {
-    width: min(220px, 70vw);
+    gap: 0.75rem;
+    padding: 1rem 0.75rem;
   }
   .matchup-side-a {
     transform: translateY(-140%);
   }
   .matchup-side-b {
     transform: translateY(140%);
+  }
+  .player-banner.matchup-card {
+    padding: 0.75rem 0.85rem;
+  }
+  .player-banner.matchup-card .pb-badge {
+    width: 2.9rem;
+    height: 2.9rem;
+    font-size: 1.45rem;
+  }
+  .player-banner.matchup-card.has-banner::before {
+    font-size: 4.5rem;
+  }
+  .player-banner.matchup-card.has-banner > .pb-banner-emblem {
+    font-size: 2.6rem;
+    top: 1.1rem;
+    right: 0.8rem;
+    transform: none;
   }
 }
 
@@ -1898,7 +1997,7 @@ table.box-table th, table.history-table th {
    its two colors with the abbreviation ghosted huge in the corner, the same
    treatment as a standalone banner tile (see .banner-art) but filling the
    whole card instead of sitting in it. --banner-c1/--banner-c2 are set
-   inline in ui.js's renderHomeHeader; the class/vars stay off entirely when
+   inline in ui.js's renderPlayerBannerCard; the class/vars stay off entirely when
    nothing is equipped, so the layout never depends on having earned
    something. */
 .player-banner {
@@ -1962,7 +2061,7 @@ table.box-table th, table.history-table th {
 
 /* Only banners with no artwork of their own fall back to the flat two-color
    fade. A patterned one (camo, crew tier, Founder) keeps the banner-art-*
-   class it was given in renderHomeHeader - written as :not() rather than
+   class it was given in renderPlayerBannerCard - written as :not() rather than
    letting the two rules fight, since .player-banner.has-banner outranks a
    single .banner-art-* class and would silently win.
 
@@ -4151,12 +4250,11 @@ html, body {
     justify-content: flex-start;
   }
 
-  /* The matchup intro is absolutely positioned around a centered VS; at phone
-     width the two banner columns need to be narrower or they collide. */
-  .matchup-side {
-    width: 42%;
-  }
-
+  /* No .matchup-side width here any more. The two sides used to sit next to
+     each other around a centered VS and had to be narrowed at this width or
+     they collided; they are stacked now, and each one is a full player card
+     that needs every pixel of the column - narrowing it to 42% clipped the
+     player's own name off their card. */
   .matchup-vs {
     font-size: 2rem;
   }
