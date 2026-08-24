@@ -223,6 +223,76 @@ async function clippedInsideCards(page) {
   );
 }
 
+/** Where VS sits at the end of its landing animation versus where it sits at
+ *  rest. They must be the same place.
+ *
+ *  The landing keyframe used to carry translate(-50%, -50%), copied from the
+ *  countdown - which is absolutely positioned, where that translate is what
+ *  centres it. VS is an ordinary flex item, so the offset applied for the
+ *  length of the animation and vanished when it ended: a 24x20px jolt on the
+ *  exact beat the animation exists to sell. Nothing errored and no layout
+ *  audit could see it, because at rest the element is where it belongs. */
+async function vsLandingDrift(page) {
+  const box = () => page.evaluate(() => {
+    const r = document.getElementById("matchup-vs").getBoundingClientRect();
+    return { x: Math.round(r.left), y: Math.round(r.top) };
+  });
+
+  await page.evaluate(() => document.getElementById("matchup-vs").classList.remove("vs-land"));
+  const rest = await box();
+  await page.evaluate(() => {
+    const el = document.getElementById("matchup-vs");
+    void el.offsetWidth;
+    el.classList.add("vs-land");
+  });
+  // Late in the 0.5s landing, where the old translate was still applied and
+  // the snap-back was one frame away.
+  await page.waitForTimeout(430);
+  const landing = await box();
+  return { dx: Math.abs(landing.x - rest.x), dy: Math.abs(landing.y - rest.y) };
+}
+
+/** What still moves when the viewer has asked for less motion.
+ *
+ *  Two mechanisms cover this screen and only one of them is local: a global
+ *  reduced-motion reset at the end of style.css clamps every animation and
+ *  transition to 0.01ms with !important, and the per-component `animation:
+ *  none` blocks are belt-and-braces on top of it. So the threshold below is an
+ *  epsilon, not zero - a clamped transition reports 1e-05s, which is "still"
+ *  by any honest reading.
+ *
+ *  Checked against the outcome rather than either mechanism, because that is
+ *  the part that must hold: what fails here is a future rule that escapes the
+ *  global reset (an !important duration of its own, an inline style, a
+ *  Web-Animations call), not a missing entry in a list. */
+const STILL_MS = 0.05;
+async function motionUnderReducedMotion(page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const moving = await page.evaluate(() => {
+    const STILL_MS = 0.05;
+    const secs = (v) => v.split(",").reduce((worst, part) => Math.max(worst, parseFloat(part) || 0), 0);
+    const out = [];
+    const check = (id, cls) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (cls) el.classList.add(cls);
+      const cs = getComputedStyle(el);
+      const animated = cs.animationName !== "none" && secs(cs.animationDuration) > STILL_MS;
+      if (animated || secs(cs.transitionDuration) > STILL_MS) {
+        out.push(`#${id}${cls ? "." + cls : ""}: ${animated ? cs.animationName : `transition ${cs.transitionDuration}`}`);
+      }
+    };
+    check("matchup-side-a", "fly-in");
+    check("matchup-side-a", "settle");
+    check("matchup-vs", "vs-land");
+    check("matchup-countdown", "pulse");
+    check("matchup-intro", "intro-lit");
+    return out;
+  });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  return moving;
+}
+
 /** Anything sticking out sideways at this width, and by how much. The same
  *  question the mobile audit in verify-browser asks, kept narrow: this screen
  *  is two cards and a countdown, so a full overlap sweep would be noise. */
@@ -339,6 +409,22 @@ async function main() {
       "Nothing on either card is cropped by the card itself",
       clipped.length === 0,
       clipped.length ? clipped.slice(0, 6).join(" | ") : "name, badges and stats fit at every width"
+    );
+
+    // Back to a normal viewport before asking anything about the animations.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const drift = await vsLandingDrift(page);
+    check(
+      "VS lands where it comes to rest",
+      drift.dx <= 2 && drift.dy <= 2,
+      `${drift.dx}px x, ${drift.dy}px y between the end of the landing and its resting place`
+    );
+
+    const stillMoving = await motionUnderReducedMotion(page);
+    check(
+      "Nothing on the intro moves under prefers-reduced-motion",
+      stillMoving.length === 0,
+      stillMoving.length ? stillMoving.join(" | ") : "fly-in, settle, VS, countdown and stage lights all still"
     );
   } catch (e) {
     check("harness ran", false, e.message);

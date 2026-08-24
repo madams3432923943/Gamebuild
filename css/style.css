@@ -912,7 +912,8 @@ input[type="text"]:focus-visible {
    colours instead of a hole. object-fit: cover because the art is a texture -
    cropping it is fine, distorting it is not.
 
-   THE LEADING `.matchup-banner-slot` THAT USED TO BE HERE WAS A TYPO, and CSS
+   THE LEADING `.matchup-banner-slot` THAT USED TO BE HERE WAS A TYPO (that
+   class is now .matchup-card-slot - the intro renders whole player cards), and CSS
    comments are whitespace, so the selector silently parsed as
    `.matchup-banner-slot .banner-art-img` - a descendant rule. Every banner
    image outside the matchup intro therefore had no positioning at all and
@@ -4652,10 +4653,17 @@ html, body {
   animation: vs-land 0.5s cubic-bezier(0.2, 1.5, 0.4, 1);
 }
 
+/* NO translate(-50%, -50%) here, unlike the countdown keyframes below.
+   .matchup-countdown is absolutely positioned and that translate is what
+   centres it; .matchup-vs is an ordinary flex item, already centred by the
+   flex row, so the same translate offset it by half its own size for the
+   length of the animation and dropped it back the instant the animation
+   ended - a 24x20px jolt landing on exactly the impact beat it is meant to
+   sell. Scale and rotation only; the flex row does the positioning. */
 @keyframes vs-land {
-  0% { transform: translate(-50%, -50%) scale(3.2) rotate(-8deg); opacity: 0; }
-  55% { transform: translate(-50%, -50%) scale(0.88) rotate(2deg); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; }
+  0% { transform: scale(3.2) rotate(-8deg); opacity: 0; }
+  55% { transform: scale(0.88) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
 /* Nothing above may move for anyone who asked for less motion. The
