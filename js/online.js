@@ -3,6 +3,7 @@
 // than realtime - see the comment on watchMatch() for why.
 
 import { DEFAULT_KIT_ID } from "./kits.js";
+import { PUBLIC_CARD_COLUMNS, normalizeProfileRow } from "./profile.js";
 import { getSupabase, requireSession } from "./supabaseClient.js";
 import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
 
@@ -292,29 +293,42 @@ export async function getMatchResult(matchId) {
   return data;
 }
 
-/** Everything the pre-draft matchup intro needs about the opponent -
- * username, online record (for their rank tier via loadRankInfo), and
- * equipped banner - in one query. */
+/**
+ * The opponent, as a profile the app can render exactly like your own.
+ *
+ * The matchup intro shows both players' whole cards now - icon, name, join
+ * plate, featured badges, rep, rank and rating over their equipped banner -
+ * so the read is PUBLIC_CARD_COLUMNS and the row comes back normalized rather
+ * than hand-mapped into a five-field summary. A hand-mapped summary is what
+ * kept the intro thin: every field the card wanted was one the summary had
+ * decided not to carry.
+ *
+ * Still one query, and still the only one the intro makes about them.
+ */
 export async function getOpponentSummary(userId) {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("username, online_wins, online_losses, equipped_banner, equipped_kit, sport_ratings")
+    .select(PUBLIC_CARD_COLUMNS)
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
-    // A failed read still has to produce a wearable kit, or the opponent's side
-    // of the stage renders unstyled. The default is a real kit, not null.
-    return { username: "Opponent", onlineWins: 0, onlineLosses: 0, equippedBanner: null, equippedKit: DEFAULT_KIT_ID, sportRatings: {} };
+    // A failed read still has to produce a wearable kit and a renderable card,
+    // or the opponent's side of the stage renders unstyled and their stats
+    // print as "undefined-undefined". Zeros are written out rather than left
+    // to a default: they are what this stand-in row actually knows.
+    if (error) console.error("Couldn't read the opponent's profile:", error);
+    return normalizeProfileRow({
+      id: userId,
+      username: "Opponent",
+      online_wins: 0,
+      online_losses: 0,
+      offline_wins: 0,
+      offline_losses: 0,
+      equipped_kit: DEFAULT_KIT_ID,
+    });
   }
-  return {
-    username: data.username || "Opponent",
-    onlineWins: data.online_wins || 0,
-    onlineLosses: data.online_losses || 0,
-    equippedBanner: data.equipped_banner || null,
-    equippedKit: data.equipped_kit || DEFAULT_KIT_ID,
-    sportRatings: data.sport_ratings || {},
-  };
+  return normalizeProfileRow({ ...data, username: data.username || "Opponent" });
 }
 
 /**

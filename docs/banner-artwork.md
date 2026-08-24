@@ -1,8 +1,12 @@
 # Banner artwork
 
-The twenty general banners in `assets/banners/` are the card. On the home
-identity card the artwork fills the whole thing, sharp, at every width. There is
-no second treatment, no fallback layout, and nothing is blurred.
+The twenty general banners in `assets/banners/` are the card. On the player
+card the artwork fills the whole thing, sharp, at every width. There is no
+second treatment, no fallback layout, and nothing is blurred.
+
+That card appears in two places - the home screen and both sides of the matchup
+intro (see `docs/matchup-intro.md`), which is the screen where somebody else
+sees your banner.
 
 ## Spec
 

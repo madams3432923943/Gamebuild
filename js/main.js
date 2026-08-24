@@ -80,7 +80,7 @@ import {
   renderScoreboard,
   setScoreboardStatus,
   renderProfileScreen,
-  renderHomeHeader,
+  renderPlayerBannerCard,
   renderBadgeCollection,
   renderBadgeSportTabs,
   renderUnlockableTabs,
@@ -652,7 +652,7 @@ async function refreshHome() {
     // the standings below it are ranking against the same field.
     const population = await allSportRatings().catch(() => []);
     const rankInfo = await loadOverallRankInfo(profile, population);
-    renderHomeHeader(homeHeaderRefs, profile, rankInfo);
+    renderPlayerBannerCard(homeHeaderRefs, profile, rankInfo);
     renderEquippedBanner(homeHeaderRefs.equippedBanner, profile);
     await renderHomeSportCards(profile, population);
   } catch (e) {
@@ -2003,31 +2003,22 @@ const matchupSideAEl = document.getElementById("matchup-side-a");
 const matchupSideBEl = document.getElementById("matchup-side-b");
 const matchupVsEl = document.getElementById("matchup-vs");
 const matchupCountdownEl = document.getElementById("matchup-countdown");
-const matchupRefsA = {
-  bannerSlot: document.getElementById("matchup-banner-a"),
-  username: document.getElementById("matchup-username-a"),
-  rank: document.getElementById("matchup-rank-a"),
-};
-const matchupRefsB = {
-  bannerSlot: document.getElementById("matchup-banner-b"),
-  username: document.getElementById("matchup-username-b"),
-  rank: document.getElementById("matchup-rank-b"),
-};
-
-function rankLabelFor(rankInfo) {
-  return rankInfo && !rankInfo.provisional ? rankInfo.tier.name : "Unranked";
-}
+const matchupRefsA = { slot: document.getElementById("matchup-card-a") };
+const matchupRefsB = { slot: document.getElementById("matchup-card-b") };
 
 /** The "you've been matched" beat between finding an opponent and the draft
  * actually starting.
  *
+ * Each side is that player's whole card - the same one they see on their home
+ * screen, banner artwork and all (see renderMatchupSide in js/ui.js) - so the
+ * screen introduces two players rather than two pieces of wallpaper.
+ *
  * It runs about 9 seconds now, roughly two longer than it did, and the extra
  * time is spent on presentation rather than on waiting: the screen fades up,
- * each side's banner flies in with its own beat (yours first, then theirs -
- * two banners landing simultaneously reads as a layout, one after the other
- * reads as an introduction), the names and ranks type in behind them, VS
- * lands with an impact flash and a shockwave, and only then does the
- * countdown start. A rising whoosh carries the fly-in and the buzzer lands on
+ * each side's card flies in with its own beat (yours first, then theirs -
+ * two cards landing simultaneously reads as a layout, one after the other
+ * reads as an introduction), VS lands with an impact flash and a shockwave,
+ * and only then does the countdown start. A rising whoosh carries the fly-in and the buzzer lands on
  * "GO!".
  *
  * Only for a genuinely fresh match (enterOnlineMatch only calls this when
@@ -2051,7 +2042,7 @@ async function playMatchupIntro(mySide, oppSide) {
   // the whole point of the screen - seeing what the two players are flying -
   // was missed. Capped, so a slow connection delays the intro by at most a
   // beat instead of holding the match up for a decoration.
-  await preloadBannerArt([mySide.bannerId, oppSide.bannerId]);
+  await preloadBannerArt([mySide.profile.equippedBanner, oppSide.profile.equippedBanner]);
 
   renderMatchupSide(matchupRefsA, mySide);
   renderMatchupSide(matchupRefsB, oppSide);
@@ -2156,13 +2147,18 @@ async function enterOnlineMatch(matchId) {
   };
 
   if (picks.length === 0) {
+    // Both cards carry the SPORT-NEUTRAL rank, the one the home card shows -
+    // a player's rank should read the same in the intro as it does on their
+    // own screen. One read of the ratings table serves both sides, since the
+    // two are being ranked against the same field.
+    const population = await allSportRatings().catch(() => []);
     const [myRankInfo, oppRankInfo] = await Promise.all([
-      loadRankInfo(myProfile),
-      loadRankInfo({ sportRatings: oppSummary.sportRatings }),
+      loadOverallRankInfo(myProfile, population),
+      loadOverallRankInfo(oppSummary, population),
     ]);
     await playMatchupIntro(
-      { username: myProfile.username || "You", tierLabel: rankLabelFor(myRankInfo), bannerId: myProfile.equippedBanner },
-      { username: oppUsername, tierLabel: rankLabelFor(oppRankInfo), bannerId: oppSummary.equippedBanner }
+      { profile: myProfile, rankInfo: myRankInfo },
+      { profile: oppSummary, rankInfo: oppRankInfo }
     );
   }
 

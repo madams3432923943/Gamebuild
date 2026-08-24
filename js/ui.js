@@ -885,9 +885,9 @@ function formatJoinTag(createdAt) {
   return `Est. ${mm}/${d.getFullYear()}`;
 }
 
-/** Home-screen header: who you are, plus your online rep/rank and badges.
- * This is the first thing on the page now, so the profile leads the
- * experience instead of being buried behind a tab.
+/** The player card: who you are, plus your online rep/rank and badges. It
+ * leads the home screen, and both sides of the matchup intro are the same
+ * card - see createPlayerBannerCard/renderPlayerBannerCard below.
  *
  * Deliberately doesn't show total games played or a per-sport breakdown -
  * those are private, and with only one sport live a per-sport list is just
@@ -895,7 +895,7 @@ function formatJoinTag(createdAt) {
  * (your own stats, not something the banner broadcasts). */
 /** Creates-or-updates one absolutely-positioned mark on the home banner card,
  * removing it when the equipped banner doesn't call for one. Idempotent
- * because renderHomeHeader re-runs on every profile refresh. */
+ * because renderPlayerBannerCard re-runs on every profile refresh. */
 function setCardMark(card, className, text) {
   let el = card.querySelector(`.${className}`);
   if (!text) {
@@ -910,7 +910,7 @@ function setCardMark(card, className, text) {
   el.textContent = text;
 }
 
-/** Whether each artwork URL loaded. Checked once - renderHomeHeader runs on
+/** Whether each artwork URL loaded. Checked once - renderPlayerBannerCard runs on
  *  every refreshHome(), and re-fetching the same file to ask the same question
  *  would be waste. `null` while in flight, so a slow load cannot queue a
  *  second probe for the same URL. */
@@ -970,7 +970,68 @@ function setCardLayer(card, className, on) {
   return el;
 }
 
-export function renderHomeHeader(refs, profile, rankInfo) {
+/**
+ * The DOM one player-banner card needs, built to match the static markup in
+ * index.html's #player-banner element class for class.
+ *
+ * Exists because the card is no longer only the home screen's: the matchup
+ * intro shows both players' cards, and those have to be created rather than
+ * looked up. Two builders would be two cards that drift - which is exactly
+ * what the intro was before this, a bare strip of banner artwork with a name
+ * under it while the home screen showed the same player's icon, join date,
+ * featured badges and rank.
+ *
+ * @param extraClass  a modifier for the context the card is being dropped
+ *                    into (see .matchup-card in style.css). The card itself
+ *                    is identical either way; only its scale changes.
+ * @returns the same `refs` shape renderPlayerBannerCard takes, so a built
+ *          card and the home screen's markup are interchangeable.
+ */
+export function createPlayerBannerCard(extraClass = "") {
+  const card = document.createElement("div");
+  card.className = "player-banner card" + (extraClass ? ` ${extraClass}` : "");
+
+  const top = document.createElement("div");
+  top.className = "pb-top";
+  const avatar = document.createElement("span");
+  avatar.className = "player-avatar";
+  const identity = document.createElement("div");
+  identity.className = "pb-identity";
+  const username = document.createElement("div");
+  username.className = "player-name";
+  const tags = document.createElement("div");
+  tags.className = "pb-tags";
+  const joined = document.createElement("span");
+  joined.className = "pb-joined hidden";
+  tags.appendChild(joined);
+  identity.append(username, tags);
+  top.append(avatar, identity);
+
+  const featured = document.createElement("div");
+  featured.className = "pb-badges";
+  const record = document.createElement("div");
+  record.className = "pb-stats";
+  card.append(top, featured, record);
+
+  return { card, avatar, username, joined, featured, record };
+}
+
+/**
+ * Paints one player-banner card: the equipped banner as the card's own
+ * background, then the icon, name, join plate, featured badges and rank/record
+ * on top of it.
+ *
+ * ONE renderer for every place a player's card appears - the home screen and
+ * both sides of the matchup intro - for the same reason renderPlayerIcon is
+ * one renderer: the two drifted the moment they were separate, and an
+ * opponent's card showing less than your own makes the intro look like it is
+ * hiding something rather than introducing someone.
+ *
+ * `profile` is a full normalized profile (see normalizeProfileRow in
+ * js/profile.js), including an opponent's - which is why the opponent read in
+ * js/online.js pulls the columns this reads rather than a hand-picked five.
+ */
+export function renderPlayerBannerCard(refs, profile, rankInfo) {
   refs.username.textContent = profile.username || "Player";
 
   // The equipped banner's own colors and ghosted abbreviation become the
@@ -1313,19 +1374,23 @@ function tileVariant(imagePath) {
  * @param tile   use the 424x144 thumbnail instead of the 2120x720 card art.
  *
  * Lazy is right for the Rewards grid, where sixty banners draw at once and
- * most are below the fold. It is wrong for the matchup intro, which shows
- * exactly two images that are the entire point of the screen: deferred behind
- * an intersection check, the artwork arrived after the animation had already
- * played and both players watched a bare colour gradient fly in.
+ * most are below the fold - which is every caller today, so both options sit
+ * at their defaults. The eager path is not dead weight: it is what a screen
+ * showing one or two banners full-bleed needs, and the cost of not having it
+ * was learned on the matchup intro, where artwork deferred behind an
+ * intersection check arrived after the animation had already played and both
+ * players watched a bare colour gradient fly in. (That screen no longer draws
+ * banner art directly - it renders whole player cards, which carry the artwork
+ * as a CSS background and preload it first; see preloadBannerArt below.)
  *
- * `tile` defaults to the opposite of `eager` because today those two questions
- * have the same answer everywhere: the only eager banner is the matchup intro,
- * which draws full-bleed, and every deferred one is a thumbnail in a grid or a
- * friend row. They are still separate arguments, because "when do I fetch" and
- * "which file do I fetch" are separate questions and the next screen that shows
- * a large banner lazily should not have to fetch a 424px image to get there.
- * Card art is up to 640 KB and the grid draws twenty of them; the tiles are
- * 360 KB for the whole set (tools/build-banner-tiles.mjs).
+ * `tile` defaults to the opposite of `eager` because the two questions have
+ * had the same answer everywhere: full-bleed art is worth fetching now, and a
+ * thumbnail in a grid or a friend row is not. They are still separate
+ * arguments, because "when do I fetch" and "which file do I fetch" are
+ * separate questions and the next screen that shows a large banner lazily
+ * should not have to fetch a 424px image to get there. Card art is up to
+ * 640 KB and the grid draws twenty of them; the tiles are 360 KB for the whole
+ * set (tools/build-banner-tiles.mjs).
  */
 export function bannerArt(franchise, { eager = false, tile = !eager } = {}) {
   const el = document.createElement("div");
@@ -1410,7 +1475,7 @@ export function bannerArt(franchise, { eager = false, tile = !eager } = {}) {
 
 /** The equipped banner's name, shown as a small caption under the player's
  * name on the home header - the banner artwork itself is now the whole
- * card's background (see renderHomeHeader), so this is just enough text to
+ * card's background (see renderPlayerBannerCard), so this is just enough text to
  * say which team it is, not a second copy of the art. */
 export function renderEquippedBanner(container, profile) {
   container.innerHTML = "";
@@ -1423,10 +1488,6 @@ export function renderEquippedBanner(container, profile) {
   container.appendChild(label);
 }
 
-/** One side of the pre-draft matchup intro (see playMatchupIntro in
- * main.js): the player's equipped banner art (or a neutral placeholder if
- * they haven't equipped one), username, and rank label. `refs` is
- * { bannerSlot, username, rank } - the three elements for one side. */
 /**
  * Warms the artwork for a set of banner ids, resolving when they are decoded
  * or when `timeoutMs` runs out, whichever comes first.
@@ -1464,19 +1525,31 @@ export function preloadBannerArt(bannerIds, timeoutMs = 1200) {
   ]);
 }
 
-export function renderMatchupSide(refs, { username, tierLabel, bannerId }) {
-  refs.bannerSlot.innerHTML = "";
-  const banner = bannerId ? bannerById(bannerId) : null;
-  if (banner) {
-    refs.bannerSlot.appendChild(bannerArt(banner, { eager: true }));
-  } else {
-    const placeholder = document.createElement("div");
-    placeholder.className = "matchup-banner-placeholder";
-    placeholder.textContent = "No banner flown";
-    refs.bannerSlot.appendChild(placeholder);
-  }
-  refs.username.textContent = username;
-  refs.rank.textContent = tierLabel;
+/**
+ * One side of the pre-draft matchup intro: that player's WHOLE card, the same
+ * one they see on their home screen - equipped banner as the background, their
+ * icon, name, join plate, the badges they chose to feature, and their rep,
+ * rank and rating.
+ *
+ * It used to be the banner ARTWORK alone with a name and a tier caption
+ * underneath, which showed the one thing about a player that carries no
+ * information about them - two players flying Crystal were indistinguishable -
+ * and dropped everything they had actually earned.
+ *
+ * @param refs.slot  the element the card is mounted into.
+ * @param profile    a full normalized profile, yours or the opponent's.
+ * @param rankInfo   from loadOverallRankInfo - the sport-neutral ladder, the
+ *                   same one the home card shows, so a player's rank reads the
+ *                   same here as it does there.
+ */
+export function renderMatchupSide(refs, { profile, rankInfo }) {
+  refs.slot.innerHTML = "";
+  // Rebuilt per intro rather than cached: the intro plays once per match, and
+  // a card held across matches would have to be reset field by field for the
+  // next opponent - a second, quieter copy of the renderer below.
+  const card = createPlayerBannerCard("matchup-card");
+  refs.slot.appendChild(card.card);
+  renderPlayerBannerCard(card, profile, rankInfo);
 }
 
 /**
