@@ -103,6 +103,13 @@ export const MATCHUP_TIMER_SECONDS = 45;
 // waiting - the result is already safe on the server either way.
 export const RESULT_WAIT_MS = 25000;
 
+// How long a player who has committed their gameplan keeps checking whether
+// the opponent has committed theirs before saying so out loud. Five minutes:
+// long enough to cover somebody reading every gamestyle card, short enough
+// that a player whose opponent has quietly closed their tab is told rather
+// than left watching a banner that never changes.
+export const SIMULATION_WAIT_MS = 300000;
+
 // How long a player waits in the online queue before the search gives up.
 //
 // An empty lobby is the ordinary case at this player count, and a spinner

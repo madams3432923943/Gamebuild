@@ -279,6 +279,32 @@ export async function submitStrategy(matchId, rotation, matchups, tactic) {
   if (error) throw error;
 }
 
+/**
+ * Wakes the simulator up while the player is still choosing their gameplan.
+ *
+ * simulate-match is a Deno isolate that, cold, boots and then pulls the whole
+ * player table before it simulates anything - seconds of it, and every one of
+ * those seconds is spent AFTER both gameplans are in, on a screen that says
+ * "Simulating…" and does nothing. Sent at the top of the strategy phase, the
+ * same work happens while the player is setting a rotation, and the isolate
+ * that answers the real call is already warm with the dataset in hand.
+ *
+ * Best effort in every direction, and deliberately so:
+ *  - it is fire and forget; nothing waits on it and no caller sees it fail,
+ *  - a server that predates the warm path answers 400 and is warmed anyway,
+ *    which is the whole reason this asks for nothing and reads no response.
+ * Deployment of the Edge Function is a separate step from deploying the site
+ * (see CLAUDE.md), so the client must not need the new server to work.
+ */
+export async function warmSimulator(sport = activeSport().id) {
+  try {
+    const supabase = await getSupabase();
+    await supabase.functions.invoke("simulate-match", { body: { warm: true, sport } });
+  } catch {
+    // A warm-up that fails costs a cold start, not a game.
+  }
+}
+
 export async function simulateMatch(matchId) {
   const supabase = await getSupabase();
   const { data, error } = await supabase.functions.invoke("simulate-match", { body: { match_id: matchId } });
@@ -335,13 +361,35 @@ export async function getOpponentSummary(userId) {
  * Polls a match every `intervalMs` and calls `onChange(match)` whenever
  * status/round_number changes. No realtime here on purpose: Postgres
  * logical replication sends the full row, including hidden roster state.
+ *
+ * Returns { stop, poke } - stop tears the poller down, poke drops it onto a
+ * fast cadence for a few seconds after this player has done something the
+ * server answers immediately.
  */
 const WATCH_ERROR_STREAK = 5;
+
+/** How fast the watcher polls in the seconds after this player did something
+ * the server usually answers immediately - see poke() below. Short enough that
+ * the answer is not visibly late, long enough that it is a handful of extra
+ * reads rather than a busy loop. */
+const WATCH_POKE_MS = 350;
+
+/** How long a poke keeps the watcher on that fast cadence. Covers a round
+ * trip, the opponent's round-advance, and a slow one of either. */
+const WATCH_POKE_WINDOW_MS = 8000;
 
 export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = null, onError = null, onGone = null) {
   let stopped = false;
   let last = initialMatch;
   let failures = 0;
+  let timer = null;
+  let fastUntil = 0;
+
+  function schedule(delay) {
+    if (stopped) return;
+    clearTimeout(timer);
+    timer = setTimeout(tick, delay);
+  }
 
   async function tick() {
     if (stopped) return;
@@ -355,17 +403,43 @@ export function watchMatch(matchId, onChange, intervalMs = 2000, initialMatch = 
       }
       if (!last || match.status !== last.status || match.round_number !== last.round_number) {
         last = match;
+        // A state change is the end of whatever the poke was waiting for.
+        fastUntil = 0;
         onChange(match);
       }
     } catch (e) {
       failures += 1;
       if (failures === WATCH_ERROR_STREAK && onError) onError(e);
     }
-    if (!stopped) setTimeout(tick, intervalMs);
+    schedule(Date.now() < fastUntil ? WATCH_POKE_MS : intervalMs);
   }
   tick();
 
-  return () => {
-    stopped = true;
+  return {
+    stop() {
+      stopped = true;
+      clearTimeout(timer);
+    },
+
+    /**
+     * "I just did something - look now."
+     *
+     * The steady 2s cadence is right for waiting on an opponent, and wrong
+     * immediately after your OWN pick, skip or gameplan submit: those are the
+     * moments the server has already moved on and the client is only waiting
+     * to be told. Up to two seconds of that, at every round transition and
+     * again at the end of the draft, is most of the dead air between finishing
+     * a draft and the game starting.
+     *
+     * Poking rather than handling the RPC's own answer keeps ONE reader of
+     * match state. The alternative - acting on what a submit returns - is a
+     * second path into the same handlers, and those handlers guard against
+     * being entered twice precisely because that has gone wrong before.
+     */
+    poke() {
+      if (stopped) return;
+      fastUntil = Date.now() + WATCH_POKE_WINDOW_MS;
+      schedule(0);
+    },
   };
 }
