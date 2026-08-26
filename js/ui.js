@@ -770,12 +770,12 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
   const scoreClass = "scoreboard-score" + (isLive ? " pulse" : "");
   teams.innerHTML = `
     <div class="scoreboard-side scoreboard-side-a">
-      <span class="scoreboard-team-name">${labelA}</span>
+      <span class="scoreboard-team-name">${escapeHtml(labelA)}</span>
       <span class="${scoreClass} scoreboard-score-a">${Math.round(totalA)}</span>
     </div>
     <div class="scoreboard-middle"></div>
     <div class="scoreboard-side scoreboard-side-b">
-      <span class="scoreboard-team-name">${labelB}</span>
+      <span class="scoreboard-team-name">${escapeHtml(labelB)}</span>
       <span class="${scoreClass} scoreboard-score-b">${Math.round(totalB)}</span>
     </div>
   `;
@@ -801,8 +801,8 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
   grid.innerHTML = `
     <thead><tr><th class="team-col"></th>${headerCells}${pendingCells}<th>T</th></tr></thead>
     <tbody>
-      <tr><td class="team-col">${labelA}</td>${rowCells("a")}<td class="grid-total">${Math.round(totalA)}</td></tr>
-      <tr><td class="team-col">${labelB}</td>${rowCells("b")}<td class="grid-total">${Math.round(totalB)}</td></tr>
+      <tr><td class="team-col">${escapeHtml(labelA)}</td>${rowCells("a")}<td class="grid-total">${Math.round(totalA)}</td></tr>
+      <tr><td class="team-col">${escapeHtml(labelB)}</td>${rowCells("b")}<td class="grid-total">${Math.round(totalB)}</td></tr>
     </tbody>
   `;
   container.appendChild(grid);

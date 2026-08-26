@@ -95,3 +95,4 @@
 20260818165815	protect_mvp_teams	FOLDED:db/migrations/20260818_01_profile_icons_and_mvp_teams.sql
 20260819145220	definer_grant_sweep_and_view_invoker	db/migrations/20260819_01_definer_grant_sweep_and_view_invoker.sql
 20260819145435	rpc_rate_limits	db/migrations/20260819_02_rpc_rate_limits.sql
+20260826162300	lock_awarded_unlocks	db/migrations/20260826_01_lock_awarded_unlocks.sql

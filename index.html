@@ -3,6 +3,49 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Content Security Policy: the cap on what any future XSS could do.
+       Every piece of user text this app renders is escaped or set as
+       textContent today (see js/lib/escape-html.js), and usernames are
+       charset-constrained at the database - but "we escaped everything" is a
+       claim about code that keeps changing, and this is a claim about the
+       page. If a bug ever does inject a tag, this is what stops it reaching
+       an attacker's server.
+
+       A META policy rather than a header because GitHub Pages serves static
+       files and cannot set headers. That costs three directives, which
+       browsers only honour from a real header and silently ignore here:
+       frame-ancestors, report-uri and sandbox. Clickjacking is therefore NOT
+       covered by this - see docs/security.md.
+
+       Every source below is here for a reason:
+         script-src  the app itself, plus esm.sh, which serves supabase-js and
+                     the dependency graph it imports. The sha256 is the inline
+                     <script type="importmap"> further down - an inline script
+                     as far as CSP is concerned, so without its hash the
+                     bare-specifier import fails and online play dies. Any edit
+                     to that block, whitespace included, needs a new hash;
+                     scripts/verify-csp.mjs recomputes it and fails if it has
+                     drifted.
+         connect-src Supabase REST, auth and Edge Functions. wss: because the
+                     realtime socket is what supabase-js opens if any code ever
+                     calls .channel(); no directive costs nothing and a missing
+                     one is a silent failure at 2am.
+         img-src     data: for the SVG fallback favicon in the head.
+       No 'unsafe-inline' and no 'unsafe-eval' anywhere, which is the point.
+       Setting element.style from script is CSSOM and stays legal without
+       style-src 'unsafe-inline'; this app never writes a style ATTRIBUTE. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://esm.sh 'sha256-Wt3qc8kfJLB7OhSqO1a0r6nu4+rIO+DqNIgTJPJQzQQ=';
+    style-src 'self';
+    img-src 'self' data:;
+    font-src 'self';
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://esm.sh;
+    object-src 'none';
+    base-uri 'none';
+    form-action 'none';
+  " />
   <meta name="description" content="Draft Nova: a multi-sport draft-battle game. Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
   <!-- The default sport's accent, kept in step with the sport picker by
        applyTheme() in js/main.js. Set here too so the phone address bar is the
@@ -44,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=f0720c2" />
+  <link rel="stylesheet" href="css/style.css?v=f6c05bb" />
 </head>
 <body>
   <header class="top-nav">
@@ -52,8 +95,10 @@
       <!-- The ICON here, not the full lockup: this bar is on every screen and
            needs to stay short. The name rides beside it as text. Optional by
            design - a missing file removes itself and leaves clean text. -->
-      <img class="brand-mark" src="assets/brand/draft-nova-icon.png" alt=""
-           onerror="this.remove()" />
+      <!-- Fallback behaviour lives in js/brand-fallback.js, not in an
+           onerror attribute: CSP governs inline handlers as inline script and
+           hashes do not apply to them. -->
+      <img class="brand-mark" src="assets/brand/draft-nova-icon.png" alt="" />
       <span class="brand-word">Draft Nova</span>
     </button>
     <nav class="nav-tabs" id="nav-tabs" hidden>
@@ -82,8 +127,7 @@
              it is a fallback rather than a caption: onload removes it once the
              image is really there, onerror keeps it when the file is not. -->
         <div class="auth-brand">
-          <img class="auth-brand-mark" src="assets/brand/draft-nova-lockup.png" alt="Draft Nova"
-               onerror="this.remove()" onload="this.nextElementSibling?.remove()" />
+          <img class="auth-brand-mark" src="assets/brand/draft-nova-lockup.png" alt="Draft Nova" />
           <span class="auth-brand-word">Draft Nova</span>
         </div>
         <h2 id="auth-heading">Sign In</h2>
@@ -675,6 +719,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=f0720c2"></script>
+  <script type="module" src="js/main.js?v=f6c05bb"></script>
 </body>
 </html>

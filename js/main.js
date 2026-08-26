@@ -9,6 +9,7 @@ import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, rep
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
+import { initBrandFallbacks } from "./brand-fallback.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
@@ -4707,6 +4708,11 @@ profileRefs.usernameInput.addEventListener("change", async () => {
 initSquadsScreen({ joinMatch: enterOnlineMatch, getSport });
 
 // ---- Bootstrap ----
+// Before the session check, because it depends on nothing and the images it
+// governs are on screen already: the sign-in screen is what a failed session
+// check falls through to, and it is the screen carrying the lockup.
+initBrandFallbacks();
+
 // Runs last so every const above it is initialized. Gates the app on an
 // existing session; a Supabase/CDN failure here must not leave a blank page,
 // so any error falls through to the sign-in screen.
