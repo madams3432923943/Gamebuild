@@ -1,6 +1,32 @@
 name: Verify Pull Request
 
+# THREE TRIGGERS, BECAUSE THE pull_request ONE IS SLOW TO ARRIVE.
+#
+# Not broken - slow, and erratically so. Measured across four recent pushes,
+# the pull_request run was created 0.7, 2.6, 7.2 and 12.4 minutes after the
+# event that should have produced it. It always arrives; you just cannot tell
+# early on whether it is coming.
+#
+# That matters because of how it is misread. A PR with no checks yet does not
+# look like a PR waiting on a slow queue - it looks like a PR whose checks are
+# green by absence, and it reads as safe to merge to anyone who takes "no red"
+# for "go". Twelve minutes is long enough for someone to reach that conclusion
+# and act on it.
+#
+# A NOTE FOR WHOEVER CHECKS THIS NEXT, because it cost a full misdiagnosis:
+# the commit STATUS api (/statuses, "combined status") is not where Actions
+# reports. Actions writes CHECK RUNS. A repository whose CI is entirely Actions
+# has an empty status list forever, so "total_count: 0" from that endpoint says
+# nothing at all about whether CI ran. Ask for check runs, and give the suite a
+# few minutes to appear before concluding anything.
+#
+# So: the branch push is the PROMPT trigger - it lands in about two seconds -
+# and pull_request stays as the one that runs against the merge result. main is
+# excluded because verify-main.yml already owns it; without that exclusion
+# every merge would run the suite twice.
 on:
+  push:
+    branches-ignore: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -8,8 +34,18 @@ on:
 permissions:
   contents: read
 
+# KEYED ON THE COMMIT, not on the PR number or the ref.
+#
+# With two triggers a single commit can arrive twice - once as a push to the
+# branch and once as the PR's synchronize - and grouping by ref or PR number
+# puts those in different groups, so both would run the whole suite against
+# identical code. The head sha is the same value on both paths, so they land in
+# one group and the newer cancels the older.
+#
+# github.sha is the MERGE commit on a pull_request event and the branch head on
+# a push, which is why the PR path reads head.sha explicitly instead.
 concurrency:
-  group: verify-${{ github.event.pull_request.number || github.ref }}
+  group: verify-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 # TWO JOBS, IN PARALLEL, BECAUSE ONE SERIAL JOB STOPPED FITTING.
