@@ -754,11 +754,40 @@ btnAuthSubmit.addEventListener("click", async () => {
     inputAuthPassword.value = "";
     await enterApp();
   } catch (e) {
-    setAuthStatus(e.message || "That didn't work. Try again.", "error");
+    setAuthStatus(signInFailureMessage(identifier, e), "error");
   } finally {
     btnAuthSubmit.disabled = false;
   }
 });
+
+/**
+ * Why the sign-in failed, said in terms the player can act on.
+ *
+ * "Email or username" is only half true, and the half that is false is invisible
+ * from the sign-in box. A username with no "@" is resolved to the synthetic
+ * <username>@ballknowledge.app address the OLD username-only sign-up minted (see
+ * resolveIdentifier in js/supabaseClient.js). Accounts created since - and any
+ * legacy account that has attached a real address - do not have that synthetic
+ * email any more, so their username resolves to an account that does not exist.
+ *
+ * Supabase answers that with "Invalid login credentials", which is correct and
+ * useless: it is the same sentence a wrong PASSWORD gets. So a player whose
+ * username stopped working retypes their password, gets the same message, and
+ * concludes the account is gone. That is the report this was written for.
+ *
+ * Only rewritten for a credentials failure on a username - a network error or a
+ * rate limit still says what it was, and an email that fails really might be a
+ * wrong password.
+ */
+function signInFailureMessage(identifier, error) {
+  const raw = error?.message || "";
+  const usedUsername = !identifier.includes("@");
+  const badCredentials = /invalid login credentials/i.test(raw);
+  if (usedUsername && badCredentials) {
+    return "That username and password didn't match an account. If you signed up with an email address, sign in with the email instead - usernames only work for older accounts.";
+  }
+  return raw || "That didn't work. Try again.";
+}
 
 for (const el of [inputAuthPassword, inputAuthUsername, inputAuthEmail, inputAuthIdentifier]) {
   el.addEventListener("keydown", (e) => {
