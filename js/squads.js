@@ -147,6 +147,39 @@ export async function loadMySquad() {
   return { squad: normalizeSquad(squadRow), myRole: membership.role, roster, inviteCode };
 }
 
+/**
+ * A search term with PostgREST's filter punctuation taken out.
+ *
+ * `.or()` takes a FILTER EXPRESSION, not a bound parameter - the term is
+ * pasted straight into `name.ilike.%<term>%,tag.ilike.%<term>%` and PostgREST
+ * parses the result. So the ordinary punctuation people type into a search box
+ * is syntax: a comma splits the expression into extra OR conditions, a
+ * parenthesis closes the group early, and a dot reads as the operator
+ * separator. Searching for "OKC, Thunder" or "Ball (Knowledge)" sends a
+ * malformed filter and the browse list fails with an error instead of finding
+ * nothing, which is the worse of the two.
+ *
+ * Not a privacy hole, and worth saying why so nobody widens this by mistake:
+ * the visibility restriction is a SEPARATE .eq() that PostgREST ANDs with this
+ * group, so an injected `visibility.eq.private` cannot pull a private squad
+ * into the results - it can only widen an OR that is already being ANDed
+ * against `visibility = 'public'`. This is a robustness fix, not a
+ * confidentiality one.
+ *
+ * `%` and `_` go too: they are ilike wildcards, and a term containing one
+ * would quietly search for something other than what was typed.
+ */
+function searchFilterTerm(searchTerm) {
+  return String(searchTerm ?? "")
+    .replace(/[,().:"'%_*\\]/g, " ")
+    // Collapsed, not just stripped: "OKC, Thunder" would otherwise become
+    // "OKC  Thunder" and the ilike would match nothing, which looks identical
+    // to a broken search from the outside.
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
+}
+
 /** Browsable public squads, optionally filtered by a name/tag substring.
  * Private squads never appear here - they're only reachable by invite code
  * (join_squad_by_code) or once you're already a member. */
@@ -158,10 +191,8 @@ export async function listPublicSquads(searchTerm = "") {
     .eq("visibility", "public")
     .order("created_at", { ascending: false })
     .limit(50);
-  if (searchTerm.trim()) {
-    const q = searchTerm.trim();
-    query = query.or(`name.ilike.%${q}%,tag.ilike.%${q}%`);
-  }
+  const q = searchFilterTerm(searchTerm);
+  if (q) query = query.or(`name.ilike.%${q}%,tag.ilike.%${q}%`);
   const { data, error } = await query;
   if (error) throw error;
 

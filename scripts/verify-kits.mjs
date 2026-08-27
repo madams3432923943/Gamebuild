@@ -33,8 +33,13 @@ import {
   DEFAULT_KIT_ID,
   BOT_KIT_ID,
 } from "../js/kits.js";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { SPORTS } from "../js/sports/index.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const checks = [];
 const add = (title, ok, detail) => checks.push({ title, status: ok ? PASS : FAIL, detail: String(detail) });
@@ -191,6 +196,53 @@ add(
   badAccents.length === 0
     ? SPORTS.filter((s) => s.theme?.accent).map((s) => `${s.id} ${contrastRatio(s.theme.accentContrast, s.theme.accent).toFixed(1)}:1`).join(", ")
     : badAccents.join("; ")
+);
+
+// ---- the kit has to be REACHABLE, and has to actually reach the stage -------
+//
+// Both halves of this were once true only on the profile screen. The colour is
+// what a player wears in every game, so it is checked here rather than trusted:
+// a shelf nobody can find and a colour that never leaves the picker fail in the
+// same silent way - everything renders, nothing is wrong on screen, and the
+// feature simply is not there.
+const uiSrc = await readFile(path.join(ROOT, "js", "ui.js"), "utf8");
+const kindsBlock = uiSrc.match(/const UNLOCKABLE_KINDS = \[([\s\S]*?)\];/)?.[1] ?? "";
+add(
+  "Team Color is a shelf on the Customize modal",
+  /id:\s*"kits"/.test(kindsBlock),
+  /id:\s*"kits"/.test(kindsBlock)
+    ? "UNLOCKABLE_KINDS carries the kits shelf"
+    : "no kits entry in UNLOCKABLE_KINDS - the picker is unreachable from Customize"
+);
+
+// Comments stripped the way verify-csp and verify-banner-resolution do it, so
+// prose describing a rule is never mistaken for the rule.
+const cssSrc = (await readFile(path.join(ROOT, "css", "style.css"), "utf8")).replace(/\/\*[\s\S]*?\*\//g, "");
+// Anchored to the START OF A LINE, so `.ff-endzone.left` does not match inside
+// `.ff-user-defense .ff-endzone.left` - a descendant rule setting something
+// else entirely. Taking the first substring hit reported a correct stylesheet
+// as broken, which is the same trap verify-csp fell into with comments.
+const ruleBody = (selector) => {
+  const re = new RegExp("^" + selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{([^}]*)\\}", "m");
+  return cssSrc.match(re)?.[1] ?? null;
+};
+const wearsTeamInk = [
+  [".ff-user-offense .ff-possession", "--team-a-ink", "football's possession indicator"],
+  [".ff-endzone.left", "--team-a-ink", "your end zone"],
+  [".ff-endzone.right", "--team-b-ink", "their end zone"],
+  [".scoreboard-score-a", "--team-a-ink", "your score on the board"],
+];
+const notWorn = [];
+for (const [selector, variable, what] of wearsTeamInk) {
+  const body = ruleBody(selector);
+  if (!body || !body.includes(variable)) notWorn.push(`${what} (${selector} does not use ${variable})`);
+}
+add(
+  "The equipped kit colours the stage, not just the picker",
+  notWorn.length === 0,
+  notWorn.length === 0
+    ? wearsTeamInk.map(([, , what]) => what).join(", ")
+    : notWorn.join("; ")
 );
 
 console.log(renderSection(`Team kits: ${KITS.length} kits, ${pairs} pairings, one readable game`));
