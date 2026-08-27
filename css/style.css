@@ -5011,25 +5011,42 @@ html, body {
   white-space: nowrap;
 }
 
+/* THE TEAM'S OWN COLOUR, not the sport accent.
+   The end zones below have always been painted in the two players' kits; this
+   chip was the one part of the field still speaking in the sport's accent, so
+   at a glance "who has the ball" was the only thing on the stage NOT saying it
+   in the colour of the player who has it. --team-a-ink is always the viewer's
+   own kit (A is "me" in the render frame - see dressStage in js/main.js) and
+   --team-b-ink the opponent's, with wornColours guaranteeing the two are far
+   apart.
+
+   TINTED rather than filled solid. A curated kit is guaranteed 3:1 against the
+   stage (MIN_SURFACE_CONTRAST in js/kits.js), which makes it safe as TEXT on
+   this dark ground - it guarantees nothing about white text sitting ON it, and
+   the palette includes colours as pale as Bone. So the kit colours the text and
+   the border, and only tints the fill. That keeps the loud/quiet distinction
+   between having the ball and not, without betting legibility on which kit the
+   player happens to have chosen. Same treatment as .ff-endzone, one rule up. */
 .ff-user-offense .ff-possession {
-  color: var(--accent-contrast, #fff);
-  background: var(--accent);
-  border-color: var(--accent);
+  color: var(--team-a-ink, var(--accent-bright));
+  background: color-mix(in srgb, var(--team-a-ink, var(--accent)) 28%, transparent);
+  border-color: var(--team-a-ink, var(--accent));
 }
 
 .ff-user-defense .ff-possession {
-  color: var(--text);
+  color: var(--team-b-ink, var(--text));
   background: transparent;
-  border-color: var(--line);
+  border-color: color-mix(in srgb, var(--team-b-ink, var(--line)) 55%, transparent);
 }
 
-/* The edge of the field the ball is heading toward. */
+/* The edge of the field the ball is heading toward - in the colour of whoever
+   is driving toward it, for the same reason. */
 .ff-user-offense .ff-field {
-  box-shadow: inset 4px 0 0 -1px var(--accent);
+  box-shadow: inset 4px 0 0 -1px var(--team-a-ink, var(--accent));
 }
 
 .ff-user-defense .ff-field {
-  box-shadow: inset -4px 0 0 -1px var(--muted);
+  box-shadow: inset -4px 0 0 -1px var(--team-b-ink, var(--muted));
 }
 
 /* The end zone being attacked. */

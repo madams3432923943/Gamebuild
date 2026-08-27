@@ -1211,6 +1211,11 @@ const UNLOCKABLE_KINDS = [
   { id: "badges", label: "Badges" },
   { id: "banners", label: "Banners" },
   { id: "icons", label: "Icons" },
+  // Not an unlockable - every kit is available from the first game - but it
+  // belongs on this shelf anyway: this modal is "what you are wearing", and a
+  // player looking for their colours looks here rather than on the profile
+  // screen, which is where the picker used to live alone.
+  { id: "kits", label: "Team Color" },
 ];
 
 export function renderUnlockableTabs(container, active, onSelect) {
