@@ -118,7 +118,20 @@ function sideRating(roster, weights, forfeits, ctx) {
   for (const [slot, weight] of Object.entries(weights)) {
     // Quick Play drafts one DEF unit instead of four, so it stands in for
     // every defensive slot - one pick really is the whole defence there.
-    const entry = roster[slot] ?? (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined);
+    //
+    // The same rule has to reach the OFFENCE, and for a long time it did not.
+    // Quick Play drafts a bare "WR" while the weights are keyed WR1/WR2/WR3, so
+    // all three missed, fell to the 0.5 below, and pinned a fifth of the Quick
+    // Play offence at league average - the drafted receiver changed the rating
+    // by nothing at all. Stripping the depth ordinal is the same resolution the
+    // rest of football already uses (pickScorer does it for carries, the draft
+    // board does it for eligibility): the trailing digit is a depth-chart index,
+    // not a different position. Written generically rather than as a test for
+    // "WR" so any numbered slot added later inherits it.
+    const entry =
+      roster[slot] ??
+      (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined) ??
+      roster[slot.replace(/\d+$/, "")];
     const rated = entry ? rateEntry(entry, ctx) : 0.5;
     const penalised = forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated;
     total += weight * penalised;
@@ -878,22 +891,37 @@ const RUN_SHARE_MAX = 0.66;
  * so the throws this competes with are the ones that were caught. Real football
  * is about 4.3 a carry against 11 a completion.
  *
- * 0.20, down from 0.30, and this is what decides WHERE the extra offence goes.
+ * 0.17, and this is what decides WHERE the extra offence goes.
  *
  * Runs and passes draw their gains from one normalised pool, so without this
  * weight yards per carry simply tracks yards per play - and lifting the game to
  * 5.8 a play took carries to 5.63, past the 5.0 ceiling that keeps a ground
  * game recognisable. Cutting the weight sends the increase through the air
- * instead: 4.90 a carry, with the passing game absorbing nearly all of the
- * extra 50 yards.
+ * instead, with the passing game absorbing nearly all of the extra yards.
  *
  * That is the right shape for the target as well as the safe one. A
  * high-scoring, explosive game is a PASSING game - chunk plays down the field,
  * not a back averaging six a carry, which no era of football has looked like.
- * The cost is the drafted back's median line falling from 86 yards to 74
- * against a real 80; 0.21 would hold him at 75 but puts carries at 4.99 against
- * a 5.0 band, close enough that a reseed could fail the build. */
-const RUN_YARD_WEIGHT = 0.20;
+ * The cost is paid by the drafted back's median line: 74 yards against a real
+ * 80, where an unweighted pool would give him 86.
+ *
+ * WHY 0.17 RATHER THAN THE 0.20 THIS REPLACES. The offence weights above were
+ * rebalanced (OL 0.18 -> 0.10), which lifted total yardage and carried yards
+ * per carry from 4.90 to 5.18 - outside the band. Re-solving this weight is the
+ * documented response to exactly that symptom, and it is the honest one, so it
+ * was re-solved rather than the weights being walked back.
+ *
+ * Measuring it also showed the 5.0 ceiling had been held by luck. The realism
+ * harness rates every drive on ONE fixture whose offensive line rates 0.155,
+ * near the floor (scripts/verify-nfl-realism.mjs, rosterWith), and the old 0.18
+ * OL weight leaned on that bad line to drag the whole sample down into the
+ * band. Swap in a league-average line and the OLD weights produced 5.44 a
+ * carry - already outside the band, and worse than the new ones' 5.39. The
+ * check was passing for the wrong reason. It passes on its own merits now.
+ *
+ * This lever moves ONLY the run/pass split: yards per play held at 6.11 across
+ * a 0.15-0.20 sweep, so nothing about total offence is being tuned here. */
+const RUN_YARD_WEIGHT = 0.17;
 
 /**
  * The plays inside one drive.

@@ -109,17 +109,46 @@ export const TWO_POINT_MARGINS = [-2, -5, -10, -16, 1, 4, 5, 12];
 /** The quarter from which the chart above starts applying. */
 export const TWO_POINT_CHART_QUARTER = 4;
 
-/** How much each roster slot feeds the offence rating. Quarterback is the most
- * important position in team sport and the weights say so; the line is second,
- * because a passer under pressure stops being a passer. Sums to 1. */
+/**
+ * How much each roster slot feeds the offence rating. Sums to 1.
+ *
+ * THESE ARE A GAME-FEEL DECISION, NOT A FOOTBALL ONE. Say it plainly, because
+ * the previous version of this comment argued the opposite and the numbers
+ * quietly stopped agreeing with it. Draft Nova is a DRAFTING game: the fun is
+ * in recognising a name, spending a pick on him, and then watching him decide
+ * something. A weight is exactly how much a pick matters, so the weights should
+ * follow where the enjoyment is rather than where an offensive coordinator
+ * would put it.
+ *
+ * What that changes from the previous set:
+ *
+ *   QB 0.44 -> 0.40. Still first by a distance, and still the pick that most
+ *   decides a game - just no longer most of the offence on its own.
+ *
+ *   OL 0.18 -> 0.10, from second to last. This is the deliberate one. The line
+ *   is the only offensive slot with no box-score presence: it never scores,
+ *   never appears in the highlight feed, and a player who spends a pick there
+ *   has no way to SEE it pay off. Weight parked on an invisible slot is weight
+ *   the game never gets to show anyone.
+ *
+ *   RB 0.09 -> 0.125, and the pass catchers 0.29 -> 0.375 (WR3 alone rises more
+ *   than half, 0.045 -> 0.07). These are the picks players argue about, and a
+ *   whiffed WR3 used to cost under 5% of one side of the ball - close enough to
+ *   nothing that the back half of an offensive draft carried no stakes.
+ *
+ * KNOWN ASYMMETRY, ACCEPTED ON PURPOSE. DEFENSE_WEIGHTS.DL is 0.30, the largest
+ * single defensive weight, and OL - the thing that answers a pass rush on a real
+ * field - is now the smallest offensive one. So a drafted front will feel strong
+ * while a drafted line feels close to inert, which is not what football looks
+ * like. That is the trade being made for legibility. If OL ever reads as TOO
+ * dead, trim DL rather than restoring OL: putting OL back would undo the point.
+ *
+ * AUTHORED, NOT SOLVED - like TALENT_PARITY and the quarter-variance range
+ * below. No football calibrator exists; only the two NBA ones do. Anyone
+ * changing these is exercising the same judgement, not correcting a computation.
+ */
 export const OFFENSE_WEIGHTS = {
-  // QB raised from 0.36. He is the most important position in team sport and
-  // the weights should say so louder than they did: at 0.36 a replacement-level
-  // passer moved his offence's rating by too little to show up as a
-  // replacement-level line. Everything else is scaled down proportionally so
-  // the weights still sum to 1 - this redistributes influence rather than
-  // inflating offence.
-  QB: 0.44, OL: 0.18, RB: 0.09, WR1: 0.11, WR2: 0.07, WR3: 0.045, TE: 0.065,
+  QB: 0.4, WR1: 0.13, RB: 0.125, OL: 0.1, TE: 0.09, WR2: 0.085, WR3: 0.07,
 };
 
 /** Same for the defence. The front seven outweighs the secondary because

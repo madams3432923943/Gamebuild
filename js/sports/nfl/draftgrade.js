@@ -89,8 +89,19 @@ function sideScore(roster, weights, ctx) {
   let total = 0;
   let weight = 0;
   for (const [slot, w] of Object.entries(weights)) {
-    if (!roster[slot]) continue;
-    total += w * rateEntry(roster[slot], ctx);
+    // Resolve a Quick Play roster the same way the engine's sideRating does, or
+    // the grade praises a roster the simulation is playing differently. Both
+    // stand-ins are needed and both were missing: Quick Play holds one "WR"
+    // against the weights' WR1/WR2/WR3, and one "DEF" against DL/LB/CB/S. So
+    // every offensive receiver slot AND every defensive slot was skipped here,
+    // which left the defensive half of a Quick Play grade at a flat 0.5 - the
+    // same letter whoever you drafted.
+    const entry =
+      roster[slot] ??
+      (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined) ??
+      roster[canonicalSlot(slot)];
+    if (!entry) continue;
+    total += w * rateEntry(entry, ctx);
     weight += w;
   }
   return weight > 0 ? total / weight : 0.5;
