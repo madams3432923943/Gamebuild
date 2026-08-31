@@ -94,7 +94,7 @@
 
 import {
   DRIVES_PER_TEAM, BASE_POINTS_PER_DRIVE, DRIVE_START_YARD, FG_RANGE_YARD,
-  DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY,
+  DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY, EDGE_FLOOR,
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
@@ -145,7 +145,10 @@ function sideRating(roster, weights, forfeits, ctx) {
  * and a sim where the better roster converts every mismatch would produce
  * scores no real game reaches. Centred on 1 so an even matchup is average. */
 function edge(off, def) {
-  return 1 + TALENT_PARITY * (off - def);
+  // Floored: see EDGE_FLOOR. Without it a wide enough talent gap sent the
+  // multiplier negative, which inverts the drive-outcome weights rather than
+  // merely shrinking them.
+  return Math.max(EDGE_FLOOR, 1 + TALENT_PARITY * (off - def));
 }
 
 /** Picks a drive's ending from the league-average chart, tilted by the edge.

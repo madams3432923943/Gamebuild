@@ -205,6 +205,28 @@ export const MIN_RATED_GAMES = 6;
  * paragraph with a number nobody had to argue about. */
 export const TALENT_PARITY = 1.6;
 
+/**
+ * The floor under a drive-quality multiplier.
+ *
+ * `edge` is 1 + TALENT_PARITY * (off - def) and had no lower bound, so a gap
+ * wider than 1/TALENT_PARITY - about 0.63 of rating, which real drafted rosters
+ * do reach - drove it to zero and through it. A NEGATIVE multiplier is not a
+ * very bad offence, it is a nonsensical one: it scales the drive-outcome
+ * weights, so touchdown and field-goal probabilities come out negative and the
+ * drive gains negative ground. Games in that state reported negative team
+ * yardage and four-point finals.
+ *
+ * Measured before clamping: 0.34% of random Quick Play matchups landed at or
+ * below zero, worst -0.24. Rare, but it had always been reachable, and the
+ * board is what decides whether anyone hits it.
+ *
+ * 0.05 rather than something larger because this is a guard, not a balance
+ * lever. At 0.05 a team still scores on about 2% of its drives - annihilated,
+ * but recognisably playing football - and legitimate blowouts above the floor
+ * are left exactly as they were.
+ */
+export const EDGE_FLOOR = 0.05;
+
 /** PROVISIONAL - see the header. Per-quarter multiplier on drive quality, so a
  * game can swing the way real ones do. Symmetric around 1 so it adds noise
  * without handing either side points over a season. Must be solved. */
