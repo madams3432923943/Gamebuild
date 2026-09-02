@@ -15,15 +15,17 @@
 // Runs against the local fake backend, so it costs nothing and can run on
 // every build.
 
-import { createServer } from "node:http"; import { readFile } from "node:fs/promises";
-import path from "node:path"; import { chromium } from "playwright";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 import { createFakeBackend } from "./fake-server.mjs";
-const ROOT="/home/user/Gamebuild", SITE=8981, API=8982;
-const MIME={".html":"text/html",".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml"};
-const site=createServer(async(req,res)=>{try{let r=decodeURIComponent(new URL(req.url,"http://x").pathname);
-if(r.endsWith("/"))r+="index.html";const b=await readFile(path.join(ROOT,r));
-res.writeHead(200,{"Content-Type":MIME[path.extname(r)]||"application/octet-stream"});res.end(b);}catch{res.writeHead(404).end("nf")}});
-await new Promise(r=>site.listen(SITE,r));
+import { serveStatic } from "./static-server.mjs";
+// Derived, not hardcoded: this was an absolute path to one machine's
+// checkout, so the test only ran there.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const SITE = 8981, API = 8982;
+const site = await serveStatic(ROOT, SITE);
 const backend=createFakeBackend(); await backend.listen(API);
 const apiUrl=`http://127.0.0.1:${API}/`;
 const stub=await readFile(path.join(ROOT,"scripts/selftest/online-stub.js"),"utf8");

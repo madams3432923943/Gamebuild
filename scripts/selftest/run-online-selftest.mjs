@@ -17,8 +17,9 @@
 // Function that has drifted from this repo. It catches client bugs, and those
 // are most of them.
 
-import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
+
+import { serveStatic } from "./static-server.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,30 +30,6 @@ import { createFakeBackend } from "./fake-server.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-};
-
-function serveStatic(root, port) {
-  const server = createServer(async (req, res) => {
-    try {
-      let rel = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
-      if (rel === "/" || rel.endsWith("/")) rel += "index.html";
-      const file = path.join(root, rel);
-      if (!file.startsWith(root)) return res.writeHead(403).end("forbidden");
-      const body = await readFile(file);
-      res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
-      res.end(body);
-    } catch {
-      res.writeHead(404).end("not found");
-    }
-  });
-  return new Promise((resolve) => server.listen(port, () => resolve(server)));
-}
 
 async function main() {
   const sitePort = Number(process.env.BK_SELFTEST_PORT || 8932);

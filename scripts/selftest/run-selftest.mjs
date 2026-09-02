@@ -15,50 +15,21 @@
 // What it does NOT prove: anything about the live site, matchmaking, or the
 // simulate-match Edge Function. Those need `npm run verify -- --online`.
 
-import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL, SKIP, WARN } from "../lib/report.mjs";
 import { runBrowserChecks } from "../verify-browser.mjs";
+import { serveStatic } from "./static-server.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-};
-
-function serve(root, port) {
-  const server = createServer(async (req, res) => {
-    try {
-      const url = new URL(req.url, "http://localhost");
-      let rel = decodeURIComponent(url.pathname);
-      if (rel === "/" || rel.endsWith("/")) rel += "index.html";
-      const file = path.join(root, rel);
-      if (!file.startsWith(root)) {
-        res.writeHead(403).end("forbidden");
-        return;
-      }
-      const body = await readFile(file);
-      res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
-      res.end(body);
-    } catch {
-      res.writeHead(404).end("not found");
-    }
-  });
-  return new Promise((resolve) => server.listen(port, () => resolve(server)));
-}
 
 async function main() {
   const port = Number(process.env.BK_SELFTEST_PORT || 8931);
-  const server = await serve(ROOT, port);
+  const server = await serveStatic(ROOT, port);
   const baseUrl = `http://127.0.0.1:${port}/`;
   console.log(renderSection("Browser harness self-test (local server, stubbed backend)"));
   console.log(`  serving ${ROOT} at ${baseUrl}`);
