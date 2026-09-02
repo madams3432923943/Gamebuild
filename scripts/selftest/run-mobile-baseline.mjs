@@ -132,7 +132,7 @@ const TOUCH_AUDIT = `(() => {
 })()`;
 
 /** One screen, at one size: screenshot plus both audits. */
-async function capture(page, outDir, screen, phone, notes = []) {
+async function capture(page, shotDir, screen, phone, notes = []) {
   await page.setViewportSize({ width: phone.width, height: phone.height });
   // Two frames, so a resize-driven relayout has actually landed before the
   // shutter. One is not enough - the first frame after a resize can still
@@ -140,7 +140,7 @@ async function capture(page, outDir, screen, phone, notes = []) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await sleep(120);
 
-  const file = path.join(outDir, `${screen}--${phone.name}.png`);
+  const file = path.join(shotDir, `${screen}--${phone.name}.png`);
   await page.screenshot({ path: file, fullPage: true }).catch(() => {});
 
   const layout = await page.evaluate(LAYOUT_AUDIT).catch(() => null);
@@ -170,10 +170,10 @@ async function capture(page, outDir, screen, phone, notes = []) {
 
 /** Every phone size for one screen, so a screen is captured once and measured
  * four times rather than driven to four times. */
-async function captureAll(page, outDir, screen, log, notes = []) {
+async function captureAll(page, shotDir, screen, log, notes = []) {
   const rows = [];
   for (const phone of PHONES) {
-    const row = await capture(page, outDir, screen, phone, notes);
+    const row = await capture(page, shotDir, screen, phone, notes);
     rows.push(row);
     log(
       `    ${screen} @ ${phone.name}: ` +
@@ -207,7 +207,20 @@ async function openSport(page, sportId, log) {
 
 async function main() {
   const stamp = new Date().toISOString().slice(0, 10);
+
+  // The screenshots and the report go to DIFFERENT places on purpose.
+  //
+  // 56 full-page captures at a phone's device pixel ratio is ~55MB, and this
+  // repo is served to the web from its own root - committing them would put
+  // them in every clone, every diff and the live site, permanently, to say
+  // what one command regenerates. They go to verify-artifacts/, which is
+  // already gitignored for exactly this.
+  //
+  // The report and its numbers are text, they are the part worth keeping, and
+  // they are what a future run gets compared against. Those are committed.
+  const shotDir = path.join(ROOT, "verify-artifacts", "mobile-baseline", stamp);
   const outDir = path.join(ROOT, "docs", "audits", `${stamp}-mobile-baseline`);
+  await mkdir(shotDir, { recursive: true });
   await mkdir(outDir, { recursive: true });
 
   const port = Number(process.env.BK_BASELINE_PORT || 8934);
@@ -249,19 +262,19 @@ async function main() {
       // The auth screen only exists before the stub restores a session, so it
       // is captured first or not at all.
       if (await show(page, "screen-auth")) {
-        rows.push(...(await captureAll(page, outDir, `${sportId}-01-auth`, log)));
+        rows.push(...(await captureAll(page, shotDir, `${sportId}-01-auth`, log)));
       }
       await signIn(page, { username: "Baseline", password: "baseline-password" }, log);
 
       if (await show(page, "screen-home")) {
-        rows.push(...(await captureAll(page, outDir, `${sportId}-02-hub`, log)));
+        rows.push(...(await captureAll(page, shotDir, `${sportId}-02-hub`, log)));
       }
 
       if (!(await openSport(page, sportId, log))) {
         await context.close();
         continue;
       }
-      rows.push(...(await captureAll(page, outDir, `${sportId}-03-play`, log)));
+      rows.push(...(await captureAll(page, shotDir, `${sportId}-03-play`, log)));
 
       const squadIndex = await loadSquadIndex(sportId);
       await page.locator("#btn-start-draft").click({ timeout: 10000 }).catch(() => {});
@@ -270,10 +283,15 @@ async function main() {
       // full one reads, and a full one is what a player looks at for ten
       // rounds.
       if (await page.locator("#pool-search").isVisible().catch(() => false)) {
-        rows.push(...(await captureAll(page, outDir, `${sportId}-04-draft-empty`, log)));
+        rows.push(...(await captureAll(page, shotDir, `${sportId}-04-draft-empty`, log)));
       }
 
-      const deadline = Date.now() + 240000;
+      // Generous, because overrunning it costs SCREENS. The first run gave
+      // the draft 240s; basketball's ten rounds ran past it at round five, so
+      // the live game and the box score - two of the three screens this whole
+      // exercise is about - were never reached and never photographed. A
+      // capture run is not a performance gate and has no reason to be tight.
+      const deadline = Date.now() + 900000;
       const picks = await driveDraft(page, squadIndex, sportId, log, deadline).catch((e) => {
         log(`  draft did not complete: ${e.message}`);
         return 0;
@@ -287,13 +305,13 @@ async function main() {
         // Live, then final. The live scoreboard is the screen people watch
         // together and the box score is the one they argue over, and they are
         // different layouts behind the same id.
-        rows.push(...(await captureAll(page, outDir, `${sportId}-05-game-live`, log)));
+        rows.push(...(await captureAll(page, shotDir, `${sportId}-05-game-live`, log)));
         await page
           .locator("#final-box, #btn-play-again")
           .first()
           .waitFor({ state: "visible", timeout: 180000 })
           .catch(() => {});
-        rows.push(...(await captureAll(page, outDir, `${sportId}-06-game-final`, log)));
+        rows.push(...(await captureAll(page, shotDir, `${sportId}-06-game-final`, log)));
       }
 
       for (const [tab, screen] of [
@@ -303,7 +321,7 @@ async function main() {
       ]) {
         await page.locator(tab).click({ timeout: 10000 }).catch(() => {});
         if (await show(page, screen)) {
-          rows.push(...(await captureAll(page, outDir, `${sportId}-07-${screen.replace("screen-", "")}`, log)));
+          rows.push(...(await captureAll(page, shotDir, `${sportId}-07-${screen.replace("screen-", "")}`, log)));
         }
       }
 
@@ -362,7 +380,7 @@ function renderReport(rows, lines, stamp) {
     if (!r.smallTargets.length && !r.tinyText.length && !r.worstLayout.length) continue;
     out.push(`### ${r.screen} @ ${r.phone} (${r.width}x${r.height})`);
     out.push("");
-    out.push(`![${r.screen}](${path.basename(r.shot)})`);
+    out.push(`Screenshot: \`${r.shot}\` (regenerate with \`npm run baseline:mobile\`)`);
     out.push("");
     for (const t of r.smallTargets) out.push(`- tap target ${t.w}x${t.h}: \`${t.el}\``);
     for (const t of r.tinyText) out.push(`- ${t.px}px text: \`${t.el}\` — "${t.sample}"`);
