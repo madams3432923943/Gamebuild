@@ -165,12 +165,14 @@ export const NFL = {
   // find out whether a football sim feels like football is to let people play
   // it, and NFL ELO can be reset once the calibrators have run.
   live: true,
-  // Selectable without being playable: you can switch the whole app to NFL and
-  // see its dashboard, eras, labels and branding, which is what building those
-  // screens requires. Start Draft stays disabled - see isSelectable() in
-  // js/sports/index.js for why this is a second flag rather than loosening
-  // `live`, which everything that touches an engine still reads.
-  preview: true,
+  // No `preview` flag: it existed to open NFL's screens while its engine was
+  // half-built, and `live` has subsumed it since - isSelectable() reads
+  // `live || preview`, so declaring both said nothing. The flag itself stays
+  // in js/sports/index.js because it is how sport number three gets its
+  // screens looked at before it can be played.
+  //
+  // `status` is what a card shows INSTEAD of a rank, so a live sport's is only
+  // read before the first ranked game.
   status: "In development",
 
   // Football blue - the app's original palette, kept here because it suits
