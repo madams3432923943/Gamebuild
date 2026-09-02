@@ -75,7 +75,19 @@ body {
     var(--bg);
   color: var(--text);
   font-family: var(--font-body);
+  /* dvh, not vh, with vh underneath for anything too old to know the unit.
+     
+     On a phone `100vh` is the viewport with the browser's own chrome HIDDEN -
+     the tallest it ever gets - so a "full height" page is permanently 60-80px
+     taller than what is actually on screen, and every screen has a phantom
+     scroll at the bottom that goes nowhere. dvh is the viewport as it is right
+     now, which is the one the reader has. */
   min-height: 100vh;
+  min-height: 100dvh;
+  /* Stops a flick at the top of a screen from becoming pull-to-refresh. On a
+     draft with a running pick clock that reload is not a refresh, it is a
+     lost pick. */
+  overscroll-behavior-y: contain;
 }
 
 button, input {
@@ -835,6 +847,7 @@ input[type="text"]:focus-visible {
   justify-content: center;
   gap: 1rem;
   min-height: 60vh;
+  min-height: 60dvh;
   padding: 2rem 1rem;
 }
 
@@ -3497,7 +3510,15 @@ table.box-table th, table.history-table th {
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--accent), 0 18px 50px rgba(0, 0, 0, 0.55);
   width: min(560px, 100%);
+  /* 85vh measured against the address-bar-hidden viewport is taller than the
+     screen while the address bar is showing, which put the confirm button of
+     a tall modal - the season picker, the slot picker - below the fold with
+     nothing to scroll. */
   max-height: 85vh;
+  max-height: 85dvh;
+  /* A flick that reaches the end of the modal must not start scrolling the
+     screen behind it - the backdrop is meant to be inert. */
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   animation: modal-in 0.16s ease;
@@ -4261,6 +4282,7 @@ html, body {
      380px window showed barely three players at a time. */
   .pool-list {
     max-height: 55vh;
+    max-height: 55dvh;
   }
 
   /* PRACTICE MODE SHOWS FIVE, NOT SEVEN.
@@ -5046,6 +5068,7 @@ html, body {
      candidates and seeing six. */
   .pool-list {
     max-height: 60vh;
+    max-height: 60dvh;
   }
 
   /* Same five-card cap as the breakpoint above - this rule is later in the
