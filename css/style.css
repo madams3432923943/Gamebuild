@@ -5952,3 +5952,67 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 }
 
 .profile-kits-hint { margin: 0.5rem 0 0; }
+
+/* ---- The touch floor ----
+
+   One place that says "a finger is doing the pointing, so nothing you can
+   press is under 44px". Same condition as the bottom bar above, for the same
+   reason: a sideways phone is still a phone, and width alone cannot tell one
+   from a small window.
+
+   The mobile baseline is what this is answering. After the nav moved to the
+   bottom, the controls left under the floor were a short list and a long
+   tail of one instance each - .kit-swatch 82 times at 34x34, #btn-brand 48
+   times at 32px tall, then the card actions and the subtabs at 30-31px.
+   Giving each of those rules its own min-height would have worked and would
+   have put the floor in five places, so the sixth control to arrive would
+   miss it. It goes here instead: a new control gets the floor by being
+   listed, and the list is the first thing anyone looks at.
+
+   Deliberately the real box, not a pseudo-element expanding the hit area
+   under a small visual. An invisible target that works is still a target you
+   cannot see, and on a colour swatch - where every neighbour is also live -
+   the thing being aimed at should be the thing that is hit. */
+@media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+  .sport-card-action,
+  .subtab,
+  .brand,
+  .nav-utility .nav-tab,
+  .btn-small,
+  .era-chip,
+  /* Fields, not just buttons. A 21px-tall email field is as hard to put a
+     cursor in as a 21px button is to press, and the profile screen had two
+     of them. */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  select,
+  textarea {
+    min-height: 2.75rem;
+  }
+
+  /* Square, so the floor has to be set on both axes. 2.1rem circles in a
+     dense grid were the single most-missed control in the whole audit. */
+  .kit-swatch {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  /* The header stopped needing to stack into two rows once the destinations
+     left it, so it is a single row again - but its padding was still the
+     desktop 1.25rem while the content below it sits on --page-gutter. The
+     wordmark was inset further than everything under it. */
+  .top-nav {
+    padding: 0.6rem var(--page-gutter);
+  }
+
+  /* The wordmark is a real button spanning most of the header - wide enough
+     to hit while reaching for something else, short enough to miss on
+     purpose. Given the floor and a hit area that stops at its own text
+     rather than running the width of the bar. */
+  .brand {
+    align-self: flex-start;
+    width: fit-content;
+  }
+}
