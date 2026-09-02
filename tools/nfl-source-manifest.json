@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "nflverse/nflverse-data stats_player release assets",
-  "generated_at": "2026-08-20T18:30:01.954Z",
+  "generated_at": "2026-09-02T03:19:55.982Z",
   "file_count": 26,
   "seasons": [
     2000,
@@ -175,8 +175,8 @@
     {
       "name": "stats_player_week_2020.csv",
       "season": 2020,
-      "bytes": 7883276,
-      "sha256": "c02dbb80fe2ccafe684e9c50457ce705d9bd600c4e77ba479dc9a867af0a8baa",
+      "bytes": 7883270,
+      "sha256": "05b992676faccc8940efbf6242cb76358069372d31d7c2e02c1a4acdcd3cbe18",
       "upstream": "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2020.csv"
     },
     {

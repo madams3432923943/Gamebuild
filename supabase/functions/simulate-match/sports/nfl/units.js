@@ -95,7 +95,19 @@ export function roleConfidence(r, pos) {
 }
 
 const NON_DEFENSIVE_UNIT_COMPOSITES = {
-  OL: (r) => n(r.rating) - 6 * n(r.sacks_allowed) + 8 * n(r.ypc),
+  // `rating` IS the line, already whole. tools/build-nfl-data.mjs builds it as
+  // 50 * (protection + runBlock), both within-season percentiles, so it already
+  // carries pass protection and run blocking in equal measure and is already
+  // era-safe. The two terms this replaces re-read the same two inputs a second
+  // time - `- 6 * sacks_allowed` the protection half, `+ 8 * ypc` the run half -
+  // which double-counted the line against itself.
+  //
+  // That went unnoticed while sacks_allowed was silently 0 (see buildOlUnit),
+  // because only one of the two duplicates was doing anything: yards per carry
+  // was counted twice and protection not at all. Fixing the data without also
+  // removing these would have swapped one distortion for another rather than
+  // ending it, so the two changes belong together.
+  OL: (r) => n(r.rating),
   ST: (r) => 100 * n(r.fg_pct) + 30 * n(r.pat_pct) + 3 * n(r.fg_att),
 };
 

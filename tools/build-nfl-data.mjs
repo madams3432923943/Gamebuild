@@ -430,7 +430,18 @@ function buildOlUnit() {
     const key = `${team}|${num(row.season)}|${era}`;
     if (!acc.has(key)) acc.set(key, { sacksAllowed: 0, rushYds: 0, carries: 0 });
     const a = acc.get(key);
-    if (row.position === "QB") a.sacksAllowed += num(row.sacks);
+    // sacks -> sacks_suffered, the SAME rename already handled where the
+    // quarterback's own line is aggregated (see s.sacked above). It was fixed
+    // there and missed here, and the failure was silent in the worst way:
+    // `row.sacks` does not exist on the current export, so num() returned 0 for
+    // every quarterback in every season and sacksAllowed was 0 for all 830
+    // lines. `pct` of an all-zero column returns 0.5 for everyone, so the
+    // protection half below became a CONSTANT rather than a measurement and
+    // every offensive line in the game was rated on rushing yards alone.
+    //
+    // Nothing caught it because a dead metric does not throw: it produces a
+    // plausible-looking line rating with half its inputs missing.
+    if (row.position === "QB") a.sacksAllowed += num(row.sacks_suffered ?? row.sacks);
     a.rushYds += num(row.rushing_yards);
     a.carries += num(row.carries);
   }

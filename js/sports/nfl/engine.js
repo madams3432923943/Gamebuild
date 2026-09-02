@@ -302,18 +302,46 @@ function driveYards(outcome, startYard, mult, rand) {
   // drive for free, which is most of why a backup quarterback's yardage
   // looked like a starter's.
   //
-  // 28/62. THIS IS ABOVE REAL FOOTBALL ON PURPOSE - read the DESIGN TARGET note
+  // 24/53. THIS IS ABOVE REAL FOOTBALL ON PURPOSE - read the DESIGN TARGET note
   // at the top of scripts/verify-nfl-realism.mjs before "correcting" it. Draft
   // Nova aims for 350 yards a team at 5.8 a play against the NFL's 340 and 5.4,
   // because a drafted roster of all-time seasons playing to a league average is
-  // a disappointing product. The realism bands were always wide enough to hold
-  // this; what they forbid is football stopping being football.
+  // a disappointing product. Measured at 369 and 6.05. The realism bands were
+  // always wide enough to hold this; what they forbid is football stopping
+  // being football.
   //
-  // The number moved twice. First 18/42 -> 22/50, when adding SAF to
+  // The number has moved three times. First 18/42 -> 22/50, when adding SAF to
   // tools/build-nfl-data.mjs pulled 43 more (mostly weaker) safety units into
   // the pool, shifting the S percentile distribution, lifting every safety's
   // rating and suppressing offence about 8%. Then 22/50 -> 28/62 for the target
   // above.
+  //
+  // Then 28/62 -> 24/53, and that one is worth reading, because 28/62 was never
+  // really measured. verify-nfl-realism rates every drive on ONE fixture, and
+  // its offensive line came out of `unitFor('OL')` - the middle of an unsorted
+  // list. That line rated 0.155, near the floor, and a floor-rated line drags a
+  // whole sample's offence down. 28/62 was solved against that suppression, so
+  // the bands passed while the engine actually produced 5.44 a carry for any
+  // ordinary roster - outside the band it was being certified against.
+  //
+  // Fixing the offensive-line data (sacks_suffered, see buildOlUnit) re-rated
+  // every line and the fixture's became an ordinary 0.495. The suppression
+  // vanished, the sample jumped to 411 yards at 6.47, and three bands failed at
+  // once. Nothing about the engine got worse that day; a number that had been
+  // wrong all along stopped being hidden.
+  //
+  // 24/53 is the value solved against a representative line. It was chosen over
+  // a lower one that hit the 350 target more exactly, because measuring the two
+  // against the SHIPPED game - same probe, same seed, stashed working tree -
+  // showed 24/53 reproduces it almost exactly (369 yards against 377, 6.05 a
+  // play against 6.09, 4.77 a carry against 4.85) while a lower reach drifted
+  // further from it for no gain the bands asked for. Scoring is 21.3 a team
+  // against the shipped 20.4, and the talent-to-win curve is unchanged.
+  //
+  // The 350-yard figure in the target above was itself solved against the
+  // suppressed fixture, so treating it as ground truth here would have meant
+  // re-fitting the game to a measurement error. Match the shipped product, not
+  // the stale number.
   //
   // IT IS ONE OF THREE AND THEY ONLY WORK TOGETHER. Raising this alone also
   // raises the snap count and the game clock, because buildPlays derives snaps
@@ -321,7 +349,7 @@ function driveYards(outcome, startYard, mult, rand) {
   // not a football game at any scoring level. The snaps divisor absorbs that,
   // and RUN_YARD_WEIGHT keeps the extra yardage off the ground game. Re-tuned by
   // hand against verify:nfl-realism; there is still no calibrator for football.
-  const reach = (28 + 62 * rand()) * mult;
+  const reach = (24 + 53 * rand()) * mult;
   if (outcome === "touchdown") return 100 - startYard;
   if (outcome === "fieldGoal") return Math.max(FG_RANGE_YARD - startYard, reach);
   // A DRIVE THAT DID NOT SCORE DID NOT GO FAR. This was `reach - 14`, about 25
