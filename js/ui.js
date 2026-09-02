@@ -235,7 +235,18 @@ export function statPairs(p) {
   const hook = activeSport().cardStats;
   if (typeof hook !== "function") return [];
   const pairs = hook(p);
-  return Array.isArray(pairs) ? pairs.filter((s) => s && s.value != null) : [];
+  if (!Array.isArray(pairs)) return [];
+  // A MISSING STAT IS SHOWN, NOT DROPPED.
+  //
+  // This filtered out pairs with no value, which turns a dataset hole into a
+  // card that is merely one column shorter - believable, and invisible. The
+  // string form it replaced printed "undefined reb", which is ugly and is
+  // exactly how the football bug this whole hook exists because of got
+  // caught. An em-dash is the same signal without the stack-trace look:
+  // the label still says which stat is missing.
+  return pairs
+    .filter((s) => s && typeof s.label === "string")
+    .map((s) => (s.value == null || s.value === "" ? { ...s, value: "—" } : s));
 }
 
 /**
