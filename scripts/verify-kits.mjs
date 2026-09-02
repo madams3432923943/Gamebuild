@@ -205,14 +205,29 @@ add(
 // a shelf nobody can find and a colour that never leaves the picker fail in the
 // same silent way - everything renders, nothing is wrong on screen, and the
 // feature simply is not there.
-const uiSrc = await readFile(path.join(ROOT, "js", "ui.js"), "utf8");
-const kindsBlock = uiSrc.match(/const UNLOCKABLE_KINDS = \[([\s\S]*?)\];/)?.[1] ?? "";
+// WHERE the picker lives has changed; that it is REACHABLE has not.
+//
+// It used to be a fourth tab on the Rewards/Customize shelf, and this asserted
+// exactly that. It is the one entry there that is not an unlockable - every
+// kit is available from the first game - so it sat among three grids of things
+// you earn, looking like a fourth. It now lives only on the profile screen,
+// which is where it started.
+//
+// The check follows the decision rather than blocking it, but it checks the
+// same thing it always did: that there is a way to get to the picker. Asserted
+// against the markup and the render call together, because either one alone
+// can be present while the feature is not - an empty container nobody fills,
+// or a render call with nowhere to put it.
+const indexSrc = await readFile(path.join(ROOT, "index.html"), "utf8");
+const mainSrc = await readFile(path.join(ROOT, "js", "main.js"), "utf8");
+const pickerInMarkup = /id="profile-kit-picker"/.test(indexSrc);
+const pickerRendered = /renderKitPicker\(\s*profileRefs\.kitPicker/.test(mainSrc);
 add(
-  "Team Color is a shelf on the Customize modal",
-  /id:\s*"kits"/.test(kindsBlock),
-  /id:\s*"kits"/.test(kindsBlock)
-    ? "UNLOCKABLE_KINDS carries the kits shelf"
-    : "no kits entry in UNLOCKABLE_KINDS - the picker is unreachable from Customize"
+  "The kit picker is reachable on the profile screen",
+  pickerInMarkup && pickerRendered,
+  pickerInMarkup && pickerRendered
+    ? "#profile-kit-picker in the markup, renderKitPicker() fills it"
+    : `markup: ${pickerInMarkup}, render call: ${pickerRendered}`
 );
 
 // Comments stripped the way verify-csp and verify-banner-resolution do it, so
