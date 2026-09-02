@@ -4222,102 +4222,6 @@ html, body {
     margin-left: 0;
   }
 
-  /* THE BOTTOM BAR.
-     
-     The four destinations used to be 11.2px text in 40px pills at the TOP of
-     the screen - the furthest point from a thumb holding the phone, and the
-     single largest contributor to the mobile baseline's 661 undersized tap
-     targets, because those same six controls are on all nine screens.
-
-     Fixed to the bottom, four equal columns, glyph over word, 56px tall
-     before the safe-area inset. The header keeps the brand and the two
-     utilities, so it stops needing to wrap into a second row at all. */
-  .top-nav {
-    padding: 0.6rem 0.85rem;
-  }
-
-  .nav-tabs {
-    /* The nav element itself stops being a box: its two children go to
-       opposite ends of the screen. */
-    display: contents;
-  }
-
-  /* `display: contents` is an AUTHOR rule and `[hidden] { display: none }` is
-     a USER-AGENT one, so the author rule wins and navTabs.hidden stops
-     hiding anything. Without this the bottom bar is on screen behind the
-     sign-in form, before there is a session to navigate with. */
-  .nav-tabs[hidden] {
-    display: none;
-  }
-
-  .nav-primary {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    gap: 0;
-    /* The bar's own height, plus whatever the home indicator needs. env()
-       reports 0 on hardware without one, so this is not a phone-specific
-       branch - it is the same rule everywhere. */
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: var(--panel);
-    background: color-mix(in srgb, var(--panel) 92%, transparent);
-    backdrop-filter: blur(12px);
-    border-top: 1px solid var(--line);
-  }
-
-  .nav-primary .nav-tab {
-    flex: 1 1 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.15rem;
-    /* 3.5rem = 56px, comfortably over the 44px floor rather than exactly on
-       it: the floor is where hit rates start to fall off, not where they are
-       good. */
-    min-height: 3.5rem;
-    padding: 0.4rem 0.2rem;
-    border-radius: 0;
-    border: none;
-    font-size: var(--text-micro);
-    letter-spacing: 0.02em;
-  }
-
-  .nav-tab-glyph {
-    display: block;
-    font-size: 1.125rem;
-    line-height: 1;
-  }
-
-  /* A filled pill is right for a header row and wrong for a bottom bar: at
-     this size it becomes a solid block of accent under the thumb. The active
-     tab is marked with colour and a top rule instead - the convention every
-     phone user already reads without being taught. */
-  .nav-primary .nav-tab.active {
-    background: none;
-    color: var(--accent-bright);
-    box-shadow: inset 0 2px 0 0 var(--accent);
-  }
-
-  .nav-utility {
-    gap: 0.3rem;
-  }
-
-  .nav-utility .nav-tab {
-    min-height: 2.75rem;
-    min-width: 2.75rem;
-    padding: 0.5rem 0.7rem;
-    font-size: var(--text-xs);
-  }
-
-  /* Room for the bar, so the last row of a screen is not sitting underneath
-     it. Without this every screen's final control is unreachable. */
-  #app-root {
-    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px) + 1.5rem);
-  }
-
   /* Comfortable thumb targets. 2.75rem ~= 44px, the usual floor. */
   .btn,
   .mode-btn,
@@ -4487,6 +4391,116 @@ html, body {
     color: var(--muted);
     font-family: var(--font-body);
   }
+}
+
+/* The bottom bar applies to PHONES, not to narrow windows.
+   
+   It first shipped inside the max-width:700px block, and the mobile baseline
+   caught what that missed: at 844x390 - a phone turned sideways, which is
+   both an accident and a deliberate choice for someone propping it against a
+   TV - the tap-target count did not move at all (13 -> 13 on the hub, 28 ->
+   28 on profile) while every other size roughly halved. A landscape phone
+   was getting the desktop nav.
+   
+   Width alone cannot tell a sideways phone from a small window. `pointer:
+   coarse` says a finger is the input device, and a short viewport says it is
+   not a tablet held upright. The rest of the phone block - the stacked mode
+   toggle, the narrowed gutter - stays behind on width, because those ARE
+   about narrowness and stacking controls on a short landscape screen would
+   spend the vertical room it has least of. */
+@media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+  /* THE BOTTOM BAR.
+     
+     The four destinations used to be 11.2px text in 40px pills at the TOP of
+     the screen - the furthest point from a thumb holding the phone, and the
+     single largest contributor to the mobile baseline's 661 undersized tap
+     targets, because those same six controls are on all nine screens.
+
+     Fixed to the bottom, four equal columns, glyph over word, 56px tall
+     before the safe-area inset. The header keeps the brand and the two
+     utilities, so it stops needing to wrap into a second row at all. */
+  .nav-tabs {
+    /* The nav element itself stops being a box: its two children go to
+       opposite ends of the screen. */
+    display: contents;
+  }
+
+  /* `display: contents` is an AUTHOR rule and `[hidden] { display: none }` is
+     a USER-AGENT one, so the author rule wins and navTabs.hidden stops
+     hiding anything. Without this the bottom bar is on screen behind the
+     sign-in form, before there is a session to navigate with. */
+  .nav-tabs[hidden] {
+    display: none;
+  }
+
+  .nav-primary {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    gap: 0;
+    /* The bar's own height, plus whatever the home indicator needs. env()
+       reports 0 on hardware without one, so this is not a phone-specific
+       branch - it is the same rule everywhere. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--panel);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+  }
+
+  .nav-primary .nav-tab {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    /* 3.5rem = 56px, comfortably over the 44px floor rather than exactly on
+       it: the floor is where hit rates start to fall off, not where they are
+       good. */
+    min-height: 3.5rem;
+    padding: 0.4rem 0.2rem;
+    border-radius: 0;
+    border: none;
+    font-size: var(--text-micro);
+    letter-spacing: 0.02em;
+  }
+
+  .nav-tab-glyph {
+    display: block;
+    font-size: 1.125rem;
+    line-height: 1;
+  }
+
+  /* A filled pill is right for a header row and wrong for a bottom bar: at
+     this size it becomes a solid block of accent under the thumb. The active
+     tab is marked with colour and a top rule instead - the convention every
+     phone user already reads without being taught. */
+  .nav-primary .nav-tab.active {
+    background: none;
+    color: var(--accent-bright);
+    box-shadow: inset 0 2px 0 0 var(--accent);
+  }
+
+  .nav-utility {
+    gap: 0.3rem;
+  }
+
+  .nav-utility .nav-tab {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0.5rem 0.7rem;
+    font-size: var(--text-xs);
+  }
+
+  /* Room for the bar, so the last row of a screen is not sitting underneath
+     it. Without this every screen's final control is unreachable. */
+  #app-root {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px) + 1.5rem);
+  }
+
 }
 
 /* Very narrow phones (~360px and under). */

@@ -30,6 +30,8 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { execFileSync } from "node:child_process";
+
 import { chromium, devices } from "playwright";
 
 import { LAYOUT_AUDIT } from "../lib/browser-instrumentation.mjs";
@@ -206,7 +208,13 @@ async function openSport(page, sportId, log) {
 }
 
 async function main() {
-  const stamp = new Date().toISOString().slice(0, 10);
+  // The commit, not just the date. Two runs on one day overwrote each other -
+  // which is exactly what a BEFORE and an AFTER are - and a set of numbers
+  // that does not say which build produced it cannot be compared to anything.
+  const sha = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT })
+    .toString()
+    .trim();
+  const stamp = `${new Date().toISOString().slice(0, 10)}-${sha}`;
 
   // The screenshots and the report go to DIFFERENT places on purpose.
   //

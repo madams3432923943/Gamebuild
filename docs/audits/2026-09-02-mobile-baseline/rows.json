@@ -9,113 +9,42 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 6,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
         "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
-        "w": 127,
-        "h": 31
-      },
-      {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 144,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 144,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 144,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 144,
         "h": 31
       }
     ],
-    "tinyTextCount": 8,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
-    "verticalScroll": 0,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 23,
     "notes": []
   },
   {
@@ -128,112 +57,46 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 7,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
         "w": 157,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 159,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 159,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 159,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 159,
         "h": 31
       }
     ],
-    "tinyTextCount": 8,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -251,58 +114,42 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
         "w": 197,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 179,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 179,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 179,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 179,
         "h": 31
       }
     ],
-    "tinyTextCount": 3,
-    "tinyText": [
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -324,80 +171,64 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
-      },
-      {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
-        "w": 126,
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
-        "w": 81,
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
+        "w": 130,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
-        "w": 121,
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 82,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
-        "w": 81,
+        "el": "button.sport-card-action \"📖 How to Play\"",
+        "w": 124,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 82,
         "h": 31
       }
     ],
-    "tinyTextCount": 3,
-    "tinyText": [
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
-    "verticalScroll": 295,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 300,
     "notes": []
   },
   {
@@ -410,77 +241,16 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 1,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
         "h": 36
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -494,77 +264,21 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 2,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
         "h": 36
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -582,12 +296,12 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
         "h": 36
       }
     ],
@@ -614,64 +328,64 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
-        "h": 27
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
+        "h": 28
       },
       {
-        "el": "button.era-chip.active \"\ud83c\udfc0All Years\"",
+        "el": "button.era-chip.active \"🏀All Years\"",
         "w": 111,
         "h": 32
       },
       {
-        "el": "button.era-chip \"\ud83d\udcfbGrandpa's Game\"",
+        "el": "button.era-chip \"📻Grandpa's Game\"",
         "w": 157,
         "h": 32
       },
       {
-        "el": "button.era-chip \"\ud83d\udcfcUnc Status\"",
+        "el": "button.era-chip \"📼Unc Status\"",
         "w": 120,
         "h": 32
       },
       {
-        "el": "button.era-chip \"\ud83d\udcf1Modern Ball\"",
+        "el": "button.era-chip \"📱Modern Ball\"",
         "w": 127,
         "h": 32
       }
     ],
     "tinyTextCount": 0,
     "tinyText": [],
-    "verticalScroll": 256,
+    "verticalScroll": 260,
     "notes": []
   },
   {
@@ -684,113 +398,17 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 1,
     "smallTargets": [
-      {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
       {
         "el": "input#pool-search",
         "w": 299,
         "h": 38
       }
     ],
-    "tinyTextCount": 42,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#draft-round-label.round-label \"Round 1\"",
-        "px": 11.2,
-        "sample": "Round 1"
-      },
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
-        "px": 9.9,
-        "sample": "\ud83c\udfc0 All Years"
-      },
-      {
-        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
-        "px": 11.2,
-        "sample": "Your Pick"
-      },
-      {
-        "el": "span.slot-tag \"PG\"",
-        "px": 11.5,
-        "sample": "PG"
-      },
-      {
-        "el": "span.slot-tag \"SG\"",
-        "px": 11.5,
-        "sample": "SG"
-      },
-      {
-        "el": "span.slot-tag \"SF\"",
-        "px": 11.5,
-        "sample": "SF"
-      },
-      {
-        "el": "span.slot-tag \"PF\"",
-        "px": 11.5,
-        "sample": "PF"
-      }
-    ],
-    "verticalScroll": 291,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 313,
     "notes": []
   },
   {
@@ -803,42 +421,12 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 2,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
       },
       {
         "el": "input#pool-search",
@@ -846,70 +434,9 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 42,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#draft-round-label.round-label \"Round 1\"",
-        "px": 11.2,
-        "sample": "Round 1"
-      },
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
-        "px": 9.9,
-        "sample": "\ud83c\udfc0 All Years"
-      },
-      {
-        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
-        "px": 11.2,
-        "sample": "Your Pick"
-      },
-      {
-        "el": "span.slot-tag \"PG\"",
-        "px": 11.5,
-        "sample": "PG"
-      },
-      {
-        "el": "span.slot-tag \"SG\"",
-        "px": 11.5,
-        "sample": "SG"
-      },
-      {
-        "el": "span.slot-tag \"SF\"",
-        "px": 11.5,
-        "sample": "SF"
-      },
-      {
-        "el": "span.slot-tag \"PF\"",
-        "px": 11.5,
-        "sample": "PF"
-      }
-    ],
-    "verticalScroll": 260,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 276,
     "notes": []
   },
   {
@@ -926,7 +453,7 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
@@ -935,70 +462,9 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 37,
-    "tinyText": [
-      {
-        "el": "span#draft-round-label.round-label \"Round 1\"",
-        "px": 11.2,
-        "sample": "Round 1"
-      },
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
-        "px": 9.9,
-        "sample": "\ud83c\udfc0 All Years"
-      },
-      {
-        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
-        "px": 11.2,
-        "sample": "Your Pick"
-      },
-      {
-        "el": "span.slot-tag \"PG\"",
-        "px": 11.5,
-        "sample": "PG"
-      },
-      {
-        "el": "span.slot-tag \"SG\"",
-        "px": 11.5,
-        "sample": "SG"
-      },
-      {
-        "el": "span.slot-tag \"SF\"",
-        "px": 11.5,
-        "sample": "SF"
-      },
-      {
-        "el": "span.slot-tag \"PF\"",
-        "px": 11.5,
-        "sample": "PF"
-      },
-      {
-        "el": "span.slot-tag \"6th Man\"",
-        "px": 11.5,
-        "sample": "6th Man"
-      },
-      {
-        "el": "span.pos-chip \"SF\"",
-        "px": 10.9,
-        "sample": "SF"
-      },
-      {
-        "el": "div.player-stats \"25.7 pts \u00b7 5.8 reb \u00b7 3.9\"",
-        "px": 11.5,
-        "sample": "25.7 pts \u00b7 5.8 reb \u00b7 3.9 ast \u00b7"
-      },
-      {
-        "el": "span.player-card-seasons \"2 seasons\"",
-        "px": 11.2,
-        "sample": "2 seasons"
-      },
-      {
-        "el": "span.pos-chip \"PG\"",
-        "px": 10.9,
-        "sample": "PG"
-      }
-    ],
-    "verticalScroll": 230,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 226,
     "notes": []
   },
   {
@@ -1019,34 +485,34 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.position-btn \"PG\"",
@@ -1074,70 +540,256 @@
         "h": 33
       }
     ],
-    "tinyTextCount": 35,
-    "tinyText": [
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 634,
+    "notes": []
+  },
+  {
+    "screen": "nba-05-game-live",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-05-game-live--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 0,
+    "smallTargets": [],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 796,
+    "notes": []
+  },
+  {
+    "screen": "nba-05-game-live",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-05-game-live--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 1,
+    "smallTargets": [
       {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
-        "px": 11.5,
-        "sample": "\ud83c\udfc0 All Years"
-      },
-      {
-        "el": "span.slot-tag \"PG\"",
-        "px": 11.5,
-        "sample": "PG"
-      },
-      {
-        "el": "span.slot-tag \"SG\"",
-        "px": 11.5,
-        "sample": "SG"
-      },
-      {
-        "el": "span.slot-tag \"SF\"",
-        "px": 11.5,
-        "sample": "SF"
-      },
-      {
-        "el": "span.slot-tag \"PF\"",
-        "px": 11.5,
-        "sample": "PF"
-      },
-      {
-        "el": "span.slot-tag \"6th Man\"",
-        "px": 11.5,
-        "sample": "6th Man"
-      },
-      {
-        "el": "span.pos-chip \"SF\"",
-        "px": 10.9,
-        "sample": "SF"
-      },
-      {
-        "el": "div.player-stats \"25.7 pts \u00b7 5.8 reb \u00b7 3.9\"",
-        "px": 11.5,
-        "sample": "25.7 pts \u00b7 5.8 reb \u00b7 3.9 ast \u00b7"
-      },
-      {
-        "el": "span.player-card-seasons \"2 seasons\"",
-        "px": 11.2,
-        "sample": "2 seasons"
-      },
-      {
-        "el": "span.pos-chip \"PG\"",
-        "px": 10.9,
-        "sample": "PG"
-      },
-      {
-        "el": "div.player-stats \"20.2 pts \u00b7 4.1 reb \u00b7 8.8\"",
-        "px": 11.5,
-        "sample": "20.2 pts \u00b7 4.1 reb \u00b7 8.8 ast \u00b7"
-      },
-      {
-        "el": "span.player-card-seasons \"3 seasons\"",
-        "px": 11.2,
-        "sample": "3 seasons"
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
       }
     ],
-    "verticalScroll": 633,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 748,
+    "notes": []
+  },
+  {
+    "screen": "nba-05-game-live",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-05-game-live--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 1,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 660,
+    "notes": []
+  },
+  {
+    "screen": "nba-05-game-live",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-05-game-live--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
+        "w": 67,
+        "h": 31
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
+        "w": 93,
+        "h": 31
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
+        "w": 103,
+        "h": 31
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
+        "w": 91,
+        "h": 31
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 937,
+    "notes": []
+  },
+  {
+    "screen": "nba-06-game-final",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-06-game-final--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 0,
+    "smallTargets": [],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1629,
+    "notes": []
+  },
+  {
+    "screen": "nba-06-game-final",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-06-game-final--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 1,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1548,
+    "notes": []
+  },
+  {
+    "screen": "nba-06-game-final",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-06-game-final--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 1,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1445,
+    "notes": []
+  },
+  {
+    "screen": "nba-06-game-final",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-06-game-final--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 10,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
+        "w": 67,
+        "h": 31
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
+        "w": 93,
+        "h": 31
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
+        "w": 103,
+        "h": 31
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
+        "w": 91,
+        "h": 31
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 31
+      },
+      {
+        "el": "button#btn-to-profile.btn.btn-secondary \"View Profile\"",
+        "w": 397,
+        "h": 40
+      },
+      {
+        "el": "button#btn-play-again.btn.btn-primary \"Play Again\"",
+        "w": 395,
+        "h": 40
+      },
+      {
+        "el": "button#btn-game-home.btn.btn-secondary \"Return to Home\"",
+        "w": 804,
+        "h": 40
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1534,
     "notes": []
   },
   {
@@ -1150,43 +802,8 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 28,
+    "smallTargetCount": 21,
     "smallTargets": [
-      {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
       {
         "el": "button.kit-swatch.kit-swatch-on",
         "w": 38,
@@ -1211,72 +828,46 @@
         "el": "button.kit-swatch",
         "w": 34,
         "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
       }
     ],
-    "tinyTextCount": 12,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1297,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1327,
     "notes": []
   },
   {
@@ -1289,42 +880,12 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 28,
+    "smallTargetCount": 22,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
       },
       {
         "el": "button.kit-swatch.kit-swatch-on",
@@ -1350,72 +911,41 @@
         "el": "button.kit-swatch",
         "w": 34,
         "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
       }
     ],
-    "tinyTextCount": 12,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1253,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1264,
     "notes": []
   },
   {
@@ -1432,7 +962,7 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
@@ -1491,45 +1021,9 @@
         "h": 34
       }
     ],
-    "tinyTextCount": 7,
-    "tinyText": [
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1170,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1176,
     "notes": []
   },
   {
@@ -1550,34 +1044,34 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
+        "el": "button#nav-play.nav-tab \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "el": "button#nav-profile.nav-tab.active \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.kit-swatch.kit-swatch-on",
@@ -1605,45 +1099,9 @@
         "h": 34
       }
     ],
-    "tinyTextCount": 7,
-    "tinyText": [
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1281,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1290,
     "notes": []
   },
   {
@@ -1656,51 +1114,16 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 6,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -1710,79 +1133,23 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"🏈 NFL\"",
+        "w": 74,
         "h": 30
       }
     ],
-    "tinyTextCount": 26,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      }
-    ],
-    "verticalScroll": 2800,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 2874,
     "notes": []
   },
   {
@@ -1795,51 +1162,21 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 7,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -1849,79 +1186,23 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"🏈 NFL\"",
+        "w": 74,
         "h": 30
       }
     ],
-    "tinyTextCount": 26,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      }
-    ],
-    "verticalScroll": 2706,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 2759,
     "notes": []
   },
   {
@@ -1938,17 +1219,17 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -1958,84 +1239,23 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
         "h": 30
       },
       {
-        "el": "button.subtab \"\ud83c\udfc8 NFL\"",
+        "el": "button.subtab \"🏈 NFL\"",
         "w": 74,
         "h": 30
       }
     ],
-    "tinyTextCount": 21,
-    "tinyText": [
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
-        "px": 11.5,
-        "sample": "0 / 200 rebounds to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 45 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 5 picks to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 12 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 100 stops to Bronze"
-      }
-    ],
-    "verticalScroll": 2624,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 2656,
     "notes": []
   },
   {
@@ -2056,43 +1276,43 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
+        "el": "button#nav-play.nav-tab \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "el": "button#nav-badges.nav-tab.active \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -2102,79 +1322,18 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
         "h": 30
       }
     ],
-    "tinyTextCount": 21,
-    "tinyText": [
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
-        "px": 11.5,
-        "sample": "0 / 200 rebounds to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 45 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 5 picks to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 12 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 100 stops to Bronze"
-      }
-    ],
-    "verticalScroll": 1509,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1530,
     "notes": []
   },
   {
@@ -2187,46 +1346,11 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 12,
+    "smallTargetCount": 5,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -2241,7 +1365,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -2250,34 +1374,8 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -2291,46 +1389,16 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 12,
+    "smallTargetCount": 6,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -2345,7 +1413,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -2354,34 +1422,8 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -2399,12 +1441,12 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -2419,7 +1461,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -2451,38 +1493,38 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
+        "el": "button#nav-play.nav-tab \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "el": "button#nav-squads.nav-tab.active \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -2497,7 +1539,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -2521,113 +1563,42 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 6,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
         "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
-        "w": 127,
-        "h": 31
-      },
-      {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 144,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 144,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 144,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 144,
         "h": 31
       }
     ],
-    "tinyTextCount": 8,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
-    "verticalScroll": 0,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 23,
     "notes": []
   },
   {
@@ -2640,112 +1611,46 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 7,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
         "w": 157,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 159,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 159,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 159,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 159,
         "h": 31
       }
     ],
-    "tinyTextCount": 8,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -2763,58 +1668,42 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
         "w": 197,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 179,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 179,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "el": "button.sport-card-action \"🏆 Rank\"",
         "w": 179,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "el": "button.sport-card-action \"📖 How to Play\"",
         "w": 179,
         "h": 31
       }
     ],
-    "tinyTextCount": 3,
-    "tinyText": [
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -2836,80 +1725,64 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
-      },
-      {
-        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
-        "w": 113,
         "h": 31
       },
       {
-        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
-        "w": 126,
+        "el": "button#btn-customize-profile.sport-card-action \"🎨 Customize\"",
+        "w": 116,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
-        "w": 81,
+        "el": "button#btn-overall-ladder.sport-card-action \"🏅 Overall Rank\"",
+        "w": 130,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
-        "w": 121,
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 82,
         "h": 31
       },
       {
-        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
-        "w": 81,
+        "el": "button.sport-card-action \"📖 How to Play\"",
+        "w": 124,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"🏆 Rank\"",
+        "w": 82,
         "h": 31
       }
     ],
-    "tinyTextCount": 3,
-    "tinyText": [
-      {
-        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
-        "px": 10.9,
-        "sample": "Est. 01/2026"
-      },
-      {
-        "el": "span.pb-stat-label \"Rep\"",
-        "px": 10.6,
-        "sample": "Rep"
-      },
-      {
-        "el": "span.pb-stat-label \"Rank\"",
-        "px": 10.6,
-        "sample": "Rank"
-      }
-    ],
-    "verticalScroll": 295,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 300,
     "notes": []
   },
   {
@@ -2922,77 +1795,16 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 1,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
         "h": 36
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -3006,77 +1818,21 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 2,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
         "h": 36
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -3094,12 +1850,12 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
         "h": 36
       }
     ],
@@ -3126,64 +1882,64 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
-        "w": 75,
-        "h": 27
+        "el": "button#btn-play-back.btn.btn-secondary \"← Home\"",
+        "w": 77,
+        "h": 28
       },
       {
-        "el": "button.era-chip.active \"\ud83c\udfc8All Years\"",
+        "el": "button.era-chip.active \"🏈All Years\"",
         "w": 111,
         "h": 32
       },
       {
-        "el": "button.era-chip \"\ud83d\udcfc2000s\"",
+        "el": "button.era-chip \"📼2000s\"",
         "w": 91,
         "h": 32
       },
       {
-        "el": "button.era-chip \"\ud83d\udcf12010s\"",
+        "el": "button.era-chip \"📱2010s\"",
         "w": 91,
         "h": 32
       },
       {
-        "el": "button.era-chip \"\ud83d\ude802020s\"",
+        "el": "button.era-chip \"🚀2020s\"",
         "w": 91,
         "h": 32
       }
     ],
     "tinyTextCount": 0,
     "tinyText": [],
-    "verticalScroll": 256,
+    "verticalScroll": 260,
     "notes": []
   },
   {
@@ -3196,113 +1952,17 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 1,
     "smallTargets": [
-      {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
       {
         "el": "input#pool-search",
         "w": 299,
         "h": 38
       }
     ],
-    "tinyTextCount": 70,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#draft-round-label.round-label \"Round 1\"",
-        "px": 11.2,
-        "sample": "Round 1"
-      },
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
-        "px": 9.9,
-        "sample": "\ud83c\udfc8 All Years"
-      },
-      {
-        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
-        "px": 11.2,
-        "sample": "Your Pick"
-      },
-      {
-        "el": "span.slot-tag \"QB\"",
-        "px": 11.5,
-        "sample": "QB"
-      },
-      {
-        "el": "span.slot-tag \"RB\"",
-        "px": 11.5,
-        "sample": "RB"
-      },
-      {
-        "el": "span.slot-tag \"WR\"",
-        "px": 11.5,
-        "sample": "WR"
-      },
-      {
-        "el": "span.slot-tag \"TE\"",
-        "px": 11.5,
-        "sample": "TE"
-      }
-    ],
-    "verticalScroll": 291,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 298,
     "notes": []
   },
   {
@@ -3315,42 +1975,12 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 8,
+    "smallTargetCount": 2,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
       },
       {
         "el": "input#pool-search",
@@ -3358,70 +1988,9 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 70,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span#draft-round-label.round-label \"Round 1\"",
-        "px": 11.2,
-        "sample": "Round 1"
-      },
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
-        "px": 9.9,
-        "sample": "\ud83c\udfc8 All Years"
-      },
-      {
-        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
-        "px": 11.2,
-        "sample": "Your Pick"
-      },
-      {
-        "el": "span.slot-tag \"QB\"",
-        "px": 11.5,
-        "sample": "QB"
-      },
-      {
-        "el": "span.slot-tag \"RB\"",
-        "px": 11.5,
-        "sample": "RB"
-      },
-      {
-        "el": "span.slot-tag \"WR\"",
-        "px": 11.5,
-        "sample": "WR"
-      },
-      {
-        "el": "span.slot-tag \"TE\"",
-        "px": 11.5,
-        "sample": "TE"
-      }
-    ],
-    "verticalScroll": 260,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 276,
     "notes": []
   },
   {
@@ -3438,7 +2007,7 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
@@ -3447,70 +2016,9 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 65,
-    "tinyText": [
-      {
-        "el": "span#draft-round-label.round-label \"Round 1\"",
-        "px": 11.2,
-        "sample": "Round 1"
-      },
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
-        "px": 9.9,
-        "sample": "\ud83c\udfc8 All Years"
-      },
-      {
-        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
-        "px": 11.2,
-        "sample": "Your Pick"
-      },
-      {
-        "el": "span.slot-tag \"QB\"",
-        "px": 11.5,
-        "sample": "QB"
-      },
-      {
-        "el": "span.slot-tag \"RB\"",
-        "px": 11.5,
-        "sample": "RB"
-      },
-      {
-        "el": "span.slot-tag \"WR\"",
-        "px": 11.5,
-        "sample": "WR"
-      },
-      {
-        "el": "span.slot-tag \"TE\"",
-        "px": 11.5,
-        "sample": "TE"
-      },
-      {
-        "el": "span.slot-tag \"OL\"",
-        "px": 11.5,
-        "sample": "OL"
-      },
-      {
-        "el": "span.slot-tag \"DEF\"",
-        "px": 11.5,
-        "sample": "DEF"
-      },
-      {
-        "el": "span.pos-chip \"QB\"",
-        "px": 10.9,
-        "sample": "QB"
-      },
-      {
-        "el": "div.player-stats \"313 pass yds \u00b7 2.5 TD \u00b7 \"",
-        "px": 11.5,
-        "sample": "313 pass yds \u00b7 2.5 TD \u00b7 0.7 IN"
-      },
-      {
-        "el": "span.player-card-seasons \"3 seasons\"",
-        "px": 11.2,
-        "sample": "3 seasons"
-      }
-    ],
-    "verticalScroll": 230,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 226,
     "notes": []
   },
   {
@@ -3531,34 +2039,34 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.position-btn \"QB\"",
@@ -3586,70 +2094,9 @@
         "h": 33
       }
     ],
-    "tinyTextCount": 63,
-    "tinyText": [
-      {
-        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
-        "px": 11.5,
-        "sample": "\ud83c\udfc8 All Years"
-      },
-      {
-        "el": "span.slot-tag \"QB\"",
-        "px": 11.5,
-        "sample": "QB"
-      },
-      {
-        "el": "span.slot-tag \"RB\"",
-        "px": 11.5,
-        "sample": "RB"
-      },
-      {
-        "el": "span.slot-tag \"WR\"",
-        "px": 11.5,
-        "sample": "WR"
-      },
-      {
-        "el": "span.slot-tag \"TE\"",
-        "px": 11.5,
-        "sample": "TE"
-      },
-      {
-        "el": "span.slot-tag \"OL\"",
-        "px": 11.5,
-        "sample": "OL"
-      },
-      {
-        "el": "span.slot-tag \"DEF\"",
-        "px": 11.5,
-        "sample": "DEF"
-      },
-      {
-        "el": "span.pos-chip \"QB\"",
-        "px": 10.9,
-        "sample": "QB"
-      },
-      {
-        "el": "div.player-stats \"313 pass yds \u00b7 2.5 TD \u00b7 \"",
-        "px": 11.5,
-        "sample": "313 pass yds \u00b7 2.5 TD \u00b7 0.7 IN"
-      },
-      {
-        "el": "span.player-card-seasons \"3 seasons\"",
-        "px": 11.2,
-        "sample": "3 seasons"
-      },
-      {
-        "el": "span.pos-chip \"WR\"",
-        "px": 10.9,
-        "sample": "WR"
-      },
-      {
-        "el": "div.player-stats \"4.9 rec \u00b7 60 yds \u00b7 0.1 T\"",
-        "px": 11.5,
-        "sample": "4.9 rec \u00b7 60 yds \u00b7 0.1 TD"
-      }
-    ],
-    "verticalScroll": 633,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 634,
     "notes": []
   },
   {
@@ -3662,108 +2109,11 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 7,
-    "smallTargets": [
-      {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      }
-    ],
-    "tinyTextCount": 40,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      },
-      {
-        "el": "span.ff-yardnum \"30\"",
-        "px": 8,
-        "sample": "30"
-      },
-      {
-        "el": "span.ff-yardnum \"40\"",
-        "px": 8,
-        "sample": "40"
-      },
-      {
-        "el": "span.ff-yardnum \"50\"",
-        "px": 8,
-        "sample": "50"
-      },
-      {
-        "el": "span \"Bot\"",
-        "px": 8.8,
-        "sample": "Bot"
-      }
-    ],
-    "verticalScroll": 1094,
+    "smallTargetCount": 0,
+    "smallTargets": [],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1193,
     "notes": []
   },
   {
@@ -3776,108 +2126,17 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 7,
+    "smallTargetCount": 1,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
       }
     ],
-    "tinyTextCount": 40,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      },
-      {
-        "el": "span.ff-yardnum \"30\"",
-        "px": 8,
-        "sample": "30"
-      },
-      {
-        "el": "span.ff-yardnum \"40\"",
-        "px": 8,
-        "sample": "40"
-      },
-      {
-        "el": "span.ff-yardnum \"50\"",
-        "px": 8,
-        "sample": "50"
-      },
-      {
-        "el": "span \"Bot\"",
-        "px": 8.8,
-        "sample": "Bot"
-      }
-    ],
-    "verticalScroll": 1023,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1130,
     "notes": []
   },
   {
@@ -3894,74 +2153,13 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       }
     ],
-    "tinyTextCount": 36,
-    "tinyText": [
-      {
-        "el": "span.ff-downdist \"2nd & 7 \u00b7 SelfTest\"",
-        "px": 11.5,
-        "sample": "2nd & 7 \u00b7 SelfTest"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      },
-      {
-        "el": "span.ff-yardnum \"30\"",
-        "px": 8,
-        "sample": "30"
-      },
-      {
-        "el": "span.ff-yardnum \"40\"",
-        "px": 8,
-        "sample": "40"
-      },
-      {
-        "el": "span.ff-yardnum \"50\"",
-        "px": 8,
-        "sample": "50"
-      },
-      {
-        "el": "span \"Bot\"",
-        "px": 8.8,
-        "sample": "Bot"
-      },
-      {
-        "el": "div.box-group-label \"Offense\"",
-        "px": 11.5,
-        "sample": "Offense"
-      },
-      {
-        "el": "th \"Slot\"",
-        "px": 11.2,
-        "sample": "Slot"
-      },
-      {
-        "el": "th \"Player\"",
-        "px": 11.2,
-        "sample": "Player"
-      },
-      {
-        "el": "th \"TOT YDS\"",
-        "px": 11.2,
-        "sample": "TOT YDS"
-      }
-    ],
-    "verticalScroll": 956,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1014,
     "notes": []
   },
   {
@@ -3982,100 +2180,39 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       }
     ],
-    "tinyTextCount": 35,
-    "tinyText": [
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      },
-      {
-        "el": "span.ff-yardnum \"30\"",
-        "px": 8,
-        "sample": "30"
-      },
-      {
-        "el": "span.ff-yardnum \"40\"",
-        "px": 8,
-        "sample": "40"
-      },
-      {
-        "el": "span.ff-yardnum \"50\"",
-        "px": 8,
-        "sample": "50"
-      },
-      {
-        "el": "span \"Bot\"",
-        "px": 8.8,
-        "sample": "Bot"
-      },
-      {
-        "el": "div.box-group-label \"Offense\"",
-        "px": 11.5,
-        "sample": "Offense"
-      },
-      {
-        "el": "th \"Slot\"",
-        "px": 11.2,
-        "sample": "Slot"
-      },
-      {
-        "el": "th \"Player\"",
-        "px": 11.2,
-        "sample": "Player"
-      },
-      {
-        "el": "th \"TOT YDS\"",
-        "px": 11.2,
-        "sample": "TOT YDS"
-      },
-      {
-        "el": "th \"COMP\"",
-        "px": 11.2,
-        "sample": "COMP"
-      }
-    ],
-    "verticalScroll": 1198,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1244,
     "notes": []
   },
   {
@@ -4088,108 +2225,11 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 7,
-    "smallTargets": [
-      {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      }
-    ],
-    "tinyTextCount": 44,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "th \"Q1\"",
-        "px": 11.2,
-        "sample": "Q1"
-      },
-      {
-        "el": "th \"Q2\"",
-        "px": 11.2,
-        "sample": "Q2"
-      },
-      {
-        "el": "th \"Q3\"",
-        "px": 11.2,
-        "sample": "Q3"
-      },
-      {
-        "el": "th \"Q4\"",
-        "px": 11.2,
-        "sample": "Q4"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      }
-    ],
-    "verticalScroll": 1572,
+    "smallTargetCount": 0,
+    "smallTargets": [],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1676,
     "notes": []
   },
   {
@@ -4202,108 +2242,17 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 7,
+    "smallTargetCount": 1,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
       }
     ],
-    "tinyTextCount": 44,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "th \"Q1\"",
-        "px": 11.2,
-        "sample": "Q1"
-      },
-      {
-        "el": "th \"Q2\"",
-        "px": 11.2,
-        "sample": "Q2"
-      },
-      {
-        "el": "th \"Q3\"",
-        "px": 11.2,
-        "sample": "Q3"
-      },
-      {
-        "el": "th \"Q4\"",
-        "px": 11.2,
-        "sample": "Q4"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      }
-    ],
-    "verticalScroll": 1486,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1595,
     "notes": []
   },
   {
@@ -4320,74 +2269,13 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       }
     ],
-    "tinyTextCount": 39,
-    "tinyText": [
-      {
-        "el": "th \"Q1\"",
-        "px": 11.2,
-        "sample": "Q1"
-      },
-      {
-        "el": "th \"Q2\"",
-        "px": 11.2,
-        "sample": "Q2"
-      },
-      {
-        "el": "th \"Q3\"",
-        "px": 11.2,
-        "sample": "Q3"
-      },
-      {
-        "el": "th \"Q4\"",
-        "px": 11.2,
-        "sample": "Q4"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      },
-      {
-        "el": "span.ff-yardnum \"30\"",
-        "px": 8,
-        "sample": "30"
-      },
-      {
-        "el": "span.ff-yardnum \"40\"",
-        "px": 8,
-        "sample": "40"
-      },
-      {
-        "el": "span.ff-yardnum \"50\"",
-        "px": 8,
-        "sample": "50"
-      },
-      {
-        "el": "span \"Bot\"",
-        "px": 8.8,
-        "sample": "Bot"
-      },
-      {
-        "el": "div.box-group-label \"Offense\"",
-        "px": 11.5,
-        "sample": "Offense"
-      }
-    ],
-    "verticalScroll": 1404,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1464,
     "notes": []
   },
   {
@@ -4408,34 +2296,34 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "el": "button#nav-play.nav-tab.active \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button#btn-to-profile.btn.btn-secondary \"View Profile\"",
@@ -4453,70 +2341,9 @@
         "h": 40
       }
     ],
-    "tinyTextCount": 39,
-    "tinyText": [
-      {
-        "el": "th \"Q1\"",
-        "px": 11.2,
-        "sample": "Q1"
-      },
-      {
-        "el": "th \"Q2\"",
-        "px": 11.2,
-        "sample": "Q2"
-      },
-      {
-        "el": "th \"Q3\"",
-        "px": 11.2,
-        "sample": "Q3"
-      },
-      {
-        "el": "th \"Q4\"",
-        "px": 11.2,
-        "sample": "Q4"
-      },
-      {
-        "el": "span \"SelfTest\"",
-        "px": 8.8,
-        "sample": "SelfTest"
-      },
-      {
-        "el": "span.ff-yardnum \"10\"",
-        "px": 8,
-        "sample": "10"
-      },
-      {
-        "el": "span.ff-yardnum \"20\"",
-        "px": 8,
-        "sample": "20"
-      },
-      {
-        "el": "span.ff-yardnum \"30\"",
-        "px": 8,
-        "sample": "30"
-      },
-      {
-        "el": "span.ff-yardnum \"40\"",
-        "px": 8,
-        "sample": "40"
-      },
-      {
-        "el": "span.ff-yardnum \"50\"",
-        "px": 8,
-        "sample": "50"
-      },
-      {
-        "el": "span \"Bot\"",
-        "px": 8.8,
-        "sample": "Bot"
-      },
-      {
-        "el": "div.box-group-label \"Offense\"",
-        "px": 11.5,
-        "sample": "Offense"
-      }
-    ],
-    "verticalScroll": 1513,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1560,
     "notes": []
   },
   {
@@ -4529,43 +2356,8 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 28,
+    "smallTargetCount": 21,
     "smallTargets": [
-      {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
       {
         "el": "button.kit-swatch.kit-swatch-on",
         "w": 38,
@@ -4590,72 +2382,46 @@
         "el": "button.kit-swatch",
         "w": 34,
         "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
       }
     ],
-    "tinyTextCount": 12,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1297,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1327,
     "notes": []
   },
   {
@@ -4668,42 +2434,12 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 28,
+    "smallTargetCount": 22,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
       },
       {
         "el": "button.kit-swatch.kit-swatch-on",
@@ -4729,72 +2465,41 @@
         "el": "button.kit-swatch",
         "w": 34,
         "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
       }
     ],
-    "tinyTextCount": 12,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1253,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1264,
     "notes": []
   },
   {
@@ -4811,7 +2516,7 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
@@ -4870,45 +2575,9 @@
         "h": 34
       }
     ],
-    "tinyTextCount": 7,
-    "tinyText": [
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1170,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1176,
     "notes": []
   },
   {
@@ -4929,34 +2598,34 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
+        "el": "button#nav-play.nav-tab \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "el": "button#nav-profile.nav-tab.active \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.kit-swatch.kit-swatch-on",
@@ -4984,45 +2653,9 @@
         "h": 34
       }
     ],
-    "tinyTextCount": 7,
-    "tinyText": [
-      {
-        "el": "span.era-record-label \"Online\"",
-        "px": 11.5,
-        "sample": "Online"
-      },
-      {
-        "el": "span.era-record-rank \"Provisional\"",
-        "px": 11.5,
-        "sample": "Provisional"
-      },
-      {
-        "el": "span.era-record-label \"Offline\"",
-        "px": 11.5,
-        "sample": "Offline"
-      },
-      {
-        "el": "th \"Date\"",
-        "px": 11.2,
-        "sample": "Date"
-      },
-      {
-        "el": "th \"Result\"",
-        "px": 11.2,
-        "sample": "Result"
-      },
-      {
-        "el": "th \"Score\"",
-        "px": 11.2,
-        "sample": "Score"
-      },
-      {
-        "el": "th \"MVP\"",
-        "px": 11.2,
-        "sample": "MVP"
-      }
-    ],
-    "verticalScroll": 1281,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1290,
     "notes": []
   },
   {
@@ -5035,51 +2668,16 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 6,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -5089,79 +2687,23 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"🏈 NFL\"",
+        "w": 74,
         "h": 30
       }
     ],
-    "tinyTextCount": 26,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      }
-    ],
-    "verticalScroll": 2800,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 2874,
     "notes": []
   },
   {
@@ -5174,51 +2716,21 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 13,
+    "smallTargetCount": 7,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -5228,79 +2740,23 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"🏈 NFL\"",
+        "w": 74,
         "h": 30
       }
     ],
-    "tinyTextCount": 26,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      },
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      }
-    ],
-    "verticalScroll": 2706,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 2759,
     "notes": []
   },
   {
@@ -5317,17 +2773,17 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -5337,84 +2793,23 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
         "h": 30
       },
       {
-        "el": "button.subtab \"\ud83c\udfc8 NFL\"",
+        "el": "button.subtab \"🏈 NFL\"",
         "w": 74,
         "h": 30
       }
     ],
-    "tinyTextCount": 21,
-    "tinyText": [
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
-        "px": 11.5,
-        "sample": "0 / 200 rebounds to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 45 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 5 picks to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 12 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 100 stops to Bronze"
-      }
-    ],
-    "verticalScroll": 2624,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 2656,
     "notes": []
   },
   {
@@ -5435,43 +2830,43 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
+        "el": "button#nav-play.nav-tab \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "el": "button#nav-badges.nav-tab.active \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "el": "button#nav-squads.nav-tab \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.subtab.active \"Badges\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
         "el": "button.subtab \"Banners\"",
-        "w": 80,
+        "w": 81,
         "h": 30
       },
       {
@@ -5481,79 +2876,18 @@
       },
       {
         "el": "button.subtab \"Team Color\"",
-        "w": 99,
+        "w": 100,
         "h": 30
       },
       {
-        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
-        "w": 76,
+        "el": "button.subtab.active \"🏀 NBA\"",
+        "w": 77,
         "h": 30
       }
     ],
-    "tinyTextCount": 21,
-    "tinyText": [
-      {
-        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
-        "px": 11.5,
-        "sample": "3 / 10 wins to Silver"
-      },
-      {
-        "el": "button.btn.btn-secondary \"Feature\"",
-        "px": 11.2,
-        "sample": "Feature"
-      },
-      {
-        "el": "div.badge-progress \"5 / 25 games to Silver\"",
-        "px": 11.5,
-        "sample": "5 / 25 games to Silver"
-      },
-      {
-        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 500 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 50 % wins to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 100 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
-        "px": 11.5,
-        "sample": "0 / 150 players to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
-        "px": 11.5,
-        "sample": "0 / 200 rebounds to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 45 points to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 5 picks to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 12 assists to Bronze"
-      },
-      {
-        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
-        "px": 11.5,
-        "sample": "0 / 100 stops to Bronze"
-      }
-    ],
-    "verticalScroll": 1509,
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 1530,
     "notes": []
   },
   {
@@ -5566,46 +2900,11 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 12,
+    "smallTargetCount": 5,
     "smallTargets": [
       {
-        "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 333,
-        "h": 32
-      },
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 40,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 40,
-        "h": 40
-      },
-      {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -5620,7 +2919,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -5629,34 +2928,8 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -5670,46 +2943,16 @@
     "escaping": 0,
     "hOverflowPx": 0,
     "worstLayout": [],
-    "smallTargetCount": 12,
+    "smallTargetCount": 6,
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 363,
+        "w": 197,
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "w": 50,
-        "h": 40
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "w": 56,
-        "h": 40
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "w": 65,
-        "h": 40
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "w": 55,
-        "h": 40
-      },
-      {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
-        "w": 66,
-        "h": 40
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "w": 50,
-        "h": 40
-      },
-      {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -5724,7 +2967,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -5733,34 +2976,8 @@
         "h": 38
       }
     ],
-    "tinyTextCount": 5,
-    "tinyText": [
-      {
-        "el": "button#nav-play.nav-tab \"Play\"",
-        "px": 11.2,
-        "sample": "Play"
-      },
-      {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
-        "px": 11.2,
-        "sample": "Profile"
-      },
-      {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
-        "px": 11.2,
-        "sample": "Rewards"
-      },
-      {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
-        "px": 11.2,
-        "sample": "Squads"
-      },
-      {
-        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
-        "px": 11.2,
-        "sample": "Sign Out"
-      }
-    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
     "verticalScroll": 0,
     "notes": []
   },
@@ -5778,12 +2995,12 @@
     "smallTargets": [
       {
         "el": "button#btn-brand.brand \"Draft Nova\"",
-        "w": 403,
+        "w": 197,
         "h": 32
       },
       {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -5798,7 +3015,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
@@ -5830,38 +3047,38 @@
         "h": 32
       },
       {
-        "el": "button#nav-play.nav-tab \"Play\"",
+        "el": "button#nav-play.nav-tab \"🎮 Play\"",
         "w": 67,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "el": "button#nav-profile.nav-tab \"👤 Profile\"",
         "w": 93,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "el": "button#nav-badges.nav-tab \"🏅 Rewards\"",
         "w": 103,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "el": "button#nav-squads.nav-tab.active \"👥 Squads\"",
         "w": 91,
-        "h": 32
+        "h": 31
       },
       {
-        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"🔊 Sound on\"",
         "w": 42,
         "h": 32
       },
       {
         "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
         "w": 100,
-        "h": 32
+        "h": 31
       },
       {
         "el": "button.subtab \"Friends\"",
-        "w": 75,
+        "w": 76,
         "h": 30
       },
       {
@@ -5876,7 +3093,7 @@
       },
       {
         "el": "button.subtab \"Tournaments\"",
-        "w": 109,
+        "w": 111,
         "h": 30
       },
       {
