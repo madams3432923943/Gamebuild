@@ -4249,6 +4249,28 @@ html, body {
     max-height: 55vh;
   }
 
+  /* PRACTICE MODE SHOWS FIVE, NOT SEVEN.
+     
+     A card carrying stats is 76px tall, and a 60vh cap on an 844px phone
+     fitted 6.7 of them - which put the top of your own roster at y=828, four
+     pixels below the fold. So every time you wanted to check which slot you
+     still needed, you scrolled 282px down and back up again, on every one of
+     ten rounds.
+     
+     24rem is five cards and a sliver of the sixth - measured, not guessed:
+     27rem gave 5.7 cards and left 90px for the roster, 22rem gave only 4.6
+     cards. Five is enough to compare candidates, few enough to halve the
+     scroll (282px -> 160px), and the part-cut card is what says the list
+     keeps going. :has() rather than a class on
+     the list because the stats live on the CARDS - the pool does not
+     currently know which ruleset it is rendering under, and giving it a
+     second source of truth for that is how the two get to disagree. Where
+     :has() is unsupported the 55vh above still applies, which is the
+     behaviour this replaces rather than a broken one. */
+  .pool-list:has(.player-card.with-stats) {
+    max-height: 24rem;
+  }
+
   /* ---- Draft chrome above the search box ----
      The squad banner now carries round, era, squad, turn and timer as one
      block (see .squad-banner-status), and the phone sizing for all of it
@@ -5003,6 +5025,12 @@ html, body {
      candidates and seeing six. */
   .pool-list {
     max-height: 60vh;
+  }
+
+  /* Same five-card cap as the breakpoint above - this rule is later in the
+     file and would otherwise put 60vh back. */
+  .pool-list:has(.player-card.with-stats) {
+    max-height: 24rem;
   }
 }
 
