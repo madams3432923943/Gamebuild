@@ -260,7 +260,7 @@ export const MIN_FONT_PX = 12;
  * Everything a screen can tell us that a picture cannot, read in one pass.
  *
  * Runs in the page, so it is a string rather than a function - same reason
- * and same shape as LAYOUT_AUDIT in ../lib/browser-instrumentation.mjs.
+ * and same shape as LAYOUT_AUDIT above.
  */
 export const TOUCH_AUDIT = `(() => {
   const visible = (el) => {
@@ -302,7 +302,10 @@ export const TOUCH_AUDIT = `(() => {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const s = (n.textContent || "").trim();
-    if (s.length < 2) continue;
+    // Whitespace-only nodes are skipped; a single CHARACTER is not. The old
+    // "length < 2" was meant to drop the former, and quietly exempted an 8px
+    // close cross, or a one-digit box-score cell, from the floor entirely.
+    if (!s) continue;
     const el = n.parentElement;
     if (!el || !visible(el)) continue;
     const px = parseFloat(getComputedStyle(el).fontSize);

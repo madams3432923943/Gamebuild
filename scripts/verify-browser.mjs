@@ -875,6 +875,11 @@ export async function runBrowserChecks(opts = {}) {
     const layoutProblems = [];
     let layoutEvidence = {};
     const touchByViewport = {};
+    // Asked of the page rather than inferred from the device name, so a
+    // profile this file has never heard of still answers correctly.
+    const isTouchContext = await page0
+      .evaluate(() => matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0)
+      .catch(() => false);
 
     for (const vp of auditViewports) {
       if (!device) await page0.setViewportSize({ width: vp.width, height: vp.height });
@@ -882,9 +887,17 @@ export async function runBrowserChecks(opts = {}) {
       await page0.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const audit = await page0.evaluate(LAYOUT_AUDIT);
       layoutEvidence[vp.name] = audit;
-      // Only phone widths: 44px is a floor for fingers, and holding a desktop
-      // pointer to it would be applying a constraint it does not have.
-      if (vp.width <= 700) touchByViewport[vp.name] = await page0.evaluate(TOUCH_AUDIT);
+      // TOUCH-NESS, NOT WIDTH.
+      //
+      // 44px is a floor for fingers, so the question is whether a finger is
+      // doing the pointing - and width is a bad proxy for it in both
+      // directions. An emulated phone in landscape is 750px or 863px wide and
+      // is still a phone; a narrow desktop window is not one. Keyed on width
+      // alone, every device profile wider than 700px skipped these floors and
+      // the run stayed green.
+      if (isTouchContext || vp.width <= 700) {
+        touchByViewport[vp.name] = await page0.evaluate(TOUCH_AUDIT);
+      }
       layoutRows.push([
         vp.name,
         `${vp.width}px`,
@@ -931,20 +944,32 @@ export async function runBrowserChecks(opts = {}) {
         );
       }
     }
-    if (Object.keys(touchByViewport).length) {
-      checks.push(
-        check(
-          "browser:touch",
-          `Nothing on the post-game screen is under ${TAP_TARGET_MIN}px to hit or ${MIN_FONT_PX}px to read`,
-          touchProblems.length ? FAIL : PASS,
-          {
-            detail: touchProblems.length ? touchProblems.join("\n") : undefined,
-            table: touchRows,
-            evidence: touchByViewport,
-          }
-        )
-      );
-    }
+    // A check that vanishes when it does not run is a check nobody notices has
+    // stopped running - the run goes green with the floors unasserted and
+    // nothing in the output says so. It reports SKIP instead.
+    checks.push(
+      Object.keys(touchByViewport).length
+        ? check(
+            "browser:touch",
+            `Nothing on the post-game screen is under ${TAP_TARGET_MIN}px to hit or ${MIN_FONT_PX}px to read`,
+            touchProblems.length ? FAIL : PASS,
+            {
+              detail: touchProblems.length ? touchProblems.join("\n") : undefined,
+              table: touchRows,
+              evidence: touchByViewport,
+            }
+          )
+        : check(
+            "browser:touch",
+            `Nothing on the post-game screen is under ${TAP_TARGET_MIN}px to hit or ${MIN_FONT_PX}px to read`,
+            SKIP,
+            {
+              detail:
+                `no touch context and no viewport at or under 700px - ` +
+                `audited ${auditViewports.map((v) => `${v.name} ${v.width}px`).join(", ")}`,
+            }
+          )
+    );
   } catch (e) {
     failed = e;
     checks.push(
