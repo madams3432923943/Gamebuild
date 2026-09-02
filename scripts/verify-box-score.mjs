@@ -108,16 +108,66 @@ async function runInPage(page) {
       const width = Math.round(cells[0].getBoundingClientRect().width);
       let worst = { lines: 0, text: "" };
       for (const cell of cells) {
-        // The name is the cell's own text, not the team/season under it.
-        const meta = cell.querySelector(".box-meta");
-        const metaH = meta ? meta.getBoundingClientRect().height : 0;
-        const lineH = parseFloat(getComputedStyle(cell).lineHeight) || 16;
-        const lines = Math.round((cell.getBoundingClientRect().height - metaH) / lineH);
-        if (lines > worst.lines) {
-          worst = { lines, text: (cell.childNodes[0]?.textContent || cell.textContent).trim().slice(0, 40) };
-        }
+        // A RANGE OVER THE NAME, not arithmetic on the cell.
+        //
+        // The first version divided the cell's border-box height by its line
+        // height, which counts the 0.9rem of vertical padding as most of an
+        // extra line and falls back to a guessed 16px whenever line-height is
+        // `normal`. It overstated by about one line, so a limit of three was
+        // really enforcing two, and the check failed on a third of runs
+        // depending on which names the random draft dealt.
+        //
+        // getClientRects() on a Range returns one rectangle per line fragment
+        // the text actually occupies. That is the quantity the assertion is
+        // about, measured rather than inferred.
+        const textNode = [...cell.childNodes].find(
+          (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 1
+        );
+        if (!textNode) continue;
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        const lines = range.getClientRects().length;
+        if (lines > worst.lines) worst = { lines, text: textNode.textContent.trim().slice(0, 40) };
       }
+      // THE WORST NAME IN THE DATASET, not the worst one this draft happened
+      // to deal.
+      //
+      // The rosters here come from a randomly rolled draft, so measuring only
+      // what it dealt makes the assertion a lottery: an early version of this
+      // check failed on a third of runs purely on which names came up. The
+      // longest name a player can ever see is a fact about the dataset, so it
+      // is measured directly - the same cell, the same styles, the real
+      // worst case, every run.
+      const longest = longestNameFor(sportId);
+      const probe = cells[0];
+      const textNode = [...probe.childNodes].find(
+        (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 1
+      );
+      if (textNode && longest) {
+        const original = textNode.textContent;
+        textNode.textContent = longest;
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        const lines = range.getClientRects().length;
+        textNode.textContent = original;
+        if (lines > worst.lines) worst = { lines, text: longest };
+      }
+
       return { width, worstLines: worst.lines, worstText: worst.text };
+    };
+
+    /** The longest name in a sport's draftable rows - people and, where the
+     * sport has them, units, which are always the long ones. */
+    const longestNameFor = (sportId) => {
+      setActiveSport(sportId);
+      const sport = activeSport();
+      const rows = [...sport.players(), ...(sport.units?.() || [])];
+      let longest = "";
+      for (const row of rows) {
+        const name = String(row?.name || "");
+        if (name.length > longest.length) longest = name;
+      }
+      return longest;
     };
 
     /**
@@ -300,9 +350,14 @@ async function runInPage(page) {
     // failure is not that it looks bad, it is that a name needs a column it
     // cannot have and the reader cannot scroll away from the result.
     for (const sportId of ["nba", "nfl"]) {
-      const measured = measureNameColumn(sportId);
+      const label = `${sportId.toUpperCase()} player names get a column on a phone`;
+      // Wrapped like every other render here: an unguarded throw rejects the
+      // whole page.evaluate and throws away the twelve checks already
+      // collected, replacing a useful report with one "harness ran" failure.
+      const measured = section(label, () => measureNameColumn(sportId));
+      if (!measured) continue;
       check(
-        `${sportId.toUpperCase()} player names get a column on a phone`,
+        label,
         measured.width >= 140 && measured.worstLines <= 3,
         `${measured.width}px wide, worst name ${measured.worstLines} line(s): "${measured.worstText}"`
       );

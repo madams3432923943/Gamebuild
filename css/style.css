@@ -5651,13 +5651,24 @@ table.box-table th:nth-child(2) {
     max-width: 9.5rem;
   }
 
-  /* The team and season under the name are context, not the answer to "who is
-     this" - one line and an ellipsis rather than three more lines of wrap.
-     The full text stays in the DOM, so a screen reader still reads it. */
+  /* The team and season under the name, held to two lines.
+     
+     This was one line with an ellipsis, which clips the TAIL - and the tail is
+     the season. "New Orleans Saints 2010" needs 136px in a 133px box, so the
+     year was already going on a middling name and disappearing entirely on a
+     long one. boxRow()'s own comment calls the season essential to checking a
+     line, and truncating the one datum that says WHICH year this is is worse
+     than the extra line it was buying.
+     
+     Two lines rather than unlimited: it stays bounded, and an ellipsis only
+     appears on a name long enough that a third line would be wrapping the
+     team name itself. */
   .box-meta {
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /* Stat columns hold their heading rather than wrapping "TOT YDS" onto two
