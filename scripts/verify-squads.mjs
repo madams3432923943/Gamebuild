@@ -199,7 +199,7 @@ const check = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS
 
 const server = await serve(PORT);
 const browser = await chromium.launch();
-console.log(renderSection("Squads screen (four subtabs, browse, roster, chat)"));
+console.log(renderSection("Squads screen (subtabs, browse, roster, chat renderer)"));
 
 /** Opens the app with a scenario preloaded and lands on the Squads screen. */
 async function openSquads(scenario) {
@@ -264,10 +264,6 @@ try {
       built ? `built: ${built}` : "no filter was built for a non-empty search"
     );
 
-    await openTab(page, "Chat");
-    const chatNone = await visible(page, "#squad-chat-none");
-    check("Chat tells a squad-less player they need a squad", chatNone, chatNone ? "empty state shown" : "chat empty state missing");
-
     check("No errors on the squad-less screen", errors.length === 0, errors.slice(0, 3).join(" | ") || "clean");
     await page.close();
   }
@@ -308,34 +304,65 @@ try {
       roster.replace(/\s+/g, " ").slice(0, 120)
     );
 
-    await openTab(page, "Chat");
-    const chatText = await text(page, "#squad-chat-messages");
+    // CHAT IS TESTED THROUGH ITS RENDERER, NOT THROUGH THE SCREEN.
+    //
+    // The Chat tab has been taken off the Squads row for now, so there is no
+    // longer a route to click. The renderer and everything behind it are
+    // still in the codebase and still meant to come back, and the escaping
+    // check below is a SECURITY check on code that still exists - deleting it
+    // with the tab, or letting it sit skipped, would mean the day chat
+    // returns it returns untested.
+    //
+    // renderSquadChat writes innerHTML, so escaping is the whole ballgame.
+    const chat = await page.evaluate(async () => {
+      const { renderSquadChat } = await import("/js/ui.js");
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      renderSquadChat(host, [
+        { user_id: "u1", username: "RunAndGun", body: "first to the gym", created_at: new Date().toISOString() },
+        { user_id: "u2", username: "PostUp", body: '<img src=x onerror=alert(1)>', created_at: new Date().toISOString() },
+      ], "u1");
+      const out = { text: host.textContent, imgs: host.querySelectorAll("img").length };
+      host.remove();
+      return out;
+    });
     check(
       "Chat renders the squad's messages",
-      chatText.includes("first to the gym"),
-      chatText.replace(/\s+/g, " ").slice(0, 100) || "chat pane empty"
+      chat.text.includes("first to the gym"),
+      chat.text.replace(/\s+/g, " ").slice(0, 100) || "chat pane empty"
     );
     // The hostile message must appear as TEXT, never as an element.
-    const injected = await page.locator("#squad-chat-messages img").count();
     check(
       "A message containing markup is escaped, not rendered",
-      injected === 0 && chatText.includes("<img"),
-      injected === 0 ? "rendered as literal text" : `${injected} <img> element(s) built from a chat message`
+      chat.imgs === 0 && chat.text.includes("<img"),
+      chat.imgs === 0 ? "rendered as literal text" : `${chat.imgs} <img> element(s) built from a chat message`
     );
 
     check("No errors on the squad-member screen", errors.length === 0, errors.slice(0, 3).join(" | ") || "clean");
     await page.close();
   }
 
-  // ---- 3. the other two tabs still open ------------------------------------
+  // ---- 3. every tab on the row still opens ---------------------------------
+  //
+  // Driven from the ROW rather than a hardcoded list, so removing a tab (Chat,
+  // for now) or adding one cannot leave this asserting about a set that no
+  // longer exists. The count is reported so a tab silently vanishing is
+  // visible in the output rather than passing as "all of the remaining ones".
   {
     const { page, errors } = await openSquads("member");
-    for (const tab of ["Friends", "Tournaments", "Home"]) {
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll("#squads-tabs .subtab")].map((b) => b.textContent.trim())
+    );
+    for (const tab of labels) {
       await openTab(page, tab);
       const onScreen = await visible(page, "#screen-squads");
       if (!onScreen) { check(`The ${tab} tab opens`, false, "squads screen disappeared"); break; }
     }
-    check("All four subtabs open without throwing", errors.length === 0, errors.slice(0, 3).join(" | ") || "clean");
+    check(
+      `All ${labels.length} subtabs open without throwing`,
+      labels.length > 0 && errors.length === 0,
+      labels.length ? `${labels.join(", ")}${errors.length ? " | " + errors.slice(0, 3).join(" | ") : ""}` : "no subtabs rendered"
+    );
 
     // ---- 4. the RPC names the client actually sends -------------------------
     // PostgREST resolves an RPC by its exact argument names, so this is the

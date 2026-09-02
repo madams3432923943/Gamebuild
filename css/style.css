@@ -75,7 +75,15 @@ body {
     var(--bg);
   color: var(--text);
   font-family: var(--font-body);
+  /* dvh, not vh, with vh underneath for anything too old to know the unit.
+     
+     On a phone `100vh` is the viewport with the browser's own chrome HIDDEN -
+     the tallest it ever gets - so a "full height" page is permanently 60-80px
+     taller than what is actually on screen, and every screen has a phantom
+     scroll at the bottom that goes nowhere. dvh is the viewport as it is right
+     now, which is the one the reader has. */
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 button, input {
@@ -835,6 +843,7 @@ input[type="text"]:focus-visible {
   justify-content: center;
   gap: 1rem;
   min-height: 60vh;
+  min-height: 60dvh;
   padding: 2rem 1rem;
 }
 
@@ -2483,12 +2492,6 @@ table.box-table th, table.history-table th {
   }
 }
 
-@media (max-width: 560px) {
-  .badge-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .badge-tile {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -2559,6 +2562,78 @@ table.box-table th, table.history-table th {
   color: var(--muted);
   font-family: var(--font-mono);
 }
+
+/* Three across on a phone, the same as the icon grid.
+   
+   Badges went 3 -> 2 -> ONE COLUMN, so the rewards screen became a single
+   stack of wide cards and reading your badges meant scrolling past every one
+   of them. Icons were already 3 across at this width and read fine, which is
+   the shape being matched here rather than invented. The tile shrinks to pay
+   for it - see .badge-tile below. */
+@media (max-width: 560px) {
+  .badge-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .badge-tile {
+    padding: 0.55rem 0.4rem;
+    gap: 0.3rem;
+    align-items: center;
+    text-align: center;
+  }
+
+  /* Stacked rather than side by side: at a third of a 390px screen there is
+     no room for an icon and a name on one line. */
+  .badge-head {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  /* A third of the width means everything that was one line is now three.
+     The tile keeps what identifies the badge and what you are chasing - name,
+     tier, progress - and gives the blurb two lines instead of five. It is
+     the sentence you read once to learn what a badge tracks, not the thing
+     you come back to check. */
+  .badge-icon {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.25rem;
+  }
+
+  .badge-name {
+    font-size: var(--text-xs);
+    /* The 0.03em tracking is what pushed the longest single-word names -
+       ENCYCLOPEDIA - past a third of a 390px screen. Without it the name
+       fits; break-word is the backstop for a longer one arriving, and breaks
+       only when a word genuinely cannot fit rather than wherever it lands. */
+    letter-spacing: 0;
+    overflow-wrap: break-word;
+  }
+
+  /* The progress bar is the tile's one full-width element, and
+     `align-items: center` above shrank it to its content - which is nothing,
+     because it is an empty div sized by CSS. It rendered as a stray dot
+     between the blurb and the caption. */
+  .badge-tile .progress-bar-track {
+    align-self: stretch;
+  }
+
+  .badge-blurb {
+    font-size: var(--text-micro);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .badge-tier,
+  .badge-progress {
+    font-size: var(--text-micro);
+  }
+}
+
 
 /* ---- Squads placeholder ---- */
 .coming-soon-card {
@@ -2822,8 +2897,13 @@ table.box-table th, table.history-table th {
   .banner-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* Three across, matching the badges and icons. Was two here and one below
+   400px, which made the same single-stack scroll the badges had. */
 @media (max-width: 560px) {
-  .banner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .banner-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
 }
 
 .banner-tile {
@@ -2834,6 +2914,17 @@ table.box-table th, table.history-table th {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+/* Tighter at a third of the width. This first went in ABOVE the rule it is
+   overriding, where identical specificity meant source order won and the
+   phone kept the desktop padding - the third time in this pass that an
+   override was written before the thing it overrides. */
+@media (max-width: 560px) {
+  .banner-tile {
+    padding: 0.35rem;
+    gap: 0.25rem;
+  }
 }
 
 /* Locked banners stay readable: you should be able to see which team you're
@@ -3497,7 +3588,12 @@ table.box-table th, table.history-table th {
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--accent), 0 18px 50px rgba(0, 0, 0, 0.55);
   width: min(560px, 100%);
+  /* 85vh measured against the address-bar-hidden viewport is taller than the
+     screen while the address bar is showing, which put the confirm button of
+     a tall modal - the season picker, the slot picker - below the fold with
+     nothing to scroll. */
   max-height: 85vh;
+  max-height: 85dvh;
   display: flex;
   flex-direction: column;
   animation: modal-in 0.16s ease;
@@ -3541,6 +3637,11 @@ table.box-table th, table.history-table th {
 .modal-body {
   padding: 1rem 1.1rem 1.2rem;
   overflow-y: auto;
+  /* A flick that reaches the end must not start scrolling the screen behind
+     the backdrop, which is meant to be inert. On .modal this did nothing -
+     .modal has no overflow of its own, so it is not a scroll container and
+     had no scroll to keep from chaining. This is the element that scrolls. */
+  overscroll-behavior: contain;
 }
 
 /* Position picker inside the modal */
@@ -4212,12 +4313,34 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Stops a flick at the top of a screen from becoming pull-to-refresh. On a
+   draft with a running pick clock that reload is not a refresh, it is a lost
+   pick.
+   
+   ON html, NOT body. `overscroll-behavior` only reaches the viewport from the
+   element that defines it, and the rule above gives `html` a non-visible
+   overflow - which makes `html` that element and stops anything on `body`
+   from propagating. Set on body it computed correctly, inspected correctly,
+   and did nothing. */
+html {
+  overscroll-behavior-y: contain;
+}
+
 /* Box scores and history are genuinely wider than a phone. Let them scroll
    inside their own frame rather than squeezing columns to nothing. */
 #full-box-score,
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* The frames a box score is rendered into, named so the rules further down
+   can ask how wide THEY are rather than how wide the window is. The modal is
+   the case that makes this necessary: it is 560px on any screen. */
+#full-box-score,
+.modal-body {
+  container-type: inline-size;
+  container-name: boxscore;
 }
 
 @media (max-width: 700px) {
@@ -4261,6 +4384,7 @@ html, body {
      380px window showed barely three players at a time. */
   .pool-list {
     max-height: 55vh;
+    max-height: 55dvh;
   }
 
   /* PRACTICE MODE SHOWS FIVE, NOT SEVEN.
@@ -4556,10 +4680,6 @@ html, body {
     gap: 1rem;
   }
 
-  .banner-grid {
-    /* Same 0 floor as the wider breakpoints - see .banner-grid above. */
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Respect a reduced-motion preference across everything added for feel this
@@ -5046,6 +5166,7 @@ html, body {
      candidates and seeing six. */
   .pool-list {
     max-height: 60vh;
+    max-height: 60dvh;
   }
 
   /* Same five-card cap as the breakpoint above - this rule is later in the
@@ -5599,6 +5720,96 @@ table.box-table th:nth-child(2) {
 @media (max-width: 480px) {
   table.box-table td:nth-child(2),
   table.box-table th:nth-child(2) { left: 3rem; }
+}
+
+/* ---- The name column stops collapsing ----
+
+   The box score already scrolls sideways inside #full-box-score, and the slot
+   and player columns are already sticky, so the machinery for reading a wide
+   table on a phone was all here. What defeated it was `width: 100%` on the
+   table: with no floor under any column, the browser satisfied that by
+   crushing the widest text column, and the player name is always the widest
+   text column.
+
+   Measured at 390px before this: the name cell was 76px wide and 164px tall
+   on the football box score - "New England Patriots Offensive Line" broken
+   across seven lines, four characters at a time - and 82px/110px on
+   basketball. The table was already 597px wide and scrolling; squeezing the
+   name bought nothing, it just made the one column you cannot scroll away
+   from unreadable.
+
+   A fixed 9.5rem, not a min-width. This column is STICKY, so every pixel it
+   takes is a pixel of stats permanently off-screen; letting it size to the
+   longest unit name would park a 265px block over two thirds of the phone.
+
+   A CONTAINER query, not a viewport one. This is a fact about how wide the
+   BOX SCORE's frame is, and the two come apart: the stored-game modal is
+   `min(560px, 100%)`, so on a 1280px desktop it is a 560px table that a
+   viewport query calls wide and leaves crushed. Asking the frame instead
+   covers the phone and the modal with one rule, and covers whatever the next
+   narrow container turns out to be without anyone remembering to add it. */
+@container boxscore (max-width: 700px) {
+  /* `width: 100%` is what was doing the crushing. Under auto table layout a
+     cell width is only a suggestion, and a table told to fit its container
+     will overrule it - so the floor below did nothing until this came off.
+     `min-width: 100%` keeps a short table filling the frame; a long one is
+     now free to be as wide as it needs and scroll. */
+  table.box-table {
+    width: auto;
+    min-width: 100%;
+  }
+
+  /* Names in the body face, figures in the mono one.
+     
+     The whole table is monospace, which is right for columns of numbers that
+     should line up and wrong for a person's name - mono costs roughly a third
+     of the characters per line for no benefit a name can use. At 152px
+     "Cincinnati Bengals Linebackers" needed four lines in mono and three in
+     the body face. The stat columns keep the mono, which is the only place it
+     was earning anything.
+     
+     The longest name in either dataset - "Washington Commanders Defensive
+     Line" - takes three lines here, which is exactly the limit
+     verify-box-score holds it to. A longer one fails the build deliberately,
+     rather than quietly going back to a crushed column. */
+  table.box-table td:nth-child(2) {
+    font-family: var(--font-body);
+  }
+
+  table.box-table td:nth-child(2),
+  table.box-table th:nth-child(2) {
+    width: 9.5rem;
+    min-width: 9.5rem;
+    max-width: 9.5rem;
+  }
+
+  /* The team and season under the name, held to two lines.
+     
+     A bound, because the name column is a fixed 9.5rem and "New Orleans
+     Saints 2010" already needs 136px in a 133px box - left unbounded, a long
+     team name wraps to three or four lines under every unit row and undoes
+     the height this block is buying.
+     
+     Two lines and not one. A single line has to truncate, truncation takes
+     the TAIL, and the tail is the season - so the one datum saying WHICH year
+     this is would be first to go, on exactly the rows whose names are
+     longest, and boxRow()'s own comment calls the season essential to
+     checking a line. Measured across both sports at 390px: zero metas clipped
+     at two lines. */
+  .box-meta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  /* Stat columns hold their heading rather than wrapping "TOT YDS" onto two
+     lines under a number that needs one. */
+  table.box-table th:nth-child(n + 3),
+  table.box-table td:nth-child(n + 3) {
+    white-space: nowrap;
+  }
 }
 
 /* Visually hidden, still read aloud. The sound toggle's state lives here so it

@@ -21,7 +21,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
@@ -92,7 +92,91 @@ async function runInPage(page) {
     // back. The app loads this module, so the test has to as well.
     await import("/js/celebrate.js");
 
-    const host = document.getElementById("box");
+    const host = document.getElementById("full-box-score");
+
+    /**
+     * The rendered name column, in the units the failure is actually in.
+     *
+     * Lines rather than pixel height, because a row's height depends on the
+     * font and the padding and both are allowed to change; "this name needed
+     * seven lines" stays true whatever those are.
+     */
+    const measureNameColumn = (sportId) => {
+      renderFinalBoxScore(sportId);
+      const cells = [...host.querySelectorAll("table.box-table tbody td:nth-child(2)")];
+      if (!cells.length) return { width: 0, worstLines: 99, worstText: "no rows rendered" };
+      const width = Math.round(cells[0].getBoundingClientRect().width);
+      // Starts at "impossible", so a cell whose name is no longer a direct
+      // text child FAILS instead of passing on 0 <= 3. A check that goes quiet
+      // when its subject moves is worse than no check: it reports green about
+      // something it is no longer looking at.
+      let worst = { lines: 99, text: "no name text node found in any cell" };
+      let measuredAny = false;
+      for (const cell of cells) {
+        // A RANGE OVER THE NAME, not arithmetic on the cell.
+        //
+        // The first version divided the cell's border-box height by its line
+        // height, which counts the 0.9rem of vertical padding as most of an
+        // extra line and falls back to a guessed 16px whenever line-height is
+        // `normal`. It overstated by about one line, so a limit of three was
+        // really enforcing two, and the check failed on a third of runs
+        // depending on which names the random draft dealt.
+        //
+        // getClientRects() on a Range returns one rectangle per line fragment
+        // the text actually occupies. That is the quantity the assertion is
+        // about, measured rather than inferred.
+        const textNode = [...cell.childNodes].find(
+          (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 1
+        );
+        if (!textNode) continue;
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        const lines = range.getClientRects().length;
+        if (!measuredAny || lines > worst.lines) {
+          worst = { lines, text: textNode.textContent.trim().slice(0, 40) };
+          measuredAny = true;
+        }
+      }
+      // THE WORST NAME IN THE DATASET, not the worst one this draft happened
+      // to deal.
+      //
+      // The rosters here come from a randomly rolled draft, so measuring only
+      // what it dealt makes the assertion a lottery: an early version of this
+      // check failed on a third of runs purely on which names came up. The
+      // longest name a player can ever see is a fact about the dataset, so it
+      // is measured directly - the same cell, the same styles, the real
+      // worst case, every run.
+      const longest = longestNameFor(sportId);
+      const probe = cells[0];
+      const textNode = [...probe.childNodes].find(
+        (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 1
+      );
+      if (measuredAny && textNode && longest) {
+        const original = textNode.textContent;
+        textNode.textContent = longest;
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        const lines = range.getClientRects().length;
+        textNode.textContent = original;
+        if (lines > worst.lines) worst = { lines, text: longest };
+      }
+
+      return { width, worstLines: worst.lines, worstText: worst.text };
+    };
+
+    /** The longest name in a sport's draftable rows - people and, where the
+     * sport has them, units, which are always the long ones. */
+    const longestNameFor = (sportId) => {
+      setActiveSport(sportId);
+      const sport = activeSport();
+      const rows = [...sport.players(), ...(sport.units?.() || [])];
+      let longest = "";
+      for (const row of rows) {
+        const name = String(row?.name || "");
+        if (name.length > longest.length) longest = name;
+      }
+      return longest;
+    };
 
     /**
      * Plays a real game of one sport and renders its FINAL box score - the
@@ -259,6 +343,34 @@ async function runInPage(page) {
       );
     }
 
+    // ---- the name column survives a phone ---------------------------------
+    //
+    // The box score has always scrolled sideways with its first two columns
+    // stuck, which is the right shape. What defeated it was `width: 100%` on
+    // the table: with no floor under any column the browser met that by
+    // crushing the widest text column, and the player name is always the
+    // widest text column. Measured at 390px it came out 106px wide and 105px
+    // tall - "New England Patriots Offensive Line" four characters at a time
+    // down seven lines - while the table was already 670px and scrolling, so
+    // the squeeze bought nothing.
+    //
+    // Asserted as a WIDTH and a LINE COUNT rather than a screenshot: the
+    // failure is not that it looks bad, it is that a name needs a column it
+    // cannot have and the reader cannot scroll away from the result.
+    for (const sportId of ["nba", "nfl"]) {
+      const label = `${sportId.toUpperCase()} player names get a column on a phone`;
+      // Wrapped like every other render here: an unguarded throw rejects the
+      // whole page.evaluate and throws away the twelve checks already
+      // collected, replacing a useful report with one "harness ran" failure.
+      const measured = section(label, () => measureNameColumn(sportId));
+      if (!measured) continue;
+      check(
+        label,
+        measured.width >= 140 && measured.worstLines <= 3,
+        `${measured.width}px wide, worst name ${measured.worstLines} line(s): "${measured.worstText}"`
+      );
+    }
+
     // ---- the workaround is gone, and stays gone ---------------------------
     check(
       "no global showSplits binding survives",
@@ -276,7 +388,11 @@ async function main() {
   console.log(renderSection("Box-score rendering per sport (real Chromium, real data)"));
 
   const browser = await chromium.launch({ headless: !process.argv.includes("--headed") });
-  const page = await browser.newPage();
+  // A phone context, because one of the checks below is about what a phone
+  // does to the name column. The structural checks do not care what size the
+  // page is, so there is no second pass to keep in step.
+  const context = await browser.newContext({ ...devices["iPhone 13"], viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(e.message));
   page.on("console", (m) => {

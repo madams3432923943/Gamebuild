@@ -1,7 +1,31 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Box score harness</title>
-<!-- Empty page for verify-box-score.mjs. Real browser, real origin, so the
-     app's own modules and datasets load as they do in index.html - but with
-     no app boot, so a rendered box score is the only thing under test. -->
-<div id="box"></div>
+<!-- Page for verify-box-score.mjs. Real browser, real origin, so the app's own
+     modules and datasets load as they do in index.html - but with no app boot,
+     so a rendered box score is the only thing under test.
+
+     THE VIEWPORT META AND THE STYLESHEET ARE BOTH LOAD-BEARING. Without the
+     meta the page lays out at the 980px default however small the device is,
+     so every media query in style.css evaluates as desktop and a "phone"
+     measurement is a desktop measurement wearing a phone's screenshot size.
+     Without the stylesheet the table is unstyled HTML. Neither mattered while
+     this file only checked STRUCTURE - column counts and cell contents - and
+     both matter now that it also checks that the name column does not
+     collapse. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  body { margin: 0; background: #0d1117; }
+</style>
+<!-- THE REAL id, not a harness-only one.
+     
+     This was `id="box"` with a hand-written `overflow-x: auto` standing in for
+     the app's scroll frame, and that stand-in stopped being equivalent the
+     moment the name-column rules became a @container query: the container is
+     declared on #full-box-score, so a div called something else matched
+     nothing and the table rendered as though the rules did not exist. The
+     harness passed while the app was fixed, then failed once it was not.
+     
+     Using the id the app uses means the harness cannot drift from it again. -->
+<div id="full-box-score"></div>

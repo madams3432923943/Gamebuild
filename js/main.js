@@ -4203,6 +4203,16 @@ async function renderProfileFor(profile) {
     const fresh = await loadProfile();
     currentProfile = fresh;
     await renderProfileFor(fresh);
+    // The kit is not a profile-screen setting. game.myKit and the app-wide
+    // --my-kit-ink / --my-kit-trim are set by refreshHome(), and until this
+    // ran your colour on the board, your end zone and the possession marker
+    // all stayed on the old one until you happened to navigate Home.
+    //
+    // This screen used to get away with not calling it because the Customize
+    // modal's own kit shelf did, through afterCustomize(). That shelf is gone,
+    // so this is the only route a kit is chosen by, and it has to finish the
+    // job.
+    await refreshHome();
   });
   renderBadgeSportTabs(profileStatsTabsEl, profileStatsSportId, (id) => {
     profileStatsSportId = id;
@@ -4463,13 +4473,7 @@ function openCustomizeModal(kind = activeCustomizeTab) {
 
   // Badges have no General shelf and their own sport tabs; banners and icons
   // share the General/NBA/NFL set.
-  if (kind === "kits") {
-    // No sport subtabs: a kit is what YOU wear, in every sport. The other three
-    // shelves are scoped per sport because their contents are.
-    grid.className = "kit-swatches";
-    grid.setAttribute("role", "radiogroup");
-    grid.setAttribute("aria-label", "Team colours");
-  } else if (kind === "badges") {
+  if (kind === "badges") {
     grid.className = "badge-grid";
     renderBadgeSportTabs(tabs, activeBadgeSport, (sport) => {
       activeBadgeSport = sport;
@@ -4496,9 +4500,7 @@ function openCustomizeModal(kind = activeCustomizeTab) {
   // than inferred.
   loadProfileForBanners()
     .then((profile) => {
-      if (kind === "kits") {
-        renderTeamColourShelf(grid, summary, profile);
-      } else if (kind === "badges") {
+      if (kind === "badges") {
         renderBadgeCollection(grid, summary, profile, activeBadgeSport, onFeatureBadgeFromProfile, true);
       } else if (kind === "icons") {
         renderIcons(grid, summary, profile, onEquipIconFromProfile, activeIconSport, true);
@@ -4510,45 +4512,6 @@ function openCustomizeModal(kind = activeCustomizeTab) {
       console.error("Failed to load customization options:", e);
       summary.textContent = "Couldn't load your unlocks right now.";
     });
-}
-
-/**
- * The Team Color shelf: the kit picker, plus a line saying where the colour
- * actually turns up.
- *
- * The picker is the SAME renderKitPicker the profile screen uses - this is a
- * second doorway to one choice, not a second copy of it. What differs is the
- * caption: on the profile screen the swatches sit under a heading that explains
- * them, and in a modal reached from "Customize" they would otherwise be twelve
- * unexplained colour pairs.
- *
- * Says both halves of what a kit does, because the second half is the one
- * players do not expect: the pair is your home and away, and the away colour
- * shifts automatically if your opponent turns up wearing something too close
- * (see wornColours in js/kits.js).
- */
-function renderTeamColourShelf(grid, summary, profile) {
-  const equippedId = profile.equippedKit || DEFAULT_KIT_ID;
-  summary.textContent =
-    `Wearing ${kitById(equippedId).name}. Your colour is your score on the board, ` +
-    `your end zone and the possession marker in football. The second swatch is your ` +
-    `away kit, worn when an opponent's colour is too close to your own.`;
-
-  renderKitPicker(grid, equippedId, async (kitId) => {
-    if (kitId === equippedId) return;
-    try {
-      await setEquippedKit(kitId);
-    } catch (e) {
-      // Cosmetic, so a failure must not take the modal down - and must not
-      // quietly pretend to have worked either, or the next reload silently
-      // undoes a change the player watched happen.
-      console.error("Couldn't save your kit:", e);
-      summary.textContent = "Couldn't save that colour - try again.";
-      return;
-    }
-    playSound("cardSelect");
-    await afterCustomize();
-  });
 }
 
 /** What every equip from this modal has to do afterwards.
