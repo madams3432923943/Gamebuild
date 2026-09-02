@@ -16,9 +16,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="stylesheet" href="/css/style.css">
 <style>
-  /* The app puts the box score in a scroll frame. Without one the table sizes
-     to the whole document and nothing measured here matches the screen. */
   body { margin: 0; background: #0d1117; }
-  #box { overflow-x: auto; }
 </style>
-<div id="box"></div>
+<!-- THE REAL id, not a harness-only one.
+     
+     This was `id="box"` with a hand-written `overflow-x: auto` standing in for
+     the app's scroll frame, and that stand-in stopped being equivalent the
+     moment the name-column rules became a @container query: the container is
+     declared on #full-box-score, so a div called something else matched
+     nothing and the table rendered as though the rules did not exist. The
+     harness passed while the app was fixed, then failed once it was not.
+     
+     Using the id the app uses means the harness cannot drift from it again. -->
+<div id="full-box-score"></div>

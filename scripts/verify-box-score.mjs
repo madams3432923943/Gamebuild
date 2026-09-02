@@ -92,7 +92,7 @@ async function runInPage(page) {
     // back. The app loads this module, so the test has to as well.
     await import("/js/celebrate.js");
 
-    const host = document.getElementById("box");
+    const host = document.getElementById("full-box-score");
 
     /**
      * The rendered name column, in the units the failure is actually in.
