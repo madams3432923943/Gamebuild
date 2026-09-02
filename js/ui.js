@@ -1360,7 +1360,7 @@ export function renderBadgeCollection(
       ? `${shown.length} badge${shown.length === 1 ? "" : "s"} you can show off`
       : "";
     if (shown.length === 0) {
-      renderNote(container, "No badges earned in this sport yet — play a few games and they'll show up here.");
+      renderNote(container, "None earned in this sport yet.");
       return;
     }
   }
@@ -1754,10 +1754,10 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
     }
 
     summaryEl.textContent = onlyUnlocked
-      ? `${unlockedCount} of ${GENERAL_BANNERS.length} general banners unlocked - pick one to fly.`
-      : `${unlockedCount} of ${GENERAL_BANNERS.length} unlocked · earned across the whole game, not one franchise.`;
+      ? `${unlockedCount} of ${GENERAL_BANNERS.length} unlocked · pick one to fly`
+      : `${unlockedCount} of ${GENERAL_BANNERS.length} unlocked · earned game-wide, not per franchise`;
     if (onlyUnlocked && shownGeneral === 0 && !hasFounder && !hasFirstPlayer) {
-      renderNote(container, "No general banners unlocked yet.");
+      renderNote(container, "None unlocked yet.");
     }
     return;
   }
@@ -1765,9 +1765,8 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
   const list = franchisesForSport(sport);
   const { unlocked, total } = bannerSummary(profile, sport);
   summaryEl.textContent = onlyUnlocked
-    ? `${unlocked} of ${total} banners unlocked - pick one to fly on your profile.`
-    : `${unlocked} of ${total} banners unlocked · draft ${BANNER_THRESHOLD} players from a franchise across ranked wins` +
-      " (practice doesn't count)";
+    ? `${unlocked} of ${total} unlocked · pick one to fly`
+    : `${unlocked} of ${total} unlocked · ${BANNER_THRESHOLD} ranked picks from a franchise`;
 
   let shown = 0;
   for (const franchise of list) {
@@ -1845,14 +1844,13 @@ export function renderIcons(container, summaryEl, profile, onEquip, sport = "nba
   if (general) {
     const unlocked = list.filter((icon) => iconProgress(icon, profile).unlocked).length;
     summaryEl.textContent = onlyUnlocked
-      ? `${unlocked} of ${list.length} icons unlocked — pick one for your card.`
-      : `${unlocked} of ${list.length} general icons unlocked`;
+      ? `${unlocked} of ${list.length} unlocked · pick one for your card`
+      : `${unlocked} of ${list.length} unlocked`;
   } else {
     const { unlocked, total } = iconSummary(profile, sport);
     summaryEl.textContent = onlyUnlocked
-      ? `${unlocked} of ${total} team icons unlocked — pick one for your card.`
-      : `${unlocked} of ${total} team icons unlocked · win a ranked MVP with one of a team's players to earn its icon` +
-        " (practice doesn't count)";
+      ? `${unlocked} of ${total} unlocked · pick one for your card`
+      : `${unlocked} of ${total} unlocked · earn one with a ranked MVP from that team`;
   }
 
   let shown = 0;
