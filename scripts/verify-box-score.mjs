@@ -21,7 +21,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
@@ -93,6 +93,32 @@ async function runInPage(page) {
     await import("/js/celebrate.js");
 
     const host = document.getElementById("box");
+
+    /**
+     * The rendered name column, in the units the failure is actually in.
+     *
+     * Lines rather than pixel height, because a row's height depends on the
+     * font and the padding and both are allowed to change; "this name needed
+     * seven lines" stays true whatever those are.
+     */
+    const measureNameColumn = (sportId) => {
+      renderFinalBoxScore(sportId);
+      const cells = [...host.querySelectorAll("table.box-table tbody td:nth-child(2)")];
+      if (!cells.length) return { width: 0, worstLines: 99, worstText: "no rows rendered" };
+      const width = Math.round(cells[0].getBoundingClientRect().width);
+      let worst = { lines: 0, text: "" };
+      for (const cell of cells) {
+        // The name is the cell's own text, not the team/season under it.
+        const meta = cell.querySelector(".box-meta");
+        const metaH = meta ? meta.getBoundingClientRect().height : 0;
+        const lineH = parseFloat(getComputedStyle(cell).lineHeight) || 16;
+        const lines = Math.round((cell.getBoundingClientRect().height - metaH) / lineH);
+        if (lines > worst.lines) {
+          worst = { lines, text: (cell.childNodes[0]?.textContent || cell.textContent).trim().slice(0, 40) };
+        }
+      }
+      return { width, worstLines: worst.lines, worstText: worst.text };
+    };
 
     /**
      * Plays a real game of one sport and renders its FINAL box score - the
@@ -259,6 +285,29 @@ async function runInPage(page) {
       );
     }
 
+    // ---- the name column survives a phone ---------------------------------
+    //
+    // The box score has always scrolled sideways with its first two columns
+    // stuck, which is the right shape. What defeated it was `width: 100%` on
+    // the table: with no floor under any column the browser met that by
+    // crushing the widest text column, and the player name is always the
+    // widest text column. Measured at 390px it came out 106px wide and 105px
+    // tall - "New England Patriots Offensive Line" four characters at a time
+    // down seven lines - while the table was already 670px and scrolling, so
+    // the squeeze bought nothing.
+    //
+    // Asserted as a WIDTH and a LINE COUNT rather than a screenshot: the
+    // failure is not that it looks bad, it is that a name needs a column it
+    // cannot have and the reader cannot scroll away from the result.
+    for (const sportId of ["nba", "nfl"]) {
+      const measured = measureNameColumn(sportId);
+      check(
+        `${sportId.toUpperCase()} player names get a column on a phone`,
+        measured.width >= 140 && measured.worstLines <= 3,
+        `${measured.width}px wide, worst name ${measured.worstLines} line(s): "${measured.worstText}"`
+      );
+    }
+
     // ---- the workaround is gone, and stays gone ---------------------------
     check(
       "no global showSplits binding survives",
@@ -276,7 +325,11 @@ async function main() {
   console.log(renderSection("Box-score rendering per sport (real Chromium, real data)"));
 
   const browser = await chromium.launch({ headless: !process.argv.includes("--headed") });
-  const page = await browser.newPage();
+  // A phone context, because one of the checks below is about what a phone
+  // does to the name column. The structural checks do not care what size the
+  // page is, so there is no second pass to keep in step.
+  const context = await browser.newContext({ ...devices["iPhone 13"], viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(e.message));
   page.on("console", (m) => {

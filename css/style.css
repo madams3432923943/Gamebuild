@@ -5601,6 +5601,73 @@ table.box-table th:nth-child(2) {
   table.box-table th:nth-child(2) { left: 3rem; }
 }
 
+/* ---- The name column stops collapsing ----
+
+   The box score already scrolls sideways inside #full-box-score, and the slot
+   and player columns are already sticky, so the machinery for reading a wide
+   table on a phone was all here. What defeated it was `width: 100%` on the
+   table: with no floor under any column, the browser satisfied that by
+   crushing the widest text column, and the player name is always the widest
+   text column.
+
+   Measured at 390px before this: the name cell was 76px wide and 164px tall
+   on the football box score - "New England Patriots Offensive Line" broken
+   across seven lines, four characters at a time - and 82px/110px on
+   basketball. The table was already 597px wide and scrolling; squeezing the
+   name bought nothing, it just made the one column you cannot scroll away
+   from unreadable.
+
+   A fixed 9.5rem, not a min-width. This column is STICKY, so every pixel it
+   takes is a pixel of stats permanently off-screen; letting it size to the
+   longest unit name would park a 265px block over two thirds of the phone. At
+   9.5rem the longest names in either dataset take two lines. */
+@media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+  /* `width: 100%` is what was doing the crushing. Under auto table layout a
+     cell width is only a suggestion, and a table told to fit its container
+     will overrule it - so the floor below did nothing until this came off.
+     `min-width: 100%` keeps a short table filling the frame; a long one is
+     now free to be as wide as it needs and scroll. */
+  table.box-table {
+    width: auto;
+    min-width: 100%;
+  }
+
+  /* Names in the body face, figures in the mono one.
+     
+     The whole table is monospace, which is right for columns of numbers that
+     should line up and wrong for a person's name - mono costs roughly a third
+     of the characters per line for no benefit a name can use. At 152px
+     "Cincinnati Bengals Linebackers" needed four lines in mono and three in
+     the body face. The stat columns keep the mono, which is the only place it
+     was earning anything. */
+  table.box-table td:nth-child(2) {
+    font-family: var(--font-body);
+  }
+
+  table.box-table td:nth-child(2),
+  table.box-table th:nth-child(2) {
+    width: 9.5rem;
+    min-width: 9.5rem;
+    max-width: 9.5rem;
+  }
+
+  /* The team and season under the name are context, not the answer to "who is
+     this" - one line and an ellipsis rather than three more lines of wrap.
+     The full text stays in the DOM, so a screen reader still reads it. */
+  .box-meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Stat columns hold their heading rather than wrapping "TOT YDS" onto two
+     lines under a number that needs one. */
+  table.box-table th:nth-child(n + 3),
+  table.box-table td:nth-child(n + 3) {
+    white-space: nowrap;
+  }
+}
+
 /* Visually hidden, still read aloud. The sound toggle's state lives here so it
    is never carried by the icon alone - a speaker glyph with a line through it
    is small, and at a glance the two states are easy to confuse. */
