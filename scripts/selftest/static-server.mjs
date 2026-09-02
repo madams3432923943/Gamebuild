@@ -52,5 +52,29 @@ export function serveStatic(root, port) {
       res.writeHead(404).end("not found");
     }
   });
-  return new Promise((resolve) => server.listen(port, () => resolve(server)));
+  return new Promise((resolve, reject) => {
+    // A busy port is the single most common way this fails, and it used to
+    // fail as an unhandled 'error' event: ten frames of node internals,
+    // "Emitted 'error' event on Server instance", and no mention of the
+    // actual cause. It reads like the harness is broken. It means a previous
+    // run is still alive - which is easy to do, because a selftest holding a
+    // Chromium does not always go down on the first SIGTERM.
+    //
+    // Rejecting with a sentence instead. The caller decides what to do; what
+    // matters is that whoever reads the output is pointed at the right thing.
+    server.once("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        reject(
+          new Error(
+            `port ${port} is already in use - another selftest or capture run is probably still ` +
+              `alive. Find it with \`lsof -i :${port}\` and stop it (it may need SIGKILL), or set ` +
+              `a different port via the env var this script reads.`
+          )
+        );
+        return;
+      }
+      reject(err);
+    });
+    server.listen(port, () => resolve(server));
+  });
 }
