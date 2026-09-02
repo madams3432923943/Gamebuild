@@ -82,6 +82,23 @@ function curveFor(ctx, slots) {
   return ctx.__gradeCurve;
 }
 
+/** The entry that actually answers for a slot.
+ *
+ * Resolve a Quick Play roster the same way the engine's sideRating does, or the
+ * grade praises a roster the simulation is playing differently. Both stand-ins
+ * are needed and both were missing: Quick Play holds one "WR" against the
+ * weights' WR1/WR2/WR3, and one "DEF" against DL/LB/CB/S. So every offensive
+ * receiver slot AND every defensive slot was skipped, which left the defensive
+ * half of a Quick Play grade at a flat 0.5 - the same letter whoever you
+ * drafted. */
+function entryForSlot(roster, slot) {
+  return (
+    roster[slot] ??
+    (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined) ??
+    roster[canonicalSlot(slot)]
+  );
+}
+
 /** Weighted rating of one side of the ball. These are the same slot weights
  * the simulation consumes, so the grade cannot praise a roster for strengths
  * the engine itself ignores. */
@@ -89,22 +106,72 @@ function sideScore(roster, weights, ctx) {
   let total = 0;
   let weight = 0;
   for (const [slot, w] of Object.entries(weights)) {
-    // Resolve a Quick Play roster the same way the engine's sideRating does, or
-    // the grade praises a roster the simulation is playing differently. Both
-    // stand-ins are needed and both were missing: Quick Play holds one "WR"
-    // against the weights' WR1/WR2/WR3, and one "DEF" against DL/LB/CB/S. So
-    // every offensive receiver slot AND every defensive slot was skipped here,
-    // which left the defensive half of a Quick Play grade at a flat 0.5 - the
-    // same letter whoever you drafted.
-    const entry =
-      roster[slot] ??
-      (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined) ??
-      roster[canonicalSlot(slot)];
+    const entry = entryForSlot(roster, slot);
     if (!entry) continue;
     total += w * rateEntry(entry, ctx);
     weight += w;
   }
   return weight > 0 ? total / weight : 0.5;
+}
+
+/**
+ * WHICH HALF OF THE ROSTER DECIDED IT, and which single pick decided that.
+ *
+ * The complaint this answers, verbatim: "in what world is that team beating
+ * this team". A roster of famous skill players lost to one whose names nobody
+ * recognised, and every screen the player could reach agreed with him - the box
+ * score lists quarterbacks and receivers, the highlight feed names scorers, and
+ * neither can show that the game was lost at offensive line and defensive line.
+ * Six of the twelve football slots are units, and a unit never appears in a
+ * stat line. They were decisive and invisible at the same time.
+ *
+ * Reported as CONTRIBUTION - weight x rating - not as raw rating, because that
+ * is what the simulation actually consumed. A slot can be far behind on rating
+ * and barely matter, or close on rating and matter a lot; ranking on the raw
+ * number would point at the wrong pick and teach the wrong lesson.
+ */
+function decidingRead(roster, oppRoster, ctx) {
+  const gaps = [];
+  let offGap = 0;
+  let defGap = 0;
+  for (const [side, weights] of [["offence", OFFENSE_WEIGHTS], ["defence", DEFENSE_WEIGHTS]]) {
+    for (const [slot, w] of Object.entries(weights)) {
+      const mine = entryForSlot(roster, slot);
+      const theirs = entryForSlot(oppRoster, slot);
+      if (!mine || !theirs) continue;
+      const a = rateEntry(mine, ctx);
+      const b = rateEntry(theirs, ctx);
+      const delta = w * (a - b);
+      if (side === "offence") offGap += delta;
+      else defGap += delta;
+      gaps.push({ slot, side, delta, mine: a, theirs: b });
+    }
+  }
+  if (!gaps.length) return [];
+
+  const notes = [];
+  // The half that cost the most, or - if nothing cost anything - the half that
+  // won it. A player who WON deserves to be told why just as much.
+  const behind = [offGap, defGap].some((g) => g < 0);
+  const side = behind
+    ? (offGap <= defGap ? "offence" : "defence")
+    : (offGap >= defGap ? "offence" : "defence");
+  const gap = side === "offence" ? offGap : defGap;
+  notes.push(
+    gap < 0
+      ? `Your ${side} is where this was lost: they out-rate you there by ${(100 * -gap).toFixed(0)}.`
+      : `Your ${side} is what carried this: you out-rate them there by ${(100 * gap).toFixed(0)}.`
+  );
+
+  // The single pick that moved it most, whichever way it went. Named by slot
+  // because that is the thing the player chose.
+  const worst = gaps.reduce((a, b) => (b.delta < a.delta ? b : a));
+  if (worst.delta < 0) {
+    notes.push(
+      `Their ${worst.slot} beat yours ${(100 * worst.theirs).toFixed(0)} to ${(100 * worst.mine).toFixed(0)} - the biggest single gap on the board.`
+    );
+  }
+  return notes;
 }
 
 function defensiveBreakdown(roster, ctx) {
@@ -173,6 +240,10 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // returns one number for both: a secondary and a quarterback are not alike,
   // but "how good is this at its job" is the same question asked of each.
   if (oppRoster) {
+    // Which half decided it comes FIRST. matchupReads below is slot-against-slot
+    // colour; this is the one line that answers "why did I lose", and burying it
+    // under three matchup sentences is how it gets missed.
+    notes.push(...decidingRead(roster, oppRoster, ctx));
     notes.push(
       ...matchupReads(roster, oppRoster, {
         rate: (entry) => rateEntry(entry, ctx),
