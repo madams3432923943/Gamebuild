@@ -106,7 +106,12 @@ async function runInPage(page) {
       const cells = [...host.querySelectorAll("table.box-table tbody td:nth-child(2)")];
       if (!cells.length) return { width: 0, worstLines: 99, worstText: "no rows rendered" };
       const width = Math.round(cells[0].getBoundingClientRect().width);
-      let worst = { lines: 0, text: "" };
+      // Starts at "impossible", so a cell whose name is no longer a direct
+      // text child FAILS instead of passing on 0 <= 3. A check that goes quiet
+      // when its subject moves is worse than no check: it reports green about
+      // something it is no longer looking at.
+      let worst = { lines: 99, text: "no name text node found in any cell" };
+      let measuredAny = false;
       for (const cell of cells) {
         // A RANGE OVER THE NAME, not arithmetic on the cell.
         //
@@ -127,7 +132,10 @@ async function runInPage(page) {
         const range = document.createRange();
         range.selectNodeContents(textNode);
         const lines = range.getClientRects().length;
-        if (lines > worst.lines) worst = { lines, text: textNode.textContent.trim().slice(0, 40) };
+        if (!measuredAny || lines > worst.lines) {
+          worst = { lines, text: textNode.textContent.trim().slice(0, 40) };
+          measuredAny = true;
+        }
       }
       // THE WORST NAME IN THE DATASET, not the worst one this draft happened
       // to deal.
@@ -143,7 +151,7 @@ async function runInPage(page) {
       const textNode = [...probe.childNodes].find(
         (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 1
       );
-      if (textNode && longest) {
+      if (measuredAny && textNode && longest) {
         const original = textNode.textContent;
         textNode.textContent = longest;
         const range = document.createRange();

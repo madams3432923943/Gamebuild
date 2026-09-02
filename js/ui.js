@@ -1278,11 +1278,12 @@ const UNLOCKABLE_KINDS = [
   { id: "badges", label: "Badges" },
   { id: "banners", label: "Banners" },
   { id: "icons", label: "Icons" },
-  // Not an unlockable - every kit is available from the first game - but it
-  // belongs on this shelf anyway: this modal is "what you are wearing", and a
-  // player looking for their colours looks here rather than on the profile
-  // screen, which is where the picker used to live alone.
-  { id: "kits", label: "Team Color" },
+  // Team Color is NOT here. It was added on the argument that this shelf is
+  // "what you are wearing", but it is the one entry that is not an unlockable
+  // - every kit is available from the first game - so it sat among three
+  // grids of things you earn, looking like a fourth. It lives on the profile
+  // screen, which is where it started and where it is the only picker on
+  // screen rather than the odd one out.
 ];
 
 export function renderUnlockableTabs(container, active, onSelect) {
@@ -2724,12 +2725,17 @@ export function renderSquadChat(container, messages, myUserId) {
   if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 
-// ---- Squads top-level subtabs: Friends | Home | Chat | Tournaments ------
+// ---- Squads top-level subtabs: Friends | Home | Tournaments -------------
 
 const SQUADS_TOP_TABS = [
   { id: "friends", label: "Friends" },
   { id: "home", label: "Home" },
-  { id: "chat", label: "Chat" },
+  // Chat is off the row for now. Everything behind it is intact - the panel,
+  // the watcher, sendSquadMessage, the render - so putting it back is this
+  // one line. Removed from the entry point rather than deleted, because
+  // "not yet" and "never" are different decisions and only one of them has
+  // been made.
+  // { id: "chat", label: "Chat" },
   { id: "tournaments", label: "Tournaments" },
 ];
 

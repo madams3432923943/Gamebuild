@@ -84,10 +84,6 @@ body {
      now, which is the one the reader has. */
   min-height: 100vh;
   min-height: 100dvh;
-  /* Stops a flick at the top of a screen from becoming pull-to-refresh. On a
-     draft with a running pick clock that reload is not a refresh, it is a
-     lost pick. */
-  overscroll-behavior-y: contain;
 }
 
 button, input {
@@ -2496,12 +2492,6 @@ table.box-table th, table.history-table th {
   }
 }
 
-@media (max-width: 560px) {
-  .badge-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .badge-tile {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -2572,6 +2562,78 @@ table.box-table th, table.history-table th {
   color: var(--muted);
   font-family: var(--font-mono);
 }
+
+/* Three across on a phone, the same as the icon grid.
+   
+   Badges went 3 -> 2 -> ONE COLUMN, so the rewards screen became a single
+   stack of wide cards and reading your badges meant scrolling past every one
+   of them. Icons were already 3 across at this width and read fine, which is
+   the shape being matched here rather than invented. The tile shrinks to pay
+   for it - see .badge-tile below. */
+@media (max-width: 560px) {
+  .badge-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .badge-tile {
+    padding: 0.55rem 0.4rem;
+    gap: 0.3rem;
+    align-items: center;
+    text-align: center;
+  }
+
+  /* Stacked rather than side by side: at a third of a 390px screen there is
+     no room for an icon and a name on one line. */
+  .badge-head {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  /* A third of the width means everything that was one line is now three.
+     The tile keeps what identifies the badge and what you are chasing - name,
+     tier, progress - and gives the blurb two lines instead of five. It is
+     the sentence you read once to learn what a badge tracks, not the thing
+     you come back to check. */
+  .badge-icon {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.25rem;
+  }
+
+  .badge-name {
+    font-size: var(--text-xs);
+    /* The 0.03em tracking is what pushed the longest single-word names -
+       ENCYCLOPEDIA - past a third of a 390px screen. Without it the name
+       fits; break-word is the backstop for a longer one arriving, and breaks
+       only when a word genuinely cannot fit rather than wherever it lands. */
+    letter-spacing: 0;
+    overflow-wrap: break-word;
+  }
+
+  /* The progress bar is the tile's one full-width element, and
+     `align-items: center` above shrank it to its content - which is nothing,
+     because it is an empty div sized by CSS. It rendered as a stray dot
+     between the blurb and the caption. */
+  .badge-tile .progress-bar-track {
+    align-self: stretch;
+  }
+
+  .badge-blurb {
+    font-size: var(--text-micro);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .badge-tier,
+  .badge-progress {
+    font-size: var(--text-micro);
+  }
+}
+
 
 /* ---- Squads placeholder ---- */
 .coming-soon-card {
@@ -2835,8 +2897,18 @@ table.box-table th, table.history-table th {
   .banner-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* Three across, matching the badges and icons. Was two here and one below
+   400px, which made the same single-stack scroll the badges had. */
 @media (max-width: 560px) {
-  .banner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .banner-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .banner-tile {
+    padding: 0.35rem;
+    gap: 0.25rem;
+  }
 }
 
 .banner-tile {
@@ -3516,9 +3588,6 @@ table.box-table th, table.history-table th {
      nothing to scroll. */
   max-height: 85vh;
   max-height: 85dvh;
-  /* A flick that reaches the end of the modal must not start scrolling the
-     screen behind it - the backdrop is meant to be inert. */
-  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   animation: modal-in 0.16s ease;
@@ -3562,6 +3631,11 @@ table.box-table th, table.history-table th {
 .modal-body {
   padding: 1rem 1.1rem 1.2rem;
   overflow-y: auto;
+  /* A flick that reaches the end must not start scrolling the screen behind
+     the backdrop, which is meant to be inert. On .modal this did nothing -
+     .modal has no overflow of its own, so it is not a scroll container and
+     had no scroll to keep from chaining. This is the element that scrolls. */
+  overscroll-behavior: contain;
 }
 
 /* Position picker inside the modal */
@@ -4233,12 +4307,34 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Stops a flick at the top of a screen from becoming pull-to-refresh. On a
+   draft with a running pick clock that reload is not a refresh, it is a lost
+   pick.
+   
+   ON html, NOT body. `overscroll-behavior` only reaches the viewport from the
+   element that defines it, and the rule above gives `html` a non-visible
+   overflow - which makes `html` that element and stops anything on `body`
+   from propagating. Set on body it computed correctly, inspected correctly,
+   and did nothing. */
+html {
+  overscroll-behavior-y: contain;
+}
+
 /* Box scores and history are genuinely wider than a phone. Let them scroll
    inside their own frame rather than squeezing columns to nothing. */
 #full-box-score,
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* The frames a box score is rendered into, named so the rules further down
+   can ask how wide THEY are rather than how wide the window is. The modal is
+   the case that makes this necessary: it is 560px on any screen. */
+#full-box-score,
+.modal-body {
+  container-type: inline-size;
+  container-name: boxscore;
 }
 
 @media (max-width: 700px) {
@@ -4578,10 +4674,6 @@ html, body {
     gap: 1rem;
   }
 
-  .banner-grid {
-    /* Same 0 floor as the wider breakpoints - see .banner-grid above. */
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Respect a reduced-motion preference across everything added for feel this
@@ -5642,9 +5734,15 @@ table.box-table th:nth-child(2) {
 
    A fixed 9.5rem, not a min-width. This column is STICKY, so every pixel it
    takes is a pixel of stats permanently off-screen; letting it size to the
-   longest unit name would park a 265px block over two thirds of the phone. At
-   9.5rem the longest names in either dataset take two lines. */
-@media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+   longest unit name would park a 265px block over two thirds of the phone.
+
+   A CONTAINER query, not a viewport one. This is a fact about how wide the
+   BOX SCORE's frame is, and the two come apart: the stored-game modal is
+   `min(560px, 100%)`, so on a 1280px desktop it is a 560px table that a
+   viewport query calls wide and leaves crushed. Asking the frame instead
+   covers the phone and the modal with one rule, and covers whatever the next
+   narrow container turns out to be without anyone remembering to add it. */
+@container boxscore (max-width: 700px) {
   /* `width: 100%` is what was doing the crushing. Under auto table layout a
      cell width is only a suggestion, and a table told to fit its container
      will overrule it - so the floor below did nothing until this came off.
@@ -5662,7 +5760,12 @@ table.box-table th:nth-child(2) {
      of the characters per line for no benefit a name can use. At 152px
      "Cincinnati Bengals Linebackers" needed four lines in mono and three in
      the body face. The stat columns keep the mono, which is the only place it
-     was earning anything. */
+     was earning anything.
+     
+     The longest name in either dataset - "Washington Commanders Defensive
+     Line" - takes three lines here, which is exactly the limit
+     verify-box-score holds it to. A longer one fails the build deliberately,
+     rather than quietly going back to a crushed column. */
   table.box-table td:nth-child(2) {
     font-family: var(--font-body);
   }
@@ -5676,16 +5779,17 @@ table.box-table th:nth-child(2) {
 
   /* The team and season under the name, held to two lines.
      
-     This was one line with an ellipsis, which clips the TAIL - and the tail is
-     the season. "New Orleans Saints 2010" needs 136px in a 133px box, so the
-     year was already going on a middling name and disappearing entirely on a
-     long one. boxRow()'s own comment calls the season essential to checking a
-     line, and truncating the one datum that says WHICH year this is is worse
-     than the extra line it was buying.
+     A bound, because the name column is a fixed 9.5rem and "New Orleans
+     Saints 2010" already needs 136px in a 133px box - left unbounded, a long
+     team name wraps to three or four lines under every unit row and undoes
+     the height this block is buying.
      
-     Two lines rather than unlimited: it stays bounded, and an ellipsis only
-     appears on a name long enough that a third line would be wrapping the
-     team name itself. */
+     Two lines and not one. A single line has to truncate, truncation takes
+     the TAIL, and the tail is the season - so the one datum saying WHICH year
+     this is would be first to go, on exactly the rows whose names are
+     longest, and boxRow()'s own comment calls the season essential to
+     checking a line. Measured across both sports at 390px: zero metas clipped
+     at two lines. */
   .box-meta {
     display: -webkit-box;
     -webkit-box-orient: vertical;
