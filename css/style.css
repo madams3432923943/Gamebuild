@@ -6002,6 +6002,17 @@ table.box-table tfoot .box-totals td:nth-child(2) {
    cannot see, and on a colour swatch - where every neighbour is also live -
    the thing being aimed at should be the thing that is hit. */
 @media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+  /* .btn and .mode-btn had a 2.75rem floor already - inside the
+     max-width:700px block, so a sideways phone never got it. Start Draft was
+     762px wide and 38px tall in landscape. Listing them here rather than
+     widening that block's condition, because the rest of it is genuinely
+     about narrowness. */
+  .btn,
+  .mode-btn,
+  .sport-tile,
+  /* The slot picker in the draft modal: six 50x33 buttons in a row, chosen
+     under a running pick clock. The worst possible place for a 33px target. */
+  .position-btn,
   .sport-card-action,
   .subtab,
   .brand,
@@ -6018,6 +6029,12 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   select,
   textarea {
     min-height: 2.75rem;
+  }
+
+  /* A short label makes a narrow button. "C" came out 42px wide against a
+     44px-tall box, and a floor on one axis is not a floor. */
+  .position-btn {
+    min-width: 2.75rem;
   }
 
   /* Square, so the floor has to be set on both axes. 2.1rem circles in a

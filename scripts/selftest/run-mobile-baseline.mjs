@@ -96,7 +96,10 @@ const TOUCH_AUDIT = `(() => {
   const small = [];
   for (const el of interactive) {
     const r = el.getBoundingClientRect();
-    if (r.width < ${TAP_TARGET_MIN} || r.height < ${TAP_TARGET_MIN}) {
+    // Half a pixel of tolerance. A control set to exactly 2.75rem measures
+    // 43.99 on a 3x device pixel ratio, and reporting that as a miss sends
+    // someone to look at a rule that is already correct.
+    if (r.width < ${TAP_TARGET_MIN} - 0.5 || r.height < ${TAP_TARGET_MIN} - 0.5) {
       small.push({ el: describe(el), w: Math.round(r.width), h: Math.round(r.height) });
     }
   }
