@@ -35,7 +35,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PASS, FAIL, WARN, SKIP, check } from "./lib/report.mjs";
-import { FRAME_SAMPLER, PAINT_METRICS, LAYOUT_AUDIT } from "./lib/browser-instrumentation.mjs";
+import {
+  FRAME_SAMPLER,
+  PAINT_METRICS,
+  LAYOUT_AUDIT,
+  TOUCH_AUDIT,
+  TAP_TARGET_MIN,
+  MIN_FONT_PX,
+} from "./lib/browser-instrumentation.mjs";
 import {
   RANKED_ROUNDS,
   auditAtWidth,
@@ -867,6 +874,7 @@ export async function runBrowserChecks(opts = {}) {
     const layoutRows = [["viewport", "width", "overlaps", "escaping", "h-overflow"]];
     const layoutProblems = [];
     let layoutEvidence = {};
+    const touchByViewport = {};
 
     for (const vp of auditViewports) {
       if (!device) await page0.setViewportSize({ width: vp.width, height: vp.height });
@@ -874,6 +882,9 @@ export async function runBrowserChecks(opts = {}) {
       await page0.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       const audit = await page0.evaluate(LAYOUT_AUDIT);
       layoutEvidence[vp.name] = audit;
+      // Only phone widths: 44px is a floor for fingers, and holding a desktop
+      // pointer to it would be applying a constraint it does not have.
+      if (vp.width <= 700) touchByViewport[vp.name] = await page0.evaluate(TOUCH_AUDIT);
       layoutRows.push([
         vp.name,
         `${vp.width}px`,
@@ -898,6 +909,42 @@ export async function runBrowserChecks(opts = {}) {
         evidence: layoutEvidence,
       })
     );
+
+    // ---- the floors a layout audit cannot see -----------------------------
+    //
+    // The post-game screen is the densest in the app and the one people read
+    // together, so it is where these are worth asserting. Zero is the bar
+    // because zero is what the phone pass got them to; a regression here is a
+    // control that has quietly become unhittable or a line that has become
+    // unreadable, neither of which shows up above.
+    const touchRows = [["viewport", "targets < 44px", "text < 12px"]];
+    const touchProblems = [];
+    for (const [name, t] of Object.entries(touchByViewport)) {
+      touchRows.push([name, String(t.smallTargetCount), String(t.tinyTextCount)]);
+      if (t.smallTargetCount || t.tinyTextCount) {
+        touchProblems.push(
+          `${name}:\n` +
+            [
+              ...t.smallTargets.slice(0, 4).map((x) => `    ${x.w}x${x.h}: ${x.el}`),
+              ...t.tinyText.slice(0, 4).map((x) => `    ${x.px}px: ${x.el} — "${x.sample}"`),
+            ].join("\n")
+        );
+      }
+    }
+    if (Object.keys(touchByViewport).length) {
+      checks.push(
+        check(
+          "browser:touch",
+          `Nothing on the post-game screen is under ${TAP_TARGET_MIN}px to hit or ${MIN_FONT_PX}px to read`,
+          touchProblems.length ? FAIL : PASS,
+          {
+            detail: touchProblems.length ? touchProblems.join("\n") : undefined,
+            table: touchRows,
+            evidence: touchByViewport,
+          }
+        )
+      );
+    }
   } catch (e) {
     failed = e;
     checks.push(
