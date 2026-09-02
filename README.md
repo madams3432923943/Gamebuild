@@ -88,7 +88,6 @@ js/                 shared app code - never imports a sport directly
     index.js      the registry: which sports exist, which is active
     nba/          engine, constants, tactics, shooting, recap, draftgrade, playback
     nfl/          engine, constants, tactics, units, recap, draftgrade, playback, field
-    pending.js    the shape a declared-but-unbuilt sport shares (NHL, Soccer)
 tools/            data import, artwork and balance-calibration scripts (Node)
 ```
 

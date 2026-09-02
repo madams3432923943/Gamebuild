@@ -1,0 +1,5893 @@
+[
+  {
+    "screen": "nba-02-hub",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-02-hub--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 127,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 144,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 144,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 144,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 8,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-02-hub",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-02-hub--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 157,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 159,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 159,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 159,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 8,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-02-hub",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-02-hub--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 197,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 179,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 179,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 179,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 179,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 3,
+    "tinyText": [
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-02-hub",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-02-hub--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 126,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 81,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 121,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 81,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 3,
+    "tinyText": [
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 295,
+    "notes": []
+  },
+  {
+    "screen": "nba-03-play",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-03-play--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 36
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-03-play",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-03-play--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 36
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-03-play",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-03-play--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 2,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 36
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-03-play",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-03-play--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 27
+      },
+      {
+        "el": "button.era-chip.active \"\ud83c\udfc0All Years\"",
+        "w": 111,
+        "h": 32
+      },
+      {
+        "el": "button.era-chip \"\ud83d\udcfbGrandpa's Game\"",
+        "w": 157,
+        "h": 32
+      },
+      {
+        "el": "button.era-chip \"\ud83d\udcfcUnc Status\"",
+        "w": 120,
+        "h": 32
+      },
+      {
+        "el": "button.era-chip \"\ud83d\udcf1Modern Ball\"",
+        "w": 127,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 256,
+    "notes": []
+  },
+  {
+    "screen": "nba-04-draft-empty",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-04-draft-empty--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "input#pool-search",
+        "w": 299,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 42,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#draft-round-label.round-label \"Round 1\"",
+        "px": 11.2,
+        "sample": "Round 1"
+      },
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
+        "px": 9.9,
+        "sample": "\ud83c\udfc0 All Years"
+      },
+      {
+        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
+        "px": 11.2,
+        "sample": "Your Pick"
+      },
+      {
+        "el": "span.slot-tag \"PG\"",
+        "px": 11.5,
+        "sample": "PG"
+      },
+      {
+        "el": "span.slot-tag \"SG\"",
+        "px": 11.5,
+        "sample": "SG"
+      },
+      {
+        "el": "span.slot-tag \"SF\"",
+        "px": 11.5,
+        "sample": "SF"
+      },
+      {
+        "el": "span.slot-tag \"PF\"",
+        "px": 11.5,
+        "sample": "PF"
+      }
+    ],
+    "verticalScroll": 291,
+    "notes": []
+  },
+  {
+    "screen": "nba-04-draft-empty",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-04-draft-empty--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "input#pool-search",
+        "w": 329,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 42,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#draft-round-label.round-label \"Round 1\"",
+        "px": 11.2,
+        "sample": "Round 1"
+      },
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
+        "px": 9.9,
+        "sample": "\ud83c\udfc0 All Years"
+      },
+      {
+        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
+        "px": 11.2,
+        "sample": "Your Pick"
+      },
+      {
+        "el": "span.slot-tag \"PG\"",
+        "px": 11.5,
+        "sample": "PG"
+      },
+      {
+        "el": "span.slot-tag \"SG\"",
+        "px": 11.5,
+        "sample": "SG"
+      },
+      {
+        "el": "span.slot-tag \"SF\"",
+        "px": 11.5,
+        "sample": "SF"
+      },
+      {
+        "el": "span.slot-tag \"PF\"",
+        "px": 11.5,
+        "sample": "PF"
+      }
+    ],
+    "verticalScroll": 260,
+    "notes": []
+  },
+  {
+    "screen": "nba-04-draft-empty",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-04-draft-empty--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 2,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "input#pool-search",
+        "w": 369,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 37,
+    "tinyText": [
+      {
+        "el": "span#draft-round-label.round-label \"Round 1\"",
+        "px": 11.2,
+        "sample": "Round 1"
+      },
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
+        "px": 9.9,
+        "sample": "\ud83c\udfc0 All Years"
+      },
+      {
+        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
+        "px": 11.2,
+        "sample": "Your Pick"
+      },
+      {
+        "el": "span.slot-tag \"PG\"",
+        "px": 11.5,
+        "sample": "PG"
+      },
+      {
+        "el": "span.slot-tag \"SG\"",
+        "px": 11.5,
+        "sample": "SG"
+      },
+      {
+        "el": "span.slot-tag \"SF\"",
+        "px": 11.5,
+        "sample": "SF"
+      },
+      {
+        "el": "span.slot-tag \"PF\"",
+        "px": 11.5,
+        "sample": "PF"
+      },
+      {
+        "el": "span.slot-tag \"6th Man\"",
+        "px": 11.5,
+        "sample": "6th Man"
+      },
+      {
+        "el": "span.pos-chip \"SF\"",
+        "px": 10.9,
+        "sample": "SF"
+      },
+      {
+        "el": "div.player-stats \"25.7 pts \u00b7 5.8 reb \u00b7 3.9\"",
+        "px": 11.5,
+        "sample": "25.7 pts \u00b7 5.8 reb \u00b7 3.9 ast \u00b7"
+      },
+      {
+        "el": "span.player-card-seasons \"2 seasons\"",
+        "px": 11.2,
+        "sample": "2 seasons"
+      },
+      {
+        "el": "span.pos-chip \"PG\"",
+        "px": 10.9,
+        "sample": "PG"
+      }
+    ],
+    "verticalScroll": 230,
+    "notes": []
+  },
+  {
+    "screen": "nba-04-draft-empty",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-04-draft-empty--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 14,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.position-btn \"PG\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"SG\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"SF\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"PF\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"C\"",
+        "w": 42,
+        "h": 33
+      }
+    ],
+    "tinyTextCount": 35,
+    "tinyText": [
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc0 All Years\"",
+        "px": 11.5,
+        "sample": "\ud83c\udfc0 All Years"
+      },
+      {
+        "el": "span.slot-tag \"PG\"",
+        "px": 11.5,
+        "sample": "PG"
+      },
+      {
+        "el": "span.slot-tag \"SG\"",
+        "px": 11.5,
+        "sample": "SG"
+      },
+      {
+        "el": "span.slot-tag \"SF\"",
+        "px": 11.5,
+        "sample": "SF"
+      },
+      {
+        "el": "span.slot-tag \"PF\"",
+        "px": 11.5,
+        "sample": "PF"
+      },
+      {
+        "el": "span.slot-tag \"6th Man\"",
+        "px": 11.5,
+        "sample": "6th Man"
+      },
+      {
+        "el": "span.pos-chip \"SF\"",
+        "px": 10.9,
+        "sample": "SF"
+      },
+      {
+        "el": "div.player-stats \"25.7 pts \u00b7 5.8 reb \u00b7 3.9\"",
+        "px": 11.5,
+        "sample": "25.7 pts \u00b7 5.8 reb \u00b7 3.9 ast \u00b7"
+      },
+      {
+        "el": "span.player-card-seasons \"2 seasons\"",
+        "px": 11.2,
+        "sample": "2 seasons"
+      },
+      {
+        "el": "span.pos-chip \"PG\"",
+        "px": 10.9,
+        "sample": "PG"
+      },
+      {
+        "el": "div.player-stats \"20.2 pts \u00b7 4.1 reb \u00b7 8.8\"",
+        "px": 11.5,
+        "sample": "20.2 pts \u00b7 4.1 reb \u00b7 8.8 ast \u00b7"
+      },
+      {
+        "el": "span.player-card-seasons \"3 seasons\"",
+        "px": 11.2,
+        "sample": "3 seasons"
+      }
+    ],
+    "verticalScroll": 633,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-profile",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-profile--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 28,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 12,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1297,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-profile",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-profile--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 28,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 12,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1253,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-profile",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-profile--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 22,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 7,
+    "tinyText": [
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1170,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-profile",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-profile--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 28,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 7,
+    "tinyText": [
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1281,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-badges",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-badges--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 26,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      }
+    ],
+    "verticalScroll": 2800,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-badges",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-badges--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 26,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      }
+    ],
+    "verticalScroll": 2706,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-badges",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-badges--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"\ud83c\udfc8 NFL\"",
+        "w": 74,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 21,
+    "tinyText": [
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
+        "px": 11.5,
+        "sample": "0 / 200 rebounds to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 45 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 5 picks to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 12 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 100 stops to Bronze"
+      }
+    ],
+    "verticalScroll": 2624,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-badges",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-badges--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 15,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 21,
+    "tinyText": [
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
+        "px": 11.5,
+        "sample": "0 / 200 rebounds to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 45 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 5 picks to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 12 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 100 stops to Bronze"
+      }
+    ],
+    "verticalScroll": 1509,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-squads",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-squads--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 12,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 291,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-squads",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-squads--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 12,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 321,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-squads",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-squads--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 6,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 361,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nba-07-squads",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nba-07-squads--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 14,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 762,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 87,
+    "notes": []
+  },
+  {
+    "screen": "nfl-02-hub",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-02-hub--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 127,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 144,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 144,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 144,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 8,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-02-hub",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-02-hub--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 157,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 159,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 159,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 159,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 8,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-02-hub",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-02-hub--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 197,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 179,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 179,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 179,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 179,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 3,
+    "tinyText": [
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-02-hub",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-02-hub--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button#btn-customize-profile.sport-card-action \"\ud83c\udfa8 Customize\"",
+        "w": 113,
+        "h": 31
+      },
+      {
+        "el": "button#btn-overall-ladder.sport-card-action \"\ud83c\udfc5 Overall Rank\"",
+        "w": 126,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 81,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83d\udcd6 How to Play\"",
+        "w": 121,
+        "h": 31
+      },
+      {
+        "el": "button.sport-card-action \"\ud83c\udfc6 Rank\"",
+        "w": 81,
+        "h": 31
+      }
+    ],
+    "tinyTextCount": 3,
+    "tinyText": [
+      {
+        "el": "span#home-joined.pb-joined \"Est. 01/2026\"",
+        "px": 10.9,
+        "sample": "Est. 01/2026"
+      },
+      {
+        "el": "span.pb-stat-label \"Rep\"",
+        "px": 10.6,
+        "sample": "Rep"
+      },
+      {
+        "el": "span.pb-stat-label \"Rank\"",
+        "px": 10.6,
+        "sample": "Rank"
+      }
+    ],
+    "verticalScroll": 295,
+    "notes": []
+  },
+  {
+    "screen": "nfl-03-play",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-03-play--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 36
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-03-play",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-03-play--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 36
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-03-play",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-03-play--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 2,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 36
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-03-play",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-03-play--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button#btn-play-back.btn.btn-secondary \"\u2190 Home\"",
+        "w": 75,
+        "h": 27
+      },
+      {
+        "el": "button.era-chip.active \"\ud83c\udfc8All Years\"",
+        "w": 111,
+        "h": 32
+      },
+      {
+        "el": "button.era-chip \"\ud83d\udcfc2000s\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button.era-chip \"\ud83d\udcf12010s\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button.era-chip \"\ud83d\ude802020s\"",
+        "w": 91,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 256,
+    "notes": []
+  },
+  {
+    "screen": "nfl-04-draft-empty",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-04-draft-empty--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "input#pool-search",
+        "w": 299,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 70,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#draft-round-label.round-label \"Round 1\"",
+        "px": 11.2,
+        "sample": "Round 1"
+      },
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
+        "px": 9.9,
+        "sample": "\ud83c\udfc8 All Years"
+      },
+      {
+        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
+        "px": 11.2,
+        "sample": "Your Pick"
+      },
+      {
+        "el": "span.slot-tag \"QB\"",
+        "px": 11.5,
+        "sample": "QB"
+      },
+      {
+        "el": "span.slot-tag \"RB\"",
+        "px": 11.5,
+        "sample": "RB"
+      },
+      {
+        "el": "span.slot-tag \"WR\"",
+        "px": 11.5,
+        "sample": "WR"
+      },
+      {
+        "el": "span.slot-tag \"TE\"",
+        "px": 11.5,
+        "sample": "TE"
+      }
+    ],
+    "verticalScroll": 291,
+    "notes": []
+  },
+  {
+    "screen": "nfl-04-draft-empty",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-04-draft-empty--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 8,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "input#pool-search",
+        "w": 329,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 70,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span#draft-round-label.round-label \"Round 1\"",
+        "px": 11.2,
+        "sample": "Round 1"
+      },
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
+        "px": 9.9,
+        "sample": "\ud83c\udfc8 All Years"
+      },
+      {
+        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
+        "px": 11.2,
+        "sample": "Your Pick"
+      },
+      {
+        "el": "span.slot-tag \"QB\"",
+        "px": 11.5,
+        "sample": "QB"
+      },
+      {
+        "el": "span.slot-tag \"RB\"",
+        "px": 11.5,
+        "sample": "RB"
+      },
+      {
+        "el": "span.slot-tag \"WR\"",
+        "px": 11.5,
+        "sample": "WR"
+      },
+      {
+        "el": "span.slot-tag \"TE\"",
+        "px": 11.5,
+        "sample": "TE"
+      }
+    ],
+    "verticalScroll": 260,
+    "notes": []
+  },
+  {
+    "screen": "nfl-04-draft-empty",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-04-draft-empty--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 2,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "input#pool-search",
+        "w": 369,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 65,
+    "tinyText": [
+      {
+        "el": "span#draft-round-label.round-label \"Round 1\"",
+        "px": 11.2,
+        "sample": "Round 1"
+      },
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
+        "px": 9.9,
+        "sample": "\ud83c\udfc8 All Years"
+      },
+      {
+        "el": "span#draft-turn-banner.turn-banner \"Your Pick\"",
+        "px": 11.2,
+        "sample": "Your Pick"
+      },
+      {
+        "el": "span.slot-tag \"QB\"",
+        "px": 11.5,
+        "sample": "QB"
+      },
+      {
+        "el": "span.slot-tag \"RB\"",
+        "px": 11.5,
+        "sample": "RB"
+      },
+      {
+        "el": "span.slot-tag \"WR\"",
+        "px": 11.5,
+        "sample": "WR"
+      },
+      {
+        "el": "span.slot-tag \"TE\"",
+        "px": 11.5,
+        "sample": "TE"
+      },
+      {
+        "el": "span.slot-tag \"OL\"",
+        "px": 11.5,
+        "sample": "OL"
+      },
+      {
+        "el": "span.slot-tag \"DEF\"",
+        "px": 11.5,
+        "sample": "DEF"
+      },
+      {
+        "el": "span.pos-chip \"QB\"",
+        "px": 10.9,
+        "sample": "QB"
+      },
+      {
+        "el": "div.player-stats \"313 pass yds \u00b7 2.5 TD \u00b7 \"",
+        "px": 11.5,
+        "sample": "313 pass yds \u00b7 2.5 TD \u00b7 0.7 IN"
+      },
+      {
+        "el": "span.player-card-seasons \"3 seasons\"",
+        "px": 11.2,
+        "sample": "3 seasons"
+      }
+    ],
+    "verticalScroll": 230,
+    "notes": []
+  },
+  {
+    "screen": "nfl-04-draft-empty",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-04-draft-empty--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 14,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.position-btn \"QB\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"RB\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"WR\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"TE\"",
+        "w": 50,
+        "h": 33
+      },
+      {
+        "el": "button.position-btn \"OL\"",
+        "w": 50,
+        "h": 33
+      }
+    ],
+    "tinyTextCount": 63,
+    "tinyText": [
+      {
+        "el": "span#squad-banner-era.squad-banner-era \"\ud83c\udfc8 All Years\"",
+        "px": 11.5,
+        "sample": "\ud83c\udfc8 All Years"
+      },
+      {
+        "el": "span.slot-tag \"QB\"",
+        "px": 11.5,
+        "sample": "QB"
+      },
+      {
+        "el": "span.slot-tag \"RB\"",
+        "px": 11.5,
+        "sample": "RB"
+      },
+      {
+        "el": "span.slot-tag \"WR\"",
+        "px": 11.5,
+        "sample": "WR"
+      },
+      {
+        "el": "span.slot-tag \"TE\"",
+        "px": 11.5,
+        "sample": "TE"
+      },
+      {
+        "el": "span.slot-tag \"OL\"",
+        "px": 11.5,
+        "sample": "OL"
+      },
+      {
+        "el": "span.slot-tag \"DEF\"",
+        "px": 11.5,
+        "sample": "DEF"
+      },
+      {
+        "el": "span.pos-chip \"QB\"",
+        "px": 10.9,
+        "sample": "QB"
+      },
+      {
+        "el": "div.player-stats \"313 pass yds \u00b7 2.5 TD \u00b7 \"",
+        "px": 11.5,
+        "sample": "313 pass yds \u00b7 2.5 TD \u00b7 0.7 IN"
+      },
+      {
+        "el": "span.player-card-seasons \"3 seasons\"",
+        "px": 11.2,
+        "sample": "3 seasons"
+      },
+      {
+        "el": "span.pos-chip \"WR\"",
+        "px": 10.9,
+        "sample": "WR"
+      },
+      {
+        "el": "div.player-stats \"4.9 rec \u00b7 60 yds \u00b7 0.1 T\"",
+        "px": 11.5,
+        "sample": "4.9 rec \u00b7 60 yds \u00b7 0.1 TD"
+      }
+    ],
+    "verticalScroll": 633,
+    "notes": []
+  },
+  {
+    "screen": "nfl-05-game-live",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-05-game-live--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      }
+    ],
+    "tinyTextCount": 40,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      },
+      {
+        "el": "span.ff-yardnum \"30\"",
+        "px": 8,
+        "sample": "30"
+      },
+      {
+        "el": "span.ff-yardnum \"40\"",
+        "px": 8,
+        "sample": "40"
+      },
+      {
+        "el": "span.ff-yardnum \"50\"",
+        "px": 8,
+        "sample": "50"
+      },
+      {
+        "el": "span \"Bot\"",
+        "px": 8.8,
+        "sample": "Bot"
+      }
+    ],
+    "verticalScroll": 1094,
+    "notes": []
+  },
+  {
+    "screen": "nfl-05-game-live",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-05-game-live--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      }
+    ],
+    "tinyTextCount": 40,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      },
+      {
+        "el": "span.ff-yardnum \"30\"",
+        "px": 8,
+        "sample": "30"
+      },
+      {
+        "el": "span.ff-yardnum \"40\"",
+        "px": 8,
+        "sample": "40"
+      },
+      {
+        "el": "span.ff-yardnum \"50\"",
+        "px": 8,
+        "sample": "50"
+      },
+      {
+        "el": "span \"Bot\"",
+        "px": 8.8,
+        "sample": "Bot"
+      }
+    ],
+    "verticalScroll": 1023,
+    "notes": []
+  },
+  {
+    "screen": "nfl-05-game-live",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-05-game-live--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 1,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 36,
+    "tinyText": [
+      {
+        "el": "span.ff-downdist \"2nd & 7 \u00b7 SelfTest\"",
+        "px": 11.5,
+        "sample": "2nd & 7 \u00b7 SelfTest"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      },
+      {
+        "el": "span.ff-yardnum \"30\"",
+        "px": 8,
+        "sample": "30"
+      },
+      {
+        "el": "span.ff-yardnum \"40\"",
+        "px": 8,
+        "sample": "40"
+      },
+      {
+        "el": "span.ff-yardnum \"50\"",
+        "px": 8,
+        "sample": "50"
+      },
+      {
+        "el": "span \"Bot\"",
+        "px": 8.8,
+        "sample": "Bot"
+      },
+      {
+        "el": "div.box-group-label \"Offense\"",
+        "px": 11.5,
+        "sample": "Offense"
+      },
+      {
+        "el": "th \"Slot\"",
+        "px": 11.2,
+        "sample": "Slot"
+      },
+      {
+        "el": "th \"Player\"",
+        "px": 11.2,
+        "sample": "Player"
+      },
+      {
+        "el": "th \"TOT YDS\"",
+        "px": 11.2,
+        "sample": "TOT YDS"
+      }
+    ],
+    "verticalScroll": 956,
+    "notes": []
+  },
+  {
+    "screen": "nfl-05-game-live",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-05-game-live--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 35,
+    "tinyText": [
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      },
+      {
+        "el": "span.ff-yardnum \"30\"",
+        "px": 8,
+        "sample": "30"
+      },
+      {
+        "el": "span.ff-yardnum \"40\"",
+        "px": 8,
+        "sample": "40"
+      },
+      {
+        "el": "span.ff-yardnum \"50\"",
+        "px": 8,
+        "sample": "50"
+      },
+      {
+        "el": "span \"Bot\"",
+        "px": 8.8,
+        "sample": "Bot"
+      },
+      {
+        "el": "div.box-group-label \"Offense\"",
+        "px": 11.5,
+        "sample": "Offense"
+      },
+      {
+        "el": "th \"Slot\"",
+        "px": 11.2,
+        "sample": "Slot"
+      },
+      {
+        "el": "th \"Player\"",
+        "px": 11.2,
+        "sample": "Player"
+      },
+      {
+        "el": "th \"TOT YDS\"",
+        "px": 11.2,
+        "sample": "TOT YDS"
+      },
+      {
+        "el": "th \"COMP\"",
+        "px": 11.2,
+        "sample": "COMP"
+      }
+    ],
+    "verticalScroll": 1198,
+    "notes": []
+  },
+  {
+    "screen": "nfl-06-game-final",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-06-game-final--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      }
+    ],
+    "tinyTextCount": 44,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "th \"Q1\"",
+        "px": 11.2,
+        "sample": "Q1"
+      },
+      {
+        "el": "th \"Q2\"",
+        "px": 11.2,
+        "sample": "Q2"
+      },
+      {
+        "el": "th \"Q3\"",
+        "px": 11.2,
+        "sample": "Q3"
+      },
+      {
+        "el": "th \"Q4\"",
+        "px": 11.2,
+        "sample": "Q4"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      }
+    ],
+    "verticalScroll": 1572,
+    "notes": []
+  },
+  {
+    "screen": "nfl-06-game-final",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-06-game-final--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      }
+    ],
+    "tinyTextCount": 44,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "th \"Q1\"",
+        "px": 11.2,
+        "sample": "Q1"
+      },
+      {
+        "el": "th \"Q2\"",
+        "px": 11.2,
+        "sample": "Q2"
+      },
+      {
+        "el": "th \"Q3\"",
+        "px": 11.2,
+        "sample": "Q3"
+      },
+      {
+        "el": "th \"Q4\"",
+        "px": 11.2,
+        "sample": "Q4"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      }
+    ],
+    "verticalScroll": 1486,
+    "notes": []
+  },
+  {
+    "screen": "nfl-06-game-final",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-06-game-final--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 1,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      }
+    ],
+    "tinyTextCount": 39,
+    "tinyText": [
+      {
+        "el": "th \"Q1\"",
+        "px": 11.2,
+        "sample": "Q1"
+      },
+      {
+        "el": "th \"Q2\"",
+        "px": 11.2,
+        "sample": "Q2"
+      },
+      {
+        "el": "th \"Q3\"",
+        "px": 11.2,
+        "sample": "Q3"
+      },
+      {
+        "el": "th \"Q4\"",
+        "px": 11.2,
+        "sample": "Q4"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      },
+      {
+        "el": "span.ff-yardnum \"30\"",
+        "px": 8,
+        "sample": "30"
+      },
+      {
+        "el": "span.ff-yardnum \"40\"",
+        "px": 8,
+        "sample": "40"
+      },
+      {
+        "el": "span.ff-yardnum \"50\"",
+        "px": 8,
+        "sample": "50"
+      },
+      {
+        "el": "span \"Bot\"",
+        "px": 8.8,
+        "sample": "Bot"
+      },
+      {
+        "el": "div.box-group-label \"Offense\"",
+        "px": 11.5,
+        "sample": "Offense"
+      }
+    ],
+    "verticalScroll": 1404,
+    "notes": []
+  },
+  {
+    "screen": "nfl-06-game-final",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-06-game-final--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 10,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab.active \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button#btn-to-profile.btn.btn-secondary \"View Profile\"",
+        "w": 397,
+        "h": 40
+      },
+      {
+        "el": "button#btn-play-again.btn.btn-primary \"Play Again\"",
+        "w": 395,
+        "h": 40
+      },
+      {
+        "el": "button#btn-game-home.btn.btn-secondary \"Return to Home\"",
+        "w": 804,
+        "h": 40
+      }
+    ],
+    "tinyTextCount": 39,
+    "tinyText": [
+      {
+        "el": "th \"Q1\"",
+        "px": 11.2,
+        "sample": "Q1"
+      },
+      {
+        "el": "th \"Q2\"",
+        "px": 11.2,
+        "sample": "Q2"
+      },
+      {
+        "el": "th \"Q3\"",
+        "px": 11.2,
+        "sample": "Q3"
+      },
+      {
+        "el": "th \"Q4\"",
+        "px": 11.2,
+        "sample": "Q4"
+      },
+      {
+        "el": "span \"SelfTest\"",
+        "px": 8.8,
+        "sample": "SelfTest"
+      },
+      {
+        "el": "span.ff-yardnum \"10\"",
+        "px": 8,
+        "sample": "10"
+      },
+      {
+        "el": "span.ff-yardnum \"20\"",
+        "px": 8,
+        "sample": "20"
+      },
+      {
+        "el": "span.ff-yardnum \"30\"",
+        "px": 8,
+        "sample": "30"
+      },
+      {
+        "el": "span.ff-yardnum \"40\"",
+        "px": 8,
+        "sample": "40"
+      },
+      {
+        "el": "span.ff-yardnum \"50\"",
+        "px": 8,
+        "sample": "50"
+      },
+      {
+        "el": "span \"Bot\"",
+        "px": 8.8,
+        "sample": "Bot"
+      },
+      {
+        "el": "div.box-group-label \"Offense\"",
+        "px": 11.5,
+        "sample": "Offense"
+      }
+    ],
+    "verticalScroll": 1513,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-profile",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-profile--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 28,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 12,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1297,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-profile",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-profile--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 28,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 12,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1253,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-profile",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-profile--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 22,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 7,
+    "tinyText": [
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1170,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-profile",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-profile--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 28,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab.active \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.kit-swatch.kit-swatch-on",
+        "w": 38,
+        "h": 38
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      },
+      {
+        "el": "button.kit-swatch",
+        "w": 34,
+        "h": 34
+      }
+    ],
+    "tinyTextCount": 7,
+    "tinyText": [
+      {
+        "el": "span.era-record-label \"Online\"",
+        "px": 11.5,
+        "sample": "Online"
+      },
+      {
+        "el": "span.era-record-rank \"Provisional\"",
+        "px": 11.5,
+        "sample": "Provisional"
+      },
+      {
+        "el": "span.era-record-label \"Offline\"",
+        "px": 11.5,
+        "sample": "Offline"
+      },
+      {
+        "el": "th \"Date\"",
+        "px": 11.2,
+        "sample": "Date"
+      },
+      {
+        "el": "th \"Result\"",
+        "px": 11.2,
+        "sample": "Result"
+      },
+      {
+        "el": "th \"Score\"",
+        "px": 11.2,
+        "sample": "Score"
+      },
+      {
+        "el": "th \"MVP\"",
+        "px": 11.2,
+        "sample": "MVP"
+      }
+    ],
+    "verticalScroll": 1281,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-badges",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-badges--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 26,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      }
+    ],
+    "verticalScroll": 2800,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-badges",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-badges--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 13,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 26,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      },
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      }
+    ],
+    "verticalScroll": 2706,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-badges",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-badges--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 7,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"\ud83c\udfc8 NFL\"",
+        "w": 74,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 21,
+    "tinyText": [
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
+        "px": 11.5,
+        "sample": "0 / 200 rebounds to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 45 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 5 picks to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 12 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 100 stops to Bronze"
+      }
+    ],
+    "verticalScroll": 2624,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-badges",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-badges--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 15,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab.active \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.subtab.active \"Badges\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Banners\"",
+        "w": 80,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Icons\"",
+        "w": 63,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Team Color\"",
+        "w": 99,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"\ud83c\udfc0 NBA\"",
+        "w": 76,
+        "h": 30
+      }
+    ],
+    "tinyTextCount": 21,
+    "tinyText": [
+      {
+        "el": "div.badge-progress \"3 / 10 wins to Silver\"",
+        "px": 11.5,
+        "sample": "3 / 10 wins to Silver"
+      },
+      {
+        "el": "button.btn.btn-secondary \"Feature\"",
+        "px": 11.2,
+        "sample": "Feature"
+      },
+      {
+        "el": "div.badge-progress \"5 / 25 games to Silver\"",
+        "px": 11.5,
+        "sample": "5 / 25 games to Silver"
+      },
+      {
+        "el": "div.badge-progress \"0 / 500 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 500 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 50 % wins to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 50 % wins to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 assists to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 100 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 150 players to Bronz\"",
+        "px": 11.5,
+        "sample": "0 / 150 players to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 200 rebounds to Bron\"",
+        "px": 11.5,
+        "sample": "0 / 200 rebounds to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 45 points to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 45 points to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 5 picks to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 5 picks to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 12 assists to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 12 assists to Bronze"
+      },
+      {
+        "el": "div.badge-progress \"0 / 100 stops to Bronze\"",
+        "px": 11.5,
+        "sample": "0 / 100 stops to Bronze"
+      }
+    ],
+    "verticalScroll": 1509,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-squads",
+    "phone": "android-360",
+    "width": 360,
+    "height": 800,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-squads--android-360.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 12,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 333,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 40,
+        "h": 40
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 291,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-squads",
+    "phone": "iphone-390",
+    "width": 390,
+    "height": 844,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-squads--iphone-390.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 12,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 363,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 56,
+        "h": 40
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 65,
+        "h": 40
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "w": 55,
+        "h": 40
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 66,
+        "h": 40
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 50,
+        "h": 40
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 321,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 5,
+    "tinyText": [
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "px": 11.2,
+        "sample": "Play"
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "px": 11.2,
+        "sample": "Profile"
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "px": 11.2,
+        "sample": "Rewards"
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "px": 11.2,
+        "sample": "Squads"
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "px": 11.2,
+        "sample": "Sign Out"
+      }
+    ],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-squads",
+    "phone": "iphone-max-430",
+    "width": 430,
+    "height": 932,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-squads--iphone-max-430.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 6,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 403,
+        "h": 32
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 361,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 0,
+    "notes": []
+  },
+  {
+    "screen": "nfl-07-squads",
+    "phone": "landscape-844",
+    "width": 844,
+    "height": 390,
+    "shot": "verify-artifacts/mobile-baseline/2026-09-02/nfl-07-squads--landscape-844.png",
+    "overlaps": 0,
+    "escaping": 0,
+    "hOverflowPx": 0,
+    "worstLayout": [],
+    "smallTargetCount": 14,
+    "smallTargets": [
+      {
+        "el": "button#btn-brand.brand \"Draft Nova\"",
+        "w": 197,
+        "h": 32
+      },
+      {
+        "el": "button#nav-play.nav-tab \"Play\"",
+        "w": 67,
+        "h": 32
+      },
+      {
+        "el": "button#nav-profile.nav-tab \"Profile\"",
+        "w": 93,
+        "h": 32
+      },
+      {
+        "el": "button#nav-badges.nav-tab \"Rewards\"",
+        "w": 103,
+        "h": 32
+      },
+      {
+        "el": "button#nav-squads.nav-tab.active \"Squads\"",
+        "w": 91,
+        "h": 32
+      },
+      {
+        "el": "button#nav-sound.nav-tab.nav-tab-icon \"\ud83d\udd0a Sound on\"",
+        "w": 42,
+        "h": 32
+      },
+      {
+        "el": "button#nav-signout.nav-tab.nav-tab-danger \"Sign Out\"",
+        "w": 100,
+        "h": 32
+      },
+      {
+        "el": "button.subtab \"Friends\"",
+        "w": 75,
+        "h": 30
+      },
+      {
+        "el": "button.subtab.active \"Home\"",
+        "w": 65,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Chat\"",
+        "w": 58,
+        "h": 30
+      },
+      {
+        "el": "button.subtab \"Tournaments\"",
+        "w": 109,
+        "h": 30
+      },
+      {
+        "el": "input#input-squad-search",
+        "w": 762,
+        "h": 38
+      }
+    ],
+    "tinyTextCount": 0,
+    "tinyText": [],
+    "verticalScroll": 87,
+    "notes": []
+  }
+]

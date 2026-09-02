@@ -165,12 +165,14 @@ export const NFL = {
   // find out whether a football sim feels like football is to let people play
   // it, and NFL ELO can be reset once the calibrators have run.
   live: true,
-  // Selectable without being playable: you can switch the whole app to NFL and
-  // see its dashboard, eras, labels and branding, which is what building those
-  // screens requires. Start Draft stays disabled - see isSelectable() in
-  // js/sports/index.js for why this is a second flag rather than loosening
-  // `live`, which everything that touches an engine still reads.
-  preview: true,
+  // No `preview` flag: it existed to open NFL's screens while its engine was
+  // half-built, and `live` has subsumed it since - isSelectable() reads
+  // `live || preview`, so declaring both said nothing. The flag itself stays
+  // in js/sports/index.js because it is how sport number three gets its
+  // screens looked at before it can be played.
+  //
+  // `status` is what a card shows INSTEAD of a rank, so a live sport's is only
+  // read before the first ranked game.
   status: "In development",
 
   // Football blue - the app's original palette, kept here because it suits
@@ -479,22 +481,47 @@ export const NFL = {
   // outscored him. Shared code falls back to orderedRosterSlots when this is
   // null, which for football is LINEUP_ORDER.
   sortBoxBy: null,
-  cardStatLine: (p) => {
+  /** Pairs, not a joined string - see the NBA module for why. A pair with an
+   * empty label is a LEAD: shared code gives it the full width of the card
+   * rather than a column, which is what the unit member names need. */
+  cardStats: (p) => {
     const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
     if (p.group) {
-      // Lead the line with a name you know. "Cornerbacks" is a slot; "Sherman,
+      // Lead with a name you know. "Cornerbacks" is a slot; "Sherman,
       // Maxwell" is the pick - and since any member's name claims the unit,
       // showing them is also showing what you are allowed to type.
       const known = (p.members || []).slice(0, 2).map((m) => m.name).join(", ");
-      const depth = known ? `${known} · ${p.depth} deep` : `${p.depth} deep`;
-      if (p.group === "ST") return `${depth} · ${n(100 * (p.fg_pct || 0), 0)}% FG · ${n(p.fg_att)} att`;
-      if (p.group === "OL") return `${depth} · ${n(p.sacks_allowed)} sk allowed · ${n(p.ypc)} ypc`;
-      return `${depth} · ${n(p.tackles)} tkl · ${n(p.sacks)} sk · ${n(p.ints, 2)} int`;
+      const head = known ? [{ value: known, label: "" }] : [];
+      const depth = { value: p.depth, label: "deep" };
+      if (p.group === "ST") {
+        return [...head, depth,
+          { value: `${n(100 * (p.fg_pct || 0), 0)}%`, label: "FG" },
+          { value: n(p.fg_att), label: "att" }];
+      }
+      if (p.group === "OL") {
+        return [...head, depth,
+          { value: n(p.sacks_allowed), label: "sk allowed" },
+          { value: n(p.ypc), label: "ypc" }];
+      }
+      return [...head, depth,
+        { value: n(p.tackles), label: "tkl" },
+        { value: n(p.sacks), label: "sk" },
+        { value: n(p.ints, 2), label: "int" }];
     }
     const pos = (p.pos || [])[0];
-    if (pos === "QB") return `${n(p.pass_yds, 0)} pass yds · ${n(p.pass_td, 1)} TD · ${n(p.ints, 1)} INT`;
-    if (pos === "RB") return `${n(p.rush_yds, 0)} rush yds · ${n(p.rush_td)} TD · ${n(p.rec)} rec`;
-    return `${n(p.rec)} rec · ${n(p.rec_yds, 0)} yds · ${n(p.rec_td)} TD`;
+    if (pos === "QB") {
+      return [{ value: n(p.pass_yds, 0), label: "pass yds" },
+              { value: n(p.pass_td, 1), label: "TD" },
+              { value: n(p.ints, 1), label: "INT" }];
+    }
+    if (pos === "RB") {
+      return [{ value: n(p.rush_yds, 0), label: "rush yds" },
+              { value: n(p.rush_td), label: "TD" },
+              { value: n(p.rec), label: "rec" }];
+    }
+    return [{ value: n(p.rec), label: "rec" },
+            { value: n(p.rec_yds, 0), label: "yds" },
+            { value: n(p.rec_td), label: "TD" }];
   },
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),

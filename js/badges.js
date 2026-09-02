@@ -8,7 +8,7 @@ import { statsKey } from "./sports/index.js";
 // (each sport's `tiers`). That means the catalog can be re-tuned or extended
 // freely without a migration or any risk of stranding someone's saved progress.
 //
-// Badges are scoped by sport so the tab can grow with NFL/NHL/soccer later.
+// Badges are scoped by sport so the tab can grow as sports are added.
 
 export const BADGE_TIERS = [
   { name: "Bronze", icon: "🥉" },

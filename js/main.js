@@ -112,6 +112,8 @@ import {
   accumulatePeriodStats,
   liveStatKeys,
   formatMvpStatLine,
+  statPairs,
+  statLine,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -616,9 +618,11 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
     // "undefined pts · undefined reb · undefined ast" on every football season,
     // which is the same bug the draft board had - fixed there, missed here,
     // because the year picker is a separate render path.
-    const line = sport().cardStatLine;
+    // A row is one line by design, so this one wants the string form - built
+    // from the same pairs the draft card renders as a grid, not authored a
+    // second time.
     row.querySelector(".season-line").textContent = showStats
-      ? `${typeof line === "function" ? line(s) : ""} · ${s.games} games`
+      ? statLine([...statPairs(s), { value: s.games, label: "games" }])
       : "";
 
     const placeable = !placement || eligibleOpenSlots(s, placement.roster, placement.slots).length > 0;

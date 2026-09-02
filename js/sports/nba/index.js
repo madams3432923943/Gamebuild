@@ -278,8 +278,19 @@ export const NBA = {
    * (public.players); football does not, which is why football declares this
    * false rather than offering a button that fails. */
   onlineReady: true,
-  cardStatLine: (p) =>
-    `${p.ppg} pts · ${p.rpg} reb · ${p.apg} ast · ${p.spg} stl · ${p.bpg} blk`,
+  /** Pairs, not a joined string. A "25.7 pts · 5.8 reb · ..." line trusted
+   * to wrap politely broke between a value and its label on every card at
+   * phone width - "1.3" ending one line and "stl" starting the next. Shared
+   * code renders these as a grid where a pair cannot be split; statLine()
+   * in js/ui.js joins them back into a string wherever one is still what is
+   * wanted. */
+  cardStats: (p) => [
+    { value: p.ppg, label: "pts" },
+    { value: p.rpg, label: "reb" },
+    { value: p.apg, label: "ast" },
+    { value: p.spg, label: "stl" },
+    { value: p.bpg, label: "blk" },
+  ],
   basePosition,
   isBenchSlot,
   orderedRosterSlots,

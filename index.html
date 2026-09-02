@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <!-- Content Security Policy: the cap on what any future XSS could do.
        Every piece of user text this app renders is escaped or set as
@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=6a06fb6" />
+  <link rel="stylesheet" href="css/style.css?v=e9689f6" />
 </head>
 <body>
   <header class="top-nav">
@@ -101,20 +101,44 @@
       <img class="brand-mark" src="assets/brand/draft-nova-icon.png" alt="" />
       <span class="brand-word">Draft Nova</span>
     </button>
+    <!-- Split into DESTINATIONS and UTILITIES, because on a phone they go to
+         different places. The four destinations become a fixed bottom bar in
+         the thumb zone; sound and sign-out stay up here in the header.
+
+         Sign Out especially: it throws away your session, and a destructive
+         action does not belong in a row of navigation targets a thumb sweeps
+         across without looking. The ids are unchanged, so shell.js's
+         NAV_TABS and every listener in main.js still find their buttons. -->
     <nav class="nav-tabs" id="nav-tabs" hidden>
-      <button class="nav-tab active" id="nav-play" type="button">Play</button>
-      <button class="nav-tab" id="nav-profile" type="button">Profile</button>
-      <button class="nav-tab" id="nav-badges" type="button">Rewards</button>
-      <button class="nav-tab" id="nav-squads" type="button">Squads</button>
-      <!-- Sound is off-or-on for the whole app and the choice is remembered.
-           aria-pressed rather than a label that changes meaning: a button
-           reading "Sound" that is sometimes a state and sometimes a command is
-           ambiguous to a screen reader and to everyone else. -->
-      <button class="nav-tab nav-tab-icon" id="nav-sound" type="button" aria-pressed="true" title="Sound">
-        <span aria-hidden="true" id="nav-sound-icon">&#128266;</span>
-        <span class="sr-only" id="nav-sound-label">Sound on</span>
-      </button>
-      <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
+      <div class="nav-primary" id="nav-primary">
+        <button class="nav-tab active" id="nav-play" type="button">
+          <span class="nav-tab-glyph" aria-hidden="true">&#127918;</span>
+          <span class="nav-tab-word">Play</span>
+        </button>
+        <button class="nav-tab" id="nav-profile" type="button">
+          <span class="nav-tab-glyph" aria-hidden="true">&#128100;</span>
+          <span class="nav-tab-word">Profile</span>
+        </button>
+        <button class="nav-tab" id="nav-badges" type="button">
+          <span class="nav-tab-glyph" aria-hidden="true">&#127941;</span>
+          <span class="nav-tab-word">Rewards</span>
+        </button>
+        <button class="nav-tab" id="nav-squads" type="button">
+          <span class="nav-tab-glyph" aria-hidden="true">&#128101;</span>
+          <span class="nav-tab-word">Squads</span>
+        </button>
+      </div>
+      <div class="nav-utility">
+        <!-- Sound is off-or-on for the whole app and the choice is remembered.
+             aria-pressed rather than a label that changes meaning: a button
+             reading "Sound" that is sometimes a state and sometimes a command is
+             ambiguous to a screen reader and to everyone else. -->
+        <button class="nav-tab nav-tab-icon" id="nav-sound" type="button" aria-pressed="true" title="Sound">
+          <span aria-hidden="true" id="nav-sound-icon">&#128266;</span>
+          <span class="sr-only" id="nav-sound-label">Sound on</span>
+        </button>
+        <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
+      </div>
     </nav>
   </header>
 
@@ -719,6 +743,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=6a06fb6"></script>
+  <script type="module" src="js/main.js?v=e9689f6"></script>
 </body>
 </html>

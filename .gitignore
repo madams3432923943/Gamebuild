@@ -33,3 +33,11 @@ tools/banner-source/
 # one command and generated fresh inside the workflow that applies it, so the
 # file and the dataset can never disagree.
 db/seed/nfl-seed.sql
+
+# Spot checks from `npm run baseline:mobile --screens=...`. A partial run is
+# for the loop you are in right now - change a rule, re-measure three screens,
+# look. It is not a baseline, it cannot be compared against one, and putting
+# one in the record next to a real baseline is how a number that only moved
+# because fewer things were measured gets read as progress.
+docs/audits/*-mobile-baseline/*-partial.md
+docs/audits/*-mobile-baseline/*-partial.json

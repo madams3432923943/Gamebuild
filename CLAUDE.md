@@ -35,8 +35,12 @@ opening `index.html` from disk will not work.
   render functions. "Never duplicate components" applies to it directly.
 - The **only backend** is Supabase: Postgres plus one Edge Function
   (`simulate-match`). "API layer" means that function and the Postgres RPCs.
-- **Two sports are live** (NBA, NFL). NHL and Soccer are declared and gated off.
-  MLB and college sports do not exist.
+- **Two sports exist: NBA and NFL**, and both are live. NHL and Soccer were
+  announced tiles with no dataset, engine or ruleset and have been removed;
+  MLB and college sports never existed. The `preview` flag and the
+  `.sport-card.locked` state in `js/sports/index.js` are unused today and are
+  kept deliberately: they are how sport number three gets its screens looked
+  at before it can be played.
 
 Where a Constitution rule cannot yet be honoured, say so in the Engineering
 Report rather than pretending it was.
