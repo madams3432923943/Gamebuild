@@ -4203,6 +4203,16 @@ async function renderProfileFor(profile) {
     const fresh = await loadProfile();
     currentProfile = fresh;
     await renderProfileFor(fresh);
+    // The kit is not a profile-screen setting. game.myKit and the app-wide
+    // --my-kit-ink / --my-kit-trim are set by refreshHome(), and until this
+    // ran your colour on the board, your end zone and the possession marker
+    // all stayed on the old one until you happened to navigate Home.
+    //
+    // This screen used to get away with not calling it because the Customize
+    // modal's own kit shelf did, through afterCustomize(). That shelf is gone,
+    // so this is the only route a kit is chosen by, and it has to finish the
+    // job.
+    await refreshHome();
   });
   renderBadgeSportTabs(profileStatsTabsEl, profileStatsSportId, (id) => {
     profileStatsSportId = id;

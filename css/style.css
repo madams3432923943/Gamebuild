@@ -2904,11 +2904,6 @@ table.box-table th, table.history-table th {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.45rem;
   }
-
-  .banner-tile {
-    padding: 0.35rem;
-    gap: 0.25rem;
-  }
 }
 
 .banner-tile {
@@ -2919,6 +2914,17 @@ table.box-table th, table.history-table th {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+/* Tighter at a third of the width. This first went in ABOVE the rule it is
+   overriding, where identical specificity meant source order won and the
+   phone kept the desktop padding - the third time in this pass that an
+   override was written before the thing it overrides. */
+@media (max-width: 560px) {
+  .banner-tile {
+    padding: 0.35rem;
+    gap: 0.25rem;
+  }
 }
 
 /* Locked banners stay readable: you should be able to see which team you're

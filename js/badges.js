@@ -454,7 +454,7 @@ export const BADGES = [
     name: "Encyclopedia",
     sport: "nba",
     icon: "📚",
-    blurb: "Different players drafted",
+    blurb: "Different players drafted (150+)",
     unit: "players",
     value: (p) => Object.keys(p.draftCounts).length,
     thresholds: [150, 400, 800, 1500],
