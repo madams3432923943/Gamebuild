@@ -136,12 +136,16 @@ export const TWO_POINT_CHART_QUARTER = 4;
  *   whiffed WR3 used to cost under 5% of one side of the ball - close enough to
  *   nothing that the back half of an offensive draft carried no stakes.
  *
- * KNOWN ASYMMETRY, ACCEPTED ON PURPOSE. DEFENSE_WEIGHTS.DL is 0.30, the largest
- * single defensive weight, and OL - the thing that answers a pass rush on a real
- * field - is now the smallest offensive one. So a drafted front will feel strong
- * while a drafted line feels close to inert, which is not what football looks
- * like. That is the trade being made for legibility. If OL ever reads as TOO
- * dead, trim DL rather than restoring OL: putting OL back would undo the point.
+ * KNOWN ASYMMETRY, ACCEPTED ON PURPOSE. Every defensive slot is 0.25 while OL -
+ * the thing that answers a pass rush on a real field - is 0.10, the smallest
+ * offensive one. So a drafted front will feel strong while a drafted line feels
+ * close to inert, which is not what football looks like. That is the trade being
+ * made for legibility. If OL ever reads as TOO dead, trim the defensive weights
+ * rather than restoring OL: putting OL back would undo the point.
+ *
+ * The sharper version of the same asymmetry is per PICK, not per slot: these
+ * seven weights share 1.0 and the four defensive ones share 1.0, so a defensive
+ * pick is worth about 1.75x an offensive one. See DEFENSE_WEIGHTS below.
  *
  * AUTHORED, NOT SOLVED - like TALENT_PARITY and the quarter-variance range
  * below. No football calibrator exists; only the two NBA ones do. Anyone
@@ -151,10 +155,31 @@ export const OFFENSE_WEIGHTS = {
   QB: 0.4, WR1: 0.13, RB: 0.125, OL: 0.1, TE: 0.09, WR2: 0.085, WR3: 0.07,
 };
 
-/** Same for the defence. The front seven outweighs the secondary because
- * pressure is what breaks a drive - coverage matters most when the quarterback
- * has time, which is the rush's business. Sums to 1. */
-export const DEFENSE_WEIGHTS = { DL: 0.3, LB: 0.24, CB: 0.26, S: 0.2 };
+/**
+ * Same for the defence: FLAT. Every defensive slot is worth the same. Sums to 1.
+ *
+ * This replaces { DL: 0.30, LB: 0.24, CB: 0.26, S: 0.20 }, whose comment argued
+ * the front seven should outweigh the secondary because pressure is what breaks
+ * a drive. That is a real football opinion, and it is the kind of opinion this
+ * game has no way to earn: unlike the offence, where a quarterback demonstrably
+ * touches the ball on every snap, nothing here measures whether a rush or a
+ * coverage actually decided more drives. The spread was authored, not observed,
+ * and an unearned spread is worse than none - it silently made the DL pick the
+ * most valuable on the board and the safety pick the least, for reasons no
+ * player could see and no calibrator had checked.
+ *
+ * Flat is the honest default until something measures otherwise. It also makes
+ * the defensive half of a draft legible: four picks, equal stakes.
+ *
+ * KNOWN, AND NOT FIXED HERE. Seven offensive slots share a weight of 1.0 and
+ * four defensive slots share a weight of 1.0, so a defensive pick moves a
+ * roster's rating about 1.75x as much as an offensive one (0.25 against 0.143
+ * on average). That is why a roster of famous skill players can lose to one
+ * that quietly won the defensive picks. Flattening redistributes WITHIN the
+ * defence; it does not touch defence's share of the outcome. Changing that is a
+ * separate decision about what the game wants to be.
+ */
+export const DEFENSE_WEIGHTS = { DL: 0.25, LB: 0.25, CB: 0.25, S: 0.25 };
 
 /**
  * Who is allowed to carry the ball on a designed run, as a multiplier on that
