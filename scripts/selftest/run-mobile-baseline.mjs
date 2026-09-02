@@ -142,11 +142,26 @@ async function capture(page, shotDir, screen, phone, notes = []) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await sleep(120);
 
-  const file = path.join(shotDir, `${screen}--${phone.name}.png`);
-  await page.screenshot({ path: file, fullPage: true }).catch(() => {});
-
   const layout = await page.evaluate(LAYOUT_AUDIT).catch(() => null);
   const touch = await page.evaluate(TOUCH_AUDIT).catch(() => null);
+
+  // VIEWPORT, NOT fullPage - and that is a correctness requirement, not a
+  // framing choice.
+  //
+  // page.screenshot({fullPage: true}) permanently resets Chromium's device
+  // emulation on that page: `matchMedia("(pointer: coarse)")` reports true
+  // before the call and false after, and nothing restores it - not
+  // setViewportSize, not a later screenshot. Every reading taken after the
+  // first fullPage shot was therefore taken on a page that had stopped being
+  // a phone. It reported the landscape bottom bar as missing when it was
+  // present and correct, and would have sent the next person to fix CSS that
+  // had nothing wrong with it. A viewport screenshot leaves emulation alone.
+  //
+  // Nothing is lost: `verticalScroll` below already records how far past one
+  // screen each page runs, and what a player can see at once is the more
+  // useful picture for a readability audit anyway.
+  const file = path.join(shotDir, `${screen}--${phone.name}.png`);
+  await page.screenshot({ path: file }).catch(() => {});
 
   return {
     screen,
