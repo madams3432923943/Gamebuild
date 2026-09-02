@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 
 import { chromium, devices } from "playwright";
 
-import { LAYOUT_AUDIT } from "../lib/browser-instrumentation.mjs";
+import { LAYOUT_AUDIT, TOUCH_AUDIT, TAP_TARGET_MIN, MIN_FONT_PX } from "../lib/browser-instrumentation.mjs";
 import { driveDraft, driveStrategyPhases, loadSquadIndex, signIn, sleep } from "../lib/app-driver.mjs";
 import { serveStatic } from "./static-server.mjs";
 
@@ -57,84 +57,6 @@ const PHONES = [
   { name: "iphone-max-430", width: 430, height: 932 },
   { name: "landscape-844", width: 844, height: 390 },
 ];
-
-/** Below this a control is hard to hit with a thumb; both platform guidelines
- * say 44 CSS px. Not a style preference - a miss rate. */
-const TAP_TARGET_MIN = 44;
-
-/** Below this, body copy is not readable at arm's length on a couch. */
-const MIN_FONT_PX = 12;
-
-/**
- * Everything a screen can tell us that a picture cannot, read in one pass.
- *
- * Runs in the page, so it is a string rather than a function - same reason
- * and same shape as LAYOUT_AUDIT in ../lib/browser-instrumentation.mjs.
- */
-const TOUCH_AUDIT = `(() => {
-  const visible = (el) => {
-    const r = el.getBoundingClientRect();
-    if (r.width === 0 || r.height === 0) return false;
-    const cs = getComputedStyle(el);
-    if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false;
-    // Inside a hidden screen: present in the DOM, not on screen.
-    return !el.closest(".hidden, [hidden]");
-  };
-
-  const describe = (el) => {
-    const id = el.id ? "#" + el.id : "";
-    const cls = el.className && typeof el.className === "string"
-      ? "." + el.className.trim().split(/\\s+/).slice(0, 2).join(".")
-      : "";
-    const text = (el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 24);
-    return (el.tagName.toLowerCase() + id + cls + (text ? ' "' + text + '"' : "")).slice(0, 90);
-  };
-
-  const interactive = [...document.querySelectorAll('button, a[href], input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])')]
-    .filter(visible);
-
-  const small = [];
-  for (const el of interactive) {
-    const r = el.getBoundingClientRect();
-    // Half a pixel of tolerance. A control set to exactly 2.75rem measures
-    // 43.99 on a 3x device pixel ratio, and reporting that as a miss sends
-    // someone to look at a rule that is already correct.
-    if (r.width < ${TAP_TARGET_MIN} - 0.5 || r.height < ${TAP_TARGET_MIN} - 0.5) {
-      small.push({ el: describe(el), w: Math.round(r.width), h: Math.round(r.height) });
-    }
-  }
-
-  // Text nodes, not elements: an element's font-size says nothing if it has no
-  // text of its own, and a wrapper inheriting a big size can contain a tiny
-  // child.
-  const tiny = new Map();
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const s = (n.textContent || "").trim();
-    if (s.length < 2) continue;
-    const el = n.parentElement;
-    if (!el || !visible(el)) continue;
-    const px = parseFloat(getComputedStyle(el).fontSize);
-    if (px && px < ${MIN_FONT_PX}) {
-      const key = describe(el);
-      if (!tiny.has(key)) tiny.set(key, { el: key, px: Math.round(px * 10) / 10, sample: s.slice(0, 30) });
-    }
-  }
-
-  return {
-    interactiveCount: interactive.length,
-    smallTargets: small.slice(0, 12),
-    smallTargetCount: small.length,
-    tinyText: [...tiny.values()].slice(0, 12),
-    tinyTextCount: tiny.size,
-    // What the app got to paint into, vs what the window claims. The gap is
-    // the browser's own chrome, and it is why a 100vh panel is taller than
-    // the screen on a phone.
-    innerHeight: window.innerHeight,
-    documentHeight: Math.round(document.documentElement.scrollHeight),
-    verticalScroll: Math.round(document.documentElement.scrollHeight - window.innerHeight),
-  };
-})()`;
 
 /** One screen, at one size: screenshot plus both audits. */
 async function capture(page, shotDir, screen, phone, notes = []) {

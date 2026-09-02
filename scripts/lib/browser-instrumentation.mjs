@@ -235,3 +235,97 @@ export const LAYOUT_AUDIT = `
   };
 })();
 `;
+
+// ---------------------------------------------------------------------------
+// What a layout audit cannot see
+//
+// LAYOUT_AUDIT above catches things that are BROKEN - boxes on top of each
+// other, content off the side of the screen. A control that is merely too
+// small to hit and text that is merely too small to read pass every one of
+// those checks, and on a phone they are most of what makes a screen bad.
+//
+// Written once here because two callers need the same numbers to mean the
+// same thing: scripts/selftest/run-mobile-baseline.mjs reports them for a
+// person to look at, and scripts/verify-browser.mjs asserts against them.
+// ---------------------------------------------------------------------------
+
+/** Below this a control is hard to hit with a thumb; both platform guidelines
+ * say 44 CSS px. Not a style preference - a miss rate. */
+export const TAP_TARGET_MIN = 44;
+
+/** Below this, body copy is not readable at arm's length on a couch. */
+export const MIN_FONT_PX = 12;
+
+/**
+ * Everything a screen can tell us that a picture cannot, read in one pass.
+ *
+ * Runs in the page, so it is a string rather than a function - same reason
+ * and same shape as LAYOUT_AUDIT above.
+ */
+export const TOUCH_AUDIT = `(() => {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false;
+    // Inside a hidden screen: present in the DOM, not on screen.
+    return !el.closest(".hidden, [hidden]");
+  };
+
+  const describe = (el) => {
+    const id = el.id ? "#" + el.id : "";
+    const cls = el.className && typeof el.className === "string"
+      ? "." + el.className.trim().split(/\\s+/).slice(0, 2).join(".")
+      : "";
+    const text = (el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 24);
+    return (el.tagName.toLowerCase() + id + cls + (text ? ' "' + text + '"' : "")).slice(0, 90);
+  };
+
+  const interactive = [...document.querySelectorAll('button, a[href], input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])')]
+    .filter(visible);
+
+  const small = [];
+  for (const el of interactive) {
+    const r = el.getBoundingClientRect();
+    // Half a pixel of tolerance. A control set to exactly 2.75rem measures
+    // 43.99 on a 3x device pixel ratio, and reporting that as a miss sends
+    // someone to look at a rule that is already correct.
+    if (r.width < ${TAP_TARGET_MIN} - 0.5 || r.height < ${TAP_TARGET_MIN} - 0.5) {
+      small.push({ el: describe(el), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+  }
+
+  // Text nodes, not elements: an element's font-size says nothing if it has no
+  // text of its own, and a wrapper inheriting a big size can contain a tiny
+  // child.
+  const tiny = new Map();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const s = (n.textContent || "").trim();
+    // Whitespace-only nodes are skipped; a single CHARACTER is not. The old
+    // "length < 2" was meant to drop the former, and quietly exempted an 8px
+    // close cross, or a one-digit box-score cell, from the floor entirely.
+    if (!s) continue;
+    const el = n.parentElement;
+    if (!el || !visible(el)) continue;
+    const px = parseFloat(getComputedStyle(el).fontSize);
+    if (px && px < ${MIN_FONT_PX}) {
+      const key = describe(el);
+      if (!tiny.has(key)) tiny.set(key, { el: key, px: Math.round(px * 10) / 10, sample: s.slice(0, 30) });
+    }
+  }
+
+  return {
+    interactiveCount: interactive.length,
+    smallTargets: small.slice(0, 12),
+    smallTargetCount: small.length,
+    tinyText: [...tiny.values()].slice(0, 12),
+    tinyTextCount: tiny.size,
+    // What the app got to paint into, vs what the window claims. The gap is
+    // the browser's own chrome, and it is why a 100vh panel is taller than
+    // the screen on a phone.
+    innerHeight: window.innerHeight,
+    documentHeight: Math.round(document.documentElement.scrollHeight),
+    verticalScroll: Math.round(document.documentElement.scrollHeight - window.innerHeight),
+  };
+})()`;
