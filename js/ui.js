@@ -222,6 +222,69 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
   }
 }
 
+
+/**
+ * A player's stats as {value, label} pairs, from whichever sport is active.
+ *
+ * Falls back to an empty list rather than throwing. A missing hook used to
+ * take the whole draft board down with it - one undefined function and the
+ * render died mid-list, leaving an empty screen with no error anyone would
+ * see.
+ */
+export function statPairs(p) {
+  const hook = activeSport().cardStats;
+  if (typeof hook !== "function") return [];
+  const pairs = hook(p);
+  return Array.isArray(pairs) ? pairs.filter((s) => s && s.value != null) : [];
+}
+
+/**
+ * The same pairs as one line of text, for the places that still want a
+ * string - the season picker's rows, where each row is one line by design.
+ *
+ * Derived rather than authored a second time. Every sport used to return a
+ * "·"-joined string AND shared code wanted the parts, so the join lived in
+ * two sports and the parts lived nowhere.
+ */
+export function statLine(pairs) {
+  return pairs.map((s) => (s.label ? `${s.value} ${s.label}` : `${s.value}`)).join(" · ");
+}
+
+/**
+ * Pairs as a grid. THE POINT IS THAT A PAIR CANNOT BE SPLIT.
+ *
+ * These were a "·"-joined string trusted to wrap politely, and at phone
+ * width it broke between a value and its label on every card in the pool -
+ * "25.7 pts · 5.8 reb · 3.9 ast · 1.3" then "stl · 1.1 blk" on the next
+ * line, so a number sat at the end of one line with its unit at the start
+ * of the next. It passed every layout check there is, because a wrapped
+ * line overflows nothing.
+ *
+ * A pair with an empty label is a LEAD and gets the full width - football's
+ * unit cards open with member names, which are not a statistic and do not
+ * belong in a stat column.
+ */
+export function renderStatPairs(pairs) {
+  const grid = document.createElement("div");
+  grid.className = "player-stats";
+  for (const s of pairs) {
+    const cell = document.createElement("span");
+    cell.className = s.label ? "stat-pair" : "stat-pair stat-lead";
+    const value = document.createElement("b");
+    value.className = "stat-value";
+    value.textContent = String(s.value);
+    cell.appendChild(value);
+    if (s.label) {
+      const label = document.createElement("span");
+      label.className = "stat-label";
+      label.textContent = s.label;
+      cell.appendChild(label);
+    }
+    grid.appendChild(cell);
+  }
+  return grid;
+}
+
 /** Renders one clickable (or disabled) player card - unchanged visuals from
  * the old always-visible pool, just factored out so both the "in-squad"
  * match tier and any future reuse can share it. */
@@ -278,14 +341,7 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
     // simulation are on the table rather than hidden.
     const wrap = document.createElement("div");
     wrap.appendChild(name);
-    const stats = document.createElement("div");
-    stats.className = "player-stats";
-    // Falls back rather than throwing. A missing hook used to take the whole
-    // draft board down with it - one undefined function and the render died
-    // mid-list, leaving an empty screen with no error anyone would see.
-    const line = activeSport().cardStatLine;
-    stats.textContent = typeof line === "function" ? line(p) : "";
-    wrap.appendChild(stats);
+    wrap.appendChild(renderStatPairs(statPairs(p)));
     card.appendChild(wrap);
   } else {
     card.appendChild(name);

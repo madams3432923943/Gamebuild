@@ -283,10 +283,10 @@ async function runInPage(page) {
     // ---- 12: a render failure is visible, never a silent blank pool -------
     section("a render failure shows a visible message and reports failure", () => {
       // Force a throw from inside the card renderer by handing the sport a
-      // cardStatLine that explodes - the same shape of failure the real bug
+      // cardStats that explodes - the same shape of failure the real bug
       // had, without reintroducing the real bug.
-      const original = Object.getOwnPropertyDescriptor(sport, "cardStatLine");
-      Object.defineProperty(sport, "cardStatLine", {
+      const original = Object.getOwnPropertyDescriptor(sport, "cardStats");
+      Object.defineProperty(sport, "cardStats", {
         configurable: true,
         get() {
           throw new Error("synthetic render failure");
@@ -296,8 +296,8 @@ async function runInPage(page) {
       try {
         result = renderPool(pool, squadWith("Nikola Jokic"), "", {}, null, () => {}, allPlayers, "easy", sport.slots.quickPlay, () => {});
       } finally {
-        if (original) Object.defineProperty(sport, "cardStatLine", original);
-        else delete sport.cardStatLine;
+        if (original) Object.defineProperty(sport, "cardStats", original);
+        else delete sport.cardStats;
       }
       const note = pool.querySelector(".pool-error-note");
       check(
@@ -307,7 +307,7 @@ async function runInPage(page) {
       );
       check(
         "the failure message leaks no internals",
-        !!note && !/renderPool|ReferenceError|cardStatLine|\bat \b/.test(note.textContent),
+        !!note && !/renderPool|ReferenceError|cardStats|\bat \b/.test(note.textContent),
         note ? note.textContent : "(no note)"
       );
     });

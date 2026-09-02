@@ -1,7 +1,7 @@
 // Every live sport must implement everything the SHARED ui/main code calls.
 //
 // This exists because NFL work broke NBA. js/ui.js is one draft board serving
-// both sports, so it asks the active sport for things - cardStatLine, rate,
+// both sports, so it asks the active sport for things - cardStats, rate,
 // basePosition. A per-sport hook was added, wired into NFL, and the edit
 // adding it to NBA silently matched nothing. Shared code then called undefined
 // as a function on the first card and took the whole board down. Quick Play
@@ -26,7 +26,7 @@ for (const meta of SPORTS) {
 
 /** Called by shared code on whatever sport is active. */
 const REQUIRED_FUNCTIONS = [
-  "computeDatasetStats", "simulate", "rate", "cardStatLine",
+  "computeDatasetStats", "simulate", "rate", "cardStats",
   "basePosition", "isBenchSlot", "orderedRosterSlots",
   "players", "playersInEra", "eraById",
   "buildRecap", "buildGameScript", "gradeDraft",
@@ -180,6 +180,42 @@ for (const meta of SPORTS) {
       missing.push(`${fn}() threw: ${e.message}`);
     }
   }
+  // cardStats() returns PAIRS, and the pairing is the whole point.
+  //
+  // Both sports used to return a "·"-joined string, which shared code drew as
+  // one run of text that wrapped between a value and its label on every card
+  // at phone width. The grid renderer in js/ui.js can only keep them together
+  // if it is given them apart, so a sport quietly going back to a string - or
+  // to {stat, val}, or to a bare array of numbers - has to fail here rather
+  // than render "[object Object]" down the pool.
+  if (typeof sport?.cardStats === "function") {
+    try {
+      const all = sport.playersInEra(sport.players(), sport.defaultEra);
+      // A UNIT as well as a person where the sport has them: football branches
+      // on p.group and only the unit branch emits a lead pair.
+      const samples = [all[0], (sport.units?.() || [])[0]].filter(Boolean);
+      for (const sample of samples) {
+        const pairs = sport.cardStats(sample);
+        if (!Array.isArray(pairs)) {
+          missing.push(`cardStats() returned ${typeof pairs}, not an array of pairs`);
+          continue;
+        }
+        if (!pairs.length) {
+          missing.push("cardStats() returned an empty array");
+          continue;
+        }
+        for (const pair of pairs) {
+          if (pair?.value === undefined) missing.push("cardStats() returned a pair with no .value");
+          // A label may be "" - that is the documented LEAD form, which shared
+          // code gives full width. It may not be missing or non-string.
+          if (typeof pair?.label !== "string") missing.push("cardStats() returned a pair whose .label is not a string");
+        }
+      }
+    } catch (e) {
+      missing.push(`cardStats() threw: ${e.message}`);
+    }
+  }
+
   // The opponent is READ, not just accepted.
   //
   // NFL.draftAnalysis took (roster, oppRoster, ctx, forfeits) and passed only

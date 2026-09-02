@@ -1880,10 +1880,55 @@ table.box-table th, table.history-table th {
   font-size: var(--text-xs);
 }
 
+/* A player's stats: a row of value/label pairs that WRAP BETWEEN PAIRS AND
+   NEVER INSIDE ONE.
+
+   This used to be one run of text joined with "·", and at phone width it
+   broke wherever the line happened to run out - "25.7 pts · 5.8 reb · 3.9
+   ast · 1.3" then "stl · 1.1 blk", so a number ended one line and its unit
+   began the next, on every card in the pool. Flex with a non-wrapping pair
+   as the flex item is what makes that impossible rather than unlikely. */
 .player-stats {
   color: var(--muted);
   font-size: var(--text-xs);
   margin-top: 0.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+  align-items: baseline;
+}
+
+.stat-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+/* The number is the thing being compared between two cards, so it carries
+   the weight and the brighter ink; the unit is a caption on it. */
+.stat-value {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.stat-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--text-micro);
+}
+
+/* A pair with no label - football's unit member names. Not a statistic, so
+   it takes the whole width above the columns rather than sitting in one. */
+.stat-lead {
+  flex: 1 0 100%;
+  white-space: normal;
+  color: var(--text);
+}
+
+.stat-lead .stat-value {
+  font-weight: 600;
 }
 
 .empty-note {
@@ -2536,8 +2581,15 @@ table.box-table th, table.history-table th {
 
 .player-card.with-stats .player-stats {
   margin-top: 0.2rem;
+}
+
+/* Tabular figures on the NUMBERS only. The whole line used to be monospace,
+   which is right for digits lining up and wrong for the words beside them -
+   "sk allowed" in a mono face at 12px is noticeably harder to read than the
+   same words in the body face. */
+.player-card.with-stats .stat-value {
   font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Team banners ----
