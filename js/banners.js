@@ -121,7 +121,7 @@ export const FRANCHISES = [
   // a rewrite - franchisesForSport() below is the only new plumbing needed.
   // Not earnable yet (no NFL draft engine/dataset exists - see constants.js's
   // SPORTS list), so every one of these sits locked at 0 progress until NFL
-  // goes live. IDs are sport-prefixed since a future sport (NHL, soccer)
+  // goes live. IDs are sport-prefixed since a future sport
   // could otherwise collide with a short team nickname. ----
   { id: "nfl-bills", name: "Buffalo Bills", abbr: "BUF", sport: "nfl", city: "Buffalo", colors: ["#00338d", "#c60c30"], aliases: [] },
   { id: "nfl-dolphins", name: "Miami Dolphins", abbr: "MIA", sport: "nfl", city: "Miami", colors: ["#008e97", "#fc4c02"], aliases: [] },
