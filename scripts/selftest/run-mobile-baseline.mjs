@@ -188,6 +188,9 @@ async function capture(page, shotDir, screen, phone, notes = []) {
 /** Every phone size for one screen, so a screen is captured once and measured
  * four times rather than driven to four times. */
 async function captureAll(page, shotDir, screen, log, notes = []) {
+  // `screen` is "<sport>-<NN>-<name>"; the filter names the <name> half.
+  const only = requestedScreens();
+  if (only && !only.has(screen.replace(/^[a-z]+-\d+-/, ""))) return [];
   const rows = [];
   for (const phone of PHONES) {
     const row = await capture(page, shotDir, screen, phone, notes);
@@ -220,6 +223,53 @@ async function openSport(page, sportId, log) {
   const ok = await show(page, "screen-play");
   log(`  ${sportId}: play screen ${ok ? "open" : "NOT reached"}`);
   return ok;
+}
+
+/**
+ * Which screens to walk, from `--screens=hub,play,profile`.
+ *
+ * A full run drives two complete drafts and takes twenty-odd minutes, which
+ * is the right cost for a baseline and a ridiculous one for confirming that
+ * a rule you just changed did what you expected. Most changes touch a few
+ * screens; this re-measures those and nothing else.
+ *
+ * Names match the screen labels without their sport prefix and index -
+ * `hub`, `play`, `draft-empty`, `game-live`, `game-final`, `profile`,
+ * `badges`, `squads`. Empty means everything, which is what a real baseline
+ * wants.
+ */
+function requestedScreens() {
+  const arg = process.argv.find((a) => a.startsWith("--screens="));
+  if (!arg) return null;
+  const names = arg.slice("--screens=".length).split(",").map((n) => n.trim()).filter(Boolean);
+  return names.length ? new Set(names) : null;
+}
+
+/** The sports to walk, from `--sport=nba`. Both by default. */
+function requestedSports() {
+  const arg = process.argv.find((a) => a.startsWith("--sport="));
+  const all = ["nba", "nfl"];
+  if (!arg) return all;
+  const want = arg.slice("--sport=".length).split(",").map((n) => n.trim());
+  return all.filter((s) => want.includes(s));
+}
+
+/**
+ * Whether this run needs to play a game at all.
+ *
+ * The screens behind a draft - the board, the live game, the box score - are
+ * the ones that cost the twenty minutes, because reaching them means driving
+ * ten or twelve rounds of picks in a real browser. Profile, rewards and
+ * squads are one nav click from the hub and cost seconds.
+ *
+ * Filtering the CAPTURES alone saved nothing: the run still drove the whole
+ * draft and then threw the screenshots away. This is what makes --screens
+ * worth having.
+ */
+function needsDraft() {
+  const only = requestedScreens();
+  if (!only) return true;
+  return ["draft-empty", "game-live", "game-final"].some((n) => only.has(n));
 }
 
 async function main() {
@@ -264,7 +314,7 @@ async function main() {
   const rows = [];
 
   try {
-    for (const sportId of ["nba", "nfl"]) {
+    for (const sportId of requestedSports()) {
       log(`\n${sportId.toUpperCase()}`);
 
       // A real phone context - touch, a mobile user agent, a device pixel
@@ -299,42 +349,46 @@ async function main() {
       }
       rows.push(...(await captureAll(page, shotDir, `${sportId}-03-play`, log)));
 
-      const squadIndex = await loadSquadIndex(sportId);
-      await page.locator("#btn-start-draft").click({ timeout: 10000 }).catch(() => {});
+      if (needsDraft()) {
+        const squadIndex = await loadSquadIndex(sportId);
+        await page.locator("#btn-start-draft").click({ timeout: 10000 }).catch(() => {});
 
-      // Mid-draft, not at its start: an empty board says nothing about how a
-      // full one reads, and a full one is what a player looks at for ten
-      // rounds.
-      if (await page.locator("#pool-search").isVisible().catch(() => false)) {
-        rows.push(...(await captureAll(page, shotDir, `${sportId}-04-draft-empty`, log)));
-      }
+        // Mid-draft, not at its start: an empty board says nothing about how a
+        // full one reads, and a full one is what a player looks at for ten
+        // rounds.
+        if (await page.locator("#pool-search").isVisible().catch(() => false)) {
+          rows.push(...(await captureAll(page, shotDir, `${sportId}-04-draft-empty`, log)));
+        }
 
-      // Generous, because overrunning it costs SCREENS. The first run gave
-      // the draft 240s; basketball's ten rounds ran past it at round five, so
-      // the live game and the box score - two of the three screens this whole
-      // exercise is about - were never reached and never photographed. A
-      // capture run is not a performance gate and has no reason to be tight.
-      const deadline = Date.now() + 900000;
-      const picks = await driveDraft(page, squadIndex, sportId, log, deadline).catch((e) => {
-        log(`  draft did not complete: ${e.message}`);
-        return 0;
-      });
-      log(`  drafted ${picks} round(s)`);
+        // Generous, because overrunning it costs SCREENS. The first run gave
+        // the draft 240s; basketball's ten rounds ran past it at round five, so
+        // the live game and the box score - two of the three screens this whole
+        // exercise is about - were never reached and never photographed. A
+        // capture run is not a performance gate and has no reason to be tight.
+        const deadline = Date.now() + 900000;
+        const picks = await driveDraft(page, squadIndex, sportId, log, deadline).catch((e) => {
+          log(`  draft did not complete: ${e.message}`);
+          return 0;
+        });
+        log(`  drafted ${picks} round(s)`);
 
-      const shape = await driveStrategyPhases(page, sportId, log, deadline).catch(() => []);
-      log(`  strategy rounds: ${shape.length}`);
+        const shape = await driveStrategyPhases(page, sportId, log, deadline).catch(() => []);
+        log(`  strategy rounds: ${shape.length}`);
 
-      if (await show(page, "screen-game")) {
-        // Live, then final. The live scoreboard is the screen people watch
-        // together and the box score is the one they argue over, and they are
-        // different layouts behind the same id.
-        rows.push(...(await captureAll(page, shotDir, `${sportId}-05-game-live`, log)));
-        await page
-          .locator("#final-box, #btn-play-again")
-          .first()
-          .waitFor({ state: "visible", timeout: 180000 })
-          .catch(() => {});
-        rows.push(...(await captureAll(page, shotDir, `${sportId}-06-game-final`, log)));
+        if (await show(page, "screen-game")) {
+          // Live, then final. The live scoreboard is the screen people watch
+          // together and the box score is the one they argue over, and they are
+          // different layouts behind the same id.
+          rows.push(...(await captureAll(page, shotDir, `${sportId}-05-game-live`, log)));
+          await page
+            .locator("#final-box, #btn-play-again")
+            .first()
+            .waitFor({ state: "visible", timeout: 180000 })
+            .catch(() => {});
+          rows.push(...(await captureAll(page, shotDir, `${sportId}-06-game-final`, log)));
+        }
+      } else {
+        log("  skipping the draft: no draft or game screen was asked for");
       }
 
       for (const [tab, screen] of [
@@ -355,8 +409,15 @@ async function main() {
     server.close();
   }
 
-  await writeFile(path.join(outDir, "report.md"), renderReport(rows, lines, stamp), "utf8");
-  await writeFile(path.join(outDir, "rows.json"), JSON.stringify(rows, null, 2), "utf8");
+  // A filtered run is a SPOT CHECK, not a baseline, and is written where it
+  // cannot be mistaken for one or overwrite one. Comparing a three-screen run
+  // against a full one as though both were baselines is how a number that
+  // only moved because fewer things were measured gets reported as progress.
+  const partial = requestedScreens() || requestedSports().length < 2;
+  const suffix = partial ? "-partial" : "";
+  await writeFile(path.join(outDir, `report${suffix}.md`), renderReport(rows, lines, stamp), "utf8");
+  await writeFile(path.join(outDir, `rows${suffix}.json`), JSON.stringify(rows, null, 2), "utf8");
+  if (partial) log(`\nPARTIAL RUN - ${rows.length} captures, not a baseline.`);
 
   const totals = rows.reduce(
     (a, r) => ({
@@ -370,7 +431,7 @@ async function main() {
     `\n  ${rows.length} captures — ${totals.small} undersized tap targets, ` +
       `${totals.tiny} tiny-text elements, ${totals.overflow} views with horizontal overflow`
   );
-  console.log(`  report: ${path.relative(ROOT, path.join(outDir, "report.md"))}\n`);
+  console.log(`  report: ${path.relative(ROOT, path.join(outDir, `report${suffix}.md`))}\n`);
 }
 
 function renderReport(rows, lines, stamp) {
