@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=5369355" />
+  <link rel="stylesheet" href="css/style.css?v=d0f7e13" />
 </head>
 <body>
   <header class="top-nav">
@@ -707,7 +707,11 @@
         </div>
       </div>
 
-      <!-- Tournaments: not built yet. -->
+      <!-- Tournaments: not built yet, and off the subtab row - see
+           SQUADS_TOP_TABS in js/ui.js. Kept, not deleted: the panel is one
+           line of ui.js away from being reachable again, and deleting it
+           would make shipping tournaments a rebuild of the shell as well as
+           the feature. -->
       <div id="squads-panel-tournaments" class="hidden">
         <div class="card coming-soon-card">
           <span class="coming-soon-icon">🏆</span>
@@ -743,6 +747,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=5369355"></script>
+  <script type="module" src="js/main.js?v=d0f7e13"></script>
 </body>
 </html>

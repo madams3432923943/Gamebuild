@@ -2723,7 +2723,7 @@ export function renderSquadChat(container, messages, myUserId) {
   if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 
-// ---- Squads top-level subtabs: Friends | Home | Tournaments -------------
+// ---- Squads top-level subtabs: Friends | Home ---------------------------
 
 const SQUADS_TOP_TABS = [
   { id: "friends", label: "Friends" },
@@ -2734,7 +2734,25 @@ const SQUADS_TOP_TABS = [
   // "not yet" and "never" are different decisions and only one of them has
   // been made.
   // { id: "chat", label: "Chat" },
-  { id: "tournaments", label: "Tournaments" },
+  //
+  // Tournaments is off the row for the OPPOSITE reason to Chat. Chat is built
+  // and withheld; tournaments have never existed - no table, no RPC, no code
+  // anywhere - and the tab led to a card that said "Coming soon!" and nothing
+  // else. A navigation item whose only content is an apology for itself costs
+  // a player a tap to learn nothing, and it is the third of three tabs, so it
+  // took a third of the row to do it.
+  //
+  // Saying "coming soon" in a place someone chose to go is worse than not
+  // offering the destination: it reads as a feature that is nearly here, and
+  // this one has no schema behind it. Where the absence actually needs
+  // explaining - a squad's Rep sitting at 0 forever - it is explained in
+  // place, on the Rep line itself, which is where the question gets asked.
+  //
+  // The panel, its markup and the branch in openSquadsScreen are all left
+  // where they are, so shipping this is putting the line back and building
+  // the thing. See db/migrations/20260730_04_squad_rep.sql and
+  // 20260731_03_squad_rep_tournaments_only.sql for what rep is waiting on.
+  // { id: "tournaments", label: "Tournaments" },
 ];
 
 export function renderSquadsTopTabs(container, active, onSelect) {
