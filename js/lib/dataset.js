@@ -12,15 +12,30 @@
 // A fetch is also cacheable on its own terms. A module reached through
 // `import()` shares the app's cache lifetime; the datasets change when a
 // season is added and the app changes several times a week, and those are
-// different clocks. `cache: "force-cache"` says so explicitly rather than
-// leaving it to a heuristic.
+// different clocks.
+//
+// ORDINARY HTTP CACHING, NOT `cache: "force-cache"`. The first version of this
+// file asked for force-cache, on the reasoning that a 2MB file should not be
+// re-fetched. force-cache does more than that: it serves a stored response
+// REGARDLESS of whether it has gone stale, so a player who had loaded the
+// dataset once would never see a new season - their pool would be frozen, and
+// every match they played would be stamped with a dataset_version the server
+// no longer agrees with, which reads as drift. The note that talked me past it
+// said a stale dataset "cannot be a silent bug" because dataset-version.js
+// stamps every finished match; that is an argument about DETECTING the problem
+// and says nothing about the player still having it.
+//
+// The default is right and costs almost nothing. Pages serves these with an
+// ETag, so a revalidation is one conditional request and a 304; the 2MB body
+// only crosses the wire when the file has actually changed, which is the
+// behaviour force-cache was reaching for without the part that breaks.
 //
 // DELIBERATELY NOT VERSION-STAMPED. js/main.js carries ?v=<commit> because a
-// stale module is a bug that survives a refresh; a stale DATASET cannot be,
-// because a rebuilt dataset is a new file with a different length and
-// js/lib/dataset-version.js already stamps every finished match with what it
-// played on. Adding the commit here would throw away a 2MB cache entry on
-// every deploy to protect against a case that is already detected.
+// stale module is a bug that survives a refresh, and the app changes several
+// times a week. A dataset changes when a season is added, so stamping it with
+// the COMMIT would throw away a 2MB cache entry on every unrelated deploy.
+// Revalidation covers the case the stamp would: the ETag changes when the file
+// does, and not before.
 
 /** Rows of one dataset, or a throw that says which one failed and why.
  *
@@ -70,7 +85,7 @@ export async function fetchDataset(name) {
   const url = moduleUrl
     ? new URL(`../../data/${name}.json`, moduleUrl)
     : new URL(`data/${name}.json`, document.baseURI);
-  const response = await fetch(url, { cache: "force-cache" });
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Could not load ${name} (${response.status} ${response.statusText})`);
   }
