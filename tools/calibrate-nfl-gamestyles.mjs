@@ -143,6 +143,14 @@ function winRates(group, candidate, pairs, repeats) {
             strategyA: strategyFor(group, first),
             strategyB: strategyFor(group, second),
           });
+          // A TIE IS NOT A WIN FOR WHOEVER WAS SECOND. The engine plays paired
+          // overtime possessions up to a safety cap and can still finish
+          // level, and `else` handed every one of those to the second plan -
+          // so the solver was partly fitting to which argument came second in
+          // a loop rather than to how the plans played. Dropped from both
+          // sides instead: a drawn game says nothing about which plan is
+          // stronger, which is the only question here.
+          if (r.teamScoreA === r.teamScoreB) continue;
           games[first] += 1;
           games[second] += 1;
           if (r.teamScoreA > r.teamScoreB) wins[first] += 1;

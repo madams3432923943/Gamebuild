@@ -137,15 +137,34 @@ check(
   `${streamDraws.filter(Boolean).length} of 500 draws matched`
 );
 
-check(
-  "A seed survives being written down and read back",
-  normalizeSeed("4021156297") === normalizeSeed(String(normalizeSeed("4021156297"))) ||
-    normalizeSeed(4021156297) === 4021156297,
-  // Provenance travels as a database column and comes back as a string or a
-  // number depending on the driver, and a seed that normalises differently in
-  // the two shapes replays a different game.
-  `numeric seed round-trips as ${normalizeSeed(4021156297)}`
-);
+// Provenance travels as a database column and comes back as a string or a
+// number depending on the driver, and a seed that normalises differently in
+// the two shapes replays a different game.
+//
+// THE FIRST VERSION OF THIS CHECK COULD NOT FAIL. It was `A || B` where B was
+// `normalizeSeed(4021156297) === 4021156297` - true for every uint32 by
+// definition - so the whole assertion was a tautology guarding a property that
+// was actually broken: normalizeSeed hashed the string form. Two seeds are
+// compared directly now, which is the claim being made.
+{
+  const sample = [0, 1, 7919, 2147483647, 4021156297, 4294967295];
+  const mismatched = sample.filter((n) => normalizeSeed(n) !== normalizeSeed(String(n)));
+  check(
+    "A seed survives being written down and read back",
+    mismatched.length === 0,
+    mismatched.length === 0
+      ? `${sample.length} seeds normalise identically as number and as string`
+      : `differ: ${mismatched.map((n) => `${n} -> ${normalizeSeed(String(n))}`).join(", ")}`
+  );
+
+  // ...and the fallback still has to hash, or a match id would collapse.
+  const uuid = "9f8a1c2e-0000-4000-8000-000000000000";
+  check(
+    "A non-numeric seed still hashes",
+    normalizeSeed(uuid) !== 0 && normalizeSeed(uuid) !== normalizeSeed("other-label"),
+    `${uuid} -> ${normalizeSeed(uuid)}`
+  );
+}
 
 check(
   "Seeds are 32-bit, so a recorded one is the one that ran",

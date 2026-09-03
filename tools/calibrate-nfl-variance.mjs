@@ -53,12 +53,12 @@
 //   because they are what a viewer actually perceives about a football game -
 //   how far apart it finished, and whether it was still a game at the end.
 //
-//   Draft Nova scores about 29 a team against the real league's 22, and that
-//   is deliberate (see the design-target note in verify-nfl-realism.mjs). The
-//   margin target is NOT scaled up to match: a game that finished 31-20 reads
-//   as an eleven-point game to the person watching it regardless of how the
-//   points got there, and scaling would be inventing a football number from a
-//   product decision.
+//   Draft Nova scores about 24 a team against the real league's 22, and is
+//   deliberately above it on YARDAGE rather than on points (see the
+//   design-target note in verify-nfl-realism.mjs). The margin target is not
+//   scaled: a game that finished 27-16 reads as an eleven-point game to the
+//   person watching it regardless of how the points got there, and scaling
+//   would be inventing a football number from a product decision.
 //
 // The sweep rate is REPORTED but not targeted. Basketball targets it because
 // basketball quarters essentially never tie; football quarters tie constantly

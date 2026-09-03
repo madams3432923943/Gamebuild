@@ -12,10 +12,12 @@
 // without anyone tuning the scoreboard directly. That indirection is the whole
 // reason to model drives rather than fitting final scores.
 //
-// Draft Nova then plays ABOVE that anchor on purpose - about 30 points a team
-// rather than 22 - and SCORING_LIFT is where that decision lives. It is one
-// number in one place because for a long time it was neither: it was a side
-// effect of two rating scales not lining up. See that constant.
+// Draft Nova lands near that anchor on the scoreboard - about 24 points a team
+// in Ranked, 23 in Quick Play - and deliberately above it on YARDAGE, at 413
+// yards a team at 6.6 a play against the real league's 340 at 5.4. SCORING_LIFT
+// is where that decision lives. It is one number in one place because for a
+// long time it was neither: it was a side effect of two rating scales not
+// lining up. See that constant.
 //
 // SOLVED, NOT PICKED
 //
@@ -104,12 +106,23 @@ export const DRIVE_OUTCOMES = {
  *   same two rosters therefore played a ~20% lower-scoring game in one mode
  *   than the other, for a reason no player could see and no comment mentioned.
  *
- * `edge` now centres each matchup on its own mean (see the function), so the
- * common term is gone from both modes and the two lift equally. This is what
- * is left: one number, in one place, that says how explosive this game is.
- * 1.18 preserves what Ranked already shipped, so nothing about how football
- * currently feels changes with this - it just became something anyone can find
- * and anyone can move.
+ * `edge` subtracts EDGE_BASELINE now, so the accidental term is gone from both
+ * modes. This is what is left: one number, in one place, that says how far
+ * above a real drive chart this game plays.
+ *
+ * IT IS 1.0, WHICH IS A DECISION AND NOT A DEFAULT. At 1.0 the chart runs at
+ * exactly its real-football rate and the explosiveness comes from the yardage
+ * model instead - measured over bot-drafted rosters, 24.1 points a team in
+ * Ranked and 22.7 in Quick Play against the real league's ~22, on 413 yards at
+ * 6.6 a play against 340 at 5.4. So the game is football-shaped on the
+ * scoreboard and deliberately above it on yardage, which is the design target
+ * scripts/verify-nfl-realism.mjs states and now measures against the rosters
+ * people actually draft.
+ *
+ * Raising it raises both together. 1.18 was the value that preserved what
+ * Ranked shipped BEFORE any of this was fixed - about 29 a team - and it is
+ * recorded here because it is the number to return to if the scoreboard is
+ * ever judged too quiet, not because anything is still set to it.
  */
 export const SCORING_LIFT = 1.0;
 
@@ -137,8 +150,8 @@ export const SCORING_LIFT = 1.0;
  *
  *   Quick Play scored ~20% lower than Ranked, from the same two rosters, for
  *   a reason no player could see and no comment mentioned: 22.5 points a team
- *   against 28.9. It is 24.1 against 25.6 now, and what is left of that gap is
- *   the roster shape itself rather than a rating-scale mismatch.
+ *   against 28.9. It is 22.7 against 24.1 now - a 6% gap that is the roster
+ *   shape itself rather than a rating-scale mismatch.
  *
  * MEASURED, NOT PICKED, and re-measured by tools/calibrate-nfl-variance.mjs on
  * every run - it prints these two numbers first, before it solves anything,

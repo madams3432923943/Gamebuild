@@ -108,7 +108,13 @@ function solveParity(spread, games = 260, iters = 8) {
     if (m.gameWin > TARGET_GAME_WIN) hi = parity;
     else lo = parity;
   }
-  return parity;
+  // Bisection on [0, ceiling] converges TOWARD the ceiling and never reaches
+  // it, so a target that is out of range printed 0.398 for a constant that
+  // ships at 0.40 - a difference that is not a measurement, just the last
+  // halving. Snapping it back reports the value that would actually be pasted.
+  // The NFL twin has carried this correction since it was written; this is the
+  // one that did not.
+  return parity > PARITY_CEILING * 0.98 ? PARITY_CEILING : parity;
 }
 
 console.log("spread | parity | game% | qtr% | sweep% | margin");

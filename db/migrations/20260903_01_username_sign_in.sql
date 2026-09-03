@@ -41,6 +41,15 @@
 -- one yet - it would throttle nothing at all here. A function that verifies a
 -- password for an anonymous caller is a guessing oracle if it is unbounded, so
 -- attempts are counted per username instead.
+--
+-- ONLY FAILURES COUNT, AND A SUCCESS CLEARS THE SLATE. Counting every call
+-- turns the throttle into the attack: usernames are public, so ten anonymous
+-- calls against a name would lock its actual owner out of username sign-in for
+-- fifteen minutes, renewable forever, by someone who never knew the password.
+-- A correct password is proof the caller is the owner, so it empties the
+-- bucket rather than filling it, and a person mistyping their own password
+-- five times is never a step closer to being locked out of the sixth attempt
+-- that works.
 
 create table if not exists public.signin_attempts (
   id bigserial primary key,
@@ -100,32 +109,32 @@ begin
     raise exception 'Too many sign-in attempts for that username. Wait a few minutes and try again.';
   end if;
 
-  insert into public.signin_attempts (username_key) values (v_key);
-
   select p.id into v_id
   from public.profiles p
   where lower(p.username) = v_key
   limit 1;
 
-  if v_id is null then
-    return null;
+  if v_id is not null then
+    select u.email, u.encrypted_password into v_email, v_hash
+    from auth.users u
+    where u.id = v_id;
   end if;
 
-  select u.email, u.encrypted_password into v_email, v_hash
-  from auth.users u
-  where u.id = v_id;
-
-  if v_email is null or coalesce(v_hash, '') = '' then
-    return null;
+  -- The same comparison Supabase's own auth performs.
+  if v_email is not null and coalesce(v_hash, '') <> ''
+     and crypt(p_password, v_hash) = v_hash then
+    -- Proof of ownership. Clear the bucket so a run of typos, or somebody
+    -- else's guessing, cannot leave the real owner rate-limited.
+    delete from public.signin_attempts where username_key = v_key;
+    return v_email;
   end if;
 
-  -- The same comparison Supabase's own auth performs. A mismatch returns null,
-  -- indistinguishable from an unknown username.
-  if crypt(p_password, v_hash) <> v_hash then
-    return null;
-  end if;
-
-  return v_email;
+  -- Everything else is a failure and is counted: a wrong password, an unknown
+  -- username, an account with no password set. They are indistinguishable to
+  -- the caller, which is the point - the return is null either way and neither
+  -- says which.
+  insert into public.signin_attempts (username_key) values (v_key);
+  return null;
 end;
 $$;
 

@@ -194,6 +194,38 @@ function edge(off, def, baseline = 0, parity = TALENT_PARITY) {
 }
 
 /**
+ * Which roster SHAPE this game is being played at, for EDGE_BASELINE.
+ *
+ * Football drafts two shapes: ranked names four defensive slots (DL/LB/CB/S),
+ * Quick Play names one DEF unit that stands in for all of them, and they rate
+ * differently enough that using the wrong baseline moves the scoreboard about
+ * 20%.
+ *
+ * Decided from every slot the game KNOWS ABOUT - both rosters' keys plus the
+ * slots either side forfeited - rather than from the entries that happen to be
+ * present. A forfeited pick leaves no key behind, so reading filled slots
+ * alone makes a Quick Play game where both sides skipped the defence look like
+ * a ranked one. Forfeits are exactly the case this has to survive, since they
+ * are the reason a slot can be missing at all.
+ */
+function rosterShape(rosterA, rosterB, opts = {}) {
+  const named = new Set([
+    ...Object.keys(rosterA || {}),
+    ...Object.keys(rosterB || {}),
+    ...(opts.forfeitsA || []),
+    ...(opts.forfeitsB || []),
+  ]);
+  // Any of the four individual defensive slots means this is the ranked shape.
+  // Absence of all four is Quick Play - including the degenerate case where
+  // nothing defensive was drafted at all, which is nearer Quick Play's rating
+  // than ranked's and, either way, is a roster that has already lost.
+  for (const slot of Object.keys(DEFENSE_WEIGHTS)) {
+    if (named.has(slot)) return "ranked";
+  }
+  return "quickPlay";
+}
+
+/**
  * The balance levers a calibration harness may override, resolved once per
  * simulation.
  *
@@ -1221,8 +1253,8 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
     let absorbers = deadPlays.filter((p) => p.type === "sack");
     if (!absorbers.length) {
       // A drive that went backwards with no sack on it has nowhere to put the
-      // loss, so one is ADDED rather than an incompletion being converted into
-      // one. Converting was the first version and it was wrong in a way worth
+      // loss, so sacks are ADDED rather than incompletions being converted into
+      // them. Converting was the first version and it was wrong in a way worth
       // recording: an incompletion is a pass ATTEMPT and a sack is not, so
       // turning one into the other quietly deleted a miss from the
       // quarterback's line. The struggling passers this branch fires for are
@@ -1230,9 +1262,20 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
       // from 45% to 64% - the tier separation that
       // scripts/verify-nfl-realism.mjs exists to protect, erased by a fix to
       // something else entirely.
-      const added = { type: "sack", gain: 0 };
-      deadPlays.push(added);
-      absorbers = [added];
+      //
+      // HOW MANY, not one. A single absorber meant a drive that lost twenty
+      // yards reported a twenty-yard sack, which is longer than any in the
+      // record books. Real football loses that much ground over two or three
+      // plays, so the deficit is split at about nine yards each - the top of
+      // the ordinary range - and capped at three, past which the drive is
+      // already the worst anyone has seen and one more sack adds nothing but
+      // snaps.
+      const needed = Math.max(1, Math.min(3, Math.ceil(Math.abs(gainPool) / 9)));
+      absorbers = Array.from({ length: needed }, () => {
+        const added = { type: "sack", gain: 0 };
+        deadPlays.push(added);
+        return added;
+      });
     }
     const share = gainPool / absorbers.length;
     for (const play of absorbers) {
@@ -1537,7 +1580,14 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // four defensive slots rates quite differently from four of them: +0.11 for
   // ranked, -0.02 for Quick Play. That one number is why the same two rosters
   // used to play a 20% lower-scoring game in one mode than the other.
-  const baseline = rosterA.DEF || rosterB.DEF ? EDGE_BASELINE.quickPlay : EDGE_BASELINE.ranked;
+  //
+  // Read from the SHAPE rather than from what happens to be filled - see
+  // rosterShape. Asking `rosterA.DEF || rosterB.DEF` answered "is a DEF slot
+  // occupied right now", which is a different question: two Quick Play sides
+  // that both forfeited that pick would have been scored as ranked, a 0.21
+  // swing in the multiplier and about 20% on the scoreboard, in the one game
+  // state where nobody is left to notice.
+  const baseline = EDGE_BASELINE[rosterShape(rosterA, rosterB, opts)];
 
   const drives = [];
 
