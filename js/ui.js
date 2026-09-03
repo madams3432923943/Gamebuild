@@ -111,27 +111,60 @@ function seasonLabel(player) {
 export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect, slots = defaultSlots()) {
   container.innerHTML = "";
   for (const slot of slots) {
-    const btn = document.createElement("button");
-    btn.type = "button";
     const filled = !!roster[slot];
+    // IS THIS SLOT A CONTROL, OR A READ-OUT? Only a slot the pending player
+    // is eligible for can be clicked; every other chip is telling you
+    // something, not offering it.
+    //
+    // It used to render all of them as <button disabled>, which is wrong in
+    // three ways that only became visible on a phone. A disabled button is
+    // still a button to a screen reader, so the reader walked ten dead
+    // controls before reaching the search box. It is still a button to the
+    // 44px tap-target floor, so a strip sized to be read rather than tapped
+    // fails a check that exists to catch controls too small to hit - and the
+    // honest answer to that check is not to exempt the chips, it is that they
+    // are not controls. And it invites a tap that does nothing, which on a
+    // touch screen reads as the app being broken rather than as the slot
+    // being taken.
+    const clickable = !filled && !!eligibleSlotsForPendingPlayer && eligibleSlotsForPendingPlayer.includes(slot);
+    const btn = document.createElement(clickable ? "button" : "span");
+    if (clickable) btn.type = "button";
     let className = "position-btn";
-    let clickable = false;
 
     if (filled) {
-      btn.textContent = `${slotLabel(slot)} ✓`;
+      // TWO DENSITIES, ONE RENDER. Desktop wants "PG ✓" - the slot is taken,
+      // and the name is already in the roster panel beside it. A phone wants
+      // the NAME, because on a phone the roster panels are below the pool and
+      // scroll away the moment you start reading it, so "who have I got" has
+      // nowhere else to be answered while you are choosing.
+      //
+      // Both are emitted and CSS shows one, rather than the render asking how
+      // wide the screen is. A render that branches on width is a second
+      // component that has to be kept in step with the first, and it reads the
+      // width at the wrong moment anyway - once, when the pick happened, not
+      // when the phone was turned sideways.
+      className += " filled";
+      const tag = document.createElement("span");
+      tag.className = "position-btn-slot";
+      tag.textContent = slotLabel(slot);
+      const name = document.createElement("span");
+      name.className = "position-btn-name";
+      name.textContent = shortPlayerName(roster[slot]);
+      const tick = document.createElement("span");
+      tick.className = "position-btn-check";
+      tick.textContent = "✓";
+      btn.append(tag, name, tick);
+      // The name is truncated to fit, so the full one has to be reachable
+      // some other way - a strip that silently shortens a name is a strip
+      // that can show two different players as "Willia…".
+      btn.title = `${slotLabel(slot)}: ${roster[slot].name}`;
     } else {
       btn.textContent = slotLabel(slot);
       if (eligibleSlotsForPendingPlayer) {
-        if (eligibleSlotsForPendingPlayer.includes(slot)) {
-          className += " eligible";
-          clickable = true;
-        } else {
-          className += " awaiting-dim";
-        }
+        className += clickable ? " eligible" : " awaiting-dim";
       }
     }
     btn.className = className;
-    btn.disabled = !clickable;
     if (clickable) btn.addEventListener("click", () => onSelect(slot));
     container.appendChild(btn);
   }
@@ -149,9 +182,18 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
  * Only for PEOPLE. A drafted unit's name is a team and a position group
  * ("Carolina Panthers Defensive Line") and initialising that would produce
  * "C. Panthers Defensive Line", which is worse than the problem.
+ *
+ * IT ASKS THE SPORT NOW. This used to test for a `members` array, which is a
+ * guess about a football row's shape made in shared code, and the guess was
+ * wrong on the rows that actually reach here - the roster panel has been
+ * showing "G. Bay Packers Offensive Line" and "L. Angeles Rams Offensive
+ * Line" on every football draft board. Football already knew the answer
+ * (isUnit in js/sports/nfl/units.js keys on `group`); nothing had asked it.
+ * `isUnit` is on the sport contract now, so basketball answers "never" and a
+ * third sport has to answer at all - see scripts/verify-sport-contract.mjs.
  */
 function shortPlayerName(player) {
-  if (Array.isArray(player.members) && player.members.length) return player.name;
+  if (activeSport().isUnit(player)) return player.name;
   const parts = String(player.name || "").trim().split(/\s+/);
   if (parts.length < 2) return player.name;
   return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;

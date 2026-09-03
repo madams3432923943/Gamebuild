@@ -293,6 +293,12 @@ export const NBA = {
   ],
   basePosition,
   isBenchSlot,
+
+  /** Basketball drafts people, never units - there is no such thing as a
+   * drafted five. Declared rather than left undefined so shared UI can ask
+   * every sport the same question instead of testing whether the hook
+   * exists, which is how a missing hook becomes a silent "no". */
+  isUnit: () => false,
   orderedRosterSlots,
   minutesRangeFor,
   rotationBudget: ROTATION_BUDGET,
