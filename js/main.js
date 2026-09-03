@@ -807,9 +807,11 @@ for (const el of [inputAuthPassword, inputAuthUsername, inputAuthEmail, inputAut
 // console to explain it. primeSound waits for the first gesture there is.
 primeSound();
 
-const navSound = document.getElementById("nav-sound");
-const navSoundIcon = document.getElementById("nav-sound-icon");
-const navSoundLabel = document.getElementById("nav-sound-label");
+// Sound lives under Account settings on the profile, not in the header - it is
+// a thing you set once, and it was holding permanent space on every screen.
+const navSound = document.getElementById("setting-sound");
+const navSoundIcon = document.getElementById("setting-sound-icon");
+const navSoundLabel = document.getElementById("setting-sound-label");
 
 function paintSoundToggle() {
   const on = soundEnabled();
@@ -817,7 +819,9 @@ function paintSoundToggle() {
   // The icon is decorative; the state is carried by aria-pressed and by the
   // visually-hidden label, so it is never colour or glyph alone.
   navSoundIcon.textContent = on ? "\u{1F50A}" : "\u{1F507}";
-  navSoundLabel.textContent = on ? "Sound on" : "Sound off";
+  // "On"/"Off" rather than "Sound on"/"Sound off": the row already says Sound,
+  // and aria-labelledby joins the two so a screen reader still hears both.
+  navSoundLabel.textContent = on ? "On" : "Off";
   navSound.title = on ? "Sound on" : "Sound off";
 }
 

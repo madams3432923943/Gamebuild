@@ -149,7 +149,15 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
       tag.textContent = slotLabel(slot);
       const name = document.createElement("span");
       name.className = "position-btn-name";
-      name.textContent = shortPlayerName(roster[slot]);
+      // WHAT IDENTIFIES A DRAFTED THING depends on what it is. For a person it
+      // is the name. For a UNIT it is the team and the year: the unit's own
+      // label is its position group, and the chip's slot tag right beside it
+      // already says that - "OL Offensive Line" is the same word twice, and
+      // the strip has one line to spend. "OL 2020 Ravens" is the reading you
+      // actually want back while you are choosing the rest of a roster.
+      name.textContent = activeSport().isUnit(roster[slot])
+        ? seasonLabel(roster[slot])
+        : shortPlayerName(roster[slot]);
       const tick = document.createElement("span");
       tick.className = "position-btn-check";
       tick.textContent = "✓";
@@ -192,8 +200,26 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
  * `isUnit` is on the sport contract now, so basketball answers "never" and a
  * third sport has to answer at all - see scripts/verify-sport-contract.mjs.
  */
+/**
+ * A drafted entry's name, for a screen that already says which team it is.
+ *
+ * Every place this is used prints the team beside it - the squad banner over
+ * the draft board, the season line in the roster panel, the box score's own
+ * meta row - so a unit's full name ("Baltimore Ravens Offensive Line") says
+ * the team twice and pushes the part that distinguishes it off the end of a
+ * phone-width row.
+ *
+ * NOT used for the record books. A personal best is stored as a name and read
+ * back on its own, with no team anywhere near it, and "Offensive Line" is not
+ * a record holder. Those render the stored string and are untouched by this.
+ */
+function displayEntryName(player) {
+  const sport = activeSport();
+  return sport.isUnit(player) ? sport.unitLabel(player) : player?.name ?? "";
+}
+
 function shortPlayerName(player) {
-  if (activeSport().isUnit(player)) return player.name;
+  if (activeSport().isUnit(player)) return displayEntryName(player);
   const parts = String(player.name || "").trim().split(/\s+/);
   if (parts.length < 2) return player.name;
   return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
@@ -234,15 +260,23 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       if (activeSport().compactRoster) {
         const head = document.createElement("span");
         head.className = "slot-name";
-        head.textContent = `${shortPlayerName(player)}${pos}`;
+        // Same rule as the roster strip: a unit's own label is its position
+        // group, and the slot tag beside it already says that, so "OL /
+        // Offensive Line / 2020 Browns" spends two of its three lines saying
+        // "OL". A unit is identified by its team and year, and that is the
+        // whole of what it needs.
+        const unit = activeSport().isUnit(player);
+        head.textContent = unit ? seasonLabel(player) : `${shortPlayerName(player)}${pos}`;
         value.appendChild(head);
-        const when = document.createElement("span");
-        when.className = "slot-season";
-        when.textContent = seasonLabel(player);
-        value.appendChild(document.createElement("br"));
-        value.appendChild(when);
+        if (!unit) {
+          const when = document.createElement("span");
+          when.className = "slot-season";
+          when.textContent = seasonLabel(player);
+          value.appendChild(document.createElement("br"));
+          value.appendChild(when);
+        }
       } else {
-        value.textContent = `${player.name}${pos} — ${seasonLabel(player)}`;
+        value.textContent = `${displayEntryName(player)}${pos} — ${seasonLabel(player)}`;
       }
       // A drafted unit says WHO it contains. "Seattle Seahawks Cornerbacks"
       // names a slot; Sherman and Maxwell are what you actually took, and
@@ -381,7 +415,7 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
 
   const name = document.createElement("span");
   name.className = "player-card-name";
-  name.textContent = p.name;
+  name.textContent = displayEntryName(p);
   for (const pos of positions) {
     const chip = document.createElement("span");
     chip.className = "pos-chip";
@@ -734,7 +768,7 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   // colourblind reader loses first.
   const mvpStar = isMvp ? `<span class="box-mvp-star" title="Most valuable player" aria-label="Most valuable player">\u2605</span> ` : "";
   return (
-    `<tr${isMvp ? ' class="box-mvp"' : ""}><td>${slotLabel}</td><td>${mvpStar}${escapeHtml(player.name)}${meta}</td>` +
+    `<tr${isMvp ? ' class="box-mvp"' : ""}><td>${slotLabel}</td><td>${mvpStar}${escapeHtml(displayEntryName(player))}${meta}</td>` +
     (showMinutes ? `<td>${minutes == null ? "-" : r(minutes)}</td>` : "") +
     cells +
     splits
@@ -2261,7 +2295,7 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     name.className = "rotation-label";
     name.innerHTML =
       `<span class="rotation-role">${bench ? "Bench" : slotLabel(slot)}</span> ` +
-      `${escapeHtml(player.name)} <span class="rotation-pos">${player.pos.join("/")}</span>`;
+      `${escapeHtml(displayEntryName(player))} <span class="rotation-pos">${player.pos.join("/")}</span>`;
     row.appendChild(name);
 
     const value = document.createElement("span");

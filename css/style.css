@@ -292,6 +292,27 @@ button, input {
   margin-bottom: 0.9rem;
 }
 
+/* A setting is a label and its control side by side, not stacked: unlike the
+   text fields above it, the control is a fixed-width button and stacking it
+   leaves a row of empty space beside a short word. */
+.field-row-setting {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.field-row-setting > span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+#setting-sound {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .field-row label {
   font-size: 0.85rem;
   color: var(--muted);

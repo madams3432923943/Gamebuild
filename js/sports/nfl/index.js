@@ -78,7 +78,7 @@ import { datasetVersion } from "../../lib/dataset-version.js";
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
 let ratingCtx = null;
-import { isUnit, rateEntry } from "./units.js";
+import { isUnit, unitLabel, rateEntry } from "./units.js";
 import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
 import {
@@ -534,6 +534,10 @@ export const NFL = {
    * js/ui.js, which was initialising unit names into "G. Bay Packers
    * Offensive Line" on the draft board and in the roster panel. */
   isUnit,
+
+  /** A drafted unit, named for a screen that already says which team it is.
+   * See unitLabel in units.js. */
+  unitLabel,
   // Lineup order, not draft order. Object.keys() hands back the order the
   // slots were FILLED, so a roster drafted WR-first printed its box score
   // WR, RB, TE, QB - which reads as a mistake, because no football box score

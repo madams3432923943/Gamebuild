@@ -299,6 +299,10 @@ export const NBA = {
    * every sport the same question instead of testing whether the hook
    * exists, which is how a missing hook becomes a silent "no". */
   isUnit: () => false,
+
+  /** Never reached, since isUnit is always false - declared so shared UI can
+   * call the pair without checking which sport it is talking to. */
+  unitLabel: (entry) => entry?.name ?? "",
   orderedRosterSlots,
   minutesRangeFor,
   rotationBudget: ROTATION_BUDGET,

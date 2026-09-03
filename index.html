@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=5f1ba71" />
+  <link rel="stylesheet" href="css/style.css?v=7381873" />
 </head>
 <body>
   <header class="top-nav">
@@ -129,14 +129,13 @@
         </button>
       </div>
       <div class="nav-utility">
-        <!-- Sound is off-or-on for the whole app and the choice is remembered.
-             aria-pressed rather than a label that changes meaning: a button
-             reading "Sound" that is sometimes a state and sometimes a command is
-             ambiguous to a screen reader and to everyone else. -->
-        <button class="nav-tab nav-tab-icon" id="nav-sound" type="button" aria-pressed="true" title="Sound">
-          <span aria-hidden="true" id="nav-sound-icon">&#128266;</span>
-          <span class="sr-only" id="nav-sound-label">Sound on</span>
-        </button>
+        <!-- Sound used to sit here as a speaker icon. It is a SETTING, not a
+             destination: it is chosen once, maybe never, and it was taking
+             permanent space in the header on every screen to say so. It lives
+             under Account settings on the profile now, next to the other two
+             things you set once. Moved rather than deleted - a game that plays
+             buzzers and fanfares needs a mute somewhere, and "no button" is not
+             the same decision as "no sound control". -->
         <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
       </div>
     </nav>
@@ -538,6 +537,19 @@
               <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
               <span id="profile-email-status" class="hint-text"></span>
             </div>
+            <!-- Sound, moved off the header. aria-pressed rather than a label
+                 that changes meaning: a button reading "Sound" that is
+                 sometimes a state and sometimes a command is ambiguous to a
+                 screen reader and to everyone else. The label is visible here
+                 rather than screen-reader-only, because a settings row has the
+                 space and a row that only reads as an emoji is a guess. -->
+            <div class="field-row field-row-setting">
+              <span id="setting-sound-title">Sound</span>
+              <button type="button" id="setting-sound" class="btn btn-secondary btn-small" aria-pressed="true" aria-labelledby="setting-sound-title setting-sound-label">
+                <span aria-hidden="true" id="setting-sound-icon">&#128266;</span>
+                <span id="setting-sound-label">On</span>
+              </button>
+            </div>
           </div>
         </details>
       </div>
@@ -747,6 +759,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=5f1ba71"></script>
+  <script type="module" src="js/main.js?v=7381873"></script>
 </body>
 </html>
