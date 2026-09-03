@@ -14,6 +14,13 @@
 // would say out loud: their small forward is going to eat mine. So that is what
 // this returns, named on both sides.
 //
+// IT RETURNS NOTES, NOT SENTENCES, and the reason is measured. The prose this
+// used to build ran 82-117 characters a line against a card body about 27
+// characters wide on a 360px phone, and three of those lines said the same
+// thing about three different slots without ever saying what to do. matchupNotes
+// splits it: the numbers become rows that cannot wrap, and the ONE clause worth
+// words says who beats whom. See js/gradenotes.js.
+//
 // SPORT-AGNOSTIC ON PURPOSE. Nothing here knows what a slot means. It takes the
 // sport's own rate() and slot labels and compares like for like, which is why
 // it works unchanged for a football unit and a basketball guard - and why it
@@ -22,7 +29,9 @@
 // (see CLAUDE.md); the fix is not to be careful, it is to take the sport as an
 // argument.
 
-/** How far apart two players have to rate before it is worth a sentence.
+import { statNote, adviceNote } from "./gradenotes.js";
+
+/** How far apart two players have to rate before it is worth a row.
  *
  * A share of the better player's rating, not an absolute: football's unit
  * ratings and basketball's impact scores are different scales entirely, and a
@@ -64,7 +73,9 @@ export function slotMatchups(roster, oppRoster, { rate, label, slots } = {}) {
     if (!Number.isFinite(mineRating) || !Number.isFinite(theirsRating)) continue;
 
     // Relative to the stronger of the two, so the scale is the same whichever
-    // sport asked and whichever side is ahead.
+    // sport asked and whichever side is ahead - which is also what makes
+    // `edge` the only quantity matchupNotes can honestly print, the two
+    // sports' own ratings being on different scales entirely.
     const scale = Math.max(Math.abs(mineRating), Math.abs(theirsRating));
     if (scale <= 0) continue;
 
@@ -86,35 +97,134 @@ export function slotMatchups(roster, oppRoster, { rate, label, slots } = {}) {
   return reads.sort((a, b) => a.edge - b.edge);
 }
 
-/** `Their SF LeBron James has an advantageous matchup against your SF Jake
- *  LaRavia.` - and the same sentence the other way round when you are ahead.
+/** The surname a fan would use, or a unit's own short label.
  *
- * The slot is named on both sides even though it is the same slot, because
- * that is how the sentence is said out loud, and because a reader scanning
- * three of these needs the position to anchor each one. */
-export function matchupSentence(read) {
-  const theirName = read.theirs?.name ?? "their player";
-  const myName = read.mine?.name ?? "yours";
-  // Same-slot reads (basketball) name one position on both sides. Cross reads
-  // (football) carry `against`, because the thing they face is a different
-  // position entirely.
-  //
-  // A UNIT NAMES ITS OWN POSITION - "Arizona Cardinals Defensive Line" already
-  // says what it is, so prefixing the label gives "their pass rush Arizona
-  // Cardinals Defensive Line". Players need the prefix ("your WR1 Justin
-  // Jefferson"); units do not.
-  const named = (entry, label) => (entry?.group ? "" : `${label} `);
-  const theirLabel = named(read.theirs, read.against ?? read.label);
-  const myLabel = named(read.mine, read.label);
-
-  if (read.edge < 0) {
-    return read.severity === "severe"
-      ? `Their ${theirLabel}${theirName} badly outmatches your ${myLabel}${myName}.`
-      : `Their ${theirLabel}${theirName} has an advantageous matchup against your ${myLabel}${myName}.`;
+ * `Their Atlanta Falcons Offensive Line has an advantageous matchup against
+ * your Atlanta Falcons Defensive Line` is 109 characters describing one fact,
+ * and the two teams in it are not even the point. A card has room for the
+ * half that identifies somebody: "Jefferson", "Falcons OL".
+ *
+ * A UNIT IS NOT A PERSON and has no surname - `unitLabel` is the sport's job,
+ * so a unit arrives here already carrying whatever short name it has. The
+ * fallback keeps the last two words, which turns "Atlanta Falcons Offensive
+ * Line" into "Offensive Line" rather than into "Line". */
+function shortName(entry, shorten) {
+  const full = String(entry?.name ?? "").trim();
+  if (!full) return "";
+  if (typeof shorten === "function") {
+    const given = String(shorten(entry) ?? "").trim();
+    if (given) return given;
   }
-  return read.severity === "severe"
-    ? `Your ${myLabel}${myName} badly outmatches their ${theirLabel}${theirName}.`
-    : `Your ${myLabel}${myName} has an advantageous matchup against their ${theirLabel}${theirName}.`;
+  if (entry?.group) {
+    const words = full.split(/\s+/);
+    return words.slice(Math.max(0, words.length - 2)).join(" ");
+  }
+  // A person: the last word, plus a suffix when the name carries one, so
+  // "Odell Beckham Jr." does not become "Jr.".
+  const words = full.split(/\s+/);
+  const last = words[words.length - 1];
+  if (/^(jr\.?|sr\.?|i{1,3}|iv|v)$/i.test(last) && words.length >= 2) {
+    return `${words[words.length - 2]} ${last}`;
+  }
+  return last;
+}
+
+/**
+ * The same reads as notes rather than as sentences.
+ *
+ * ONE FACT ROW PER NOTABLE MISMATCH, plus ONE piece of advice naming the man
+ * behind the worst of them. That division is the point: the numbers are what a
+ * row is good at, and the one thing worth a clause is what the drafter should
+ * do about the mismatch they are losing.
+ *
+ * It replaces matchupReads, which returned up to three prose sentences of
+ * 82-117 characters each. Three of those said the same thing three times about
+ * three different slots and none of them said what to do.
+ *
+ * @param opts.shorten  (entry) => string, the sport's own short name for an
+ *                      entry. Optional; see shortName for the fallback.
+ * @param opts.rows     how many fact rows to return, default 2.
+ */
+export function matchupNotes(roster, oppRoster, { rate, label, slots, pairings, shorten, rows = 2 } = {}) {
+  const reads = pairings
+    ? crossMatchups(roster, oppRoster, { rate, pairings })
+    : slotMatchups(roster, oppRoster, { rate, label, slots });
+
+  const notable = reads.filter((r) => Math.abs(r.edge) >= EDGE_THRESHOLD);
+  if (!notable.length) {
+    // Silence reads as a missing feature, and "nothing is mismatched" is real
+    // information about a draft - it says the game is yours to lose on
+    // gameplan rather than on the board.
+    return [adviceNote("Nothing is mismatched - this one is down to gameplan.")];
+  }
+
+  const notes = [];
+  // Worst against you first, then your best edge. Two opposite ends rather
+  // than the two worst, so a lopsided draft does not print the same complaint
+  // twice and a player who drafted well is told what they got right.
+  const ordered = [notable[0]];
+  const best = notable[notable.length - 1];
+  if (best !== notable[0]) ordered.push(best);
+
+  for (const read of ordered.slice(0, rows)) {
+    // THE EDGE, NOT THE TWO RATINGS. Printing both was the obvious thing and
+    // it was wrong: this module is sport-agnostic on purpose and the two
+    // sports' ratings are on different scales entirely. Football's rateEntry
+    // returns 0-1, so 100x it reads as a percentile; basketball's impact runs
+    // to the tens, so the same arithmetic printed "C 3641-2275" on the card -
+    // two numbers that mean nothing to a reader and cannot be compared to the
+    // row above them.
+    //
+    // `edge` is already a share of the stronger of the two, which is scale-free
+    // by construction, so it is the one quantity this module can honestly
+    // format. A sport that wants to print its own ratings does it in its own
+    // module, where it knows what they mean - see "Worst pick: CB 70-94" in
+    // js/sports/nfl/draftgrade.js.
+    const share = Math.round(100 * read.edge);
+    // `label` is this side's slot and `against` what it faces, so a football
+    // row reads "OL v rush" and a basketball one just "SF". Naming both sides
+    // of a cross matchup is what stops "OL -24%" from looking like a typo.
+    const rowLabel = read.against && read.against !== read.label
+      ? `${read.label} v ${read.against}`
+      : read.label;
+    notes.push(statNote(rowLabel, `${share > 0 ? "+" : ""}${share}%`, read.edge < 0 ? "bad" : "good"));
+  }
+
+  // The one clause, about the mismatch that is actually a problem. Named,
+  // because "your secondary is behind" is a fact and "Andrews will beat your
+  // safeties" is a thing you can go and fix at the board.
+  const worst = notable[0];
+  if (worst.edge < 0) {
+    const them = shortName(worst.theirs, shorten);
+    // WHOSE UNIT IS LOSING IS MINE, so the clause names `label` - this side's
+    // slot - and not `against`, which describes THEIRS. Getting that backwards
+    // printed "Offensive Line has the edge on your offensive line", the exact
+    // shape of nonsense the MATCHUPS table in js/sports/nfl/draftgrade.js was
+    // written to avoid: nobody's offensive line blocks the other one.
+    const target = worst.label;
+    notes.push(adviceNote(
+      worst.severity === "severe"
+        // "on their own", not "on his own": half of what this names is a UNIT -
+        // "Falcons OL will beat your pass rush on his own" is what the card
+        // actually printed - and the singular they reads correctly for a person
+        // too, so one clause covers both rather than the sport having to say
+        // which it handed over.
+        ? `${them} will beat your ${target} on their own.`
+        : `${them} has the edge on your ${target}.`
+    ));
+  } else {
+    // BOTH SIDES ARE NAMED HERE TOO, and not only because it reads better. A
+    // roster ahead at every slot produced "play through Towns", which names
+    // nobody on the other team - and scripts/verify-sport-contract.mjs exists
+    // to catch a grade that was handed an opponent and never mentions one. The
+    // old prose named both ("Your C Towns badly outmatches their C Grant") and
+    // dropping that quietly turned the check red. Whoever the mismatch is
+    // against is half of what a mismatch IS.
+    const me = shortName(worst.mine, shorten);
+    const them = shortName(worst.theirs, shorten);
+    notes.push(adviceNote(`Play through ${me} on ${them}.`));
+  }
+  return notes;
 }
 
 /**
@@ -166,45 +276,4 @@ export function crossMatchups(roster, oppRoster, { rate, pairings } = {}) {
     });
   }
   return reads.sort((a, b) => a.edge - b.edge);
-}
-
-/**
- * The two or three sentences worth printing under a draft grade.
- *
- * Only mismatches past EDGE_THRESHOLD, capped, and always leading with the
- * worst one against you. A list of every slot would be a table, and a table of
- * fifteen near-even matchups says nothing - the whole value here is that the
- * lines which appear are the ones that decided something.
- *
- * An even board returns one sentence saying so, rather than nothing: silence
- * reads as a missing feature, and "no mismatch anywhere" is real information
- * about a draft.
- */
-export function matchupReads(roster, oppRoster, { rate, label, slots, pairings, limit = 3 } = {}) {
-  // A sport that supplies pairings is telling us its slots do not face each
-  // other; one that does not is telling us they do.
-  const reads = pairings
-    ? crossMatchups(roster, oppRoster, { rate, pairings })
-    : slotMatchups(roster, oppRoster, { rate, label, slots });
-  if (!reads.length) return [];
-
-  const notable = reads.filter((r) => Math.abs(r.edge) >= EDGE_THRESHOLD);
-  if (!notable.length) {
-    return ["Nothing is mismatched - this one comes down to gameplan and rotation."];
-  }
-
-  // Worst against you, then your best edge, then whatever is next most extreme.
-  // Leading with two opposite ends stops a lopsided draft from printing three
-  // versions of the same sentence.
-  const ordered = [];
-  const worst = notable[0];
-  ordered.push(worst);
-  const best = notable[notable.length - 1];
-  if (best !== worst) ordered.push(best);
-  for (const read of notable) {
-    if (ordered.length >= limit) break;
-    if (!ordered.includes(read)) ordered.push(read);
-  }
-
-  return ordered.slice(0, limit).map(matchupSentence);
 }

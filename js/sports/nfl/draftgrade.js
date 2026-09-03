@@ -3,9 +3,10 @@
 // you were offered, which is the only thing you controlled.
 
 import { OFFENSE_WEIGHTS, DEFENSE_WEIGHTS } from "./constants.js";
-import { rateEntry } from "./units.js";
+import { rateEntry, unitLabel, isUnit } from "./units.js";
 import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
-import { matchupReads } from "../../matchups.js";
+import { matchupNotes } from "../../matchups.js";
+import { statNote, adviceNote } from "../../gradenotes.js";
 
 const canonicalSlot = (slot) => String(slot || "").replace(/\d+$/, "").toUpperCase();
 
@@ -157,19 +158,32 @@ function decidingRead(roster, oppRoster, ctx) {
     ? (offGap <= defGap ? "offence" : "defence")
     : (offGap >= defGap ? "offence" : "defence");
   const gap = side === "offence" ? offGap : defGap;
-  notes.push(
-    gap < 0
-      ? `Your ${side} is where this was lost: they out-rate you there by ${(100 * -gap).toFixed(0)}.`
-      : `Your ${side} is what carried this: you out-rate them there by ${(100 * gap).toFixed(0)}.`
-  );
+  const points = Math.round(100 * Math.abs(gap));
+  // "THEY OUT-RATE YOU THERE BY 0" was printed for real - a claim that a half
+  // of the roster decided the game, with a magnitude of nothing behind it.
+  // Rounding to zero means the two halves are level, which is worth saying as
+  // itself rather than as a decisive read with the number filed off.
+  if (points === 0) {
+    notes.push(statNote("Both halves", "level"));
+  } else {
+    notes.push(statNote(
+      gap < 0 ? `Behind on ${side}` : `Ahead on ${side}`,
+      `${points}`,
+      gap < 0 ? "bad" : "good"
+    ));
+  }
 
   // The single pick that moved it most, whichever way it went. Named by slot
-  // because that is the thing the player chose.
+  // because that is the thing the player chose - and followed by the clause
+  // that says what to do about it, which is what a grade is for.
   const worst = gaps.reduce((a, b) => (b.delta < a.delta ? b : a));
   if (worst.delta < 0) {
-    notes.push(
-      `Their ${worst.slot} beat yours ${(100 * worst.theirs).toFixed(0)} to ${(100 * worst.mine).toFixed(0)} - the biggest single gap on the board.`
-    );
+    notes.push(statNote(
+      `Worst pick: ${worst.slot}`,
+      `${Math.round(100 * worst.mine)}-${Math.round(100 * worst.theirs)}`,
+      "bad"
+    ));
+    notes.push(adviceNote(`Take a ${worst.slot} earlier next draft.`));
   }
   return notes;
 }
@@ -218,18 +232,55 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const slots = Object.keys(OFFENSE_WEIGHTS).concat(Object.keys(DEFENSE_WEIGHTS));
   const letter = curveLetter(score, curveFor(ctx, slots));
 
+  // ONE ROW PER FACT, SHORTEST FIRST. This used to be a sentence per fact and
+  // one of them - the per-unit defensive dump - ran to 50 characters, four
+  // lines on a phone, to say four numbers. See js/gradenotes.js for why the
+  // card is rows now.
   const notes = [];
-  notes.push(`Offence rates ${(100 * offense).toFixed(0)}, defence ${(100 * defense).toFixed(0)}.`);
+  // Facts and advice are two different lists because they are two different
+  // things to read - see js/gradenotes.js. They are concatenated into
+  // `reasons` at the end so that a card renders the numbers first and the
+  // clauses last however many of each there turn out to be.
+  //
+  // TWO ADVICE LISTS, AND THE ORDER IS NOT PUSH ORDER. Only two clauses fit,
+  // so which two is a decision rather than an accident of where in this
+  // function they happened to be added. A clause about the OPPONENT wins:
+  // "Andrews has the edge on your safeties" names a man on the other roster
+  // and a slot on yours, which is the most actionable thing a grade can say,
+  // where "Offence-heavy" is a restatement of the two rows at the top of the
+  // card. It is also what scripts/verify-sport-contract.mjs looks for - a
+  // grade handed an opponent must name one - so letting a generic clause push
+  // it out would fail the build as well as the reader.
+  const keyAdvice = [];
+  const advice = [];
+  const pct = (value) => `${Math.round(100 * value)}`;
+  notes.push(statNote("Offence", pct(offense), offense >= defense ? "good" : "neutral"));
+  notes.push(statNote("Defence", pct(defense), defense > offense ? "good" : "neutral"));
 
-  const groupText = Object.keys(DEFENSE_WEIGHTS)
+  // THE WEAKEST UNIT, WHICH THE OLD DUMP MADE THE READER FIND. Printing
+  // "DL 92 · LB 85 · CB 70 · S 68" asks a player to scan four numbers for the
+  // smallest; naming it is the same information, shorter, and it is the pick
+  // they can go and do something about.
+  const rated = Object.keys(DEFENSE_WEIGHTS)
     .filter((slot) => Number.isFinite(defenseGroups[slot]))
-    .map((slot) => `${slot} ${(100 * defenseGroups[slot]).toFixed(0)}`)
-    .join(" · ");
-  if (groupText) notes.push(`${groupText} · Overall Defense ${(100 * defense).toFixed(0)}.`);
+    .map((slot) => ({ slot, rating: defenseGroups[slot] }));
+  if (rated.length > 1) {
+    const weakest = rated.reduce((a, b) => (b.rating < a.rating ? b : a));
+    const strongest = rated.reduce((a, b) => (b.rating > a.rating ? b : a));
+    notes.push(statNote("Best unit", `${strongest.slot} ${pct(strongest.rating)}`, "good"));
+    notes.push(statNote("Weakest", `${weakest.slot} ${pct(weakest.rating)}`, "bad"));
+  }
 
-  if (offense - defense > 0.15) notes.push("Offence-heavy - your defence will give it back.");
-  else if (defense - offense > 0.15) notes.push("Defence-first. You will need to win low-scoring games.");
-  if (forfeits.length) notes.push(`${forfeits.length} slot${forfeits.length === 1 ? "" : "s"} left empty.`);
+  if (forfeits.length) {
+    notes.push(statNote("Slots empty", `${forfeits.length}`, "bad"));
+  }
+
+  // The identity read, as advice rather than as an observation: a drafter can
+  // act on "you have to win this low-scoring" before kickoff, by picking the
+  // gameplan that suits it.
+  if (offense - defense > 0.15) advice.push("Offence-heavy - your defence will give it back.");
+  else if (defense - offense > 0.15) advice.push("Defence-first - you need this game low-scoring.");
+  if (forfeits.length) advice.push("Empty slots rate zero - never let the clock draft.");
 
   // Football's counterplay read, and until now it did not exist. NFL.draftAnalysis
   // accepted an opponent roster and dropped it on the floor, so the "how your
@@ -240,16 +291,30 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // returns one number for both: a secondary and a quarterback are not alike,
   // but "how good is this at its job" is the same question asked of each.
   if (oppRoster) {
-    // Which half decided it comes FIRST. matchupReads below is slot-against-slot
-    // colour; this is the one line that answers "why did I lose", and burying it
-    // under three matchup sentences is how it gets missed.
-    notes.push(...decidingRead(roster, oppRoster, ctx));
-    notes.push(
-      ...matchupReads(roster, oppRoster, {
-        rate: (entry) => rateEntry(entry, ctx),
-        pairings: MATCHUPS,
-      })
-    );
+    // Which half decided it comes FIRST. matchupNotes below is
+    // slot-against-slot colour; this is the one row that answers "why did I
+    // lose", and burying it under matchup rows is how it gets missed.
+    for (const note of decidingRead(roster, oppRoster, ctx)) {
+      if (note.kind === "advice") keyAdvice.push(note.text);
+      else notes.push(note);
+    }
+    for (const note of matchupNotes(roster, oppRoster, {
+      rate: (entry) => rateEntry(entry, ctx),
+      pairings: MATCHUPS,
+      // WHAT IDENTIFIES A UNIT IS ITS TEAM. A unit has no surname, and the
+      // group alone is worse than useless in a clause about the line of
+      // scrimmage - "Offensive Line has the edge on your pass rush" could be
+      // any of 32 of them. The team's last word plus the group is what a fan
+      // would say: "Falcons OL".
+      shorten: (entry) => {
+        if (!isUnit(entry)) return null;
+        const town = String(entry.team || "").split(/\s+/).pop();
+        return town ? `${town} ${entry.group}` : unitLabel(entry);
+      },
+    })) {
+      if (note.kind === "advice") keyAdvice.push(note.text);
+      else notes.push(note);
+    }
   }
 
   return {
@@ -259,7 +324,13 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
       : defense - offense > 0.15
         ? "Built to win ugly."
         : "Balanced on both sides of the ball.",
-    reasons: notes,
+    // Numbers, then the clauses about them. Capped: six rows and two pieces of
+    // advice is a card, and the eleven notes this could otherwise produce is a
+    // screen nobody reads to the bottom of.
+    reasons: [
+      ...notes.slice(0, 6),
+      ...[...keyAdvice, ...advice].slice(0, 2).map(adviceNote),
+    ],
     score,
     offense,
     defense,
