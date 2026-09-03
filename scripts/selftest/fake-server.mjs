@@ -29,6 +29,7 @@
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadDataset } from "../../data/load.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -43,7 +44,7 @@ const ROOT = path.resolve(HERE, "..", "..");
 // verify:abandon-selftest are the only end-to-end coverage online play and
 // reconnect have, and neither is part of `npm run verify`. They had been
 // failing to start rather than failing a check, so nothing reported it.
-const { PLAYERS } = await import(new URL(`file://${path.join(ROOT, "data", "nba-players.js")}`).href);
+const PLAYERS = await loadDataset("nba-players");
 const { computeDatasetStats, simulateGame } = await import(
   new URL(`file://${path.join(ROOT, "js", "sports", "nba", "engine.js")}`).href
 );

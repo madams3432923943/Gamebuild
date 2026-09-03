@@ -7,7 +7,7 @@
 # anywhere to say so.
 #
 # It runs AUTOMATICALLY on a push that changes the dataset, for the reasons set
-# out in seed-nfl.yml: the table is a derived artifact of data/nba-players.js,
+# out in seed-nfl.yml: the table is a derived artifact of data/nba-players.json,
 # and "someone runs the workflow afterwards" is a convention, not a mechanism.
 # The empty-table window that once made an automatic publish unsafe is gone -
 # rows land in a staging table nothing reads and one statement swaps them in.
@@ -18,7 +18,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "data/nba-players.js"
+      - "data/nba-players.json"
       - "tools/export-players-sql.mjs"
       - "tools/apply-seed.mjs"
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
           node-version: 22
 
       # Generated here rather than committed: it is derivable from
-      # data/nba-players.js in one command, and generating it in the same run
+      # data/nba-players.json in one command, and generating it in the same run
       # that applies it means the two can never disagree.
       - name: Generate the seed
         run: node tools/export-players-sql.mjs

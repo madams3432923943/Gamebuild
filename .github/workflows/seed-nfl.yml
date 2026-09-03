@@ -25,8 +25,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "data/nfl-players.js"
-      - "data/nfl-units.js"
+      - "data/nfl-players.json"
+      - "data/nfl-units.json"
       # The generator and the publisher themselves: a change to either can alter
       # what lands in the table without data/ moving at all.
       - "tools/export-nfl-sql.mjs"

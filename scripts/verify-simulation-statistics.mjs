@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { PLAYERS } from "../data/nba-players.js";
 import {
   activeSlots,
   computeDatasetStats,
@@ -10,6 +9,9 @@ import {
 } from "../js/sports/nba/engine.js";
 import { RANKED_SLOTS, STARTER_SLOTS } from "../js/sports/nba/constants.js";
 import { createSeededRng, withSeededMathRandom } from "../js/lib/seeded-rng.js";
+import { loadDataset } from "../data/load.mjs";
+
+const PLAYERS = await loadDataset("nba-players");
 
 const RUNS = Number(process.env.SIM_RUNS || 5000);
 const dataset = computeDatasetStats(PLAYERS);

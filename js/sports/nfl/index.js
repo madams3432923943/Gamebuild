@@ -58,11 +58,11 @@ async function preload() {
   if (NFL_PLAYERS && NFL_UNITS) return;
   if (!loading) {
     loading = Promise.all([
-      import("../../../data/nfl-players.js"),
-      import("../../../data/nfl-units.js"),
+      fetchDataset("nfl-players"),
+      fetchDataset("nfl-units"),
     ]).then(([players, units]) => {
-      NFL_PLAYERS = players.ROWS;
-      NFL_UNITS = units.ROWS;
+      NFL_PLAYERS = players;
+      NFL_UNITS = units;
     }).catch((error) => {
       // A failed load must not leave a permanently poisoned promise - the next
       // attempt should be able to try again rather than reject forever.
@@ -74,6 +74,7 @@ async function preload() {
 }
 import { computeDatasetStats, simulate } from "./engine.js";
 import { datasetVersion } from "../../lib/dataset-version.js";
+import { fetchDataset } from "../../lib/dataset.js";
 
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
@@ -256,7 +257,7 @@ export const NFL = {
     starters: ["QB", "RB", "WR1", "WR2", "WR3", "TE", "OL", "DL", "LB", "CB", "S", "ST"],
     // No bench. Football substitutes by unit and by situation, not by a sixth
     // man, so the roster is twelve starters and the depth term lives on the
-    // units themselves (see `depth` in data/nfl-units.js).
+    // units themselves (see `depth` in data/nfl-units.json).
     bench: [],
   },
 

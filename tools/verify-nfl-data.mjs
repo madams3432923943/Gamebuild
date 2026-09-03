@@ -10,11 +10,14 @@
 //
 // Usage:  node tools/verify-nfl-data.mjs
 
-import { ROWS as PLAYERS } from "../data/nfl-players.js";
-import { ROWS as UNITS } from "../data/nfl-units.js";
 
 // The ranked lineup from js/sports/nfl/index.js. Individual slots list how many
 // of that position a squad must offer; unit slots must simply exist.
+import { loadDataset } from "../data/load.mjs";
+
+const PLAYERS = await loadDataset("nfl-players");
+const UNITS = await loadDataset("nfl-units");
+
 const NEED_PLAYERS = { QB: 1, RB: 1, WR: 2, TE: 1 };
 const NEED_UNITS = ["OL", "DL", "LB", "CB", "S", "ST"];
 

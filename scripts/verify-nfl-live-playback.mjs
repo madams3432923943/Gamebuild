@@ -18,7 +18,7 @@
 // can read on screen only ever grows toward the result - never starts there.
 //
 // The self-test harness (scripts/selftest/run-selftest.mjs) drives basketball
-// and picks players by name from data/nba-players.js. This one takes whatever
+// and picks players by name from data/nba-players.json. This one takes whatever
 // card is offered instead, which needs no per-sport data and is all a draft
 // needs to complete.
 

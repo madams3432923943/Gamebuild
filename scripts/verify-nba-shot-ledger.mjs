@@ -19,11 +19,13 @@
 // Run against real rosters drawn from the real dataset, over many games, since
 // rounding drift is a tail event and one game proves nothing.
 
-import { PLAYERS } from "../data/nba-players.js";
 import { simulateGame, computeDatasetStats } from "../js/sports/nba/engine.js";
 import { buildShotLedger } from "../js/sports/nba/playback.js";
 import NBA from "../js/sports/nba/index.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
+import { loadDataset } from "../data/load.mjs";
+
+const PLAYERS = await loadDataset("nba-players");
 
 const GAMES = Number(process.env.LEDGER_GAMES || 120);
 

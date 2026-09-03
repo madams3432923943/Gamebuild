@@ -106,12 +106,18 @@ per-sport hook added for football blanked the basketball draft board. See
 - **Balance is solved, not picked.** Gamestyle `pts` mods, `TALENT_PARITY` and the
   quarter-variance range come from `tools/calibrate-*.mjs`. Re-run after any engine
   or gamestyle change, variance first, then gamestyles.
-- **`data/` is data, not code — don't read or search it.** `data/nba-players.js` is
-  2,542 generated rows (516 KB). Open it only when changing gameplay or the
-  simulation and you actually need a player's numbers; never while writing app
-  code. It's generated from `tools/seasons/*.csv` (not committed), and
-  `db/seed/players.json` is generated from it (also not committed). Never
-  hand-edit any of the three — see `tools/README.md`.
+- **`data/` is data, not code — don't read or search it.** Three generated JSON
+  files totalling 7MB: `nba-players.json` (10,290 rows, 2.3MB),
+  `nfl-players.json` (9,456 rows, 2.6MB) and `nfl-units.json` (4,975 rows,
+  2.2MB). The count in this note used to read "2,542 rows (516 KB)", which was
+  four times short and years stale — a reason to state a shape rather than a
+  size. Open one only when changing gameplay or the simulation and you actually
+  need a player's numbers; never while writing app code.
+  Nothing imports them directly: Node goes through `data/load.mjs`, the browser
+  through `js/lib/dataset.js`, and that is what made converting them from ES
+  modules to JSON a one-file change rather than a twenty-two-file one. See
+  `data/README.md`. They are generated from `tools/seasons/*` (not committed);
+  never hand-edit — see `tools/README.md`.
 - **Roster shapes vary by mode** (5 / 6 / 10 slots). Derive slots from the roster,
   never assume a shape.
 - **`db/` is documentation, not a migration runner** — write the file, then apply it
@@ -164,8 +170,8 @@ Never invent rankings. Never guess player information.
 Every piece of data originates from a trusted source. Historical data is immutable
 unless corrected by the official source.
 
-Datasets are GENERATED, never hand-edited. `data/nba-players.js` comes from
-`tools/build-nba-data.mjs`; `data/nfl-players.js` and `data/nfl-units.js` from
+Datasets are GENERATED, never hand-edited. `data/nba-players.json` comes from
+`tools/build-nba-data.mjs`; `data/nfl-players.json` and `data/nfl-units.json` from
 `tools/build-nfl-data.mjs`. Fix the tool, re-run it, commit the output.
 
 ---

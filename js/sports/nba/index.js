@@ -44,9 +44,9 @@ function loadedPlayers() {
 async function preload() {
   if (PLAYERS) return;
   if (!loading) {
-    loading = import("../../../data/nba-players.js")
-      .then((mod) => {
-        PLAYERS = mod.PLAYERS;
+    loading = fetchDataset("nba-players")
+      .then((rows) => {
+        PLAYERS = rows;
       })
       .catch((error) => {
         // A failed load must not leave a permanently poisoned promise - the
@@ -58,6 +58,7 @@ async function preload() {
   return loading;
 }
 import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
+import { fetchDataset } from "../../lib/dataset.js";
 import { datasetVersion } from "../../lib/dataset-version.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
 import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./recap.js";

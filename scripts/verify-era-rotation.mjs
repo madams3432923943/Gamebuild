@@ -114,7 +114,7 @@ for (const meta of SPORTS) {
     // silently filters an era out of the pool would pass "covers what it has".
     //
     // A WARNING, not a failure, because the only way to fail it today is a
-    // DATASET gap rather than a roller bug: data/nba-players.js currently
+    // DATASET gap rather than a roller bug: data/nba-players.json currently
     // starts at 1980, so Grandpa's Game (1960s-1980s) can only ever deal
     // 1980s squads no matter how fairly the eras are rotated. The roller
     // cannot invent squads; the fix is more historical seasons through

@@ -1,6 +1,6 @@
 # Importing real player data
 
-`data/nba-players.js` is generated, not hand-edited. This directory converts
+`data/nba-players.json` is generated, not hand-edited. This directory converts
 authoritative per-season CSVs into it.
 
 **The CSVs are not committed.** They are 3.4 MB of build input that nothing
@@ -45,11 +45,11 @@ filename (`NBA_1997.csv` -> 1996-97 -> the 1990s).
 
     node tools/build-data-from-csv.mjs
 
-Writes `data/nba-players.js`. Run `node tools/verify-data.mjs` afterward.
+Writes `data/nba-players.json`. Run `node tools/verify-data.mjs` afterward.
 
 ## Getting a new dataset onto the server
 
-The client reads `data/nba-players.js`; the online simulation reads the server's
+The client reads `data/nba-players.json`; the online simulation reads the server's
 `players` table, and `scripts/verify-parity.mjs` checks the two agree. To push
 a regenerated dataset to the server:
 

@@ -40,10 +40,10 @@ be green while the two games differ:
 | `parity:constants` | A changed `SCORING_K`, `TALENT_PARITY`, … |
 | `parity:tactics` | A gamestyle tuned on one side only |
 | `parity:box-scores` | Behavioural divergence, diffed field by field |
-| `parity:dataset` | `data/nba-players.js` vs the `players` table |
+| `parity:dataset` | `data/nba-players.json` vs the `players` table |
 
 That last one is not about code at all. The client normalizes every matchup
-against `computeDatasetStats(PLAYERS)` from `data/nba-players.js`; the Edge Function
+against `computeDatasetStats(PLAYERS)` from `data/nba-players.json`; the Edge Function
 normalizes against the same function over the `players` **table**. Identical
 engine code fed two different datasets is still two different games.
 
@@ -123,7 +123,7 @@ Recorded 2026-07-31 on branch `claude/browser-verification-harness-h7ci3t`.
 | Simulation constants (36 compared) | **PASS** - every value identical |
 | Gamestyle modifiers (10 gamestyles) | **PASS** |
 | Box scores under a shared seed | **PASS** - 0.000% divergence |
-| Dataset (`data/nba-players.js` vs `players`) | **PASS** - verified out of band, see below |
+| Dataset (`data/nba-players.json` vs `players`) | **PASS** - verified out of band, see below |
 
 Box scores, 4 scenarios covering every roster shape the engine supports:
 
@@ -157,7 +157,7 @@ pass. It will run normally anywhere with network.
 
 Verified directly against the database instead:
 
-| | `data/nba-players.js` | `players` table |
+| | `data/nba-players.json` | `players` table |
 | --- | --- | --- |
 | rows | 2542 | 2542 |
 | squads | 163 | 163 |
