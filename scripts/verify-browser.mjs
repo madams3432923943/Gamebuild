@@ -172,6 +172,11 @@ export function checkNflGameplanShape(shape, expectedPerRound = 3) {
 // The run
 // ---------------------------------------------------------------------------
 
+/** Past this, a "score" is not a score. Clear of basketball's real record of
+ * 186 with room for an implausible-but-not-broken outlier, so it catches
+ * garbage and nothing else. */
+const SCORE_SANITY_CEILING = 250;
+
 export async function runBrowserChecks(opts = {}) {
   const {
     baseUrl = DEFAULT_BASE_URL,
@@ -965,7 +970,17 @@ export async function runBrowserChecks(opts = {}) {
     // banner has TEXT and, online, that both clients agree - both of which a
     // banner reading "undefined-undefined" satisfies on one client.
     const bannerNumbers = (postGame.finalBanner.match(/\d+/g) || []).map(Number);
-    const scoreOk = bannerNumbers.length >= 2 && bannerNumbers.every((n) => Number.isFinite(n) && n <= 100);
+    // A SANITY CEILING, NOT A REALISM ONE, and the difference matters: this
+    // check exists to catch a banner reading "undefined-undefined", not to
+    // police what a score should be. It was capped at 100, which is a football
+    // number - the NFL record is 72 - and basketball passes 100 most nights.
+    // A 102-77 game failed here while the same check passed on a 79-70 one,
+    // so the suite's verdict depended on the roll of the drafted rosters.
+    // Whether a score is football- or basketball-shaped is verify-nfl-realism
+    // and verify-simulation's job, and both do it properly.
+    const scoreOk =
+      bannerNumbers.length >= 2 &&
+      bannerNumbers.every((n) => Number.isFinite(n) && n >= 0 && n <= SCORE_SANITY_CEILING);
     checks.push(
       check(
         "browser:final-score",
