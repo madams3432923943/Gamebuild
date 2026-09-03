@@ -103,6 +103,14 @@ per-sport hook added for football blanked the basketball draft board. See
   vendored into `supabase/functions/simulate-match/sports/<id>/`. Change one, copy
   it across, or online games diverge from offline ones. `npm run verify:parity`
   checks every sport that has both.
+- **The server does not read the pool at runtime.** Its rating context is baked
+  at build time into `supabase/functions/simulate-match/sports/<id>/stats.generated.js`
+  by `npm run bake`, because deriving it per request paged the whole table in
+  every time — the isolate cache never survives (12 boots served 6 requests), so
+  an online football match cost ~19MB of egress. Regenerate a dataset, re-run
+  `npm run bake`; `npm run verify:baked` fails the build if you did not, and the
+  server falls back to a full read (loudly) if a live `count(*)` disagrees with
+  what was baked.
 - **Balance is solved, not picked.** Gamestyle `pts` mods, `TALENT_PARITY` and the
   quarter-variance range come from `tools/calibrate-*.mjs`. Re-run after any engine
   or gamestyle change, variance first, then gamestyles.

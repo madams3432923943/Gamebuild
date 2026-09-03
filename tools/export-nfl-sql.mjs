@@ -46,6 +46,7 @@ import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadDataset } from "../data/load.mjs";
+import { nflSeedRows } from "./lib/seed-rows.mjs";
 
 const PLAYERS = await loadDataset("nfl-players");
 const UNITS = await loadDataset("nfl-units");
@@ -63,28 +64,12 @@ const n = (v) => (v === null || v === undefined || Number.isNaN(v) ? "NULL" : St
  * produces reaches the server unedited - no field list to fall behind. */
 const json = (o) => `${lit(JSON.stringify(o))}::jsonb`;
 
-const rows = [
-  ...PLAYERS.map((p) => ({
-    kind: "player",
-    unit_group: null,
-    name: p.name,
-    team: p.team,
-    era: p.era,
-    season: p.season,
-    pos: p.pos,
-    payload: p,
-  })),
-  ...UNITS.map((u) => ({
-    kind: "unit",
-    unit_group: u.group,
-    name: u.name,
-    team: u.team,
-    era: u.era,
-    season: u.season,
-    pos: u.pos,
-    payload: u,
-  })),
-];
+// The row shape lives in tools/lib/seed-rows.mjs, not here. It had three
+// copies - this file, the basketball exporter, and the Edge Function handler
+// test - and tools/bake-server-stats.mjs now precomputes the rating context
+// FROM these rows, so a projection that drifts would bake statistics against
+// one shape and serve them against another.
+const rows = await nflSeedRows();
 
 const COLUMNS = ["kind", "unit_group", "name", "team", "era", "season", "pos", "payload"];
 

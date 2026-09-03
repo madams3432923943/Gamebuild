@@ -52,12 +52,12 @@
 // bookkeeping rules and verify-schema-documented covers the RPC's signature.
 
 import { build } from "esbuild";
-import { mkdtemp } from "node:fs/promises";
+import { copyFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { loadDataset } from "../data/load.mjs";
+import { seedRowsFor } from "../tools/lib/seed-rows.mjs";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 import { setActiveSport } from "../js/sports/index.js";
 import { NBA } from "../js/sports/nba/index.js";
@@ -120,6 +120,35 @@ globalThis.Deno = {
   },
 };
 
+/**
+ * A COLD ISOLATE.
+ *
+ * datasetStatsCache lives for the life of the module, which in production is
+ * the life of an isolate - and measured against the live project, 12 isolates
+ * served 6 requests, so almost every real request arrives cold. In one Node
+ * process the module is imported once and that cache persists across every
+ * scenario below, which quietly hid a check: a drift test ran against a cache
+ * an earlier scenario had already filled and never reached the probe at all.
+ *
+ * Copying the bundle to a new path gives a genuinely separate module instance,
+ * because Node's loader caches by URL. It is the honest model of what the
+ * server does between requests.
+ */
+async function coldHandler() {
+  const copy = path.join(dir, `simulate-match-${coldCount++}.mjs`);
+  await copyFile(outfile, copy);
+  let captured = null;
+  const previous = globalThis.Deno.serve;
+  globalThis.Deno.serve = (fn) => { captured = fn; };
+  try {
+    await import(pathToFileURL(copy).href);
+  } finally {
+    globalThis.Deno.serve = previous;
+  }
+  return captured;
+}
+let coldCount = 0;
+
 await import(pathToFileURL(outfile).href);
 check("The handler is reachable and installed by Deno.serve", typeof handler === "function");
 if (typeof handler !== "function") {
@@ -135,29 +164,14 @@ const PLAYER_A = "11111111-1111-4111-8111-111111111111";
 const PLAYER_B = "22222222-2222-4222-8222-222222222222";
 
 /**
- * The rows the server reads for a sport, built exactly as the seed builds
- * them. tools/export-nfl-sql.mjs writes `payload` carrying the whole dataset
- * object, and generatedNflEntry reads it back - so building them any other way
- * here would test a shape production never sees.
+ * The rows the server reads for a sport.
+ *
+ * This file used to build its own copy of that shape, which made three in the
+ * repository - both seed exporters had one too. tools/lib/seed-rows.mjs is now
+ * the only one, so a database stood up here is the database the seed writes,
+ * by construction rather than by remembering.
  */
-async function tableRows(sportId) {
-  if (sportId === "nba") {
-    const players = await loadDataset("nba-players");
-    return players;
-  }
-  const players = await loadDataset("nfl-players");
-  const units = await loadDataset("nfl-units");
-  return [
-    ...players.map((p) => ({
-      kind: "player", unit_group: null, name: p.name, team: p.team,
-      era: p.era, season: p.season, pos: p.pos, payload: p,
-    })),
-    ...units.map((u) => ({
-      kind: "unit", unit_group: u.group, name: u.name, team: u.team,
-      era: u.era, season: u.season, pos: u.pos, payload: u,
-    })),
-  ];
-}
+const tableRows = (sportId) => seedRowsFor(sportId);
 
 function blankProfile(id, username) {
   return {
@@ -191,7 +205,18 @@ function makeClient(db) {
       return rows;
     };
     const api = {
-      select() { return api; },
+      // `select("*", { count: "exact", head: true })` is the drift probe: a
+      // count and no rows. Modelled as its own branch rather than as a flag on
+      // the row reader, because the whole point of it is that it does NOT read
+      // rows - a fake that quietly returned them would let a regression that
+      // reintroduces the full read pass this suite.
+      select(_columns, options) {
+        if (options?.head && options?.count) {
+          db.counts.push(table);
+          return Promise.resolve({ data: null, count: rowsOf().length, error: null });
+        }
+        return api;
+      },
       eq(column, value) { state.filters.push([column, value]); return api; },
       in(column, values) { state.inFilter = [column, values]; return api; },
       single() {
@@ -278,6 +303,7 @@ async function freshDb(sportId, rosterA, rosterB, over = {}) {
     authenticatedAs: PLAYER_A,
     rpcCalls: [],
     reads: [],
+    counts: [],
     rpcFails: false,
     tables: {
       matches: [
@@ -322,7 +348,8 @@ async function freshDb(sportId, rosterA, rosterB, over = {}) {
  * returned as `threw`, which makes it a failing check with the stack in its
  * detail rather than a dead run.
  */
-async function callHandler(db, body, { auth = "Bearer stub-token" } = {}) {
+async function callHandler(db, body, { auth = "Bearer stub-token", into = null } = {}) {
+  const target = into || handler;
   globalThis.__bkCreateClient = () => makeClient(db);
   const req = new Request("https://example.test/functions/v1/simulate-match", {
     method: "POST",
@@ -331,7 +358,7 @@ async function callHandler(db, body, { auth = "Bearer stub-token" } = {}) {
   });
   let res;
   try {
-    res = await handler(req);
+    res = await target(req);
   } catch (error) {
     return { status: 0, body: null, raw: "", threw: error };
   }
@@ -450,13 +477,14 @@ for (const [sportId, sport] of [["nba", NBA], ["nfl", NFL]]) {
     Object.keys(rpc?.args?.p_profile_a ?? {}).slice(0, 6).join(", ")
   );
 
-  // The dataset really was read through the paging reader rather than mocked
-  // past - if `reads` is empty the handler took a cached or short-circuited
-  // path and this run proved much less than it appears to.
+  // THE WHOLE POINT OF BAKING. This used to assert the table WAS paged in;
+  // now paging it in on an ordinary request is the fault. The context ships
+  // inside the function, so a healthy request costs one count(*) - a header
+  // and no rows - and reads nothing.
   check(
-    `${label}: the player table was actually paged in`,
-    db.reads.length > 0,
-    `${db.reads.length} page read(s) of ${db.reads[0]?.table}`
+    `${label}: an ordinary match reads no player rows at all`,
+    db.reads.length === 0 && db.counts.length > 0,
+    `${db.reads.length} page read(s), ${db.counts.length} count probe(s)`
   );
 }
 
@@ -528,6 +556,37 @@ const [gRosterA, gRosterB] = draftPair(NFL, NFL.slots.ranked, 0xed6e_0002);
     "A failed finalize is reported as an error, not as a finished game",
     res.status === 500 && /failed to finalize/i.test(res.body?.error ?? ""),
     res.threw ? whereItBroke(res.threw) : `HTTP ${res.status} — ${res.body?.error}`
+  );
+}
+
+{
+  // THE FALLBACK, which is the reason baking is safe to do at all.
+  //
+  // The seed workflow and the deploy workflow both fire on a push to main but
+  // are separate jobs, so a seed can land without its deploy. The function then
+  // holds precomputed percentiles for a pool that has been replaced, and every
+  // number it produces stays plausible - the failure would be invisible.
+  //
+  // A row removed from under it stands in for that. The count no longer matches
+  // what was baked, so the handler must read the table properly and still
+  // finish the match rather than serving statistics it can no longer vouch for.
+  const db = await freshDb("nfl", gRosterA, gRosterB);
+  db.tables.nfl_players = db.tables.nfl_players.slice(0, -1);
+  const res = await callHandler(db, { match_id: MATCH_ID }, { into: await coldHandler() });
+  check(
+    "A table that no longer matches the baked stats falls back to a full read",
+    res.status === 200 && res.body?.status === "complete" && db.reads.length > 0,
+    res.threw ? whereItBroke(res.threw) : `HTTP ${res.status}, ${db.reads.length} page read(s)`
+  );
+  // And the fallback has to produce a real game, not merely avoid throwing -
+  // the version it stamps is computed from the rows it actually read, so it
+  // describes the pool that is really there rather than the baked one.
+  check(
+    "The fallback stamps the version of the pool it actually read",
+    typeof res.body?.datasetVersion === "string" &&
+      res.body.datasetVersion.startsWith("nfl-generated-") &&
+      !res.body.datasetVersion.includes("14431"),
+    `"${res.body?.datasetVersion}" (baked was for 14431 rows)`
   );
 }
 

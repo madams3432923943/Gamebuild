@@ -27,6 +27,7 @@ import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadDataset } from "../data/load.mjs";
+import { NBA_COLUMNS } from "./lib/seed-rows.mjs";
 
 const PLAYERS = await loadDataset("nba-players");
 
@@ -42,11 +43,11 @@ const arr = (a) => `ARRAY[${a.map(lit).join(",")}]::text[]`;
 
 const n = (v) => (v === null || v === undefined || Number.isNaN(v) ? "NULL" : String(v));
 
-const COLUMNS = [
-  "name", "team", "decade", "season", "pos",
-  "ppg", "rpg", "apg", "spg", "bpg", "tov",
-  "fga", "fgp", "tpa", "tpp", "fta", "ftp",
-];
+// Shared with tools/bake-server-stats.mjs, which precomputes the rating
+// context from rows projected to exactly these columns - the dataset carries a
+// `games` field this table does not, so "what the file contains" and "what the
+// server reads" are genuinely different objects.
+const COLUMNS = NBA_COLUMNS;
 
 const values = PLAYERS.map(
   (p) =>

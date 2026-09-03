@@ -230,6 +230,33 @@ async function loadWholeTable(admin: any, table: string): Promise<any[] | null> 
  * dataset, the same for every caller.
  */
 const DATASET_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * IS THE TABLE STILL THE ONE THE BAKED STATISTICS DESCRIBE?
+ *
+ * A `count(*)` with head:true is a header and no rows, so this asks the
+ * question for approximately nothing - against the 6.72MB the full read costs.
+ *
+ * It exists because baking creates a way for the server to be quietly wrong.
+ * The seed workflow and the deploy workflow both fire on a push to main, but
+ * they are separate jobs and either can fail alone: a seed that lands without
+ * its deploy leaves the function serving percentiles for a pool that no longer
+ * exists, and every number it produces stays plausible. The count is the
+ * cheapest fact that distinguishes the two.
+ *
+ * It is a HEURISTIC, deliberately. A dataset rebuilt to exactly the same row
+ * count with different numbers inside would slip past, which is why
+ * scripts/verify-baked-stats.mjs compares the whole context in CI and the
+ * dataset version travels onto every stored result. This guards the deploy
+ * accident, not a malicious one.
+ */
+async function liveRowCount(admin: any, table: string): Promise<number | null> {
+  const { count, error } = await admin
+    .from(table)
+    .select("*", { count: "exact", head: true });
+  if (error || typeof count !== "number") return null;
+  return count;
+}
 /**
  * THE VERSION IS CACHED WITH THE STATS, because the rows it is computed from
  * do not survive this function and the handler needs it at the very end.
@@ -256,10 +283,44 @@ async function datasetStatsFor(admin: any, sportEngine: any): Promise<DatasetFor
     return { stats: cached.stats, version: cached.version };
   }
 
+  // THE BAKED PATH, which is the one every ordinary request takes.
+  //
+  // The rating context is a pure function of the dataset - percentile
+  // distributions over the public pool - so it is computed once at build time
+  // by tools/bake-server-stats.mjs and shipped inside this function. Deriving
+  // it here meant paging the entire table in on EVERY request, because the
+  // cache above never survives: measured against this project, 12 isolate
+  // boots served 6 requests, so each isolate computed the context once and
+  // died. That was about 19MB of egress per online football match to arrive at
+  // a number that had not changed since the last deploy.
+  const baked = sportEngine.baked;
+  if (baked?.stats) {
+    const count = await liveRowCount(admin, sportEngine.table);
+    if (count === baked.rowCount) {
+      datasetStatsCache.set(sportEngine.table, {
+        at: Date.now(), stats: baked.stats, version: baked.datasetVersion,
+      });
+      return { stats: baked.stats, version: baked.datasetVersion };
+    }
+    // LOUDLY, because this is a deploy that half-landed. The function keeps
+    // working - it reads the table properly below - but a server quietly
+    // running on precomputed statistics for a pool that has been replaced is
+    // exactly the silent failure CLAUDE.md forbids, and the only way anyone
+    // finds out is if it says so.
+    console.error(
+      `baked ${sportEngine.table} stats are stale: baked for ${baked.rowCount} rows, ` +
+        `table holds ${count === null ? "an unreadable count" : count}. ` +
+        `Falling back to a full read - redeploy the Edge Function, or re-run the seed.`
+    );
+  }
+
   const playerRows = await loadWholeTable(admin, sportEngine.table);
   if (!playerRows) return null;
   const stats = sportEngine.computeDatasetStats(playerRows);
   const version = sportEngine.datasetVersion(playerRows);
+  // The browser's draft-grade curve wants every entry on the context; the
+  // server never reads one back, and on football they are 4.8MB per isolate.
+  delete stats.__allEntries;
   datasetStatsCache.set(sportEngine.table, { at: Date.now(), stats, version });
   return { stats, version };
 }
