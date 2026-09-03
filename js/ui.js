@@ -1023,8 +1023,16 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
  *
  * Silently does nothing if the board has not been rendered yet, so a caller
  * racing the first paint cannot throw.
+ *
+ * `ticking` says whether the text being written is a running clock. It has to
+ * be a parameter rather than an assumption now that this is the ONLY writer
+ * between scores: the centre cell alternates between a clock, which must not
+ * blink, and a static label like "End of Q1", which must. When every call went
+ * through renderScoreboard first the class was cleared by the rebuild and the
+ * question never came up; without the rebuild, a board that had ever shown a
+ * clock would keep the ticking class for the rest of the game.
  */
-export function setScoreboardStatus(container, text) {
+export function setScoreboardStatus(container, text, ticking = true) {
   if (!container || !text) return;
   const period = container.querySelector(".scoreboard-period");
   if (!period) return;
@@ -1034,7 +1042,7 @@ export function setScoreboardStatus(container, text) {
   // low-key "this is live" cue under static text and is unreadable under a
   // number that changes every play - the one thing on the board you are
   // actually trying to read would be missing half the time it is on screen.
-  period.classList.add("ticking");
+  period.classList.toggle("ticking", !!ticking);
 }
 
 export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {

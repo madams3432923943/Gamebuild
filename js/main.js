@@ -3653,7 +3653,38 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       return { idx, label: idx >= REGULATION_PERIODS ? `OT${idx - REGULATION_PERIODS + 1}` : `Q${idx + 1}` };
     };
 
+    // WHAT THE BOARD IS ALREADY SHOWING, so a repaint happens only when
+    // something on it has actually changed.
+    //
+    // This is called on EVERY event - roughly 130 times a game, most of them
+    // an ordinary snap that scored nothing - and it used to rebuild the whole
+    // scoreboard each time. Two things came of that, and the second is the one
+    // a viewer complains about:
+    //
+    //   The score elements were destroyed and recreated between plays, so the
+    //   `pulse` glow on them restarted from frame zero about twice a second.
+    //   A number that is meant to sit still and breathe instead twitched.
+    //
+    //   The period table was thrown away and re-parsed to change one string.
+    //   setScoreboardStatus was written for exactly this and says so in its
+    //   own comment - it just was never the only writer, so the saving it
+    //   describes was never actually taken on this path.
+    //
+    // The board's state is the two totals and the quarter columns; everything
+    // else on it is fixed for the game. So those three are what is compared,
+    // and between scores the centre cell is the only thing that moves.
+    let paintedA = null;
+    let paintedB = null;
+    let paintedPeriods = -1;
+
     const paint = (statusLabel, ticking = false) => {
+      if (runningA === paintedA && runningB === paintedB && periodsSoFar.length === paintedPeriods) {
+        setScoreboardStatus(liveScoreboard, statusLabel, ticking);
+        return;
+      }
+      paintedA = runningA;
+      paintedB = runningB;
+      paintedPeriods = periodsSoFar.length;
       const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
       renderScoreboard(
         liveScoreboard,
@@ -3667,7 +3698,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
         true
       );
       // Same rebuild, same reason as tickScoreTo above.
-      if (ticking) setScoreboardStatus(liveScoreboard, statusLabel);
+      if (ticking) setScoreboardStatus(liveScoreboard, statusLabel, ticking);
     };
 
     /**
