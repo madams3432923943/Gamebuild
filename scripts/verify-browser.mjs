@@ -1038,6 +1038,11 @@ export async function runBrowserChecks(opts = {}) {
 // perfectly is still a broken tab, and a pure layout/console audit would call
 // that a pass.
 const TABS = [
+  // The hub is first because it is the screen every session starts on and the
+  // only one everybody sees. It was not in this list: the walk began at
+  // Profile, so the app's front door was the one screen never audited at a
+  // phone width by anything that could fail a build.
+  { name: "Hub", nav: "#nav-play", screen: "#screen-home" },
   { name: "Profile", nav: "#nav-profile", screen: "#screen-profile" },
   { name: "Rewards", nav: "#nav-badges", screen: "#screen-badges" },
   { name: "Squads", nav: "#nav-squads", screen: "#screen-squads" },
@@ -1139,6 +1144,11 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
   const out = [];
   const rows = [["tab", "viewport", "rendered", "error copy", "escaping", "overlap", "h-overflow"]];
   const problems = [];
+  const touchRows = [["tab", "viewport", `targets < ${TAP_TARGET_MIN}px`, `text < ${MIN_FONT_PX}px`]];
+  const touchProblems = [];
+  const isTouch = await page
+    .evaluate(() => matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0)
+    .catch(() => false);
   // Desktop, the tightest portrait phone, and landscape. The narrow width and
   // the short height are different failure modes - one runs out of room across,
   // the other runs out down - and a tab audited only at 390px wide had never
@@ -1164,6 +1174,41 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
       const errored = ERROR_COPY.test(text);
       const empty = shown && text.trim().length < 20;
       const audit = shown ? await page.evaluate(LAYOUT_AUDIT) : { escapingCount: 0, documentOverflowPx: 0, escaping: [] };
+
+      // THE FLOORS A LAYOUT AUDIT CANNOT SEE, on every screen rather than one.
+      //
+      // A control too small to hit and text too small to read pass every
+      // overlap and overflow check above, and on a phone they are most of what
+      // makes a screen bad. They were asserted on the post-game screen only -
+      // the reasoning being that it is the densest in the app, which is true
+      // and is not a reason the others may fail. run-mobile-baseline.mjs has
+      // been MEASURING these on hub, profile and rewards the whole time and
+      // reporting them for a person to read; a number nobody is required to
+      // look at is a number that drifts.
+      //
+      // Phone viewports only, and asked of the page rather than inferred from
+      // a width - same rule as the post-game gate, for the same reason: an
+      // emulated phone in landscape is 750px wide and still has a thumb on it.
+      const touching = shown && (isTouch || vp.width <= 700);
+      const touch = touching ? await page.evaluate(TOUCH_AUDIT) : null;
+      if (touch && (touch.smallTargetCount || touch.tinyTextCount)) {
+        touchProblems.push(
+          `${tab.name} @${vp.width}x${vp.height}: ${touch.smallTargetCount} under ${TAP_TARGET_MIN}px, ` +
+            `${touch.tinyTextCount} under ${MIN_FONT_PX}px\n` +
+            [
+              ...touch.smallTargets.slice(0, 4).map((x) => `    ${x.w}x${x.h}: ${x.el}`),
+              ...touch.tinyText.slice(0, 4).map((x) => `    ${x.px}px: ${x.el} - "${x.sample}"`),
+            ].join("\n")
+        );
+      }
+      if (touch) {
+        touchRows.push([
+          tab.name,
+          `${vp.width}x${vp.height}`,
+          String(touch.smallTargetCount),
+          String(touch.tinyTextCount),
+        ]);
+      }
 
       rows.push([
         tab.name,
@@ -1203,10 +1248,26 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
   if (!fixedViewport) out.push(await auditBannerResolution(page, log));
 
   out.push(
-    check("browser:tabs", "Profile, Rewards and Squads load at desktop and phone widths", problems.length ? FAIL : PASS, {
+    check("browser:tabs", "Hub, Profile, Rewards and Squads load at desktop and phone widths", problems.length ? FAIL : PASS, {
       detail: problems.length ? problems.join("\n") : undefined,
       table: rows,
     })
+  );
+
+  // A check that vanishes when it does not run is a check nobody notices has
+  // stopped running - the same reasoning as the post-game gate, which reports
+  // SKIP rather than silently passing with the floors unasserted.
+  out.push(
+    touchRows.length > 1
+      ? check(
+          "browser:tabs-touch",
+          `Nothing on the hub, profile, rewards or squads is under ${TAP_TARGET_MIN}px to hit or ${MIN_FONT_PX}px to read`,
+          touchProblems.length ? FAIL : PASS,
+          { detail: touchProblems.length ? touchProblems.join("\n") : undefined, table: touchRows }
+        )
+      : check("browser:tabs-touch", "Touch floors on the hub and tab screens", SKIP, {
+          detail: "No phone-width viewport in this run, so the 44px and 12px floors were not asserted.",
+        })
   );
   return out;
 }
