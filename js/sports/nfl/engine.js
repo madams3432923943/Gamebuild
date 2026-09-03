@@ -1195,6 +1195,66 @@ const RUN_SHARE_MAX = 0.77;
 const RUN_YARD_WEIGHT = 0.17;
 
 /**
+ * THE SHAPE OF A CARRY, which used to be a flat draw and is the reason
+ * drafting a great back was barely worth anything.
+ *
+ * Every play's share of a drive's yardage was `0.35 + rand() * 1.3` - a
+ * uniform band, symmetric, bounded, and identical for a run and a throw.
+ * Measured against real football over 16,752 carries:
+ *
+ *                sim     real NFL
+ *   p50          3.0     3
+ *   p90          8.0     10
+ *   p99         20.0     28
+ *   explosive    4.5%    ~11%
+ *   stuffed      7.5%    ~17%
+ *
+ * The median was right and the TAIL was less than half of football's. That is
+ * not a cosmetic miss, it is the whole mechanism by which one back is better
+ * than another: a great runner's edge is not half a yard on every carry, it is
+ * the one he breaks. With no breakaway to be had, every back settled into the
+ * same safe three or four a pop and the draft board stopped meaning anything -
+ * an elite back beat a weak one by 0.53 a carry where their own records differ
+ * by 0.72, and by fourteen yards a game.
+ *
+ * A carry is drawn from a Weibull now, which is the ordinary shape for
+ * "usually small, occasionally enormous". SHAPE above 1 is what fattens the
+ * tail; the floor is the stuffed run that still has to exist. Solved against
+ * the two numbers a fan would recognise - the explosive rate and p90 - rather
+ * than picked.
+ *
+ * PASSES ARE UNCHANGED, deliberately. A throw's distribution is already
+ * carried by the completion model and the deep/short split above it, and the
+ * measured passing shape is not the one that is wrong.
+ */
+const RUN_GAIN_FLOOR = 0.12;
+const RUN_GAIN_SHAPE = 1.35;
+
+/**
+ * How much of the tail a particular back gets.
+ *
+ * The same carrier rate that already scales his average now also decides how
+ * often he breaks one, because in football those are the same fact: a back
+ * averaging 5.2 is not gaining 5.2 every carry, he is gaining 3 like everyone
+ * else and then running 40. Applying his rate ONLY to the mean, which is what
+ * carrierYardScale did alone, produced a better back who was uniformly
+ * slightly better - which is not what watching one looks like.
+ *
+ * Bounded either side of 1 so the shape stays a football shape whoever is
+ * carrying: the worst back in the dataset still breaks the occasional long
+ * one, and the best does not turn every handoff into a race.
+ */
+const RUN_TAIL_MIN = 0.82;
+const RUN_TAIL_MAX = 1.28;
+
+function runGainWeight(rand, tail) {
+  // Inverse-transform on a Weibull. One draw, so the random stream stays as
+  // cheap as the uniform it replaces.
+  const u = Math.min(1 - 1e-9, Math.max(1e-9, rand()));
+  return RUN_GAIN_FLOOR + Math.pow(-Math.log(1 - u), RUN_GAIN_SHAPE * tail);
+}
+
+/**
  * The plays inside one drive.
  *
  * STRICTLY DERIVED. The drive already knows where it started, where it ended
@@ -1338,7 +1398,18 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
     // of a drive rather than the drive's total. A weak back means fewer yards
     // on the ground and more through the air, which is what a team with no run
     // game actually does.
-    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT * carrierBoost * meanCarrierScale : 1);
+    // A run and a throw are drawn from DIFFERENT SHAPES now. They never should
+    // have shared one: a completed pass is a fairly even thing and a carry is
+    // not, and giving both the same flat band is what flattened the backs.
+    if (isRun) {
+      const tail = Math.max(
+        RUN_TAIL_MIN,
+        Math.min(RUN_TAIL_MAX, carrierYardScale(roster[carriers[i]]))
+      );
+      raw[i] = runGainWeight(rand, tail) * RUN_YARD_WEIGHT * carrierBoost * meanCarrierScale;
+    } else {
+      raw[i] = 0.35 + rand() * 1.3;
+    }
   }
   const rawTotal = raw.reduce((s, v) => s + v, 0);
   // The productive plays make up whatever the sacks gave away.

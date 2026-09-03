@@ -44,6 +44,7 @@
 // threw for 76 yards a game is in the bottom tier because that is what he did.
 
 import { NFL } from "../js/sports/nfl/index.js";
+import { rateEntry } from "../js/sports/nfl/units.js";
 import { FG_RANGE_YARD } from "../js/sports/nfl/constants.js";
 import { setActiveSport } from "../js/sports/index.js";
 import { DraftState } from "../js/draft.js";
@@ -410,6 +411,24 @@ function realCarriesPerGame(entry) {
 
 /** Backs split by the workload they really carried. The bands are the ones a
  * fan would use: a committee back, a starter, a bell cow. */
+/**
+ * THE SHAPE OF A CARRY, and whether the back you drafted is worth drafting.
+ *
+ * Every rate above this is a MEAN, and a mean is what a flat draw gets right
+ * while getting football wrong. Run gains used to come from a uniform band, so
+ * the median carry was correct and the tail was less than half of football's -
+ * 4.2% explosive against a real 11%, 7.3% stuffed against 17%. A carry was a
+ * safe three yards for everyone.
+ *
+ * That is not a cosmetic miss. A great back's edge is not half a yard every
+ * time he touches it, it is the one he breaks, so with no breakaway to be had
+ * there was nothing for one back to be better than another AT.
+ */
+const runGains = [];
+/** The drafted back's line against his own draft rating, which is the number
+ * the board showed the player when they spent the pick. */
+const backsByRating = [];
+
 /** Carries by position group over the whole run, and receivers' share per
  * team-game. Real football hands off to ALL of its receivers and tight ends
  * about once a game between them; everything else goes to the backfield and
@@ -498,6 +517,17 @@ for (let i = 0; i < RATE_GAMES; i++) {
         0
       )
     );
+    if (roster.RB && (box.RB?.carries || 0) > 0) {
+      backsByRating.push({
+        rating: rateEntry(roster.RB, ctx),
+        ypc: (box.RB.rush_yds || 0) / box.RB.carries,
+        yards: box.RB.rush_yds || 0,
+        // His OWN rate, carried alongside, so the check below can compare the
+        // simulation against the very backs it simulated rather than against a
+        // remembered number from a different sample.
+        realYpc: Number(roster.RB.ypc) || 0,
+      });
+    }
     const backCarries = realCarriesPerGame(roster.RB);
     if (backCarries > 0) {
       const bucket = BACK_BUCKETS.find((b) => backCarries >= b.lo && backCarries < b.hi);
@@ -520,6 +550,11 @@ for (let i = 0; i < RATE_GAMES; i++) {
     shape.touchdowns.push(
       Object.values(box).reduce((sum, line) => sum + (line.rush_tds || 0) + (line.rec_tds || 0), 0)
     );
+  }
+  for (const drive of result.drives) {
+    for (const play of drive.plays || []) {
+      if (play.type === "run") runGains.push(play.gain);
+    }
   }
   shape.combined.push(result.teamScoreA + result.teamScoreB);
   // WHAT THE MAN NAMED ACTUALLY DID. Recorded as the separate quantities
@@ -736,6 +771,35 @@ const backRatios = BACK_BUCKETS.map((bucket) => ({
     ? mean(bucket.simulated) / Math.max(1e-9, mean(bucket.real))
     : null,
 }));
+// ---- the shape of a carry ---------------------------------------------------
+const EXPLOSIVE_RUN_YARDS = 12;
+const explosiveRunRate = runGains.length
+  ? runGains.filter((g) => g >= EXPLOSIVE_RUN_YARDS).length / runGains.length
+  : 0;
+const stuffedRunRate = runGains.length
+  ? runGains.filter((g) => g <= 0).length / runGains.length
+  : 0;
+
+// ---- is the man you drafted worth drafting ----------------------------------
+//
+// Split at the thirds of what the BOT ACTUALLY DRAFTS rather than of the whole
+// pool: the pool is mostly backups nobody takes, and thirds of it would compare
+// two bands that never appear in a game.
+const ratedBacks = [...backsByRating].sort((a, b) => a.rating - b.rating);
+const third = Math.floor(ratedBacks.length / 3);
+const weakBacks = ratedBacks.slice(0, third);
+const eliteBacks = ratedBacks.slice(-third);
+const meanOf = (list, key) => (list.length ? mean(list.map((b) => b[key])) : 0);
+const talentYpcGap = meanOf(eliteBacks, "ypc") - meanOf(weakBacks, "ypc");
+const talentYardGap = meanOf(eliteBacks, "yards") - meanOf(weakBacks, "yards");
+// THE SAME GAP IN THE DATA, from the same backs. An absolute band would be
+// measuring the sample as much as the engine: these 50 drafted pairs happen to
+// hold backs whose real rates differ by 0.52, while a 120-pair sample of the
+// same draft holds backs differing by 0.70. Both are honest draws; a fixed
+// band would pass one and fail the other while the engine did the same thing.
+const realTalentGap = meanOf(eliteBacks, "realYpc") - meanOf(weakBacks, "realYpc");
+const talentCarryThrough = realTalentGap > 0 ? talentYpcGap / realTalentGap : 0;
+
 const receiverCarryShare = carriesByGroup.__total
   ? ((carriesByGroup.WR || 0) + (carriesByGroup.TE || 0)) / carriesByGroup.__total
   : 0;
@@ -1128,6 +1192,45 @@ const checks = [
     title: "Yards per play spreads the way a season's games do",
     ok: yppShape.p90 - yppShape.median >= 0.9 && yppShape.p90 <= 10 && yppShape.max < 12,
     detail: `median ${yppShape.median.toFixed(2)}, p90 ${yppShape.p90.toFixed(2)}, max ${yppShape.max.toFixed(2)}`,
+  },
+  {
+    // A CARRY IS MOSTLY SHORT AND OCCASIONALLY ENORMOUS, which a flat draw
+    // cannot be. Real football breaks one of about nine carries for twelve or
+    // more; this game managed one in twenty-two, and the mean was right the
+    // whole time - which is exactly why only a distribution check catches it.
+    title: "Runs break the way football's do (8-14% go for 12+)",
+    ok: explosiveRunRate >= 0.08 && explosiveRunRate <= 0.14,
+    detail: `${(100 * explosiveRunRate).toFixed(1)}% explosive over ${runGains.length} carries ` +
+      `(real NFL about 11%; this harness measured 4.2% on the flat draw)`,
+  },
+  {
+    // The other shoulder. A distribution with no tail also had no stuffs -
+    // every carry was a safe gain, which is the same fault seen from the other
+    // end and would let a fat tail be faked by simply adding yards.
+    title: "And they get stuffed the way football's do (12-22% go nowhere)",
+    ok: stuffedRunRate >= 0.12 && stuffedRunRate <= 0.22,
+    detail: `${(100 * stuffedRunRate).toFixed(1)}% gained nothing or lost ground ` +
+      `(real NFL about 17%; this harness measured 7.3% on the flat draw)`,
+  },
+  {
+    // WHAT THE PICK IS WORTH. The commercial question, and the one nothing
+    // asked: a player spends a high pick on a great back, and this is what he
+    // gets for it. Measured against the same rating the draft board showed him.
+    //
+    // MEASURED AS A SHARE OF THE GAP THE DATA ITSELF CONTAINS, not as an
+    // absolute. Both directions are wrong: carry too little through and the
+    // board is lying about the difference between two backs; carry too much and
+    // the sport stops being football, where a great starter beats a poor one by
+    // well under a yard a carry. Under 1 is expected and correct - a defence, an
+    // offensive line and a thin-sample regression all legitimately compress a
+    // man's career rate - so the floor is what says the compression has not
+    // become erasure.
+    title: "A better back is worth what a better back is worth (50-150% of the real gap)",
+    ok: talentCarryThrough >= 0.5 && talentCarryThrough <= 1.5,
+    detail: `top third of drafted backs beat the bottom third by ` +
+      `${talentYpcGap.toFixed(2)} a carry and ${talentYardGap.toFixed(0)} yards a game, ` +
+      `against a real gap of ${realTalentGap.toFixed(2)} - ` +
+      `${(100 * talentCarryThrough).toFixed(0)}% carried through (48% on the flat draw)`,
   },
   {
     // THE BACKFIELD BELONGS TO THE BACK, and for a long time a fifth of it
