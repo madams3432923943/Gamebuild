@@ -116,6 +116,7 @@ import {
   formatMvpStatLine,
   statPairs,
   statLine,
+  renderMvpCallout,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -3550,8 +3551,16 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // In the sport's own statistics. This was three basketball literals, so
     // football's best player was announced with a rebound and an assist total
     // that do not exist, both reading zero.
-    mvpCallout.textContent =
-      `MVP: ${mvp.player.name} (${mvpTeamName}) — ${formatMvpStatLine(sport(), mvp.line)}`;
+    // THE MOST PASSABLE FACT ON THE SCREEN, built as a card rather than a
+    // sentence. This was one line of orange text with no box around it,
+    // wedged between the recap card and the Why card - the runt of a stack of
+    // panels, and the single thing a person actually turns the phone round to
+    // show someone. Same words, given the room they were always worth.
+    renderMvpCallout(mvpCallout, {
+      name: mvp.player.name,
+      team: mvpTeamName,
+      line: formatMvpStatLine(sport(), mvp.line),
+    });
     mvpCallout.classList.remove("hidden");
 
     // Why it went that way in terms you can act on, as opposed to the

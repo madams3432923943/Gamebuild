@@ -1852,12 +1852,79 @@ button.position-btn {
   100% { box-shadow: 0 0 0 rgba(232, 67, 61, 0); }
 }
 
+/* The MVP card. It was one line of orange text with no box around it, sitting
+   between two bordered panels - the runt of the stack, and the one thing on
+   the screen a person turns the phone round to show somebody. */
 .mvp-callout {
   text-align: center;
-  color: var(--accent-bright);
-  font-weight: 700;
   margin-bottom: 1rem;
+  padding: 0.85rem 1rem 0.95rem;
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.03));
+  border: 1px solid var(--accent);
   animation: mvp-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mvp-tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.mvp-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  /* Fluid rather than a phone override: the name is the biggest thing on the
+     card at every width, and a long one ("Giannis Antetokounmpo") has to fit a
+     360px screen without a second rule deciding when it stops growing. */
+  font-size: clamp(1.35rem, 6.5vw, 1.9rem);
+  line-height: 1.1;
+  margin-top: 0.15rem;
+  color: var(--text);
+}
+
+.mvp-team {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.mvp-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+/* A chip is a number and a word, sized differently: across a couch the number
+   is what gets read and the word is what makes it mean something. */
+.mvp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 4.2rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+}
+
+.mvp-stat-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--accent-bright);
+  line-height: 1.1;
+}
+
+.mvp-stat-label {
+  font-size: var(--text-micro);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 @keyframes mvp-pop {
@@ -5213,6 +5280,63 @@ html {
 
   .pick-timer {
     font-size: 1rem;
+  }
+
+  /* PLAY AGAIN CAME AFTER TWO FULL BOX SCORES.
+     ------------------------------------------------------------------
+     Measured at 360px, the post-game screen is 2050px tall and the two
+     buttons a player wants next - Play Again, Return to Home - sat at the
+     very bottom of it, past both teams' tables. Every game ended with a
+     scroll past 1,100px of numbers to reach the only two controls on the
+     screen.
+
+     The tables are not in the way of the story, they ARE the story for
+     anyone who wants them - so they move after the actions rather than
+     shrinking. Reordered rather than restacked in the markup, so the desktop
+     layout and everything that targets these by id are untouched, the same
+     technique the draft board uses one screen earlier.
+
+     This is a phone rule because it is a phone problem: at a desktop height
+     the tables and the buttons are on screen together and the order says
+     nothing. */
+  #screen-game {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #screen-game > .game-actions {
+    order: 1;
+  }
+
+  #screen-game > #btn-game-home {
+    order: 2;
+  }
+
+  #screen-game > #full-box-score {
+    order: 3;
+    /* It is the tail of the screen now, not the middle, so it gets a little
+       air above it to read as a separate act rather than as more of the same. */
+    margin-top: 1.25rem;
+  }
+
+  /* The result is stated twice within 100px: the scoreboard above already
+     carries 122, 64 and FINAL, and then the banner says 122-64 again. The
+     banner earns its place with the WORD - won or lost, and who - so on a
+     phone it keeps the verdict and drops the repetition to a single tight
+     block against the recap under it, instead of two bordered cards saying
+     the same thing with a gap between them. */
+  #final-banner {
+    margin-bottom: 0.35rem;
+    /* Smaller type, because the scoreboard 100px above it is already showing
+       these digits at full size. The banner is kept for the VERDICT - the word
+       won or lost, and whose name is on it - which the scoreboard never says;
+       it just no longer competes with the thing it is repeating. */
+    font-size: 1.05rem;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .game-recap {
+    margin-top: 0;
   }
 
   /* The pool card's desktop padding is a 16px frame on all four sides of the

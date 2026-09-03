@@ -108,6 +108,66 @@ function seasonLabel(player) {
  *   pending player's eligible open slots (those glow and are clickable;
  *   other open slots dim since they don't apply to this player).
  */
+/**
+ * The MVP card: who decided the game, and the numbers that say so.
+ *
+ * The stat line arrives as one string from the sport ("36 Points / 13
+ * Rebounds / 27 Assists") because each sport names its own statistics. It is
+ * split back into chips here rather than assembled per sport, so a sport that
+ * adds a stat gets a chip for it without touching this - the separator is the
+ * contract, and formatMvpStatLine is its only writer.
+ *
+ * A chip is a VALUE and a LABEL, sized differently, because at arm's length
+ * across a couch the number is what gets read and the word is what makes it
+ * mean something. One string in one weight is a sentence you have to parse.
+ */
+export function renderMvpCallout(container, { name, team, line }) {
+  container.innerHTML = "";
+
+  const tag = document.createElement("div");
+  tag.className = "mvp-tag";
+  tag.textContent = "Most Valuable Player";
+  container.appendChild(tag);
+
+  const who = document.createElement("div");
+  who.className = "mvp-name";
+  who.textContent = name;
+  container.appendChild(who);
+
+  if (team) {
+    const side = document.createElement("div");
+    side.className = "mvp-team";
+    side.textContent = team;
+    container.appendChild(side);
+  }
+
+  const stats = document.createElement("div");
+  stats.className = "mvp-stats";
+  for (const part of String(line || "").split("/")) {
+    const text = part.trim();
+    if (!text) continue;
+    const chip = document.createElement("div");
+    chip.className = "mvp-stat";
+    // "36 Points" -> 36 / Points. A stat whose name is more than one word
+    // ("13 Field Goals") keeps the rest as its label; only the leading number
+    // is split off, so nothing has to know what the statistics are called.
+    const space = text.indexOf(" ");
+    if (space > 0) {
+      const value = document.createElement("span");
+      value.className = "mvp-stat-value";
+      value.textContent = text.slice(0, space);
+      const label = document.createElement("span");
+      label.className = "mvp-stat-label";
+      label.textContent = text.slice(space + 1);
+      chip.append(value, label);
+    } else {
+      chip.textContent = text;
+    }
+    stats.appendChild(chip);
+  }
+  container.appendChild(stats);
+}
+
 export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect, slots = defaultSlots()) {
   container.innerHTML = "";
   for (const slot of slots) {
