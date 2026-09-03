@@ -18,6 +18,7 @@
     "verify:sound": "node scripts/verify-sound.mjs",
     "verify:cross-sport": "node scripts/verify-cross-sport.mjs",
     "verify:provenance": "node scripts/verify-result-provenance.mjs",
+    "verify:replay": "node scripts/verify-replay.mjs",
     "verify:kits": "node scripts/verify-kits.mjs",
     "verify:banner-grants": "node scripts/verify-banner-grants.mjs",
     "verify:banner-resolution": "node scripts/verify-banner-resolution.mjs",
@@ -61,7 +62,7 @@
     "verify:era-rotation": "node scripts/verify-era-rotation.mjs",
     "verify:online-strategy": "node scripts/verify-online-strategy-contract.mjs",
     "verify:server-dataset": "node scripts/verify-server-dataset.mjs",
-    "verify:node": "npm run stamp && node scripts/verify-build.js --no-network && npm run verify:contract && npm run verify:csp && npm run verify:nfl-data && npm run verify:parity && npm run verify:playable && npm run verify:pick-eligibility && npm run verify:era-rotation && npm run verify:online-strategy && npm run verify:nfl-box-score && npm run verify:nfl-defense-grade && npm run verify:nfl-playback && npm run verify:nfl-live-stats && npm run verify:nfl-gameplans && npm run verify:nfl-realism && npm run verify:nfl-parity && npm run verify:server-dataset && npm run verify:profile-history && npm run verify:simulation && npm run verify:nba-shot-ledger && npm run verify:sound && npm run verify:cross-sport && npm run verify:provenance && npm run verify:kits && npm run verify:banner-grants && npm run verify:banner-resolution && npm run verify:bot-difficulty && npm run verify:icons && npm run verify:edge-outcome",
+    "verify:node": "npm run stamp && node scripts/verify-build.js --no-network && npm run verify:contract && npm run verify:csp && npm run verify:nfl-data && npm run verify:parity && npm run verify:playable && npm run verify:pick-eligibility && npm run verify:era-rotation && npm run verify:online-strategy && npm run verify:nfl-box-score && npm run verify:nfl-defense-grade && npm run verify:nfl-playback && npm run verify:nfl-live-stats && npm run verify:nfl-gameplans && npm run verify:nfl-realism && npm run verify:nfl-parity && npm run verify:server-dataset && npm run verify:profile-history && npm run verify:simulation && npm run verify:nba-shot-ledger && npm run verify:sound && npm run verify:cross-sport && npm run verify:provenance && npm run verify:replay && npm run verify:kits && npm run verify:banner-grants && npm run verify:banner-resolution && npm run verify:bot-difficulty && npm run verify:icons && npm run verify:edge-outcome",
     "verify:browser": "npm run verify:squads && npm run verify:ranked-search && npm run verify:draft-keyboard && npm run verify:matchup-intro && npm run verify:box-score && npm run verify:game-stage && npm run verify:nfl-live-playback && npm run verify:startup",
     "verify:nfl-data": "node tools/verify-nfl-data.mjs",
     "verify:dataset-published": "node scripts/verify-dataset-published.mjs"

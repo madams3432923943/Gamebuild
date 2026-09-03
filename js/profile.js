@@ -409,6 +409,7 @@ export async function recordPracticeResult({
   labelB,
   minutesA,
   minutesB,
+  provenance,
 }) {
   const profile = await loadProfile();
   const date = new Date().toISOString();
@@ -471,7 +472,20 @@ export async function recordPracticeResult({
   // tab showed NFL scores and every win streak counted both. Entries written
   // before this existed carry no sport and are EXCLUDED rather than guessed at
   // - see historyFor.
-  const history = [{ date, mode, sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName }, ...profile.history].slice(
+  // PROVENANCE, so an offline result is re-derivable the way an online one is.
+  // match_results has carried these four for ranked games since issue #30;
+  // this is the offline side of it, and it only became possible when the
+  // client engine started drawing from a seeded stream (see runLocalSimulation
+  // in js/main.js). Four strings and a number, about 90 bytes on a history
+  // entry, and scripts/verify-replay.mjs turns them back into the game.
+  //
+  // Spread rather than nested so an entry written before this existed reads
+  // the same as one written after - the fields are simply absent, which is the
+  // honest representation of a game nobody can reproduce.
+  const history = [
+    { date, mode, sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName, ...(provenance || {}) },
+    ...profile.history,
+  ].slice(
     0,
     HISTORY_LIMIT
   );

@@ -10,6 +10,8 @@ import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
 import { initBrandFallbacks } from "./brand-fallback.js";
+import { withSeededMathRandom } from "./lib/seeded-rng.js";
+import { newSimulationSeed, provenanceFor } from "./lib/provenance.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
@@ -3756,31 +3758,73 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
 function runLocalSimulation() {
   const draft = game.draft;
-  // The bot commits to a plan too, chosen at random - a fixed opponent plan
-  // would make one counter always correct and collapse the choice.
-  // The bot commits to a plan too. For a sport with groups it draws each side
-  // of the ball independently, so half its plan is never guessable from the
-  // other half.
-  const tacticIds = sport().tactics.map((t) => t.id);
-  const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
-  const botStrategy = sport().randomStrategy ? sport().randomStrategy() : null;
-  // Resolve both rotations up front so the box score can show the same
-  // minutes the simulation actually used, rather than a second guess at them.
+  // Resolve the user's own rotation up front so the box score can show the
+  // same minutes the simulation actually used, rather than a second guess.
   const minutesA = strategy.rotationMinutes || sport().defaultMinutes(draft.rosterA);
-  const minutesB = sport().botMinutes(draft.rosterB);
   const forfeitsA = forfeitedSlotsFor("A", draft.rosterA, draft.slots);
   const forfeitsB = forfeitedSlotsFor("B", draft.rosterB, draft.slots);
-  const result = sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
-    tacticA: strategy.tactic,
-    tacticB: botTactic,
-    strategyA: strategy.strategy,
-    strategyB: botStrategy,
-    minutesA,
-    minutesB,
-    matchupsA: strategy.matchups || undefined,
-    forfeitsA,
-    forfeitsB,
+
+  /**
+   * SEEDED, THE WAY THE EDGE FUNCTION HAS ALWAYS BEEN.
+   *
+   * An online game is simulated inside withSeededMathRandom and records its
+   * seed, so a finished ranked result can be re-derived from four strings and
+   * a number. An offline game recorded none of that and could not have: this
+   * path called bare Math.random(), so the same rosters produced a different
+   * game every time by about 36% peak-to-peak on team score. That variance is
+   * the point of the simulation and it made an offline result unverifiable -
+   * "my draft scored 118" was a claim with nothing behind it, including for
+   * the person making it.
+   *
+   * EVERYTHING THE SIMULATION DEPENDS ON GOES INSIDE THE BLOCK, which is the
+   * part that is easy to get wrong. The bot's gameplan and the bot's rotation
+   * are drawn at random too, and drawing them outside would leave a replay
+   * running the right engine on the wrong opponent - a reproduction that
+   * reproduces nothing, and one that would look correct because the score it
+   * returns is still a plausible score.
+   *
+   * The seed itself is drawn OUTSIDE, from the real Math.random. Drawn inside,
+   * it would be the same number every time and every offline game ever played
+   * would be the identical simulation.
+   */
+  const seed = newSimulationSeed();
+  const { result, minutesB } = withSeededMathRandom(seed, () => {
+    // The bot commits to a plan too, chosen at random - a fixed opponent plan
+    // would make one counter always correct and collapse the choice. For a
+    // sport with groups it draws each side of the ball independently, so half
+    // its plan is never guessable from the other half.
+    const tacticIds = sport().tactics.map((t) => t.id);
+    const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
+    const botStrategy = sport().randomStrategy ? sport().randomStrategy() : null;
+    const botMinutes = sport().botMinutes(draft.rosterB);
+    return {
+      minutesB: botMinutes,
+      result: sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
+        tacticA: strategy.tactic,
+        tacticB: botTactic,
+        strategyA: strategy.strategy,
+        strategyB: botStrategy,
+        minutesA,
+        minutesB: botMinutes,
+        matchupsA: strategy.matchups || undefined,
+        forfeitsA,
+        forfeitsB,
+      }),
+    };
   });
+
+  // Stamped in the same shape the Edge Function returns, so offline and online
+  // results are read by one code path rather than two. The shot ledger already
+  // prefers result.simulationSeed when there is one and falls back to the final
+  // score when there is not (see playOutResult) - offline games take the first
+  // branch now, so the replay and the highlights are drawn from one number.
+  const provenance = provenanceFor({
+    sportId: getSport(),
+    mode: game.ruleset === "strict" ? "practice-strict" : "practice-easy",
+    seed,
+    datasetVersion: sport().datasetVersion(),
+  });
+  Object.assign(result, provenance);
 
   playOutResult({
     result,
@@ -3826,6 +3870,7 @@ function runLocalSimulation() {
         labelB: game.nameB,
         minutesA,
         minutesB,
+        provenance,
       }).catch((e) => console.error("Failed to record result:", e));
 
       const draftPicksWritten = recordDraftPicks(

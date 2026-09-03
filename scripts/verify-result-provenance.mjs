@@ -118,6 +118,34 @@ add(
 );
 
 console.log(renderSection("Result provenance: every finished match says what produced it (#30)"));
+// ---- the client's copy of the same strings ---------------------------------
+//
+// js/lib/provenance.js computes engine_version and rules_version from the same
+// two literals, because an offline game has to stamp what produced it too and
+// the Edge Function cannot import from js/. That is the same duplication the
+// vendored engines live with, and it gets the same treatment: checked rather
+// than trusted. If the two drift, an offline result and an online one claim to
+// have come from different simulations while running identical code - or, far
+// worse, claim to have come from the same one while not.
+{
+  const client = await readFile(path.join(ROOT, "js", "lib", "provenance.js"), "utf8");
+  const stamp = (text, name) => text.match(new RegExp(`${name}-\\d{4}-\\d{2}-\\d{2}\\.\\d+`))?.[0] ?? null;
+  const clientEngine = stamp(client, "engine");
+  const serverEngine = stamp(indexTs, "engine");
+  const clientRules = stamp(client, "rules");
+  const serverRules = stamp(indexTs, "rules");
+  add(
+    "Client and Edge Function agree on the engine version stamp",
+    !!clientEngine && clientEngine === serverEngine,
+    `client ${clientEngine} / server ${serverEngine}`
+  );
+  add(
+    "Client and Edge Function agree on the rules version stamp",
+    !!clientRules && clientRules === serverRules,
+    `client ${clientRules} / server ${serverRules}`
+  );
+}
+
 for (const c of checks) console.log(renderCheck(c));
 const { counts, ok } = summarize(checks);
 console.log(`\n  passed ${counts[PASS]}  failed ${counts[FAIL]}\n`);
