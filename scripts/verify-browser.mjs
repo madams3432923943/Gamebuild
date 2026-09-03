@@ -200,7 +200,7 @@ export async function runBrowserChecks(opts = {}) {
     // server between showing the screen and playing the result, and this
     // harness plays a practice match. Keep the wider budget; football's
     // playback legitimately needs it.
-    budgetMs = (process.env.SELFTEST_SPORT || "nba") === "nba" ? 210000 : 420000,
+    budgetMs = (opts.sport || process.env.SELFTEST_SPORT || "nba") === "nba" ? 210000 : 420000,
     // Optional request interception, used only by the self-test to stand in
     // for the Supabase CDN module. A real run against a real site passes
     // nothing here and talks to the real backend.
@@ -215,7 +215,18 @@ export async function runBrowserChecks(opts = {}) {
     // each browser a different identity against a shared fake backend, which
     // is what lets matchmaking pair them with each other.
     initScriptFor = null,
+    // WHICH SPORT THIS RUN PLAYS.
+    //
+    // An option now, not six separate reads of process.env scattered down this
+    // file. The runner drives BOTH sports in one process - see
+    // scripts/selftest/run-selftest.mjs - and setting an environment variable
+    // between two calls inside one process is the kind of shared mutable state
+    // that makes the second run depend on the first having cleaned up after
+    // itself. The env var stays as the default so every existing
+    // `SELFTEST_SPORT=nfl npm run ...` invocation is unchanged.
+    sport = process.env.SELFTEST_SPORT || "nba",
   } = opts;
+  const isNfl = sport === "nfl";
 
   const checks = [];
   const diagnostics = [];
@@ -467,7 +478,7 @@ export async function runBrowserChecks(opts = {}) {
       // whichever sport the previous run happened to leave behind. Two
       // consecutive runs covered different sports and neither said so, which
       // made a real football failure look like it came and went.
-      const wantedSport = process.env.SELFTEST_SPORT || "nba";
+      const wantedSport = sport;
       const sportRow = page.locator(`[data-sport="${wantedSport}"]`).first();
       if (await sportRow.count()) await sportRow.click();
       // WHICH MODE, likewise. Offline runs only ever drove Ranked Practice, so
@@ -552,7 +563,7 @@ export async function runBrowserChecks(opts = {}) {
     });
 
     const draftStart = Date.now();
-    const squadIndex = await loadSquadIndex(process.env.SELFTEST_SPORT || "nba");
+    const squadIndex = await loadSquadIndex(sport);
     const picks = await Promise.all(
       sessions.map(({ page, label }) => driveDraft(page, squadIndex, label, log, deadline))
     );
@@ -623,7 +634,7 @@ export async function runBrowserChecks(opts = {}) {
     // Football's two rounds are a shape, not just a count of clicks. Asserted
     // per session, because "the game started" stays true for every way this
     // has broken.
-    if ((process.env.SELFTEST_SPORT || "nba") === "nfl") {
+    if (isNfl) {
       const problems = shapes.flatMap((shape, i) =>
         checkNflGameplanShape(shape).map((p) => `${sessions[i].label}: ${p}`)
       );
@@ -740,7 +751,7 @@ export async function runBrowserChecks(opts = {}) {
           .catch(() => false)
       )
     );
-    if ((process.env.SELFTEST_SPORT || "nba") === "nba") {
+    if (!isNfl) {
       const drama = await sessions[0].page.evaluate(() => ({
         callouts: window.__bkCallouts || 0,
       }));
@@ -865,6 +876,164 @@ export async function runBrowserChecks(opts = {}) {
         detail: boxVisible.every(Boolean) ? undefined : "At least one client finished without a box score on screen.",
       })
     );
+
+    // ---- the post-game screen, in the sport that was actually played ------
+    //
+    // WHY THIS BLOCK EXISTS. Everything above asks whether the post-game
+    // screen APPEARED. Nothing asked what was on it, and that is precisely
+    // where football's bugs have been living: the MVP callout crashed on
+    // `result.mvp.player.name` for a whole release and took the Play Again
+    // button down with it; the MVP was announced with a rebound and an assist
+    // total that do not exist in football; a six-sack line printed "no
+    // recorded statistics". Every one of those renders a visible, correctly
+    // laid out post-game screen and passes every check above it.
+    //
+    // The measurements a person made by looking at the screen are the ones
+    // worth automating, because a person looking at the screen is how all
+    // three of those were found.
+    const postGame = await sessions[0].page.evaluate(() => {
+      const text = (el) => (el?.textContent || "").trim();
+      const callout = document.getElementById("mvp-callout");
+      const chips = [...(callout?.querySelectorAll(".mvp-stat") || [])].map((chip) => ({
+        value: text(chip.querySelector(".mvp-stat-value")),
+        label: text(chip.querySelector(".mvp-stat-label")),
+        whole: text(chip),
+      }));
+      const groups = [...document.querySelectorAll("#full-box-score .box-group-label")].map(text);
+      // Every column header the box score actually drew, so a sport rendering
+      // another sport's table is visible as a fact rather than inferred.
+      const headers = [...document.querySelectorAll("#full-box-score th")].map(text);
+      const stages = [...document.querySelectorAll("#game-stage [data-stage]")].map((el) => ({
+        stage: el.dataset.stage,
+        visible: !el.classList.contains("hidden"),
+      }));
+      // Rows per grouped table, to catch a group that renders its heading and
+      // then nothing - which is what an empty football box score looks like.
+      const groupRows = [...document.querySelectorAll("#full-box-score table.box-table")]
+        .map((table) => table.querySelectorAll("tbody tr").length);
+      return {
+        calloutHidden: !callout || callout.classList.contains("hidden"),
+        name: text(callout?.querySelector(".mvp-name")),
+        team: text(callout?.querySelector(".mvp-team")),
+        note: text(callout?.querySelector(".mvp-note")),
+        chips,
+        groups,
+        headers,
+        groupRows,
+        stages,
+        finalBanner: text(document.getElementById("final-banner")),
+      };
+    });
+
+    // THE MVP CALLOUT, which nothing looked at. browser:box-mvp above checks
+    // that a ROW in the table is starred; that passes with the callout card
+    // absent, blank, or naming "undefined".
+    const mvpFaults = [];
+    if (postGame.calloutHidden) mvpFaults.push("the callout never appeared");
+    if (!postGame.name) mvpFaults.push("no name");
+    // The literal strings a missing value renders as. `${player.name}` on an
+    // entry that has none prints "undefined" and looks like a name until you
+    // read it - the same class of fault as the draft grade's "Their null
+    // Damian Lillard", which shipped and was read by nobody for weeks.
+    if (/\b(undefined|null|NaN|\[object)\b/i.test(`${postGame.name} ${postGame.team} ${postGame.note}`)) {
+      mvpFaults.push(`a missing value reached the card: "${postGame.name}" / "${postGame.team}" / "${postGame.note}"`);
+    }
+    if (!postGame.chips.length) mvpFaults.push("no statistics on the card");
+    // "no recorded statistics" is what formatMvpStatLine returns when nothing
+    // on the line is greater than zero. It is the honest answer for a kicker
+    // who never came on, and it is NOT an honest answer for a man the same
+    // game just named its best player - which is what a missing box column
+    // produced when sacks carried MVP weight and no column to print.
+    if (/no recorded statistics/i.test(postGame.chips.map((c) => c.whole).join(" "))) {
+      mvpFaults.push("the best player in the game has no recorded statistics");
+    }
+    for (const chip of postGame.chips) {
+      if (!chip.value || !chip.label) mvpFaults.push(`a chip is half-built: "${chip.whole}"`);
+    }
+    checks.push(
+      check(
+        "browser:mvp-callout",
+        mvpFaults.length
+          ? `MVP callout is wrong — ${mvpFaults.join("; ")}`
+          : `MVP callout names ${postGame.name} with ${postGame.chips.length} stat${postGame.chips.length === 1 ? "" : "s"}` +
+            (postGame.note ? ` and says why ("${postGame.note}")` : ""),
+        mvpFaults.length ? FAIL : PASS
+      )
+    );
+
+    // A FINAL SCORE IS TWO NUMBERS. browser:simulation above asserts the
+    // banner has TEXT and, online, that both clients agree - both of which a
+    // banner reading "undefined-undefined" satisfies on one client.
+    const bannerNumbers = (postGame.finalBanner.match(/\d+/g) || []).map(Number);
+    const scoreOk = bannerNumbers.length >= 2 && bannerNumbers.every((n) => Number.isFinite(n) && n <= 100);
+    checks.push(
+      check(
+        "browser:final-score",
+        scoreOk
+          ? `The final score is two real numbers (${bannerNumbers.slice(0, 2).join("-")})`
+          : `The final banner is not a score: "${postGame.finalBanner.replace(/\s+/g, " ").slice(0, 80)}"`,
+        scoreOk ? PASS : FAIL
+      )
+    );
+
+    if (isNfl) {
+      // FOOTBALL'S BOX SCORE IS THREE TABLES, not one. A quarterback, a
+      // cornerback and a kicker share almost no columns, and flattening them
+      // gave each a row that was two-thirds dashes - which is why football's
+      // box score read as empty however well anyone played. The grouping is
+      // the fix, so the grouping is what gets asserted.
+      const boxFaults = [];
+      const want = ["Offense", "Defense", "Kicking"];
+      for (const group of want) {
+        if (!postGame.groups.some((g) => g.toLowerCase() === group.toLowerCase())) {
+          boxFaults.push(`no ${group} table`);
+        }
+      }
+      // A heading over an empty table is the shape an empty football box score
+      // takes, and it renders and lays out perfectly.
+      if (postGame.groupRows.length && postGame.groupRows.every((n) => n === 0)) {
+        boxFaults.push("every table is empty");
+      }
+      // BASKETBALL'S COLUMNS MUST NOT BE HERE. This is the sharp end of "the
+      // NBA never appears during the NFL flow": the MVP really was once
+      // announced with a rebound and an assist total, both reading zero,
+      // because shared UI reached for basketball's literals. A column header
+      // is where that surfaces first and where it is unambiguous.
+      const basketballOnly = ["REB", "AST", "STL", "BLK", "FG%", "3P%", "MIN"];
+      const strays = basketballOnly.filter((h) => postGame.headers.includes(h));
+      if (strays.length) boxFaults.push(`basketball columns in a football box score: ${strays.join(", ")}`);
+      checks.push(
+        check(
+          "browser:nfl-box-groups",
+          boxFaults.length
+            ? `NFL box score is wrong — ${boxFaults.join("; ")}`
+            : `NFL box score is three tables (${postGame.groups.join(", ")}) over ` +
+              `${postGame.groupRows.reduce((a, b) => a + b, 0)} rows, with no basketball columns`,
+          boxFaults.length ? FAIL : PASS
+        )
+      );
+
+      // AND THE STAGE IS FOOTBALL'S. Every [data-stage] starts hidden and
+      // showStage reveals the one the sport named, so a basketball stage
+      // showing up in a football game means the sport was resolved wrong -
+      // which has happened, on the online path, where the client awaits a
+      // cold-starting Edge Function between showing the screen and playing
+      // the result.
+      const wrongStage = postGame.stages.filter((s) => s.visible && s.stage !== "field");
+      const fieldShown = postGame.stages.some((s) => s.stage === "field" && s.visible);
+      const stageOk = wrongStage.length === 0 && fieldShown;
+      checks.push(
+        check(
+          "browser:nfl-stage",
+          stageOk
+            ? "Football played on football's field, and no other stage was ever shown"
+            : wrongStage.length
+              ? `A stage that is not football's was visible: ${wrongStage.map((s) => s.stage).join(", ")}`
+              : "Football's field never appeared",
+          stageOk ? PASS : FAIL
+        )
+      );
+    }
 
     // ---- layout -----------------------------------------------------------
     // Audited at every viewport, not just the desktop one the run drove in.

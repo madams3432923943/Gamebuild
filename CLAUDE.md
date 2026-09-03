@@ -127,7 +127,9 @@ per-sport hook added for football blanked the basketball draft board. See
 
 ```
 npm run verify            # parity + build
-npm run verify:selftest   # real Chromium: sign-in → draft → sim, layout at 360px
+npm run verify:selftest   # real Chromium, BOTH sports: sign-in → draft → strategy →
+                          # sim → post-game, layout at 360px (~8 min; add
+                          # -- --sport=nfl to run one)
 ```
 
 ## Deployment
@@ -302,7 +304,9 @@ unrelated work.
 
 ```
 npm run verify            # build stamp + parity + sport contract
-npm run verify:selftest   # real Chromium: sign-in -> draft -> sim, layout at 360px
+npm run verify:selftest   # real Chromium, BOTH sports: sign-in -> draft -> strategy ->
+                          # sim -> post-game, layout at 360px (~8 min; add
+                          # -- --sport=nfl to run one)
 ```
 
 A passing `verify` means the modules parse and the contracts hold. It does NOT

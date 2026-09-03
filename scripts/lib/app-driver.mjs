@@ -279,54 +279,84 @@ export async function auditAtWidth(page, width, height) {
   }
 }
 
+/**
+ * Commit whatever the sport asks for between the draft and the game.
+ *
+ * THE PHASES ARE RACED, NOT QUEUED, and that is the whole of this rewrite.
+ *
+ * It used to wait for rotation, then matchups, then the gameplan, each in turn
+ * and each for up to 60 seconds. Basketball puts all three up, so every wait
+ * returned at once and the whole phase took 783ms. FOOTBALL HAS NEITHER A
+ * ROTATION NOR MATCHUPS - it substitutes by unit, not by a sixth man - so
+ * those two waits sat there for their full 60 seconds each while the gameplan
+ * phase, which was on screen the entire time, ran out its own 60-second timer
+ * behind them. By the time the harness looked for it, the app had auto-picked
+ * and played the game.
+ *
+ * The run still ended at a final score, because a timed-out gameplan is a
+ * legitimate way to reach one - which is exactly why this hid for so long.
+ * What was actually happening is that FOOTBALL'S ENTIRE STRATEGY PHASE WENT
+ * DRIVEN BY NOBODY: two rounds of gameplan cards that no test ever clicked,
+ * on the screen where football's own verify-nfl-gameplans suite says the sport
+ * is most different from basketball.
+ *
+ * So nothing is waited for by name any more. Each turn of the loop asks the
+ * page which phase panel is open and handles that one, which is what a person
+ * sitting in front of it does. A sport that skips a phase costs nothing; a
+ * sport that adds a fourth needs no change here.
+ */
 export async function driveStrategyPhases(page, label, log, deadline) {
-  const phases = [
-    { name: "rotation", panel: "#rotation-phase", button: "#btn-confirm-rotation" },
-    { name: "matchups", panel: "#matchup-phase", button: "#btn-confirm-matchups" },
+  // Every panel this app can put between the draft and the game, and the
+  // control that commits each. Order is not significant - the page decides
+  // which is open - it is only the list of what to recognise.
+  const PANELS = [
+    { name: "rotation", panel: "#rotation-phase", confirm: "#btn-confirm-rotation" },
+    { name: "matchups", panel: "#matchup-phase", confirm: "#btn-confirm-matchups" },
+    { name: "gameplan", panel: "#tactic-phase", confirm: "#btn-play-game" },
   ];
+  // A gameplan is ROUNDS, not a screen: football asks twice, offence then
+  // defence, behind the same panel. Anything past this is a loop that is not
+  // making progress.
+  const MAX_STRATEGY_ROUNDS = 4;
+  // How long to keep looking once nothing is open and the game has not
+  // started. Long enough to cover the gap between two phases, short enough
+  // that a flow which is genuinely finished does not idle here.
+  const QUIET_MS = 4000;
 
-  for (const phase of phases) {
-    const shown = await page
-      .locator(`${phase.panel}:not(.hidden)`)
-      .waitFor({ state: "visible", timeout: waitBudget(deadline, 10000, 60000) })
-      .then(() => true)
-      .catch(() => false);
-    if (!shown) {
-      log(`  ${label}: ${phase.name} phase not shown (mode may skip it)`);
+  const shape = [];
+  let rounds = 0;
+  let confirmed = 0;
+  let lastActivity = Date.now();
+
+  const openPanel = () =>
+    page.evaluate((panels) => {
+      if (!document.querySelector("#screen-game")?.classList.contains("hidden")) return "game";
+      for (const p of panels) {
+        const el = document.querySelector(p.panel);
+        if (el && !el.classList.contains("hidden")) return p.name;
+      }
+      return null;
+    }, PANELS.map(({ name, panel }) => ({ name, panel }))).catch(() => null);
+
+  while (Date.now() < deadline) {
+    const open = await openPanel();
+    // The game screen is the end of this phase however it was reached.
+    if (open === "game") break;
+    if (!open) {
+      // Nothing open and no game yet. Give it a moment - phases hand over
+      // through a render - but do not sit here for a minute the way the old
+      // per-phase waits did.
+      if (Date.now() - lastActivity > QUIET_MS) break;
+      await page.waitForTimeout(150);
       continue;
     }
-    await page.locator(phase.button).click({ timeout: 10000 });
-    log(`  ${label}: confirmed ${phase.name}`);
-  }
 
-  // THE GAMEPLAN IS ROUNDS, NOT A SCREEN.
-  //
-  // Basketball asks one question here. Football asks two - offence, then
-  // defence - behind the same #tactic-phase panel, each advanced by
-  // #btn-play-game. Clicking through once locked the offence, left the
-  // defensive round on screen and reported "gamestyle chosen, game started"
-  // for a game that had not started, so the failure surfaced much later as
-  // "the game screen never appeared" with no hint of the cause.
-  //
-  // Driven as a loop over whatever rounds the sport puts up, so a third one
-  // would not need this written again.
-  const MAX_STRATEGY_ROUNDS = 4;
-  let rounds = 0;
-  const firstRound = await page
-    .locator("#tactic-phase:not(.hidden)")
-    .waitFor({ state: "visible", timeout: waitBudget(deadline, 10000, 60000) })
-    .then(() => true)
-    .catch(() => false);
-  // What each round actually put up, so the SHAPE of the flow is asserted and
-  // not just its completion. Football's two rounds are the case that broke
-  // before: the harness clicked once, reported success, and the defensive
-  // round was still on screen.
-  const shape = [];
-  if (firstRound) {
-    while (
-      rounds < MAX_STRATEGY_ROUNDS &&
-      (await page.locator("#tactic-phase:not(.hidden)").isVisible().catch(() => false))
-    ) {
+    const phase = PANELS.find((p) => p.name === open);
+    if (phase.name === "gameplan") {
+      if (rounds >= MAX_STRATEGY_ROUNDS) {
+        log(`  ${label}: gameplan still up after ${rounds} rounds - giving up on it`);
+        break;
+      }
       shape.push({
         cards: await page.locator("#tactic-grid .tactic-card, #tactic-grid button").count().catch(() => 0),
         heading: (await page.locator("#draft-turn-banner").textContent().catch(() => "")) || "",
@@ -339,13 +369,24 @@ export async function driveStrategyPhases(page, label, log, deadline) {
       });
       await page.locator("#tactic-grid .tactic-card, #tactic-grid button").first().click().catch(() => {});
       rounds += 1;
-      await page.locator("#btn-play-game").click({ timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(400);
     }
-    log(`  ${label}: gameplan chosen over ${rounds} round${rounds === 1 ? "" : "s"}, game started`);
-    for (const [i, r] of shape.entries()) {
-      log(`  ${label}: round ${i + 1} offered ${r.cards} card(s) — ${r.heading.replace(/\s+/g, " ").trim()}`);
+    await page.locator(phase.confirm).click({ timeout: 10000 }).catch(() => {});
+    if (phase.name !== "gameplan") {
+      confirmed += 1;
+      log(`  ${label}: confirmed ${phase.name}`);
     }
+    lastActivity = Date.now();
+    // Long enough for the next panel to render, short enough that two rounds
+    // of gameplan do not spend the sport's own timer waiting.
+    await page.waitForTimeout(400);
+  }
+
+  log(
+    `  ${label}: ${confirmed} phase${confirmed === 1 ? "" : "s"} confirmed, ` +
+      `gameplan chosen over ${rounds} round${rounds === 1 ? "" : "s"}`
+  );
+  for (const [i, r] of shape.entries()) {
+    log(`  ${label}: round ${i + 1} offered ${r.cards} card(s) — ${r.heading.replace(/\s+/g, " ").trim()}`);
   }
   return shape;
 }
