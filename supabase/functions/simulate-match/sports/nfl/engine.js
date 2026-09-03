@@ -93,7 +93,7 @@
 //
 
 import {
-  DRIVES_PER_TEAM, BASE_POINTS_PER_DRIVE, DRIVE_START_YARD, FG_RANGE_YARD,
+  DRIVES_PER_TEAM, SCORING_LIFT, EDGE_BASELINE, DRIVE_START_YARD, FG_RANGE_YARD,
   DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY, EDGE_FLOOR,
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
@@ -139,17 +139,88 @@ function sideRating(roster, weights, forfeits, ctx) {
   return total;
 }
 
-/** Turns an offence/defence gap into a multiplier on drive quality.
+/**
+ * Both sides of the ball for one roster, rated exactly as the simulation
+ * rates them.
+ *
+ * Exported for the calibrators, which have to measure the talent gap between
+ * two drafted rosters before they can ask how often the better one wins. A
+ * harness that scored rosters with its OWN formula would be solving the
+ * balance levers against a gap the engine never sees - which is how you get
+ * numbers that look solved and are not.
+ */
+export function rosterRatings(roster, ctx, forfeits) {
+  return {
+    off: sideRating(roster, OFFENSE_WEIGHTS, forfeits, ctx),
+    def: sideRating(roster, DEFENSE_WEIGHTS, forfeits, ctx),
+  };
+}
+
+/**
+ * Turns an offence/defence gap into a multiplier on drive quality.
  *
  * TALENT_PARITY compresses it: football has enormous per-possession variance,
- * and a sim where the better roster converts every mismatch would produce
- * scores no real game reaches. Centred on 1 so an even matchup is average. */
-function edge(off, def) {
+ * and a sim where the better roster converted every mismatch would produce
+ * scores no real game reaches.
+ *
+ * `baseline` IS THE FIX FOR THE THING THIS COMMENT USED TO CLAIM. It said
+ * "centred on 1 so an even matchup is average", and it was not: it compared
+ * one roster's OFFENCE rating against another's DEFENCE rating as if the two
+ * were the same measurement, and they are not. Over 600 bot-drafted ranked
+ * rosters offence rates 0.904 and defence 0.794, so both sides of every game
+ * carried a systematic +0.11 - which is a lift on all scoring, not a talent
+ * edge, and it moved whenever TALENT_PARITY did. See SCORING_LIFT in
+ * constants.js for the full account and for the second symptom, Quick Play
+ * quietly scoring 20% lower than Ranked.
+ *
+ * The baseline passed in is what an average matchup of this ROSTER SHAPE
+ * rates at (EDGE_BASELINE), so subtracting it puts an average game at 1 and
+ * leaves everything else measured from there. It is deliberately not the two
+ * rosters' OWN mean, which is the tempting version and is wrong: centring each
+ * pair on itself makes the model purely relative, so a poor offence stops
+ * being poor in absolute terms and only makes its opponent look good. Measured
+ * that way, a bottom-tier quarterback threw for 231 yards a game instead of
+ * 161 - the model had stopped saying anything about him.
+ *
+ * SCORING_LIFT then puts the explosiveness back, deliberately and in one
+ * place, at a value nobody has to derive from two rating scales agreeing by
+ * accident.
+ */
+function edge(off, def, baseline = 0, parity = TALENT_PARITY) {
   // Floored: see EDGE_FLOOR. Without it a wide enough talent gap sent the
   // multiplier negative, which inverts the drive-outcome weights rather than
   // merely shrinking them.
-  return Math.max(EDGE_FLOOR, 1 + TALENT_PARITY * (off - def));
+  return Math.max(EDGE_FLOOR, SCORING_LIFT * (1 + parity * (off - def - baseline)));
 }
+
+/**
+ * The balance levers a calibration harness may override, resolved once per
+ * simulation.
+ *
+ * Solving TALENT_PARITY and the quarter-variance range means running the
+ * engine AT candidate values and reading the win rates back. Basketball has
+ * had that door since it was calibrated (opts.parity and opts.teamVariance -
+ * see tools/calibrate-variance.mjs); football never did, which is most of why
+ * its levers stayed authored: every candidate value would have meant editing
+ * constants.js between runs and re-copying the vendored engine each time.
+ *
+ * The defaults ARE the shipped constants, so a game that passes no overrides
+ * runs exactly as it did before this existed - including consuming the random
+ * stream in the same order, which verify:parity would otherwise catch.
+ */
+function resolveTuning(opts) {
+  const variance = opts.teamVariance || null;
+  const min = Number(variance?.min);
+  const max = Number(variance?.max);
+  return {
+    parity: Number.isFinite(opts.parity) ? opts.parity : TALENT_PARITY,
+    varianceMin: Number.isFinite(min) ? min : TEAM_QUARTER_VARIANCE_MIN,
+    varianceMax: Number.isFinite(max) ? max : TEAM_QUARTER_VARIANCE_MAX,
+  };
+}
+
+/** The shipped levers, for a call site that has no opts to read. */
+const DEFAULT_TUNING = resolveTuning({});
 
 /** Picks a drive's ending from the league-average chart, tilted by the edge.
  * Scoring outcomes scale up with a good offence and punts/turnovers take the
@@ -483,14 +554,13 @@ function describeConversion(conversion) {
  * @param margin this team's score minus the opponent's, entering the drive.
  *   Only the conversion decision reads it; a drive itself does not care.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0) {
   // The gamestyle acts on BOTH sides: yours lifts your offence, theirs lifts
   // the defence you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
   const offAdj = off * mine.off;
   const defAdj = def * theirs.def * ((theirs.passRush + theirs.coverage + theirs.runDef) / 3);
-  const mult = edge(offAdj, defAdj) * (TEAM_QUARTER_VARIANCE_MIN +
-    rand() * (TEAM_QUARTER_VARIANCE_MAX - TEAM_QUARTER_VARIANCE_MIN));
+  const mult = edge(offAdj, defAdj, baseline, tuning.parity) * quarterRoll;
   // No next possession AND three points do not get you level: the only thing
   // worth playing for is the touchdown. `margin` is this team's score minus
   // theirs entering the drive, so -3 can still be tied by a kick and -4 cannot.
@@ -899,8 +969,18 @@ const SNAPS_BASE = { touchdown: 1, fieldGoal: 2, punt: 3, downs: 3, turnover: 3 
  * team's snaps, it is the run share of the snaps that did something - which
  * runs higher. Real football is 27 carries against 21 completions, or 56%,
  * while the same team's run share of ALL its plays is 43%. Reading this as the
- * latter is why the simulation handed the ball off 16 times a game. */
-const RUN_SHARE = 0.63;
+ * latter is why the simulation handed the ball off 16 times a game.
+ *
+ * 0.56 IS THE 56% THIS COMMENT NAMES. It held 0.63 for a long time, which the
+ * paragraph above never justified - it explains why the number is higher than
+ * 43% and then does not explain why it is higher than 56% either. Measured
+ * over 400 bot-drafted games it produced 30.3 carries against 27 pass attempts
+ * a team, where football is 27 and 33: the ball was handed off about three
+ * times a game too often and thrown six times too few, and a quarterback's
+ * median line sat under the 28-attempt floor scripts/verify-nfl-realism.mjs
+ * sets for it. At the value the comment already named, carries land on 27.0
+ * and yards per carry on 4.20, against real football's 27 and 4.3. */
+const RUN_SHARE = 0.56;
 
 /** The extremes a GAMEPLAN may push that to.
  *
@@ -910,12 +990,26 @@ const RUN_SHARE = 0.63;
  * pair of numbers is not running a plan, it is playing from four scores down -
  * which is a game state, not a gameplan, and this band is about gameplans. */
 const RUN_SHARE_MIN = 0.45;
-const RUN_SHARE_MAX = 0.66;
-// Narrowed alongside planTilt, and for the same reason: at 0.70 the ground
-// plan's tilt was clamped rather than damped, so every softening upstream
-// arrived at the same hard edge and Ground Control still handed off on seven
-// snaps in ten. The pair still spans the league - the most committed running
-// team against the most pass-happy one - it just no longer spans more.
+const RUN_SHARE_MAX = 0.77;
+// BOTH ENDS ARE THE COMMENT'S OWN ANCHORS, CONVERTED. The band is quoted above
+// in shares of ALL snaps - 35% for the most pass-happy offences, 68% for the
+// most committed ground ones - while the constant is a share of PRODUCTIVE
+// snaps, and the two are not the same number. Converting at football's
+// completion rate: 0.35 / (0.35 + 0.65 x 0.62) = 0.46, and 0.68 / (0.68 + 0.32
+// x 0.62) = 0.77. The floor already matched; the ceiling did not.
+//
+// It read 0.66, which was consistent with a RUN_SHARE of 0.63 and stopped
+// being consistent when that moved to the 0.56 its own comment named. The
+// visible cost was that Ground Control stopped being a running plan: measured
+// on a roster built for it, 18 carries against balanced's 15, where the whole
+// identity of the plan is that it hands the ball off. At 0.77 it is 21 against
+// 15.
+//
+// An older note here warned that 0.70 let the ground plan hand off on seven
+// snaps in ten. That was measured against the 0.63 base, where 0.70 was a
+// ceiling barely above the middle and every plan piled into it; against 0.56
+// there is room for the tilt to be damped by roster fit before it ever reaches
+// the edge, which is the mechanism that note wanted and did not have.
 
 /** What a carry is worth against a COMPLETION, as a multiplier on the yardage
  * it draws. Not against an attempt: the incompletions are already carved out,
@@ -1102,7 +1196,51 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   }
   const rawTotal = raw.reduce((s, v) => s + v, 0);
   // The productive plays make up whatever the sacks gave away.
-  const gainPool = net - sackLoss;
+  let gainPool = net - sackLoss;
+
+  // A DRIVE THAT LOST GROUND LOST IT ON A SACK, NOT ON A SERIES OF NEGATIVE
+  // COMPLETIONS.
+  //
+  // `raw` is all positive, so a negative pool flips every productive play at
+  // once and the drive is reported as a set of catches for minus yards. That
+  // is not a thing football does. It showed up as receiving lines like -13 on
+  // three catches, and on 9.3% of player lines once TALENT_PARITY was solved -
+  // a suppressed offence reaches a negative net far more often than the old
+  // hand-set value ever let it, so the artefact went from rare to routine
+  // without anything about it changing.
+  //
+  // The loss belongs on the dead plays, which is where football puts it: the
+  // sack, and the tackle behind the line that this model represents as one.
+  // Deepening them keeps the drive's total exactly where the simulation put it
+  // - the play ledger still reconciles to `net` - while the men who caught the
+  // ball are credited with having caught it.
+  //
+  // The drive's total is untouched either way - the play ledger still sums to
+  // `net` - which scripts/verify-nfl-box-score.mjs checks directly.
+  if (gainPool < 0) {
+    let absorbers = deadPlays.filter((p) => p.type === "sack");
+    if (!absorbers.length) {
+      // A drive that went backwards with no sack on it has nowhere to put the
+      // loss, so one is ADDED rather than an incompletion being converted into
+      // one. Converting was the first version and it was wrong in a way worth
+      // recording: an incompletion is a pass ATTEMPT and a sack is not, so
+      // turning one into the other quietly deleted a miss from the
+      // quarterback's line. The struggling passers this branch fires for are
+      // exactly the ones whose misses matter, and their completion rate rose
+      // from 45% to 64% - the tier separation that
+      // scripts/verify-nfl-realism.mjs exists to protect, erased by a fix to
+      // something else entirely.
+      const added = { type: "sack", gain: 0 };
+      deadPlays.push(added);
+      absorbers = [added];
+    }
+    const share = gainPool / absorbers.length;
+    for (const play of absorbers) {
+      play.gain += share;
+      sackLoss += share;
+    }
+    gainPool = 0;
+  }
 
   let yard = startYard;
   let down = 1;
@@ -1324,6 +1462,45 @@ function pickMvp(rosterA, boxA, rosterB, boxB) {
 export function simulate(rosterA, rosterB, stats, opts = {}) {
   const rand = opts.rand || Math.random;
   const ctx = stats;
+  // Overridable only by the calibrators; a real game passes neither and gets
+  // the shipped constants. See resolveTuning.
+  const tuning = resolveTuning(opts);
+
+  /**
+   * The "this team ran hot this quarter" roll - ONE draw per team per quarter,
+   * shared by every drive that team runs inside it.
+   *
+   * IT USED TO BE PER DRIVE, and that made the constant inert. The reasoning
+   * is the same one at the top of tools/calibrate-variance.mjs: independent
+   * noise AVERAGES OUT. A team runs about eleven drives a game, so eleven
+   * independent draws from ±22% collapse to roughly ±7% at the team level and
+   * the lever stopped mattering long before it reached the scoreboard.
+   * Measured over 960 games per setting: widening the range from ±22% to ±54%
+   * moved the mean final margin from 11.0 to 10.8 and the share of one-score
+   * games from 49.7% to 49.5% - which is nothing, from a lever that more than
+   * doubled. A constant nobody can move is not a balance knob, and it cannot
+   * be calibrated either, which is most of why football's never was.
+   *
+   * A factor every drive in the quarter SHARES survives that averaging, which
+   * is exactly what basketball does (see applyTeamRoll in the NBA engine) and
+   * why its variance range is a real number rather than a placeholder. The
+   * constant's name has always said `TEAM_QUARTER_VARIANCE`; this is the first
+   * version where the code agrees with it.
+   *
+   * Drawn LAZILY, on the quarter's first drive, so the random stream is
+   * consumed in the same order it always was - the first drive of each quarter
+   * still draws here, and later drives simply reuse it.
+   */
+  const quarterRolls = new Map();
+  const quarterRoll = (side, quarter) => {
+    const key = `${side}:${quarter}`;
+    let roll = quarterRolls.get(key);
+    if (roll === undefined) {
+      roll = tuning.varianceMin + rand() * (tuning.varianceMax - tuning.varianceMin);
+      quarterRolls.set(key, roll);
+    }
+    return roll;
+  };
   // Scaled by roster fit, so a style is worth what your lineup makes it worth.
   // Each side's bag is composed from BOTH of its plans - how it attacks and
   // how it defends - so the opponent's defensive choice is felt on every drive
@@ -1346,6 +1523,21 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   const offB = sideRating(rosterB, OFFENSE_WEIGHTS, opts.forfeitsB, ctx);
   const defA = sideRating(rosterA, DEFENSE_WEIGHTS, opts.forfeitsA, ctx);
   const defB = sideRating(rosterB, DEFENSE_WEIGHTS, opts.forfeitsB, ctx);
+
+  // What an average matchup of this roster shape rates at - see edge(), and
+  // EDGE_BASELINE in constants.js for the measurement. Keyed on the shape
+  // rather than on these two rosters: centring on the PAIR's own mean would
+  // remove absolute roster quality from the model altogether, so a bad
+  // quarterback would stop dragging his own numbers down and would only make
+  // his opponent's better. Measured, that put a bottom-tier passer at 231
+  // yards a game against 161 - which is the exact failure
+  // scripts/verify-nfl-realism.mjs was written to catch.
+  //
+  // Quick Play is its own entry because one drafted DEF unit standing in for
+  // four defensive slots rates quite differently from four of them: +0.11 for
+  // ranked, -0.02 for Quick Play. That one number is why the same two rosters
+  // used to play a 20% lower-scoring game in one mode than the other.
+  const baseline = rosterA.DEF || rosterB.DEF ? EDGE_BASELINE.quickPlay : EDGE_BASELINE.ranked;
 
   const drives = [];
 
@@ -1381,7 +1573,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[side].mods, cfg[foe].mods,
                          late && live[side] < live[foe],
                          live[side] - live[foe],
-                         i === possessions - 1 && live[side] < live[foe]);
+                         i === possessions - 1 && live[side] < live[foe], tuning,
+                         quarterRoll(side, quarter), baseline);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -1436,7 +1629,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       const trailing = margin < 0;
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods, trailing, margin, trailing);
+                         cfg[side].mods, cfg[foe].mods, trailing, margin, trailing, tuning,
+                         quarterRoll(side, quarter), baseline);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;

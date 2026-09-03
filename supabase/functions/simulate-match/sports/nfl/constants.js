@@ -12,25 +12,30 @@
 // without anyone tuning the scoreboard directly. That indirection is the whole
 // reason to model drives rather than fitting final scores.
 //
-// PROVISIONAL, AND HONEST ABOUT IT
+// Draft Nova then plays ABOVE that anchor on purpose - about 30 points a team
+// rather than 22 - and SCORING_LIFT is where that decision lives. It is one
+// number in one place because for a long time it was neither: it was a side
+// effect of two rating scales not lining up. See that constant.
 //
-// The balance levers at the bottom (TALENT_PARITY, the quarter-variance range)
-// are PLACEHOLDERS carrying basketball's shape, not solved values. Football's
-// have to be solved the same way basketball's were - by tools/calibrate-*.mjs
-// against a running engine, variance first and tactics second. Until that
-// engine exists there is nothing to solve against, so these are starting
-// points chosen to be plausible rather than numbers anyone should trust. See
-// the note at the top of js/sports/nba/tactics.js for why picked balance
-// values are a trap.
+// SOLVED, NOT PICKED
+//
+// The balance levers at the bottom - TALENT_PARITY and the quarter-variance
+// range - used to be placeholders carrying basketball's shape, and this note
+// used to say so. They are now solved by tools/calibrate-nfl-variance.mjs, the
+// football counterpart to the two NBA calibrators, in the order that file
+// insists on: variance first, gameplans second
+// (tools/calibrate-nfl-gamestyles.mjs). Re-run both after any engine change
+// that touches drives, yardage or ratings, variance first - a gameplan solved
+// against the wrong noise floor is solved wrong.
+//
+// Anything below that is still authored says so at its own definition. The
+// slot weights are the main ones, and deliberately: they are a game-feel
+// decision about how much a pick matters, not something a win rate can settle.
 
 /** Possessions per team per game. Real NFL sits near 11. Both sides get the
  * same count because possessions alternate - a game where one team simply got
  * more chances would report luck as skill. */
 export const DRIVES_PER_TEAM = 11;
-
-/** Points a league-average offence produces per drive. Multiplied by
- * DRIVES_PER_TEAM this gives ~22, which is the number the model aims at. */
-export const BASE_POINTS_PER_DRIVE = 2.0;
 
 /** Where a drive starts, in yards from the team's own goal line. 25 is the
  * touchback spot and where most drives really begin. */
@@ -40,15 +45,108 @@ export const DRIVE_START_YARD = 25;
  * has three points available, which is what gives the ST pick its teeth. */
 export const FG_RANGE_YARD = 62;
 
-/** Outcome weights for a league-average drive, before any offence/defence
- * adjustment. Sums to 1, and matches the shape of a real drive chart: most
- * drives end in a punt, and turnovers are rarer than people remember. */
+/**
+ * Outcome weights for a league-average drive, before any offence/defence
+ * adjustment and BEFORE the field-position rules below act on the result.
+ * Sums to 1: most drives end in a punt, and turnovers are rarer than people
+ * remember.
+ *
+ * `fieldGoal` IS NOT THE RATE A REAL DRIVE ENDS IN A KICK, and the previous
+ * version of this comment implied it was. It carried real football's 0.17, and
+ * the engine then converted every stalled drive inside FG_RANGE_YARD from a
+ * punt into an attempt as well - because nobody punts from field-goal range,
+ * which is correct. Those attempts land ON TOP of this share rather than
+ * inside it, so the REALISED rate was well above the chart: measured over 400
+ * drafted games, 2.47 field goals made per team per game against real
+ * football's ~1.7, and a touchdown-to-field-goal ratio of 1.12 where the
+ * league's is about 1.3. Kicking is the least interesting way a drive can end
+ * and the game was doing it half again too often.
+ *
+ * 0.11 is what makes the number that reaches the scoreboard football's:
+ * 2.05 made a game at a 1.33 ratio. The chart is the INPUT to a field-position
+ * model, not a description of its output, and only the output can be checked
+ * against a real season - which scripts/verify-nfl-realism.mjs now does.
+ */
 export const DRIVE_OUTCOMES = {
   touchdown: 0.21,
-  fieldGoal: 0.17,
-  punt: 0.49,
+  fieldGoal: 0.11,
+  punt: 0.55,
   turnover: 0.13,
 };
+
+/**
+ * How far above a real drive chart this game deliberately plays.
+ *
+ * DRIVE_OUTCOMES above is football's, and Draft Nova is not trying to be a
+ * league average - see the design-target note at the top of
+ * scripts/verify-nfl-realism.mjs, which aims at about 350 yards a team at 5.8
+ * a play against the real league's 340 at 5.4. Every scoring probability and
+ * every yard gained is multiplied by this.
+ *
+ * IT USED TO BE AN ACCIDENT, WHICH IS WHY IT IS A CONSTANT NOW. The lift was
+ * real and shipped, but nobody had chosen it: `edge` compared a roster's
+ * offence rating against its opponent's defence rating as though the two were
+ * on the same scale, and they are not. Measured over 600 bot-drafted ranked
+ * rosters, offence rates 0.904 and defence 0.794 - so EVERY team, in every
+ * game, carried a systematic +0.11 that TALENT_PARITY then multiplied into a
+ * 1.18x on all scoring. The number the game shipped at was that product.
+ *
+ * Two things followed from it, and both were bugs:
+ *
+ *   Raising TALENT_PARITY inflated scoring. It is supposed to control how much
+ *   talent decides a game, and it also silently controlled how many points
+ *   were in it - which is why it could never be solved. Every candidate value
+ *   moved a target it was not aiming at.
+ *
+ *   Quick Play scored less than Ranked. A Quick Play roster drafts ONE defensive
+ *   unit standing in for four slots, and it rates 0.884 against ranked's 0.794
+ *   while its offence rates lower - a gap of -0.02 against ranked's +0.11. The
+ *   same two rosters therefore played a ~20% lower-scoring game in one mode
+ *   than the other, for a reason no player could see and no comment mentioned.
+ *
+ * `edge` now centres each matchup on its own mean (see the function), so the
+ * common term is gone from both modes and the two lift equally. This is what
+ * is left: one number, in one place, that says how explosive this game is.
+ * 1.18 preserves what Ranked already shipped, so nothing about how football
+ * currently feels changes with this - it just became something anyone can find
+ * and anyone can move.
+ */
+export const SCORING_LIFT = 1.0;
+
+/**
+ * What an average matchup rates at, per roster shape - the zero point `edge`
+ * measures talent from.
+ *
+ * `edge` compares one roster's OFFENCE rating against another's DEFENCE
+ * rating, and the two are not on the same scale. Measured over 600
+ * bot-drafted rosters of each shape: a ranked roster rates 0.904 on offence
+ * and 0.794 on defence, so every ranked game carried a systematic +0.11 that
+ * TALENT_PARITY multiplied into a lift on all scoring. Quick Play, where ONE
+ * drafted DEF unit stands in for four defensive slots, rates -0.02 the other
+ * way. Subtracting the right one puts an average game of either shape at 1.
+ *
+ * Two bugs came out of not having this, and both are worth naming because
+ * either alone would have been enough to make football uncalibratable:
+ *
+ *   TALENT_PARITY moved the scoreboard. It is meant to say how much talent
+ *   decides a game, and it also silently said how many points were in one, so
+ *   every candidate value moved a target it was not aiming at. Anyone sweeping
+ *   it would have watched scoring inflate and stopped early - which is the
+ *   right instinct about a knob doing two things, and is most likely why the
+ *   value stayed hand-set for as long as it did.
+ *
+ *   Quick Play scored ~20% lower than Ranked, from the same two rosters, for
+ *   a reason no player could see and no comment mentioned: 22.5 points a team
+ *   against 28.9. It is 24.1 against 25.6 now, and what is left of that gap is
+ *   the roster shape itself rather than a rating-scale mismatch.
+ *
+ * MEASURED, NOT PICKED, and re-measured by tools/calibrate-nfl-variance.mjs on
+ * every run - it prints these two numbers first, before it solves anything,
+ * because everything after them is measured from here. Re-run it after any
+ * change to the slot weights, to units.js, or to the dataset: all three move
+ * where average is.
+ */
+export const EDGE_BASELINE = { ranked: 0.111, quickPlay: -0.020 };
 
 /** Points by scoring type. A touchdown is six; what comes after it is played
  * out rather than folded in - see the conversion constants below. */
@@ -209,25 +307,33 @@ export const MIN_RATED_GAMES = 6;
 
 /** How far talent separates a great offence from a poor one.
  *
- * MEASURED BY HAND, NOT SOLVED. This comment used to say it was "SOLVED, at
- * last, by tools/calibrate-nfl-variance.mjs". That tool has never existed -
- * only the two NBA calibrators do - so the claim was false the day it was
- * written and stayed false through every reading of this file since. Football's
- * balance levers have always been authored. Saying so is worth more than the
- * reassurance was.
+ * SOLVED, by tools/calibrate-nfl-variance.mjs - and the solve's answer is that
+ * 1.6 was right. The previous comment here said the value was arrived at by
+ * hand and ended "It should still be solved". It has been, and it stayed.
  *
- * How 1.6 was arrived at: sweeping the value and measuring two rosters whose
- * ratings differ by eleven points. At 0.95 the better roster won 61.6% of 400
- * games, which is close enough to a coin toss that a draft stops feeling like
- * it decided anything. At 1.6 it wins 73.5%, and a 96-against-7 mismatch stays
- * at 100% either way, so the top end is not distorted to buy the middle.
+ * That is a real result rather than a wasted run, because the reason is now
+ * written down. The calibrator solves parity against a product target - a
+ * roster whose combined offence-plus-defence rating beats its opponent's by
+ * 0.10 or more, the top quartile of bot-drafted pairs, should win 75% of the
+ * time, which is deliberately basketball's number because ranked runs ONE ELO
+ * ladder across both sports. Football's engine does not reach it. Solved
+ * without a bound the bisection returns about 2.5, and at 2.5 a bottom-tier
+ * quarterback throws for 29 yards a game instead of 64: the engine has stopped
+ * rating him and started erasing him. scripts/verify-nfl-realism.mjs now holds
+ * a floor against exactly that, so the trade cannot be made silently again.
  *
- * Raising it widens the SPREAD without moving the mean, because edge is 1 at
- * parity. Two evenly matched teams play exactly the same game as before; a
- * mismatch now looks like a mismatch.
+ * So this is a CEILING, not an optimum. At 1.6 the better roster wins about
+ * 65% of the time at that gap rather than 75%, and the shortfall is a property
+ * of the model: basketball turns talent into points almost linearly, while
+ * football turns it into drive quality feeding a probability chart clamped at
+ * both ends, so the last few points of win rate are bought out of the
+ * believability of the box score. Closing the gap means changing how football
+ * converts talent into drives. It does not mean turning this knob further, and
+ * anyone tempted to should read the two paragraphs above first.
  *
- * It should still be solved. A calibrator for football would replace this
- * paragraph with a number nobody had to argue about. */
+ * What DID change underneath it: `edge` now subtracts EDGE_BASELINE, so this
+ * number no longer moves the scoreboard as a side effect. It is the first
+ * version of this constant that controls only what its name says. */
 export const TALENT_PARITY = 1.6;
 
 /**
@@ -252,11 +358,36 @@ export const TALENT_PARITY = 1.6;
  */
 export const EDGE_FLOOR = 0.05;
 
-/** PROVISIONAL - see the header. Per-quarter multiplier on drive quality, so a
- * game can swing the way real ones do. Symmetric around 1 so it adds noise
- * without handing either side points over a season. Must be solved. */
-export const TEAM_QUARTER_VARIANCE_MIN = 0.78;
-export const TEAM_QUARTER_VARIANCE_MAX = 1.22;
+/** Per-quarter multiplier on drive quality, so a game can swing the way real
+ * ones do. Symmetric around 1 so it adds noise without handing either side
+ * points over a season.
+ *
+ * SOLVED, by tools/calibrate-nfl-variance.mjs, against the real league's mean
+ * final margin (11.5 points) and its share of one-score games (45%) measured
+ * over every drafted pair - see that tool for where those two figures come
+ * from and for the honest note that nothing in this repository measures them.
+ *
+ * ONE DRAW PER TEAM PER QUARTER, which is new and is why the value could move
+ * at all. It used to be drawn per DRIVE, and eleven independent draws a game
+ * cancel out: measured before the fix, widening this range from ±22% to ±54%
+ * moved the mean final margin by 0.2 of a point. The constant has always been
+ * named for a quarter; this is the first version where the engine agrees (see
+ * quarterRoll in engine.js).
+ *
+ * ±54% IS A CAP RATHER THAN AN OPTIMUM, for the same reason TALENT_PARITY is.
+ * With parity pinned at its ceiling, noise is the only lever left that can
+ * widen margins toward football's, so an unbounded sweep keeps improving as
+ * long as it is offered more range - it reaches ±86% and is still going. It
+ * should not be followed there: a quarter multiplier of 0.14 is a team that
+ * did not turn up for fifteen minutes. ±54% is the widest swing that still
+ * reads as a football quarter.
+ *
+ * What that leaves, said plainly: Draft Nova's games finish slightly CLOSER
+ * than real football's - a 51% one-score share against the league's 45%, and
+ * 10.6 points of margin against 11.5 - and the last of that distance is not
+ * available from this constant. */
+export const TEAM_QUARTER_VARIANCE_MIN = 0.46;
+export const TEAM_QUARTER_VARIANCE_MAX = 1.54;
 
 /** What a forfeited pick costs. Football has no bench, so an unfilled slot is
  * a hole in the lineup rather than a worse player standing in - steeper than
