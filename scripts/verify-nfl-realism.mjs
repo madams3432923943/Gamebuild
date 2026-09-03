@@ -190,6 +190,14 @@ function summarise(values) {
   const at = (f) => (s.length ? s[Math.min(s.length - 1, Math.floor(s.length * f))] : 0);
   return {
     n: s.length,
+    // LOW percentiles, because for a long time only the high ones existed.
+    // Every band in this file was a mean, a median or a p90, so the checks
+    // could only ever catch a simulation doing too MUCH - and the failure that
+    // reached a live player did too little: a 9-6 final in which the winning
+    // quarterback completed 8 of 28. Nothing here would have flinched at it.
+    p01: at(0.01),
+    p05: at(0.05),
+    min: s[0] || 0,
     median: at(0.5),
     p75: at(0.75),
     p90: at(0.9),
@@ -384,7 +392,15 @@ const tds = { pass: 0, rush: 0, sides: 0 };
 // and the 64-attempt passing game both sat inside a table whose means looked
 // perfect. What separates football from a plausible mean is the spread and the
 // tail, so those are measured too.
-const shape = { score: [], yardsPerPlay: [], sacks: [], attempts: [], fieldGoals: [], touchdowns: [] };
+const shape = {
+  score: [], yardsPerPlay: [], sacks: [], attempts: [], fieldGoals: [], touchdowns: [],
+  // Per GAME rather than per side: a scoreboard is the thing a player looks at,
+  // and "both teams were quiet" is the complaint, not "one was".
+  combined: [],
+  // Per game per quarterback, for the low-tail check below. Games where he
+  // barely threw are excluded - a 2-of-5 line is a game script, not a rate.
+  compPct: [],
+};
 // Drafting is the expensive half of this - about 10ms a pair against 2ms a
 // simulation - so a smaller set of pairs is drafted once and replayed. Each
 // replay draws a different random stream, so the sample is still 400 distinct
@@ -412,6 +428,8 @@ for (let i = 0; i < RATE_GAMES; i++) {
     shape.yardsPerPlay.push(team.plays > 0 ? team.totalYards / team.plays : 0);
     shape.sacks.push(team.sacksAllowed || 0);
     shape.attempts.push((box.QB || {}).att || 0);
+    const qbLineOf = box.QB || {};
+    if ((qbLineOf.att || 0) >= 10) shape.compPct.push((qbLineOf.comp || 0) / qbLineOf.att);
     rate.plays.push(team.plays);
     rate.yards.push(team.totalYards);
     rate.rush.push(team.rushYards);
@@ -438,6 +456,7 @@ for (let i = 0; i < RATE_GAMES; i++) {
       Object.values(box).reduce((sum, line) => sum + (line.rush_tds || 0) + (line.rec_tds || 0), 0)
     );
   }
+  shape.combined.push(result.teamScoreA + result.teamScoreB);
   rate.seconds.push(result.teamStatsA.possessionSeconds + result.teamStatsB.possessionSeconds);
 }
 const mean = (list) => list.reduce((a, b) => a + b, 0) / Math.max(1, list.length);
@@ -613,12 +632,47 @@ const tdPerGame = mean(shape.touchdowns);
 const tdToFg = tdPerGame / Math.max(1e-9, fgPerGame);
 const scoreShape = summarise(shape.score);
 const yppShape = summarise(shape.yardsPerPlay);
+const compShape = summarise(shape.compPct);
+const quietGames = shape.combined.filter((total) => total <= 20).length /
+  Math.max(1, shape.combined.length);
 
 const checks = [
   {
     title: "Completion rate rises with quarterback quality",
     ok: !!(poor && elite) && elite.compPct > poor.compPct + 0.04,
     detail: `poor ${(poor.compPct * 100).toFixed(1)}% -> elite ${(elite.compPct * 100).toFixed(1)}%`,
+  },
+  {
+    // THE CHECK THAT WOULD HAVE CAUGHT THE 9-6 GAME, and it is deliberately
+    // about the passing LINE rather than about the scoreboard.
+    //
+    // A live game was reported as unwatchable: 9-6, with the winning
+    // quarterback 8 of 28 for 68 yards. Measured afterwards, the FINAL was
+    // honest - both sides had drafted bottom-third passers, and that pair's
+    // expected game is 17-18 points on about 270 yards a side, so 9-6 is that
+    // matchup's bad night and not a fault. Tuning it away would be deciding
+    // that a bad quarterback pick should not cost anything, which is the
+    // opposite of what a drafting game wants.
+    //
+    // The 28.6% was the fault. Real football's worst full starts sit in the
+    // low forties; nobody throws 28 times and completes eight. So the floor is
+    // 42%, at the first percentile, over every drafted pair this file samples
+    // - lines below it should be reachable about as often as they are on a
+    // real Sunday, which is to say almost never.
+    title: "A passing line has a floor as well as a ceiling",
+    ok: compShape.n > 0 && compShape.p01 >= 0.42,
+    detail: `1st percentile ${(compShape.p01 * 100).toFixed(1)}% completions ` +
+      `(worst ${(compShape.min * 100).toFixed(1)}%, median ${(compShape.median * 100).toFixed(1)}%)`,
+  },
+  {
+    // The scoreboard's own low tail. Not a floor under any single game - real
+    // football produces a 9-6 and so should this - but a ceiling on how OFTEN
+    // one arrives. The NFL finishes about 3% of its games under 21 combined
+    // points; 5% is the point past which quiet games have stopped being the
+    // exception a player forgives.
+    title: "Quiet games stay rare",
+    ok: quietGames < 0.05,
+    detail: `${(quietGames * 100).toFixed(2)}% of games finish 20 or under, both sides added`,
   },
   {
     title: "Yards per attempt rises with quarterback quality",
