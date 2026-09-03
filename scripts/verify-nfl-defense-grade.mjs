@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
-import { ROWS as NFL_UNITS } from "../data/nfl-units.js";
 import { buildRatingContext, rateUnit, defensiveUnitComponents } from "../js/sports/nfl/units.js";
+import { loadDataset } from "../data/load.mjs";
+
+const NFL_UNITS = await loadDataset("nfl-units");
 
 const GROUPS = ["DL", "LB", "CB", "S"];
 const defensive = NFL_UNITS.filter((row) => GROUPS.includes(String(row.group || "").toUpperCase()));

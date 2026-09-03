@@ -11,10 +11,12 @@
 // before the term was added, the stronger roster won 93.5% of quarters and
 // swept all four in 88.8% of games. Widening the per-player range cannot fix
 // that; only a factor every player on a team SHARES survives the averaging.
-import { PLAYERS } from "../data/nba-players.js";
 import { computeDatasetStats, simulateGame, impact } from "../js/sports/nba/engine.js";
 import { DraftState } from "../js/draft.js";
 import { RANKED_SLOTS } from "../js/sports/nba/constants.js";
+import { loadDataset } from "../data/load.mjs";
+
+const PLAYERS = await loadDataset("nba-players");
 
 const stats = computeDatasetStats(PLAYERS);
 

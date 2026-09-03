@@ -1,6 +1,9 @@
-// Checks data/nba-players.js is fit for the game, whatever produced it.
+// Checks data/nba-players.json is fit for the game, whatever produced it.
 // Run: node tools/verify-data.mjs
-import { PLAYERS } from "../data/nba-players.js";
+
+import { loadDataset } from "../data/load.mjs";
+
+const PLAYERS = await loadDataset("nba-players");
 
 const SLOTS = ["PG", "SG", "SF", "PF", "C"];
 const squads = new Map();

@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { LAYOUT_AUDIT } from "./browser-instrumentation.mjs";
+import { loadDataset } from "../../data/load.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
@@ -34,7 +35,7 @@ export const RANKED_ROUNDS = 10;
  * Every squad the draft can roll, keyed the way the squad banner names it.
  *
  * PER SPORT, because the sports do not share a dataset OR a grouping. This
- * read data/nba-players.js unconditionally and keyed on `decade`, so pointing
+ * read data/nba-players.json unconditionally and keyed on `decade`, so pointing
  * the run at football produced "no local squad data for Cleveland Browns
  * 2010s" on every single round - the harness could not type a name it did not
  * have, the draft never advanced, and it failed as a timeout rather than as a
@@ -42,18 +43,13 @@ export const RANKED_ROUNDS = 10;
  * UNITS as well as people, which have no ppg to sort by.
  */
 export async function loadSquadIndex(sportId = "nba") {
-  const source = sportId === "nfl"
-    ? [
-        [path.join(ROOT, "data", "nfl-players.js"), "ROWS"],
-        [path.join(ROOT, "data", "nfl-units.js"), "ROWS"],
-      ]
-    : [[path.join(ROOT, "data", "nba-players.js"), "PLAYERS"]];
+  // Through the one loader rather than importing the files: they are JSON now,
+  // and a dynamic import of JSON needs an import attribute the harness has no
+  // reason to know about. See data/load.mjs.
+  const source = sportId === "nfl" ? ["nfl-players", "nfl-units"] : ["nba-players"];
 
   const rows = [];
-  for (const [file, exportName] of source) {
-    const mod = await import(new URL(`file://${file}`).href);
-    rows.push(...(mod[exportName] || []));
-  }
+  for (const dataset of source) rows.push(...(await loadDataset(dataset)));
 
   const groupKey = sportId === "nfl" ? "era" : "decade";
   const index = new Map();

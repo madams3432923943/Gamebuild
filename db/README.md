@@ -49,7 +49,7 @@ the live database as a baseline migration, move this directory back under
 `db/seed/players.json`, fetched over HTTP rather than inlined as 2,542 INSERTs.
 
 That JSON is **generated, not committed** — it is a byte-for-byte second copy of
-`data/nba-players.js`, and keeping both in the repo meant 500 KB of duplication and two
+`data/nba-players.json`, and keeping both in the repo meant 500 KB of duplication and two
 things that could disagree. Regenerate it only when re-seeding:
 
     node tools/verify-data.mjs          # sanity-check the dataset first

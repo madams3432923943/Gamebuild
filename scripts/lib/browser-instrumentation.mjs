@@ -329,3 +329,105 @@ export const TOUCH_AUDIT = `(() => {
     verticalScroll: Math.round(document.documentElement.scrollHeight - window.innerHeight),
   };
 })()`;
+
+// ---------------------------------------------------------------------------
+// What a screen reader gets
+//
+// LAYOUT_AUDIT catches boxes on top of each other and TOUCH_AUDIT catches
+// controls too small to hit. Both are about eyes and thumbs. This one is about
+// the reading a screen reader is handed, which no amount of looking at the
+// page will tell you - and which nothing in this repo measured: index.html
+// carries 23 aria- attributes across 724 lines, and whether that is enough was
+// never a question anything could answer.
+//
+// FOUR PROPERTIES, chosen because each is objectively checkable and each has a
+// failure a sighted test cannot see:
+//
+//   NAME     A control with no accessible name is announced as "button". The
+//            page has plenty of text buttons, which are fine; it is the
+//            icon-only ones that go silent, and they are exactly the ones a
+//            visual check passes.
+//   LABEL    An input with no label is announced as "edit text, blank".
+//   ALT      An <img> with no alt attribute has its FILENAME read out. An
+//            empty alt is correct for decoration and is not a failure - the
+//            missing attribute is.
+//   CURRENT  A navigation whose active item is marked only by colour tells a
+//            screen reader nothing about where you are.
+// ---------------------------------------------------------------------------
+
+export const A11Y_AUDIT = `(() => {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false;
+    return !el.closest(".hidden, [hidden]");
+  };
+  const describe = (el) => {
+    const id = el.id ? "#" + el.id : "";
+    const cls = el.className && typeof el.className === "string"
+      ? "." + el.className.trim().split(/\\s+/).slice(0, 2).join(".")
+      : "";
+    return (el.tagName.toLowerCase() + id + cls).slice(0, 80);
+  };
+
+  /** What a screen reader would announce this control AS, near enough: its own
+   *  text, or an aria-label, or the text of whatever aria-labelledby points at,
+   *  or a title. Deliberately generous - the check is for controls with NO name
+   *  at all, not for badly worded ones, which is a judgement no script makes. */
+  const accessibleName = (el) => {
+    const aria = (el.getAttribute("aria-label") || "").trim();
+    if (aria) return aria;
+    const ref = el.getAttribute("aria-labelledby");
+    if (ref) {
+      const text = ref.split(/\\s+/).map((id) => (document.getElementById(id) || {}).textContent || "").join(" ").trim();
+      if (text) return text;
+    }
+    const own = (el.textContent || "").replace(/\\s+/g, " ").trim();
+    if (own) return own;
+    const title = (el.getAttribute("title") || "").trim();
+    if (title) return title;
+    const alt = [...el.querySelectorAll("img[alt]")].map((i) => i.alt).join(" ").trim();
+    return alt;
+  };
+
+  const controls = [...document.querySelectorAll('button, a[href], [role="button"]')].filter(visible);
+  const unnamed = controls.filter((el) => !accessibleName(el)).map(describe);
+
+  const fields = [...document.querySelectorAll("input, select, textarea")].filter(visible);
+  const unlabelled = fields.filter((el) => {
+    if (el.type === "hidden") return false;
+    if ((el.getAttribute("aria-label") || "").trim()) return false;
+    if (el.getAttribute("aria-labelledby")) return false;
+    if (el.labels && el.labels.length) return false;
+    // A placeholder is NOT a label - it disappears the moment you type, and a
+    // screen reader may or may not read it. Counted as unlabelled on purpose.
+    return true;
+  }).map(describe);
+
+  const images = [...document.querySelectorAll("img")].filter(visible);
+  const altless = images.filter((el) => !el.hasAttribute("alt")).map(describe);
+
+  // Where "current" is claimed by a class, it should also be claimed to the
+  // accessibility tree. Only asked of navigation, which is where it means
+  // something.
+  const navActive = [...document.querySelectorAll("nav .active, nav [class*='active']")].filter(visible);
+  const uncurrent = navActive
+    .filter((el) => !el.hasAttribute("aria-current") && el.getAttribute("aria-selected") !== "true")
+    .map(describe);
+
+  return {
+    controls: controls.length,
+    unnamed: unnamed.slice(0, 10),
+    unnamedCount: unnamed.length,
+    fields: fields.length,
+    unlabelled: unlabelled.slice(0, 10),
+    unlabelledCount: unlabelled.length,
+    images: images.length,
+    altless: altless.slice(0, 10),
+    altlessCount: altless.length,
+    uncurrent: uncurrent.slice(0, 10),
+    uncurrentCount: uncurrent.length,
+  };
+})();
+`;

@@ -7,10 +7,12 @@
 //
 // Run: node tools/calibrate-gamestyles.mjs
 // Paste the FINAL MODS block into js/sports/nba/tactics.js when the spread looks good.
-import { PLAYERS } from "../data/nba-players.js";
 import { computeDatasetStats, simulateGame } from "../js/sports/nba/engine.js";
 import { DraftState } from "../js/draft.js";
 import { RANKED_SLOTS } from "../js/sports/nba/constants.js";
+import { loadDataset } from "../data/load.mjs";
+
+const PLAYERS = await loadDataset("nba-players");
 
 const stats = computeDatasetStats(PLAYERS);
 

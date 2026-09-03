@@ -76,13 +76,13 @@ football rather than football.
 ### Where unit ratings come from
 
 Units are **derived from `nfl_players`, never hand-authored** — the same rule
-that makes `data/nba-players.js` generated rather than edited. A unit row for
+that makes `data/nba-players.json` generated rather than edited. A unit row for
 "1985 Chicago Bears — LB" aggregates every linebacker on that team-era:
 snap-weighted rates for the stats that matter to the unit, plus a depth term
 (a two-man unit is thinner than a five-man one, which is the football version
 of the bench-coverage rule already in `constructionMetrics`).
 
-Build it as a generated `data/nfl-units.js` beside the player file, produced by
+Build it as a generated `data/nfl-units.json` beside the player file, produced by
 the same import run. Deriving it at squad-roll time instead would mean the
 client re-aggregating thousands of rows on every round.
 
@@ -172,7 +172,7 @@ Mirror the NBA flow exactly, since it works:
 
 ```
 tools/seasons-nfl/          raw downloads, gitignored like tools/seasons/
-tools/build-nfl-data.mjs    -> data/nfl-players.js + data/nfl-units.js
+tools/build-nfl-data.mjs    -> data/nfl-players.json + data/nfl-units.json
 tools/verify-nfl-data.mjs   -> sanity checks before anything ships
 tools/export-nfl-json.mjs   -> db/seed/nfl-players.json for the server seed
 ```

@@ -67,7 +67,7 @@ Then open http://localhost:8000.
 index.html        markup + import map; loads js/main.js
 css/style.css     all styling
 data/
-  nba-players.js  the player dataset - GENERATED, and deliberately outside js/
+  nba-players.json  the player dataset - GENERATED, and deliberately outside js/
                   so a search of the app code never has to wade through 2,542
                   rows of statistics
 js/                 shared app code - never imports a sport directly
@@ -264,11 +264,11 @@ Signed-out visitors count too, so the key is a per-browser id, not a user id.
 
 ## Data
 
-`data/nba-players.js` is generated, not hand-edited. See `tools/README.md` for importing
+`data/nba-players.json` is generated, not hand-edited. See `tools/README.md` for importing
 real per-game statistics from Basketball Reference CSV exports:
 
 ```
-node tools/build-data-from-csv.mjs   # regenerate data/nba-players.js
+node tools/build-data-from-csv.mjs   # regenerate data/nba-players.json
 node tools/verify-data.mjs           # sanity-check any dataset
 node tools/export-players-json.mjs   # then re-seed the server (db/README.md)
 ```

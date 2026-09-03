@@ -1,4 +1,4 @@
-// Writes db/seed/players.json from data/nba-players.js's PLAYERS array.
+// Writes db/seed/players.json from data/nba-players.json's PLAYERS array.
 //
 // The two used to both be committed, which meant 500 KB of the repo was a
 // second copy of a file already in it - and two copies of a dataset is two
@@ -12,14 +12,16 @@
 //
 //   node tools/export-players-json.mjs
 //
-// Run tools/verify-data.mjs first if data/nba-players.js was just regenerated; there is
+// Run tools/verify-data.mjs first if data/nba-players.json was just regenerated; there is
 // no point exporting a dataset that hasn't been sanity-checked.
 
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadDataset } from "../data/load.mjs";
 
-import { PLAYERS } from "../data/nba-players.js";
+const PLAYERS = await loadDataset("nba-players");
+
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "db", "seed", "players.json");
@@ -28,7 +30,7 @@ const OUT = path.join(ROOT, "db", "seed", "players.json");
 // that would trip that check is a mistake worth catching here, where the fix
 // is obvious, instead of halfway through a truncate-and-replace.
 if (!Array.isArray(PLAYERS) || PLAYERS.length < 2000) {
-  console.error(`Refusing to export: data/nba-players.js has ${PLAYERS?.length ?? 0} players, expected 2000+.`);
+  console.error(`Refusing to export: data/nba-players.json has ${PLAYERS?.length ?? 0} players, expected 2000+.`);
   process.exit(1);
 }
 

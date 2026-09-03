@@ -28,7 +28,7 @@
 //                   player-by-player and quarter-by-quarter.
 //
 // And a fifth axis that is NOT about code at all: the two engines are fed
-// different DATASETS. The client computes datasetStats from data/nba-players.js; the
+// different DATASETS. The client computes datasetStats from data/nba-players.json; the
 // Edge Function computes it from the `players` table. datasetStats feeds
 // posAvg(), which normalizes every matchup in the simulation - so identical
 // code over a drifted dataset still produces different box scores. That check
@@ -40,6 +40,7 @@ import path from "node:path";
 
 import { PASS, FAIL, WARN, SKIP, check } from "./lib/report.mjs";
 import { withSeededRandom, seedFrom } from "./lib/seeded-rng.mjs";
+import { loadDataset } from "../data/load.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -53,7 +54,8 @@ const clientDir = (sportId) => path.join(ROOT, "js", "sports", sportId);
 const edgeDir = (sportId) =>
   path.join(ROOT, "supabase", "functions", "simulate-match", "sports", sportId);
 // The dataset lives outside js/ - it is data, not app code (see CLAUDE.md).
-const dataFile = (sportId) => path.join(ROOT, "data", `${sportId}-players.js`);
+// Datasets are JSON now, read through the one loader - see data/load.mjs.
+const datasetFor = (sportId) => `${sportId}-players`;
 
 /** Sports with both a client engine and a vendored server copy. */
 async function parityPairs() {
@@ -79,7 +81,7 @@ async function parityPairs() {
 // old single-sport call sites working while the checks below are threaded
 // through parityPairs(). They are the DEFAULT sport's paths, not "the" paths.
 const CLIENT_DIR = clientDir("nba");
-const DATA_FILE = dataFile("nba");
+const DATASET = datasetFor("nba");
 const EDGE_DIR = edgeDir("nba");
 
 // Matches the client's own tolerance language. Box scores are whole numbers,
@@ -425,11 +427,11 @@ async function checkBoxScores() {
   const [clientEngine, edgeEngine, data, tacticsMod] = await Promise.all([
     import(pathToUrl(path.join(CLIENT_DIR, "engine.js"))),
     import(pathToUrl(path.join(EDGE_DIR, "engine.js"))),
-    import(pathToUrl(DATA_FILE)),
+    loadDataset(DATASET),
     import(pathToUrl(path.join(CLIENT_DIR, "tactics.js"))),
   ]);
 
-  const players = data.PLAYERS;
+  const players = data;
   const tacticIds = (tacticsMod.TACTICS || []).map((t) => t.id);
   const scenarios = buildScenarios(players, tacticIds);
 
@@ -507,11 +509,11 @@ async function checkBoxScores() {
 }
 
 /**
- * The client normalizes matchups against data/nba-players.js; the Edge Function
+ * The client normalizes matchups against data/nba-players.json; the Edge Function
  * normalizes them against the `players` table. Identical engine code over
  * two different datasets is still two different games, and nothing in the
  * repo currently keeps those two in step - db/seed/players.json is a
- * separate artifact from data/nba-players.js.
+ * separate artifact from data/nba-players.json.
  *
  * Uses the publishable (anon) key already shipped in js/supabaseClient.js -
  * `players` is public, readable data, so no secret is needed or used.
@@ -541,7 +543,7 @@ async function checkDataset({ timeoutMs = 30000 } = {}) {
     });
   }
 
-  const { PLAYERS } = await import(pathToUrl(DATA_FILE));
+  const PLAYERS = await loadDataset(DATASET);
   const engine = await import(pathToUrl(path.join(CLIENT_DIR, "engine.js")));
 
   const norm = (p) => ({
@@ -579,7 +581,7 @@ async function checkDataset({ timeoutMs = 30000 } = {}) {
   const localStats = engine.computeDatasetStats(PLAYERS);
   const remoteStats = engine.computeDatasetStats(rows.map((p) => ({ ...p, pos: p.pos, ...numericFields(p) })));
 
-  const statRows = [["stat", "data/nba-players.js", "players table", "Δ%"]];
+  const statRows = [["stat", "data/nba-players.json", "players table", "Δ%"]];
   let worstStat = 0;
   for (const k of ["ppg", "rpg", "apg", "spg", "bpg", "tov", "ts"]) {
     const lv = localStats.overall[k];
@@ -602,8 +604,8 @@ async function checkDataset({ timeoutMs = 30000 } = {}) {
   }
 
   const detail = [
-    `data/nba-players.js has ${PLAYERS.length} players; the \`players\` table has ${rows.length}.`,
-    onlyLocal.length ? `${onlyLocal.length} only in data/nba-players.js (e.g. ${onlyLocal.slice(0, 3).join("; ")})` : null,
+    `data/nba-players.json has ${PLAYERS.length} players; the \`players\` table has ${rows.length}.`,
+    onlyLocal.length ? `${onlyLocal.length} only in data/nba-players.json (e.g. ${onlyLocal.slice(0, 3).join("; ")})` : null,
     onlyRemote.length ? `${onlyRemote.length} only in the table (e.g. ${onlyRemote.slice(0, 3).join("; ")})` : null,
     valueDiffs.length
       ? `${valueDiffs.length} field value(s) differ, e.g. ` +
