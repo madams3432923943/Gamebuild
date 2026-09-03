@@ -40,6 +40,7 @@ import {
   PAINT_METRICS,
   LAYOUT_AUDIT,
   TOUCH_AUDIT,
+  A11Y_AUDIT,
   TAP_TARGET_MIN,
   MIN_FONT_PX,
 } from "./lib/browser-instrumentation.mjs";
@@ -1145,6 +1146,8 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
   const rows = [["tab", "viewport", "rendered", "error copy", "escaping", "overlap", "h-overflow"]];
   const problems = [];
   const touchRows = [["tab", "viewport", `targets < ${TAP_TARGET_MIN}px`, `text < ${MIN_FONT_PX}px`]];
+  const a11yRows = [["tab", "controls", "unnamed", "unlabelled", "no alt", "not current"]];
+  const a11yProblems = [];
   const touchProblems = [];
   const isTouch = await page
     .evaluate(() => matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0)
@@ -1189,6 +1192,21 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
       // Phone viewports only, and asked of the page rather than inferred from
       // a width - same rule as the post-game gate, for the same reason: an
       // emulated phone in landscape is 750px wide and still has a thumb on it.
+      // What a screen reader gets, on every screen the walk visits. Audited at
+      // one viewport only - it is a property of the DOM, not of the width, and
+      // running it three times a tab would report the same thing three times.
+      if (shown && vp === list[0]) {
+        const a11y = await page.evaluate(A11Y_AUDIT);
+        const faults = [
+          a11y.unnamedCount && `${a11y.unnamedCount} controls with no accessible name (${a11y.unnamed.slice(0, 3).join(", ")})`,
+          a11y.unlabelledCount && `${a11y.unlabelledCount} fields with no label (${a11y.unlabelled.slice(0, 3).join(", ")})`,
+          a11y.altlessCount && `${a11y.altlessCount} images with no alt attribute (${a11y.altless.slice(0, 3).join(", ")})`,
+          a11y.uncurrentCount && `${a11y.uncurrentCount} nav items active in colour only (${a11y.uncurrent.slice(0, 3).join(", ")})`,
+        ].filter(Boolean);
+        a11yRows.push([tab.name, String(a11y.controls), String(a11y.unnamedCount), String(a11y.unlabelledCount), String(a11y.altlessCount), String(a11y.uncurrentCount)]);
+        if (faults.length) a11yProblems.push(`${tab.name}: ${faults.join("; ")}`);
+      }
+
       const touching = shown && (isTouch || vp.width <= 700);
       const touch = touching ? await page.evaluate(TOUCH_AUDIT) : null;
       if (touch && (touch.smallTargetCount || touch.tinyTextCount)) {
@@ -1257,6 +1275,15 @@ async function auditTabs(page, log, viewports, fixedViewport = false) {
   // A check that vanishes when it does not run is a check nobody notices has
   // stopped running - the same reasoning as the post-game gate, which reports
   // SKIP rather than silently passing with the floors unasserted.
+  out.push(
+    check(
+      "browser:a11y",
+      "Every control has a name, every field a label, and the nav says where you are",
+      a11yProblems.length ? FAIL : PASS,
+      { detail: a11yProblems.length ? a11yProblems.join("\n") : undefined, table: a11yRows }
+    )
+  );
+
   out.push(
     touchRows.length > 1
       ? check(

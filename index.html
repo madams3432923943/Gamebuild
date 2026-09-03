@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=35f56ce" />
+  <link rel="stylesheet" href="css/style.css?v=a368c13" />
 </head>
 <body>
   <header class="top-nav">
@@ -111,7 +111,7 @@
          NAV_TABS and every listener in main.js still find their buttons. -->
     <nav class="nav-tabs" id="nav-tabs" hidden>
       <div class="nav-primary" id="nav-primary">
-        <button class="nav-tab active" id="nav-play" type="button">
+        <button class="nav-tab active" id="nav-play" type="button" aria-current="page">
           <span class="nav-tab-glyph" aria-hidden="true">&#127918;</span>
           <span class="nav-tab-word">Play</span>
         </button>
@@ -759,6 +759,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=35f56ce"></script>
+  <script type="module" src="js/main.js?v=a368c13"></script>
 </body>
 </html>

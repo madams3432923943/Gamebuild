@@ -32,7 +32,24 @@ export function showScreen(name) {
 
 export function setActiveNav(which) {
   for (const tab of NAV_TABS) {
-    document.getElementById(`nav-${tab}`).classList.toggle("active", tab === which);
+    const el = document.getElementById(`nav-${tab}`);
+    const active = tab === which;
+    el.classList.toggle("active", active);
+    // WHERE YOU ARE, said to the accessibility tree and not only in colour.
+    //
+    // The active tab was marked by a class, which paints it and announces
+    // nothing: a screen reader read all four destinations identically, so the
+    // one question a navigation exists to answer - where am I - had no answer.
+    // Measured across every screen in the app, this was the only such gap;
+    // every control has a name and every field has a label, which is why it is
+    // worth fixing rather than filing.
+    //
+    // `page` rather than `true` because these are destinations within one
+    // document, which is what aria-current="page" means. Removed rather than
+    // set to "false" on the others: the attribute is meaningful by its
+    // presence, and aria-current="false" is a value some readers announce.
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
   }
 }
 
