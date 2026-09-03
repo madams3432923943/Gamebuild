@@ -782,7 +782,8 @@ function usageWeights(roster) {
   return {
     catchers: build(skill.filter(({ slot }) => slot !== "QB"), (slot, entry) => Number(entry.rec) || 0),
     rushers: capBellCow(
-      build(skill, (slot, entry) => carriesPerGame(entry) * (CARRY_SHARE[slot.replace(/\d+$/, "")] ?? 0))
+      build(skill, (slot, entry) => carriesPerGame(entry) * (CARRY_SHARE[slot.replace(/\d+$/, "")] ?? 0)),
+      roster
     ),
   };
 }
@@ -897,6 +898,61 @@ function planTilt(mod) {
  * entire running game. */
 const BELL_COW_CEILING = 0.74;
 
+/**
+ * A REAL TEAM'S RUSHING ATTEMPTS IN A GAME, and the denominator that turns a
+ * man's own carry count into the share of a backfield he really was.
+ *
+ * Modern NFL teams run the ball about 26-27 times a game. It is a fact about
+ * football rather than a lever, and nothing should tune it.
+ */
+const TEAM_CARRIES_PER_GAME = 27;
+
+/**
+ * The least of a team's carries the drafted back can be cut to.
+ *
+ * THIS ROSTER HAS ONE RUNNING BACK SLOT, so whoever is drafted stands in for a
+ * whole backfield and cannot be held to the share he had when he was splitting
+ * one. Half is the floor: a committee back promoted to being somebody's only
+ * back would carry more than he ever did, which is true, and he still does.
+ */
+const COMMITTEE_CARRY_CEILING = 0.50;
+
+/**
+ * THE CEILING IS PERSONAL, AND IT USED NOT TO BE.
+ *
+ * BELL_COW_CEILING was applied flat to every back, so the ceiling was the only
+ * thing deciding the carry count and every back got the same one. Measured over
+ * 1,200 games, bucketed by what each man really carried:
+ *
+ *   committee  (<12 real carries a game)   21.4 simulated against 11.4   1.88x
+ *   starter    (12-18)                     20.6 against 15.6            1.32x
+ *   workhorse  (18+)                       20.7 against 20.3            1.02x
+ *
+ * A workhorse was right and everyone else was handed his workload. That is not
+ * only unrealistic, it flattens a draft decision: knowing which backs were
+ * bell cows is exactly the kind of thing this game is meant to reward, and
+ * there was no cost at all to drafting a man who split carries his whole
+ * career.
+ *
+ * So a man's ceiling is the share of a real backfield HE really was - his own
+ * carries against a real team's - bounded at both ends. The bounds are what
+ * keep it honest about this roster's shape rather than about his old team's:
+ * never below COMMITTEE_CARRY_CEILING, because he is the only back here, and
+ * never above BELL_COW_CEILING, because nobody carries every snap.
+ *
+ * Nothing here invents a number. carriesPerGame is measured from the dataset's
+ * own rushing yards and yards per carry.
+ */
+function backfieldShare(entry) {
+  return carriesPerGame(entry) / TEAM_CARRIES_PER_GAME;
+}
+
+function bellCowCeilingFor(entry) {
+  const share = backfieldShare(entry);
+  if (!(share > 0)) return COMMITTEE_CARRY_CEILING;
+  return Math.min(BELL_COW_CEILING, Math.max(COMMITTEE_CARRY_CEILING, share));
+}
+
 /** The most of a team's carries a QUARTERBACK can take, however the rest of
  * the backfield is capped.
  *
@@ -912,13 +968,15 @@ const BELL_COW_CEILING = 0.74;
  * The small floor is the sneak-and-kneel share every quarterback has. */
 const QB_CARRY_FLOOR = 0.04;
 
-function capBellCow(items) {
+function capBellCow(items, roster) {
   if (items.length < 2) return items;
   let top = items[0];
   for (const item of items) if (item.weight > top.weight) top = item;
-  if (top.weight <= BELL_COW_CEILING) return items;
+  // The ceiling belongs to the MAN, not to the slot - see bellCowCeilingFor.
+  const ceiling = bellCowCeilingFor(roster?.[top.slot]);
+  if (top.weight <= ceiling) return items;
 
-  const spare = top.weight - BELL_COW_CEILING;
+  const spare = top.weight - ceiling;
   const ceilingFor = (item) =>
     item.slot === "QB" ? Math.max(QB_CARRY_FLOOR, item.weight) : 1;
   const rest = items.filter((item) => item !== top);

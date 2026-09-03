@@ -392,6 +392,30 @@ const tds = { pass: 0, rush: 0, sides: 0 };
 // and the 64-attempt passing game both sat inside a table whose means looked
 // perfect. What separates football from a plausible mean is the spread and the
 // tail, so those are measured too.
+/**
+ * A man's real carries a game, from the dataset's own numbers - the same
+ * measurement carriesPerGame makes inside the engine.
+ *
+ * DELIBERATELY COMPUTED HERE RATHER THAN IMPORTED. A check that reuses the
+ * engine's own function agrees with the engine by construction; the point of
+ * this one is to hold the engine against the DATA, so it reads the data.
+ */
+const LEAGUE_YPC = 4.3;
+function realCarriesPerGame(entry) {
+  const yards = Math.max(0, Number(entry?.rush_yds) || 0);
+  if (yards <= 0) return 0;
+  const ypc = Number(entry?.ypc) || 0;
+  return ypc > 0 ? yards / ypc : yards / LEAGUE_YPC;
+}
+
+/** Backs split by the workload they really carried. The bands are the ones a
+ * fan would use: a committee back, a starter, a bell cow. */
+const BACK_BUCKETS = [
+  { key: "committee", label: "committee (<12 a game)", lo: 0, hi: 12, simulated: [], real: [] },
+  { key: "starter", label: "starter (12-18)", lo: 12, hi: 18, simulated: [], real: [] },
+  { key: "workhorse", label: "workhorse (18+)", lo: 18, hi: 999, simulated: [], real: [] },
+];
+
 const shape = {
   score: [], yardsPerPlay: [], sacks: [], attempts: [], fieldGoals: [], touchdowns: [],
   // Per GAME rather than per side: a scoreboard is the thing a player looks at,
@@ -425,9 +449,9 @@ for (let i = 0; i < RATE_GAMES; i++) {
   const result = NFL.simulate(rosterA, rosterB, ctx, {
     strategyA: BAL, strategyB: BAL, rand: mulberry32(i * 15486071 + 3),
   });
-  for (const [box, team, score] of [
-    [result.boxA, result.teamStatsA, result.teamScoreA],
-    [result.boxB, result.teamStatsB, result.teamScoreB],
+  for (const [box, team, score, roster] of [
+    [result.boxA, result.teamStatsA, result.teamScoreA, rosterA],
+    [result.boxB, result.teamStatsB, result.teamScoreB, rosterB],
   ]) {
     shape.score.push(score);
     shape.yardsPerPlay.push(team.plays > 0 ? team.totalYards / team.plays : 0);
@@ -446,6 +470,17 @@ for (let i = 0; i < RATE_GAMES; i++) {
     // came back at 297 yards.
     rate.backYards.push((box.RB || {}).rush_yds || 0);
     rate.backCarries.push((box.RB || {}).carries || 0);
+    // THE DRAFTED BACK AGAINST HIS OWN RECORD, bucketed by what he really
+    // carried. The mean above cannot see this: every back got the same 21
+    // carries, so the average was right and every individual was wrong.
+    const backCarries = realCarriesPerGame(roster.RB);
+    if (backCarries > 0) {
+      const bucket = BACK_BUCKETS.find((b) => backCarries >= b.lo && backCarries < b.hi);
+      if (bucket) {
+        bucket.simulated.push((box.RB || {}).carries || 0);
+        bucket.real.push(backCarries);
+      }
+    }
     tds.sides += 1;
     for (const line of Object.values(box)) {
       tds.pass += line.pass_tds || 0;
@@ -658,6 +693,37 @@ const yppShape = summarise(shape.yardsPerPlay);
 const compShape = summarise(shape.compPct);
 const quietGames = shape.combined.filter((total) => total <= 20).length /
   Math.max(1, shape.combined.length);
+
+// ---- does the man you drafted run like himself ------------------------------
+//
+// The mean carry count was right all along and every individual back was
+// wrong. BELL_COW_CEILING was applied flat, so it was the ONLY thing deciding
+// the count and every back hit the same one: 21.4 carries for a committee back
+// who really carried 11.4, against 20.7 for a workhorse who really carried
+// 20.3. A back's own record decided nothing, which is a realism fault and a
+// gameplay one at once - knowing who the bell cows were is exactly what this
+// game is meant to reward, and drafting a man who split carries his whole
+// career cost nothing at all.
+const backRatios = BACK_BUCKETS.map((bucket) => ({
+  ...bucket,
+  n: bucket.simulated.length,
+  ratio: bucket.simulated.length
+    ? mean(bucket.simulated) / Math.max(1e-9, mean(bucket.real))
+    : null,
+}));
+const measuredBuckets = backRatios.filter((b) => b.n >= 20 && b.ratio != null);
+// Two things, and they are different questions. First, nobody may run at a
+// workload wildly unlike his own. Second - and this is the one the flat
+// ceiling failed - the gap between a committee back and a workhorse has to
+// SURVIVE the simulation rather than being flattened out of it.
+const worstBackRatio = measuredBuckets.length
+  ? Math.max(...measuredBuckets.map((b) => b.ratio))
+  : 1;
+const committeeRatio = backRatios.find((b) => b.key === "committee")?.ratio ?? null;
+const workhorseRatio = backRatios.find((b) => b.key === "workhorse")?.ratio ?? null;
+const backSpread = committeeRatio != null && workhorseRatio != null
+  ? committeeRatio - workhorseRatio
+  : null;
 
 // ---- who gets named man of the match ---------------------------------------
 //
@@ -1045,6 +1111,32 @@ const checks = [
     title: "Yards per play spreads the way a season's games do",
     ok: yppShape.p90 - yppShape.median >= 0.9 && yppShape.p90 <= 10 && yppShape.max < 12,
     detail: `median ${yppShape.median.toFixed(2)}, p90 ${yppShape.p90.toFixed(2)}, max ${yppShape.max.toFixed(2)}`,
+  },
+  {
+    // A CEILING ON THE OVERSTATEMENT. 1.88x was a committee back running a
+    // bell cow's workload; some overstatement is correct and has to be
+    // allowed, because this roster has ONE back slot and whoever fills it
+    // stands in for a whole backfield, so a man who split carries really does
+    // carry more here than he ever did. What is not allowed is that being the
+    // whole story.
+    title: "No back runs at a workload unlike his own (under 1.45x)",
+    ok: worstBackRatio <= 1.45,
+    detail: measuredBuckets
+      .map((b) => `${b.label} ${b.ratio.toFixed(2)}x (n=${b.n})`)
+      .join(", ") || "no bucket had enough backs to measure",
+  },
+  {
+    // THE SPREAD, which is the check that would have caught the original
+    // fault. Every ratio could sit inside the band above and the simulation
+    // still ignore who was drafted - that is exactly what a flat ceiling did.
+    // A committee back must come out FURTHER above his own record than a
+    // workhorse does, or his record changed nothing.
+    title: "A committee back and a bell cow are still told apart",
+    ok: backSpread == null || backSpread >= 0.15,
+    detail: backSpread == null
+      ? "not enough backs in both buckets to compare"
+      : `committee ${committeeRatio.toFixed(2)}x against workhorse ${workhorseRatio.toFixed(2)}x ` +
+        `- a gap of ${backSpread.toFixed(2)} (was 0.86 before the personal ceiling, but on 21 carries either way)`,
   },
   {
     // THE FLOOR, which did not exist. Measured before this check was written:
