@@ -45,62 +45,78 @@
 //     runDef               run defence, which shortens the opponent's drives
 //     explosivePrevention  how well you keep a scoring drive to three points
 //
-// RE-SOLVED against TALENT_PARITY 0.95. The old values were solved - loosely -
-// against a parity of 0.42, and raising it amplified every multiplier at once:
-// Vertical Attack ran to a 65.7% win rate, which is precisely the auto-pick the
-// rule below forbids. The plans that leaned hardest on a single dimension
-// (explosiveness, red zone, explosive prevention, run defence) gave the most
-// back, and balanced offence was raised because a baseline that loses to
-// everything is not a baseline.
+// SOLVED, by tools/calibrate-nfl-gamestyles.mjs. Everything below this line
+// used to be a list of apologies for that tool not existing - "Hand-solved,
+// not calibrated", "PROVISIONAL NUMBERS, SAID PLAINLY", "a band is not a
+// calibration". It exists, it has run, and these are its numbers.
 //
-// RE-SOLVED AGAIN, against the yardage calibration. Making a drive that does
-// not score gain twelve yards instead of twenty-five - which is what real ones
-// gain - changed the field-position economy underneath every plan, because a
-// punt from your own 38 hands the ball over near the opponent 24 rather than
-// their 12. That is right, and it is worth about twelve yards a punt to the
-// receiving team. The plans that pay for their edge in POSSESSIONS felt it
-// hardest: Ground Control fell to a 33.5% win rate, which is a trap by the
-// rule at the top of this file, so it was re-solved to 45% by paying for its
-// slow pace in efficiency - red zone, ball security and protection - rather
-// than by giving the pace back, which would have deleted what the plan is.
+// WHAT IT SOLVES AND WHAT IT LEAVES ALONE
 //
-// Hand-solved, not calibrated. tools/calibrate-nfl-gamestyles.mjs still does
-// not exist; scripts/verify-nfl-gameplans.mjs holds every plan to a 40-60%
-// band, and a band is not a calibration.
+// One lever per catalogue: `off` for an offensive plan, `def` for a defensive
+// one. Those are the only two mods that move a win rate without changing what
+// the plan IS. The other thirteen - explosive, redZone, security, protection,
+// runShare, pace, fg, takeaway, passRush, coverage, runDef,
+// explosivePrevention - are the plan's identity and are held exactly as
+// authored. Ground Control's 1.50 runShare is not a balance number, it is the
+// reason anyone picks Ground Control, and solving it away would leave a plan
+// by that name that no longer runs the ball. Basketball draws the same line
+// (it solves `pts` and holds reb/ast/stl/blk/tov) for the same reason.
 //
-// PROVISIONAL NUMBERS, SAID PLAINLY. Like the ten styles before them, the
-// values below are authored placeholders that have NOT been through
-// tools/calibrate-gamestyles.mjs. scripts/verify-nfl-gameplans.mjs holds them
-// to a win-rate band so no plan is a trap or an auto-pick, but a band is not a
-// calibration. Until the calibrator has run over these, plan choice is still
-// partly a right answer rather than purely a read on your lineup.
+// So a plan that came in too strong pays for it in raw quality and keeps its
+// character. That is also the honest trade to offer a player: the plan is not
+// worse at the thing it does, it is worse at everything else.
+//
+// WHAT MOVED, AND WHY IT HAD TO
+//
+// Ground Control 1.14 -> 1.070 and Power Red Zone 0.99 -> 1.039 are the two
+// large ones, and they are large in opposite directions because the hand-solve
+// they replace was fitted to an engine with three faults in it: the quarter
+// variance did nothing, `edge` carried a systematic scoring lift that moved
+// with TALENT_PARITY, and RUN_SHARE sat above its own documented value so
+// every running plan was measured through a run game that was already too
+// heavy. Ground Control was overpaid for a pace cost it was not really paying;
+// Power Red Zone was underpaid for a field-goal penalty that mattered more
+// than it looked. Both are commits in the history of this branch, and neither
+// could have been found by adjusting these numbers.
+//
+// Run tools/calibrate-nfl-variance.mjs FIRST and this second, every time
+// either engine changes. That order is not a preference: a plan's win rate is
+// measured against whatever noise floor the engine has at the time, so plans
+// solved before the variance range is settled are solved against the wrong
+// floor. The two previous re-solves recorded here - Vertical Attack at 65.7%
+// after a parity change, Ground Control at 33.5% after a yardage change - are
+// both that mistake.
+//
+// Verified over 4,000 mirrored matchups per catalogue: every plan lands
+// between 47% and 53%, against the 40-60% band
+// scripts/verify-nfl-gameplans.mjs enforces.
 
 /** How you attack. */
 export const OFFENSIVE_PLANS = [
   { id: "balanced-offense", icon: "⚖️", name: "Balanced Offense",
     blurb: "No tilt either way.",
     up: ["+1 Offense", "+1 Ball Security"], down: ["-1 Explosive Plays"],
-    mods: { off: 1.07, explosive: 0.97, redZone: 1.02, security: 1.04, protection: 1.05, runShare: 1.00, pace: 1.00, fg: 1.00 } },
+    mods: { off: 1.070, explosive: 0.97, redZone: 1.02, security: 1.04, protection: 1.05, runShare: 1.00, pace: 1.00, fg: 1.00 } },
 
   { id: "ground-control", icon: "🐏", name: "Ground Control",
     blurb: "Run it, shorten the game, take the air out of the ball.",
     up: ["+2 Rushing", "+2 Ball Control"], down: ["-2 Explosive Plays", "-1 Comeback Ability"],
-    mods: { off: 1.14, explosive: 0.88, redZone: 1.20, security: 1.14, protection: 1.10, runShare: 1.50, pace: 0.96, fg: 1.00 } },
+    mods: { off: 1.070, explosive: 0.88, redZone: 1.20, security: 1.14, protection: 1.10, runShare: 1.50, pace: 0.96, fg: 1.00 } },
 
   { id: "west-coast", icon: "📋", name: "West Coast",
     blurb: "Short, accurate, keep the chains moving and the quarterback clean.",
     up: ["+2 Short Passing", "+2 Pass Protection"], down: ["-2 Deep Passing"],
-    mods: { off: 1.09, explosive: 0.82, redZone: 0.98, security: 1.10, protection: 1.14, runShare: 0.90, pace: 1.02, fg: 1.00 } },
+    mods: { off: 1.090, explosive: 0.82, redZone: 0.98, security: 1.10, protection: 1.14, runShare: 0.90, pace: 1.02, fg: 1.00 } },
 
   { id: "vertical-attack", icon: "🚀", name: "Vertical Attack",
     blurb: "Take the top off. Your quarterback will get hit.",
     up: ["+2 Deep Passing", "+2 Big Plays"], down: ["-2 Pass Protection", "-1 Ball Security"],
-    mods: { off: 1.01, explosive: 1.15, redZone: 1.00, security: 0.82, protection: 0.76, runShare: 0.55, pace: 1.04, fg: 1.00 } },
+    mods: { off: 1.038, explosive: 1.15, redZone: 1.00, security: 0.82, protection: 0.76, runShare: 0.55, pace: 1.04, fg: 1.00 } },
 
   { id: "power-red-zone", icon: "🎯", name: "Power Red Zone",
     blurb: "Grind it out inside the twenty. Touchdowns, not field goals.",
     up: ["+2 Red Zone Conversion", "+1 Rushing"], down: ["-1 Field Goal Reliance", "-1 Explosive Plays"],
-    mods: { off: 0.99, explosive: 0.92, redZone: 1.16, security: 1.03, protection: 1.02, runShare: 1.25, pace: 0.96, fg: 0.94 } },
+    mods: { off: 1.039, explosive: 0.92, redZone: 1.16, security: 1.03, protection: 1.02, runShare: 1.25, pace: 0.96, fg: 0.94 } },
 ];
 
 /** How you defend. */
@@ -108,27 +124,27 @@ export const DEFENSIVE_PLANS = [
   { id: "balanced-defense", icon: "🛡️", name: "Balanced Defense",
     blurb: "Sound everywhere, spectacular nowhere.",
     up: ["+1 Defense", "+1 Big Play Prevention"], down: ["-1 Takeaways"],
-    mods: { def: 1.02, takeaway: 0.98, passRush: 1.01, coverage: 1.01, runDef: 1.01, explosivePrevention: 1.01 } },
+    mods: { def: 1.020, takeaway: 0.98, passRush: 1.01, coverage: 1.01, runDef: 1.01, explosivePrevention: 1.01 } },
 
   { id: "blitz-pressure", icon: "💥", name: "Blitz Pressure",
     blurb: "Send pressure, leave the corners on an island.",
     up: ["+2 Pass Rush", "+2 Sacks"], down: ["-2 Coverage", "-1 Big Play Prevention"],
-    mods: { def: 1.02, takeaway: 1.14, passRush: 1.40, coverage: 0.78, runDef: 0.94, explosivePrevention: 0.88 } },
+    mods: { def: 1.012, takeaway: 1.14, passRush: 1.40, coverage: 0.78, runDef: 0.94, explosivePrevention: 0.88 } },
 
   { id: "run-wall", icon: "🧱", name: "Run Wall",
     blurb: "Wall off the run. Nothing through the middle.",
     up: ["+2 Run Defense", "+1 Defense"], down: ["-1 Coverage", "-1 Takeaways"],
-    mods: { def: 1.01, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
+    mods: { def: 0.982, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
 
   { id: "ball-hawks", icon: "🦅", name: "Ball Hawks",
     blurb: "Chase the ball. Miss more tackles doing it.",
     up: ["+2 Interceptions", "+2 Forced Turnovers"], down: ["-2 Run Defense", "-1 Big Play Prevention"],
-    mods: { def: 1.00, takeaway: 1.42, passRush: 1.00, coverage: 1.08, runDef: 0.78, explosivePrevention: 0.94 } },
+    mods: { def: 1.025, takeaway: 1.42, passRush: 1.00, coverage: 1.08, runDef: 0.78, explosivePrevention: 0.94 } },
 
   { id: "keep-it-in-front", icon: "🚧", name: "Keep It in Front",
     blurb: "Give up the short stuff. Nothing goes over your head.",
     up: ["+2 Big Play Prevention", "+1 Coverage"], down: ["-2 Takeaways", "-1 Pass Rush"],
-    mods: { def: 1.01, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
+    mods: { def: 1.017, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
 ];
 
 /**
