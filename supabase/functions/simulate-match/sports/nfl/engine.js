@@ -978,10 +978,35 @@ const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sa
  * there, so the box score was always reconstructed at league-average
  * efficiency however good the man throwing was.
  *
- * The band is real football's: a poor starter completes about 54%, an elite
- * one about 71%. */
+ * The band is real football's: a poor starter completes about 57%, an elite
+ * one about 70%.
+ *
+ * IT IS THE BAND THAT IS FOOTBALL'S, NOT EITHER END ON ITS OWN, and the elite
+ * end used to miss. Measured over bot-drafted ranked rosters across all five
+ * offensive and all five defensive plans, 0.20 put an elite passer on 65.1% -
+ * eight and a half points above a poor one rather than football's thirteen.
+ * The poor end was already right at 56.6%, so the whole shortfall was at the
+ * top: the pick that most decides a football game read almost the same in the
+ * box score whether you spent it on Peyton Manning or on a rookie. 0.14 puts
+ * the two ends on 57.1% and 70.0%.
+ *
+ * THIS COSTS NOTHING ELSEWHERE, which is why it can be changed without
+ * re-running the calibrators. Dead plays are carved out of a play count that
+ * is already fixed, and the yards a drive gains are decided before any of them
+ * are dealt, so this moves only HOW a drive's yardage was gained - more
+ * completions of fewer yards each. Measured across the same 6,000 sides either
+ * side of the change: 397 yards a team at 6.38 a play for 24.4 points before,
+ * and 397 at 6.38 for 24.4 after. Only yards per completion moves, 13.2 to
+ * 12.7, toward real football's 11.5.
+ *
+ * WHY IT WAS LOOKED AT. A live 9-6 game was reported, in which the winning
+ * quarterback completed 8 of 28. The final was not the fault: both sides had
+ * drafted bottom-third passers, and that pair's expected game is 17-18 points
+ * on about 270 yards a side, so 9-6 was its bad night rather than a bug. The
+ * 28.6% was, and it is why verify-nfl-realism.mjs now holds a floor under the
+ * LOW tail of a passing line as well as a ceiling over the high one. */
 const DEAD_PLAY_SHARE_POOR = 0.40;
-const DEAD_PLAY_SHARE_ELITE = 0.20;
+const DEAD_PLAY_SHARE_ELITE = 0.14;
 
 /** ...and how many of those are sacks rather than incompletions. */
 const SACK_SHARE_OF_DEAD = 0.13;
