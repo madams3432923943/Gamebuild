@@ -27,19 +27,54 @@ export const BOT_POOL_SIZE = 5;
 // know: the best fifteen players in front of it are yours to take if you know
 // who they are, and its roster is built from the sixteenth onward.
 //
-// Fifteen is deliberately large relative to a squad. A round drafts from one
-// team-decade squad, and those hold a median of 31 distinct players in
-// basketball and 51 in football, so this hands the human the top third to
-// half of the board while still leaving the bot a real roster to build.
-export const BOT_TOP_PICK_BAN = 15;
+// A SHARE OF THE BOARD, NOT A COUNT, and that is the correction. It was 15 -
+// "deliberately large relative to a squad", on the reasoning that squads hold
+// a median of 31 distinct players in basketball and 51 in football, so fifteen
+// hands the human "the top third to half of the board".
+//
+// It does in basketball. It does not in football, and the same sentence
+// contains the reason: a fixed fifteen is half of 31 and under a third of 51.
+// Measured over 40 bot drafts per sport, counting the ban actually applied to
+// each pick, basketball's bot was locked out of 48.5% of the players eligible
+// to it and football's out of 25.3%. Football's bot was drafting from roughly
+// twice as good a board, every round, for no reason anyone chose - the
+// difficulty of the opponent depended on which tile you tapped.
+//
+// It was worse than the averages suggest at the sharp end. Football's MEDIAN
+// pick has 15 eligible players; BOT_MIN_CHOICES then clamps the ban to 10,
+// leaving exactly 5, and BOT_POOL_SIZE is 5 - so on a typical football pick
+// the bot was choosing uniformly from the entire remaining board rather than
+// from the best of it. The knob had run out of room without saying so.
+//
+// A share equalises the two by construction and needs no per-sport table,
+// which matters more for the sport that does not exist yet than for either of
+// these: sport three inherits a difficulty that means the same thing without
+// anyone having to notice it should.
+//
+// 0.5 is basketball's measured share, so basketball is unchanged and football
+// moves to meet it. BOT_MIN_CHOICES still floors it - see below - so a thin
+// board narrows the ban rather than emptying it.
+//
+// IT DOES NOT FULLY EQUALISE THEM, and the residue is structural. Football
+// drafts twelve position-locked slots, so a late pick with only the safety
+// slot open can offer six eligible players and the floor below clamps the ban
+// to one; 220 of 480 football picks come off a board too thin for the full
+// share, against 40 of basketball's. Measured after this change, basketball's
+// bot is locked out of 48.3% of its board and football's out of 29.1% - a real
+// improvement on 25.3%, and not parity. Lowering the floor closes some of the
+// rest and never all of it, and past a point leaves the bot no choice to make
+// at all, which is a forced opponent rather than a harder one.
+// scripts/verify-bot-difficulty.mjs asserts the floor every sport must clear
+// and reports the spread rather than pretending it is gone.
+export const BOT_TOP_PICK_BAN_SHARE = 0.5;
 
-// The floor under that ban: however wide BOT_TOP_PICK_BAN is, the bot always
+// The floor under that ban: however wide the share works out to, the bot always
 // keeps at least this many distinct players to choose between.
 //
 // It has to exist because the ban is measured against ONE PICK'S eligible
 // players, not the whole dataset. The thinnest basketball squad has 12
 // distinct players in it, and a late pick with a single position-locked slot
-// still open can be down to a handful of legal names - ban fifteen there and
+// still open can be down to a handful of legal names - ban half of them there and
 // the bot has nothing legal left, which is a forfeited slot and a broken
 // roster rather than an easier opponent. So a thin board narrows the ban
 // instead of emptying it, the same way a thin board already narrows the pool.

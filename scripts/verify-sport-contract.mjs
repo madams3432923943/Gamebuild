@@ -27,7 +27,7 @@ for (const meta of SPORTS) {
 /** Called by shared code on whatever sport is active. */
 const REQUIRED_FUNCTIONS = [
   "computeDatasetStats", "simulate", "rate", "cardStats",
-  "basePosition", "isBenchSlot", "orderedRosterSlots",
+  "basePosition", "isBenchSlot", "isUnit", "unitLabel", "orderedRosterSlots",
   "players", "playersInEra", "eraById",
   "buildRecap", "buildGameScript", "gradeDraft",
   "defaultMinutes", "botMinutes", "defaultMatchups",

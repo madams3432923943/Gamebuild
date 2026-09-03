@@ -292,6 +292,27 @@ button, input {
   margin-bottom: 0.9rem;
 }
 
+/* A setting is a label and its control side by side, not stacked: unlike the
+   text fields above it, the control is a fixed-width button and stacking it
+   leaves a row of empty space beside a short word. */
+.field-row-setting {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.field-row-setting > span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+#setting-sound {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .field-row label {
   font-size: 0.85rem;
   color: var(--muted);
@@ -794,15 +815,30 @@ input[type="text"]:focus-visible {
   flex-wrap: wrap;
 }
 
+/* Desktop keeps the reading it has always had: the slot, and a tick to say it
+   is taken. The name span is emitted by the same render (see
+   renderPositionSelector) and hidden here, because at this width the roster
+   panel is a column away and already carries every name. */
+.position-btn-name {
+  display: none;
+}
+
+/* A <button> when the slot can be chosen, a <span> when it is only telling
+   you something - see renderPositionSelector. One rule styles both, because
+   they are the same chip; what differs is whether it does anything. */
 .position-btn {
+  display: inline-block;
   background: var(--panel);
   border: 1px solid var(--line);
   color: var(--muted);
   border-radius: 8px;
   padding: 0.5rem 1rem;
   font-weight: 700;
-  cursor: pointer;
   font-family: var(--font-mono);
+}
+
+button.position-btn {
+  cursor: pointer;
 }
 
 /* Awaiting a slot choice for a just-clicked player: their eligible slots
@@ -823,6 +859,116 @@ input[type="text"]:focus-visible {
 .position-btn.awaiting-dim {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+
+/* A SIDEWAYS PHONE IS STILL A PHONE, and the roster strip has to know it.
+   These rules first lived in the max-width:700px block, so a phone in
+   landscape - 740x360 - fell back to the desktop chip row: full-size buttons,
+   no drafted names, the reading the strip exists to replace. The roster panels
+   are just as far off-screen at 360px TALL as they are at 360px wide, so the
+   condition is the same pair the tap-target floors already use in this file:
+   narrow, or short and being touched. */
+@media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+/* THE ROSTER, ON ONE LINE, WHILE YOU ARE READING THE POOL.
+   ------------------------------------------------------------------
+   This used to be `display: none`, and the note explaining why said it was
+   "a whole row of chrome buying nothing" that "sat between the squad banner
+   and the search box - exactly where it hurt". That was right about the
+   POSITION and about the size, and wrong about the value.
+
+   Measured at 360x780 mid-draft: 293px of banner, search and hint sit above
+   the pool, the pool list is 384px, and the two roster panels begin at
+   710px - below the fold. So while you are doing the only thing this screen
+   is for, reading names and choosing one, you cannot see what you have
+   already drafted or what you still need. Hiding the read-out did not solve
+   that; it removed the only thing on the screen that could have answered it.
+
+   What it costs is the whole argument. As a wrapping row of ten full-size
+   buttons it was ~130px, which is a third of the pool. As one line that
+   scrolls sideways it is ~34px, and it earns that by carrying the drafted
+   NAMES rather than just ticks - see renderPositionSelector, which emits
+   both densities so this is a styling decision rather than a second
+   component.
+
+   The horizontal scroll is contained (overflow-x on the strip, not the
+   page), so the layout gate's h-overflow check still means what it says. */
+.position-selector {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.2rem;
+  /* No scrollbar gutter eating a line of a 34px strip. */
+  scrollbar-width: none;
+}
+
+.position-selector::-webkit-scrollbar {
+  display: none;
+}
+
+.position-selector .position-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  font-size: var(--text-micro);
+  /* A drafted unit is "Carolina Panthers Defensive Line" and a person can be
+     "Giannis Antetokounmpo". Neither gets to set the width of the strip;
+     both are reachable through the button's title. */
+  max-width: 8.5rem;
+  white-space: nowrap;
+}
+
+.position-selector .position-btn-slot {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.position-selector .position-btn-name {
+  display: inline;
+  color: var(--text);
+  font-family: var(--font-sans, inherit);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* The tick is what the name replaces. Showing both says the same thing
+   twice in a strip whose entire budget is one line. */
+.position-selector .position-btn-check {
+  display: none;
+}
+
+/* A filled slot is settled; an open one is the question. Border weight does
+   the sorting so the strip scans without colour carrying the meaning on its
+   own - see the contrast note in the accessibility pass. */
+.position-selector .position-btn.filled {
+  border-color: var(--line);
+  opacity: 0.85;
+}
+
+.position-selector .position-btn:not(.filled) {
+  border-style: dashed;
+  color: var(--text);
+}
+
+/* The one chip in the strip that is genuinely a control gets a real target.
+   Only the slots a pending player is eligible for are buttons at all (the
+   rest are spans - see renderPositionSelector), so this grows the strip
+   ONLY while a slot choice is actually on offer, which is exactly when it
+   has stopped being a read-out. The rest of the time it stays one line. */
+.position-selector button.position-btn {
+  min-height: 44px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
 }
 
 /* --- Matchup intro: the ~7s "you've been matched" beat before an online
@@ -1706,12 +1852,79 @@ input[type="text"]:focus-visible {
   100% { box-shadow: 0 0 0 rgba(232, 67, 61, 0); }
 }
 
+/* The MVP card. It was one line of orange text with no box around it, sitting
+   between two bordered panels - the runt of the stack, and the one thing on
+   the screen a person turns the phone round to show somebody. */
 .mvp-callout {
   text-align: center;
-  color: var(--accent-bright);
-  font-weight: 700;
   margin-bottom: 1rem;
+  padding: 0.85rem 1rem 0.95rem;
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.03));
+  border: 1px solid var(--accent);
   animation: mvp-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mvp-tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.mvp-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  /* Fluid rather than a phone override: the name is the biggest thing on the
+     card at every width, and a long one ("Giannis Antetokounmpo") has to fit a
+     360px screen without a second rule deciding when it stops growing. */
+  font-size: clamp(1.35rem, 6.5vw, 1.9rem);
+  line-height: 1.1;
+  margin-top: 0.15rem;
+  color: var(--text);
+}
+
+.mvp-team {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.mvp-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+/* A chip is a number and a word, sized differently: across a couch the number
+   is what gets read and the word is what makes it mean something. */
+.mvp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 4.2rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+}
+
+.mvp-stat-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--accent-bright);
+  line-height: 1.1;
+}
+
+.mvp-stat-label {
+  font-size: var(--text-micro);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 @keyframes mvp-pop {
@@ -2266,6 +2479,19 @@ table.box-table th, table.history-table th {
   text-transform: uppercase;
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 0.8em rgba(0, 0, 0, 0.75);
+  /* ITS OWN BACKDROP, because the card's is a team's colours and those are not
+     ours to change. White on the Nets' second colour - which is white - came
+     out at 3.03:1 even under the card's 42% scrim, and Milwaukee's cream at
+     3.77:1. Deepening the card scrim until those cleared would have darkened
+     every banner in the game to fix four, and would still not cover a banner
+     whose background is a PNG rather than a gradient.
+     A plate under the label is independent of both: it puts a known colour
+     behind the text whatever is behind IT, so the label is readable over a
+     team's colours, over artwork, and over anything added later.
+     See scripts/verify-contrast.mjs, which measures the composite. */
+  background: rgba(0, 0, 0, 0.55);
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
   white-space: nowrap;
   pointer-events: none;
   z-index: 2;
@@ -5069,12 +5295,78 @@ html {
     font-size: 1rem;
   }
 
-  /* A read-out of open slots, duplicated by both roster panels immediately
-     below and by the slot-picker modal that appears when a choice is genuinely
-     needed. On a phone it is a whole row of chrome buying nothing, and it sat
-     between the squad banner and the search box - exactly where it hurt. */
-  .position-selector {
-    display: none;
+  /* PLAY AGAIN CAME AFTER TWO FULL BOX SCORES.
+     ------------------------------------------------------------------
+     Measured at 360px, the post-game screen is 2050px tall and the two
+     buttons a player wants next - Play Again, Return to Home - sat at the
+     very bottom of it, past both teams' tables. Every game ended with a
+     scroll past 1,100px of numbers to reach the only two controls on the
+     screen.
+
+     The tables are not in the way of the story, they ARE the story for
+     anyone who wants them - so they move after the actions rather than
+     shrinking. Reordered rather than restacked in the markup, so the desktop
+     layout and everything that targets these by id are untouched, the same
+     technique the draft board uses one screen earlier.
+
+     This is a phone rule because it is a phone problem: at a desktop height
+     the tables and the buttons are on screen together and the order says
+     nothing. */
+  #screen-game {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #screen-game > .game-actions {
+    order: 1;
+  }
+
+  #screen-game > #btn-game-home {
+    order: 2;
+  }
+
+  #screen-game > #full-box-score {
+    order: 3;
+    /* It is the tail of the screen now, not the middle, so it gets a little
+       air above it to read as a separate act rather than as more of the same. */
+    margin-top: 1.25rem;
+  }
+
+  /* The result is stated twice within 100px: the scoreboard above already
+     carries 122, 64 and FINAL, and then the banner says 122-64 again. The
+     banner earns its place with the WORD - won or lost, and who - so on a
+     phone it keeps the verdict and drops the repetition to a single tight
+     block against the recap under it, instead of two bordered cards saying
+     the same thing with a gap between them. */
+  #final-banner {
+    margin-bottom: 0.35rem;
+    /* Smaller type, because the scoreboard 100px above it is already showing
+       these digits at full size. The banner is kept for the VERDICT - the word
+       won or lost, and whose name is on it - which the scoreboard never says;
+       it just no longer competes with the thing it is repeating. */
+    font-size: 1.05rem;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .game-recap {
+    margin-top: 0;
+  }
+
+  /* The pool card's desktop padding is a 16px frame on all four sides of the
+     one element that wants every pixel. Trimmed, it gives 22px back above the
+     list and widens the names by the same on each side - a card that is
+     mostly its own border is a card sized for a screen this is not. */
+  .draft-pool-panel {
+    padding: 0.55rem;
+  }
+
+  /* The mode note is the same sentence for a whole draft and it was costing
+     30px plus its margins directly above the pool. Compacted rather than
+     removed: it is the only thing that says whether a clock is running. */
+  .knowledge-hint {
+    font-size: var(--text-micro);
+    margin: 0.15rem 0 0.4rem;
+    line-height: 1.25;
   }
 
   .draft-grade {
@@ -6242,9 +6534,23 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   .btn,
   .mode-btn,
   .sport-tile,
-  /* The slot picker in the draft modal: six 50x33 buttons in a row, chosen
-     under a running pick clock. The worst possible place for a 33px target. */
-  .position-btn,
+  /* Slot chips, when they are chips you press. Six 50x33 buttons in a row
+     under a running pick clock is the worst possible place for a 33px target.
+     Scoped to the BUTTON form: renderPositionSelector emits a <span> for a
+     slot that is only being reported and a <button> for one that can be
+     chosen, so this floor now lands on the controls and leaves the phone's
+     one-line roster strip - which is read, never pressed - free to be one
+     line. Before that split the floor made every chip 44px tall and the strip
+     was 47px of a screen that is 293px short already. */
+  button.position-btn,
+  /* The draft modal's slot buttons, which are what the note above was always
+     describing and never reached: it names "the slot picker in the draft
+     modal" and lists `.position-btn`, and the modal is built from
+     `.modal-slot` (see openSlotPicker in js/main.js). The floor has been
+     landing on the strip behind the modal this whole time and never on the
+     six buttons in front of it - 0.7rem of padding on a 0.85rem font is about
+     40px, under the floor, chosen under a running pick clock. */
+  .modal-slot,
   .sport-card-action,
   .subtab,
   .brand,
@@ -6265,7 +6571,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 
   /* A short label makes a narrow button. "C" came out 42px wide against a
      44px-tall box, and a floor on one axis is not a floor. */
-  .position-btn {
+  button.position-btn {
     min-width: 2.75rem;
   }
 

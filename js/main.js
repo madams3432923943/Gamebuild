@@ -10,6 +10,8 @@ import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
 import { initBrandFallbacks } from "./brand-fallback.js";
+import { withSeededMathRandom } from "./lib/seeded-rng.js";
+import { newSimulationSeed, provenanceFor } from "./lib/provenance.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
@@ -114,6 +116,7 @@ import {
   formatMvpStatLine,
   statPairs,
   statLine,
+  renderMvpCallout,
 } from "./ui.js";
 
 // datasetStats for LOCAL (bot/friend) games only - online games are
@@ -805,9 +808,11 @@ for (const el of [inputAuthPassword, inputAuthUsername, inputAuthEmail, inputAut
 // console to explain it. primeSound waits for the first gesture there is.
 primeSound();
 
-const navSound = document.getElementById("nav-sound");
-const navSoundIcon = document.getElementById("nav-sound-icon");
-const navSoundLabel = document.getElementById("nav-sound-label");
+// Sound lives under Account settings on the profile, not in the header - it is
+// a thing you set once, and it was holding permanent space on every screen.
+const navSound = document.getElementById("setting-sound");
+const navSoundIcon = document.getElementById("setting-sound-icon");
+const navSoundLabel = document.getElementById("setting-sound-label");
 
 function paintSoundToggle() {
   const on = soundEnabled();
@@ -815,7 +820,9 @@ function paintSoundToggle() {
   // The icon is decorative; the state is carried by aria-pressed and by the
   // visually-hidden label, so it is never colour or glyph alone.
   navSoundIcon.textContent = on ? "\u{1F50A}" : "\u{1F507}";
-  navSoundLabel.textContent = on ? "Sound on" : "Sound off";
+  // "On"/"Off" rather than "Sound on"/"Sound off": the row already says Sound,
+  // and aria-labelledby joins the two so a screen reader still hears both.
+  navSoundLabel.textContent = on ? "On" : "Off";
   navSound.title = on ? "Sound on" : "Sound off";
 }
 
@@ -3544,8 +3551,16 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // In the sport's own statistics. This was three basketball literals, so
     // football's best player was announced with a rebound and an assist total
     // that do not exist, both reading zero.
-    mvpCallout.textContent =
-      `MVP: ${mvp.player.name} (${mvpTeamName}) — ${formatMvpStatLine(sport(), mvp.line)}`;
+    // THE MOST PASSABLE FACT ON THE SCREEN, built as a card rather than a
+    // sentence. This was one line of orange text with no box around it,
+    // wedged between the recap card and the Why card - the runt of a stack of
+    // panels, and the single thing a person actually turns the phone round to
+    // show someone. Same words, given the room they were always worth.
+    renderMvpCallout(mvpCallout, {
+      name: mvp.player.name,
+      team: mvpTeamName,
+      line: formatMvpStatLine(sport(), mvp.line),
+    });
     mvpCallout.classList.remove("hidden");
 
     // Why it went that way in terms you can act on, as opposed to the
@@ -3756,31 +3771,73 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
 function runLocalSimulation() {
   const draft = game.draft;
-  // The bot commits to a plan too, chosen at random - a fixed opponent plan
-  // would make one counter always correct and collapse the choice.
-  // The bot commits to a plan too. For a sport with groups it draws each side
-  // of the ball independently, so half its plan is never guessable from the
-  // other half.
-  const tacticIds = sport().tactics.map((t) => t.id);
-  const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
-  const botStrategy = sport().randomStrategy ? sport().randomStrategy() : null;
-  // Resolve both rotations up front so the box score can show the same
-  // minutes the simulation actually used, rather than a second guess at them.
+  // Resolve the user's own rotation up front so the box score can show the
+  // same minutes the simulation actually used, rather than a second guess.
   const minutesA = strategy.rotationMinutes || sport().defaultMinutes(draft.rosterA);
-  const minutesB = sport().botMinutes(draft.rosterB);
   const forfeitsA = forfeitedSlotsFor("A", draft.rosterA, draft.slots);
   const forfeitsB = forfeitedSlotsFor("B", draft.rosterB, draft.slots);
-  const result = sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
-    tacticA: strategy.tactic,
-    tacticB: botTactic,
-    strategyA: strategy.strategy,
-    strategyB: botStrategy,
-    minutesA,
-    minutesB,
-    matchupsA: strategy.matchups || undefined,
-    forfeitsA,
-    forfeitsB,
+
+  /**
+   * SEEDED, THE WAY THE EDGE FUNCTION HAS ALWAYS BEEN.
+   *
+   * An online game is simulated inside withSeededMathRandom and records its
+   * seed, so a finished ranked result can be re-derived from four strings and
+   * a number. An offline game recorded none of that and could not have: this
+   * path called bare Math.random(), so the same rosters produced a different
+   * game every time by about 36% peak-to-peak on team score. That variance is
+   * the point of the simulation and it made an offline result unverifiable -
+   * "my draft scored 118" was a claim with nothing behind it, including for
+   * the person making it.
+   *
+   * EVERYTHING THE SIMULATION DEPENDS ON GOES INSIDE THE BLOCK, which is the
+   * part that is easy to get wrong. The bot's gameplan and the bot's rotation
+   * are drawn at random too, and drawing them outside would leave a replay
+   * running the right engine on the wrong opponent - a reproduction that
+   * reproduces nothing, and one that would look correct because the score it
+   * returns is still a plausible score.
+   *
+   * The seed itself is drawn OUTSIDE, from the real Math.random. Drawn inside,
+   * it would be the same number every time and every offline game ever played
+   * would be the identical simulation.
+   */
+  const seed = newSimulationSeed();
+  const { result, minutesB } = withSeededMathRandom(seed, () => {
+    // The bot commits to a plan too, chosen at random - a fixed opponent plan
+    // would make one counter always correct and collapse the choice. For a
+    // sport with groups it draws each side of the ball independently, so half
+    // its plan is never guessable from the other half.
+    const tacticIds = sport().tactics.map((t) => t.id);
+    const botTactic = tacticIds[Math.floor(Math.random() * tacticIds.length)];
+    const botStrategy = sport().randomStrategy ? sport().randomStrategy() : null;
+    const botMinutes = sport().botMinutes(draft.rosterB);
+    return {
+      minutesB: botMinutes,
+      result: sport().simulate(draft.rosterA, draft.rosterB, datasetStatsFor(), {
+        tacticA: strategy.tactic,
+        tacticB: botTactic,
+        strategyA: strategy.strategy,
+        strategyB: botStrategy,
+        minutesA,
+        minutesB: botMinutes,
+        matchupsA: strategy.matchups || undefined,
+        forfeitsA,
+        forfeitsB,
+      }),
+    };
   });
+
+  // Stamped in the same shape the Edge Function returns, so offline and online
+  // results are read by one code path rather than two. The shot ledger already
+  // prefers result.simulationSeed when there is one and falls back to the final
+  // score when there is not (see playOutResult) - offline games take the first
+  // branch now, so the replay and the highlights are drawn from one number.
+  const provenance = provenanceFor({
+    sportId: getSport(),
+    mode: game.ruleset === "strict" ? "practice-strict" : "practice-easy",
+    seed,
+    datasetVersion: sport().datasetVersion(),
+  });
+  Object.assign(result, provenance);
 
   playOutResult({
     result,
@@ -3826,6 +3883,7 @@ function runLocalSimulation() {
         labelB: game.nameB,
         minutesA,
         minutesB,
+        provenance,
       }).catch((e) => console.error("Failed to record result:", e));
 
       const draftPicksWritten = recordDraftPicks(

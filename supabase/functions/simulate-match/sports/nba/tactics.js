@@ -61,6 +61,28 @@
 // spread 5.4 - tighter than the ten-style field it replaces. Re-run the script
 // and paste in new mods whenever a style's identity stats or the engine's
 // balance change.
+// RE-SOLVED, and this is the run that says why re-solving is not optional.
+//
+// The `pts` values below are the output of tools/calibrate-gamestyles.mjs run
+// against the CURRENT engine and the current TALENT_PARITY. Four engine
+// changes had landed since the previous solve without the tool being re-run,
+// and the mods were still the answer to the engine as it had been. Started
+// from a flat 1.0, the spread between the best and worst style measured 25.2
+// points of win rate before this run and 6.3 after it.
+//
+// Every defensive style moved the same way - Lockdown Defense 0.9378 ->
+// 0.9544, Defensive Pressure 0.9656 -> 0.9740, Zone Defense 0.9788 -> 0.9862 -
+// which is what a raised TALENT_PARITY does: more of a roster's talent reaches
+// the scoreboard, so a style that buys defence with points was being charged
+// for points that had become worth more. That is a coherent story rather than
+// fifteen independent nudges, and it is the kind of drift nobody can see by
+// reading the numbers.
+//
+// Only `pts` is solved. reb/ast/stl/blk/tov are what a style IS and are held
+// exactly as authored - see the tool's header, and the same rule in
+// js/sports/nfl/tactics.js, which solves `off` and `def` and holds the
+// thirteen mods that give a football gameplan its character.
+
 export const TACTICS = [
   {
     id: "balanced",
@@ -74,21 +96,21 @@ export const TACTICS = [
     name: "Run & Gun",
     icon: "🏃",
     blurb: "+2 Pace, +2 Transition Offense. Bleeds halfcourt offense and defense to get there.",
-    mods: { pts: 1.0406, reb: 0.92, ast: 1.08, stl: 0.82, blk: 0.82, tov: 1.3 },
+    mods: { pts: 1.0287, reb: 0.92, ast: 1.08, stl: 0.82, blk: 0.82, tov: 1.3 },
   },
   {
     id: "spread-perimeter",
     name: "Spread the Perimeter",
     icon: "🎯",
     blurb: "+2 3PT Shooting, +1 Spacing (flavor only). Costs offensive rebounding and interior scoring.",
-    mods: { pts: 1.0063, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
+    mods: { pts: 1.0065, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
   },
   {
     id: "lockdown-defense",
     name: "Lockdown Defense",
     icon: "🔒",
     blurb: "+2 Perimeter Defense, +2 Interior Defense. Slower pace, less offensive efficiency.",
-    mods: { pts: 0.9378, reb: 0.97, ast: 0.9, stl: 1.35, blk: 1.35, tov: 0.85 },
+    mods: { pts: 0.9544, reb: 0.97, ast: 0.9, stl: 1.35, blk: 1.35, tov: 0.85 },
   },
   {
     id: "crash-the-glass",
@@ -102,21 +124,21 @@ export const TACTICS = [
     name: "Paint Dominance",
     icon: "🏀",
     blurb: "+2 Interior Scoring, +2 Free Throw Rate. Trades away three-point shooting and pace.",
-    mods: { pts: 1.0053, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
+    mods: { pts: 1.0117, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
   },
   {
     id: "ball-movement",
     name: "Ball Movement",
     icon: "🔀",
     blurb: "+2 Passing, +2 Offensive IQ. Everybody touches it, but isolation scoring and boards suffer.",
-    mods: { pts: 1.0197, reb: 0.9, ast: 1.35, stl: 0.95, blk: 0.9, tov: 0.85 },
+    mods: { pts: 1.0161, reb: 0.9, ast: 1.35, stl: 0.95, blk: 0.9, tov: 0.85 },
   },
   {
     id: "isolation-heavy",
     name: "Isolation Heavy",
     icon: "🌟",
     blurb: "+2 Shot Creation, +2 Clutch Scoring (real 4th-quarter/OT bonus). Passing and chemistry (flavor) take the hit.",
-    mods: { pts: 0.9844, reb: 0.9, ast: 0.7, stl: 0.92, blk: 0.9, tov: 1.05 },
+    mods: { pts: 0.9833, reb: 0.9, ast: 0.7, stl: 0.92, blk: 0.9, tov: 1.05 },
     clutchMods: { pts: 1.15 },
   },
   {
@@ -124,14 +146,14 @@ export const TACTICS = [
     name: "Small Ball",
     icon: "⚡",
     blurb: "+2 3PT Shooting, +2 Switching Defense (steals). Gives up rebounding and interior defense hard.",
-    mods: { pts: 1.0256, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 },
+    mods: { pts: 1.0266, reb: 0.7, ast: 1.05, stl: 1.05, blk: 0.65, tov: 1 },
   },
   {
     id: "defensive-pressure",
     name: "Defensive Pressure",
     icon: "🕸️",
     blurb: "+2 Steals, +2 Forced Turnovers. Foul discipline (flavor) and defensive rebounding pay for it.",
-    mods: { pts: 0.9656, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 },
+    mods: { pts: 0.9740, reb: 0.9, ast: 0.92, stl: 1.4, blk: 1, tov: 0.8 },
   },
 
   // ---- Second wave ---------------------------------------------------------
@@ -143,7 +165,7 @@ export const TACTICS = [
     name: "Zone Defense",
     icon: "🛡️",
     blurb: "+2 Interior Defense, +2 Help Rotations. Packs the paint - and gives up the perimeter to do it.",
-    mods: { pts: 0.9788, reb: 1.08, ast: 0.95, stl: 0.82, blk: 1.3, tov: 0.95 },
+    mods: { pts: 0.9862, reb: 1.08, ast: 0.95, stl: 0.82, blk: 1.3, tov: 0.95 },
     // The one style with an effect outside the six stats: it suppresses the
     // OPPONENT'S front-court scoring directly. Without this, "packs the paint"
     // would be a sentence with nothing behind it - the blk boost alone raises
@@ -155,28 +177,28 @@ export const TACTICS = [
     name: "Full-Court Press",
     icon: "🥵",
     blurb: "+3 Forced Turnovers, +1 Pace. Costs you the glass, and your own handle goes with it.",
-    mods: { pts: 0.9813, reb: 0.85, ast: 1.02, stl: 1.45, blk: 0.9, tov: 1.25 },
+    mods: { pts: 0.9831, reb: 0.85, ast: 1.02, stl: 1.45, blk: 0.9, tov: 1.25 },
   },
   {
     id: "post-up-heavy",
     name: "Post-Up Heavy",
     icon: "🐘",
     blurb: "+2 Interior Scoring, +2 Offensive Rebounding. No pace, no ball movement, no threes.",
-    mods: { pts: 1.0092, reb: 1.28, ast: 0.72, stl: 0.9, blk: 1.05, tov: 0.95 },
+    mods: { pts: 1.0094, reb: 1.28, ast: 0.72, stl: 0.9, blk: 1.05, tov: 0.95 },
   },
   {
     id: "switch-everything",
     name: "Switch Everything",
     icon: "🔁",
     blurb: "+2 Perimeter Defense, +1 Versatility. Every switch is a mismatch on the glass.",
-    mods: { pts: 1.0028, reb: 0.78, ast: 1.02, stl: 1.28, blk: 0.85, tov: 0.95 },
+    mods: { pts: 0.9910, reb: 0.78, ast: 1.02, stl: 1.28, blk: 0.85, tov: 0.95 },
   },
   {
     id: "grind-it-out",
     name: "Grind It Out",
     icon: "🐢",
     blurb: "+3 Ball Security, +1 Defense. Almost no turnovers - and almost no ceiling either.",
-    mods: { pts: 1.0003, reb: 1.05, ast: 0.88, stl: 1.05, blk: 1.05, tov: 0.6 },
+    mods: { pts: 1.0029, reb: 1.05, ast: 0.88, stl: 1.05, blk: 1.05, tov: 0.6 },
   },
 ];
 

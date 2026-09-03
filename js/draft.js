@@ -1,7 +1,7 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { BOT_POOL_SIZE, BOT_TOP_PICK_BAN, BOT_MIN_CHOICES, MIN_SEARCH_CHARS } from "./constants.js";
+import { BOT_POOL_SIZE, BOT_TOP_PICK_BAN_SHARE, BOT_MIN_CHOICES, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists are default parameter values (see ui.js). The helpers below are
 // per-pick calls and go through the active sport.
 import { activeSport } from "./sports/index.js";
@@ -137,15 +137,30 @@ function rankedPlayerNames(combos) {
   return [...best.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
 }
 
-/** `combos` with the `banTop` best distinct players removed.
+/** `combos` with the best distinct players removed - by default the top
+ * BOT_TOP_PICK_BAN_SHARE of them, or exactly `banTop` when one is given.
  *
  * Never returns an empty list while it was given a non-empty one: the ban
  * shrinks so that BOT_MIN_CHOICES distinct players always survive it. A pick
  * with fewer legal names than that keeps all of them - an opponent that
- * forfeits a slot is not a harder or an easier opponent, it is a broken one. */
-function withoutTopPlayers(combos, banTop = BOT_TOP_PICK_BAN) {
+ * forfeits a slot is not a harder or an easier opponent, it is a broken one.
+ *
+ * `banTop` is an explicit COUNT and null means "use the share". It cannot
+ * default to the share's value because 0 is a meaningful count - it is how the
+ * calibration harnesses draft at full strength - so the two have to be
+ * distinguishable, and a `banTop = 0` that fell back to the default would
+ * quietly re-solve every balance constant against a nerfed bot. */
+export function botBanFor(boardSize, banTop = null) {
+  const requested =
+    banTop === null || banTop === undefined
+      ? Math.round(BOT_TOP_PICK_BAN_SHARE * boardSize)
+      : banTop;
+  return Math.min(requested, Math.max(0, boardSize - BOT_MIN_CHOICES));
+}
+
+function withoutTopPlayers(combos, banTop = null) {
   const ranked = rankedPlayerNames(combos);
-  const ban = Math.min(banTop, Math.max(0, ranked.length - BOT_MIN_CHOICES));
+  const ban = botBanFor(ranked.length, banTop);
   if (ban <= 0) return [...combos];
   const banned = new Set(ranked.slice(0, ban));
   return combos.filter((c) => !banned.has(c.player.name));
@@ -436,8 +451,9 @@ export class DraftState {
     this.history.push({ side, squad: this.currentSquad, player, slot });
   }
 
-  /** Bot pick: the top BOT_TOP_PICK_BAN players on the board are off limits,
-   * and it draws uniformly from the BOT_POOL_SIZE best combos left under them.
+  /** Bot pick: the top BOT_TOP_PICK_BAN_SHARE of the players on the board are
+   * off limits, and it draws uniformly from the BOT_POOL_SIZE best combos left
+   * under them.
    *
    * WHY THE BAN EXISTS. The bot used to draw from the BOT_POOL_SIZE best
    * combos outright, which meant it took a top-five player every single round.
@@ -460,7 +476,7 @@ export class DraftState {
    * A thin board narrows the ban rather than emptying it - see
    * BOT_MIN_CHOICES. `banTop` is an override for the calibration harnesses,
    * which draft both sides with the bot and need full-strength rosters. */
-  botAutoPick(side = "B", { banTop = BOT_TOP_PICK_BAN } = {}) {
+  botAutoPick(side = "B", { banTop = null } = {}) {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
     const combos = eligibleCombos(this.currentSquad, roster, this.slots);

@@ -108,30 +108,131 @@ function seasonLabel(player) {
  *   pending player's eligible open slots (those glow and are clickable;
  *   other open slots dim since they don't apply to this player).
  */
+/**
+ * The MVP card: who decided the game, and the numbers that say so.
+ *
+ * The stat line arrives as one string from the sport ("36 Points / 13
+ * Rebounds / 27 Assists") because each sport names its own statistics. It is
+ * split back into chips here rather than assembled per sport, so a sport that
+ * adds a stat gets a chip for it without touching this - the separator is the
+ * contract, and formatMvpStatLine is its only writer.
+ *
+ * A chip is a VALUE and a LABEL, sized differently, because at arm's length
+ * across a couch the number is what gets read and the word is what makes it
+ * mean something. One string in one weight is a sentence you have to parse.
+ */
+export function renderMvpCallout(container, { name, team, line }) {
+  container.innerHTML = "";
+
+  const tag = document.createElement("div");
+  tag.className = "mvp-tag";
+  tag.textContent = "Most Valuable Player";
+  container.appendChild(tag);
+
+  const who = document.createElement("div");
+  who.className = "mvp-name";
+  who.textContent = name;
+  container.appendChild(who);
+
+  if (team) {
+    const side = document.createElement("div");
+    side.className = "mvp-team";
+    side.textContent = team;
+    container.appendChild(side);
+  }
+
+  const stats = document.createElement("div");
+  stats.className = "mvp-stats";
+  for (const part of String(line || "").split("/")) {
+    const text = part.trim();
+    if (!text) continue;
+    const chip = document.createElement("div");
+    chip.className = "mvp-stat";
+    // "36 Points" -> 36 / Points. A stat whose name is more than one word
+    // ("13 Field Goals") keeps the rest as its label; only the leading number
+    // is split off, so nothing has to know what the statistics are called.
+    const space = text.indexOf(" ");
+    if (space > 0) {
+      const value = document.createElement("span");
+      value.className = "mvp-stat-value";
+      value.textContent = text.slice(0, space);
+      const label = document.createElement("span");
+      label.className = "mvp-stat-label";
+      label.textContent = text.slice(space + 1);
+      chip.append(value, label);
+    } else {
+      chip.textContent = text;
+    }
+    stats.appendChild(chip);
+  }
+  container.appendChild(stats);
+}
+
 export function renderPositionSelector(container, roster, eligibleSlotsForPendingPlayer, onSelect, slots = defaultSlots()) {
   container.innerHTML = "";
   for (const slot of slots) {
-    const btn = document.createElement("button");
-    btn.type = "button";
     const filled = !!roster[slot];
+    // IS THIS SLOT A CONTROL, OR A READ-OUT? Only a slot the pending player
+    // is eligible for can be clicked; every other chip is telling you
+    // something, not offering it.
+    //
+    // It used to render all of them as <button disabled>, which is wrong in
+    // three ways that only became visible on a phone. A disabled button is
+    // still a button to a screen reader, so the reader walked ten dead
+    // controls before reaching the search box. It is still a button to the
+    // 44px tap-target floor, so a strip sized to be read rather than tapped
+    // fails a check that exists to catch controls too small to hit - and the
+    // honest answer to that check is not to exempt the chips, it is that they
+    // are not controls. And it invites a tap that does nothing, which on a
+    // touch screen reads as the app being broken rather than as the slot
+    // being taken.
+    const clickable = !filled && !!eligibleSlotsForPendingPlayer && eligibleSlotsForPendingPlayer.includes(slot);
+    const btn = document.createElement(clickable ? "button" : "span");
+    if (clickable) btn.type = "button";
     let className = "position-btn";
-    let clickable = false;
 
     if (filled) {
-      btn.textContent = `${slotLabel(slot)} ✓`;
+      // TWO DENSITIES, ONE RENDER. Desktop wants "PG ✓" - the slot is taken,
+      // and the name is already in the roster panel beside it. A phone wants
+      // the NAME, because on a phone the roster panels are below the pool and
+      // scroll away the moment you start reading it, so "who have I got" has
+      // nowhere else to be answered while you are choosing.
+      //
+      // Both are emitted and CSS shows one, rather than the render asking how
+      // wide the screen is. A render that branches on width is a second
+      // component that has to be kept in step with the first, and it reads the
+      // width at the wrong moment anyway - once, when the pick happened, not
+      // when the phone was turned sideways.
+      className += " filled";
+      const tag = document.createElement("span");
+      tag.className = "position-btn-slot";
+      tag.textContent = slotLabel(slot);
+      const name = document.createElement("span");
+      name.className = "position-btn-name";
+      // WHAT IDENTIFIES A DRAFTED THING depends on what it is. For a person it
+      // is the name. For a UNIT it is the team and the year: the unit's own
+      // label is its position group, and the chip's slot tag right beside it
+      // already says that - "OL Offensive Line" is the same word twice, and
+      // the strip has one line to spend. "OL 2020 Ravens" is the reading you
+      // actually want back while you are choosing the rest of a roster.
+      name.textContent = activeSport().isUnit(roster[slot])
+        ? seasonLabel(roster[slot])
+        : shortPlayerName(roster[slot]);
+      const tick = document.createElement("span");
+      tick.className = "position-btn-check";
+      tick.textContent = "✓";
+      btn.append(tag, name, tick);
+      // The name is truncated to fit, so the full one has to be reachable
+      // some other way - a strip that silently shortens a name is a strip
+      // that can show two different players as "Willia…".
+      btn.title = `${slotLabel(slot)}: ${roster[slot].name}`;
     } else {
       btn.textContent = slotLabel(slot);
       if (eligibleSlotsForPendingPlayer) {
-        if (eligibleSlotsForPendingPlayer.includes(slot)) {
-          className += " eligible";
-          clickable = true;
-        } else {
-          className += " awaiting-dim";
-        }
+        className += clickable ? " eligible" : " awaiting-dim";
       }
     }
     btn.className = className;
-    btn.disabled = !clickable;
     if (clickable) btn.addEventListener("click", () => onSelect(slot));
     container.appendChild(btn);
   }
@@ -149,9 +250,36 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
  * Only for PEOPLE. A drafted unit's name is a team and a position group
  * ("Carolina Panthers Defensive Line") and initialising that would produce
  * "C. Panthers Defensive Line", which is worse than the problem.
+ *
+ * IT ASKS THE SPORT NOW. This used to test for a `members` array, which is a
+ * guess about a football row's shape made in shared code, and the guess was
+ * wrong on the rows that actually reach here - the roster panel has been
+ * showing "G. Bay Packers Offensive Line" and "L. Angeles Rams Offensive
+ * Line" on every football draft board. Football already knew the answer
+ * (isUnit in js/sports/nfl/units.js keys on `group`); nothing had asked it.
+ * `isUnit` is on the sport contract now, so basketball answers "never" and a
+ * third sport has to answer at all - see scripts/verify-sport-contract.mjs.
  */
+/**
+ * A drafted entry's name, for a screen that already says which team it is.
+ *
+ * Every place this is used prints the team beside it - the squad banner over
+ * the draft board, the season line in the roster panel, the box score's own
+ * meta row - so a unit's full name ("Baltimore Ravens Offensive Line") says
+ * the team twice and pushes the part that distinguishes it off the end of a
+ * phone-width row.
+ *
+ * NOT used for the record books. A personal best is stored as a name and read
+ * back on its own, with no team anywhere near it, and "Offensive Line" is not
+ * a record holder. Those render the stored string and are untouched by this.
+ */
+function displayEntryName(player) {
+  const sport = activeSport();
+  return sport.isUnit(player) ? sport.unitLabel(player) : player?.name ?? "";
+}
+
 function shortPlayerName(player) {
-  if (Array.isArray(player.members) && player.members.length) return player.name;
+  if (activeSport().isUnit(player)) return displayEntryName(player);
   const parts = String(player.name || "").trim().split(/\s+/);
   if (parts.length < 2) return player.name;
   return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
@@ -192,15 +320,23 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
       if (activeSport().compactRoster) {
         const head = document.createElement("span");
         head.className = "slot-name";
-        head.textContent = `${shortPlayerName(player)}${pos}`;
+        // Same rule as the roster strip: a unit's own label is its position
+        // group, and the slot tag beside it already says that, so "OL /
+        // Offensive Line / 2020 Browns" spends two of its three lines saying
+        // "OL". A unit is identified by its team and year, and that is the
+        // whole of what it needs.
+        const unit = activeSport().isUnit(player);
+        head.textContent = unit ? seasonLabel(player) : `${shortPlayerName(player)}${pos}`;
         value.appendChild(head);
-        const when = document.createElement("span");
-        when.className = "slot-season";
-        when.textContent = seasonLabel(player);
-        value.appendChild(document.createElement("br"));
-        value.appendChild(when);
+        if (!unit) {
+          const when = document.createElement("span");
+          when.className = "slot-season";
+          when.textContent = seasonLabel(player);
+          value.appendChild(document.createElement("br"));
+          value.appendChild(when);
+        }
       } else {
-        value.textContent = `${player.name}${pos} — ${seasonLabel(player)}`;
+        value.textContent = `${displayEntryName(player)}${pos} — ${seasonLabel(player)}`;
       }
       // A drafted unit says WHO it contains. "Seattle Seahawks Cornerbacks"
       // names a slot; Sherman and Maxwell are what you actually took, and
@@ -339,7 +475,7 @@ function renderPlayerCard(container, p, roster, pendingPlayerName, onPick, showS
 
   const name = document.createElement("span");
   name.className = "player-card-name";
-  name.textContent = p.name;
+  name.textContent = displayEntryName(p);
   for (const pos of positions) {
     const chip = document.createElement("span");
     chip.className = "pos-chip";
@@ -692,7 +828,7 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   // colourblind reader loses first.
   const mvpStar = isMvp ? `<span class="box-mvp-star" title="Most valuable player" aria-label="Most valuable player">\u2605</span> ` : "";
   return (
-    `<tr${isMvp ? ' class="box-mvp"' : ""}><td>${slotLabel}</td><td>${mvpStar}${escapeHtml(player.name)}${meta}</td>` +
+    `<tr${isMvp ? ' class="box-mvp"' : ""}><td>${slotLabel}</td><td>${mvpStar}${escapeHtml(displayEntryName(player))}${meta}</td>` +
     (showMinutes ? `<td>${minutes == null ? "-" : r(minutes)}</td>` : "") +
     cells +
     splits
@@ -2219,7 +2355,7 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     name.className = "rotation-label";
     name.innerHTML =
       `<span class="rotation-role">${bench ? "Bench" : slotLabel(slot)}</span> ` +
-      `${escapeHtml(player.name)} <span class="rotation-pos">${player.pos.join("/")}</span>`;
+      `${escapeHtml(displayEntryName(player))} <span class="rotation-pos">${player.pos.join("/")}</span>`;
     row.appendChild(name);
 
     const value = document.createElement("span");
@@ -2723,7 +2859,7 @@ export function renderSquadChat(container, messages, myUserId) {
   if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 
-// ---- Squads top-level subtabs: Friends | Home | Tournaments -------------
+// ---- Squads top-level subtabs: Friends | Home ---------------------------
 
 const SQUADS_TOP_TABS = [
   { id: "friends", label: "Friends" },
@@ -2734,7 +2870,25 @@ const SQUADS_TOP_TABS = [
   // "not yet" and "never" are different decisions and only one of them has
   // been made.
   // { id: "chat", label: "Chat" },
-  { id: "tournaments", label: "Tournaments" },
+  //
+  // Tournaments is off the row for the OPPOSITE reason to Chat. Chat is built
+  // and withheld; tournaments have never existed - no table, no RPC, no code
+  // anywhere - and the tab led to a card that said "Coming soon!" and nothing
+  // else. A navigation item whose only content is an apology for itself costs
+  // a player a tap to learn nothing, and it is the third of three tabs, so it
+  // took a third of the row to do it.
+  //
+  // Saying "coming soon" in a place someone chose to go is worse than not
+  // offering the destination: it reads as a feature that is nearly here, and
+  // this one has no schema behind it. Where the absence actually needs
+  // explaining - a squad's Rep sitting at 0 forever - it is explained in
+  // place, on the Rep line itself, which is where the question gets asked.
+  //
+  // The panel, its markup and the branch in openSquadsScreen are all left
+  // where they are, so shipping this is putting the line back and building
+  // the thing. See db/migrations/20260730_04_squad_rep.sql and
+  // 20260731_03_squad_rep_tournaments_only.sql for what rep is waiting on.
+  // { id: "tournaments", label: "Tournaments" },
 ];
 
 export function renderSquadsTopTabs(container, active, onSelect) {

@@ -79,7 +79,18 @@ export function isPlaceholderEmail(email) {
   return typeof email === "string" && email.toLowerCase().endsWith(`@${ACCOUNT_EMAIL_DOMAIN}`);
 }
 
-/** What to sign in with, given whatever the player typed in one box. */
+/** The LEGACY mapping from a typed identifier to an address: an "@" means it
+ * is one already, anything else becomes `username@ballknowledge.app`.
+ *
+ * Sign-in no longer uses this - see resolveSignInEmail, which looks up a
+ * modern account's real address and falls back here. Password RESET still
+ * does, and inherits the same limitation it always had in a sharper form:
+ * resetting by username reaches a legacy account and, for an account created
+ * with a real email, mails an address that does not exist. It cannot be fixed
+ * the way sign-in was, because the fix there depends on being able to check
+ * the password, and a password reset is what you ask for when you cannot.
+ * Resetting by email address works for everyone; the caller warns about the
+ * placeholder case. */
 function resolveIdentifier(identifier) {
   const value = (identifier || "").trim();
   return value.includes("@") ? value.toLowerCase() : usernameToEmail(value);
@@ -150,10 +161,59 @@ export async function usernameRejectionReason(username) {
 }
 
 /** @param identifier an email address, or a legacy username. */
+/**
+ * The address to sign in with, given whatever was typed.
+ *
+ * An "@" means it is already an address. Anything else is a username, and a
+ * username has TWO possible addresses behind it:
+ *
+ *   the real one, for every account created since sign-up started asking for
+ *   an email - looked up through sign_in_email_for, which returns it only when
+ *   the password also verifies (see the migration for why that matters);
+ *
+ *   the synthetic `username@ballknowledge.app`, for accounts old enough to
+ *   predate that.
+ *
+ * The lookup is tried first and the synthetic address is the fallback, which
+ * is also what happens when the server has no such function yet - client code
+ * has to tolerate a server that has not caught up (CLAUDE.md), and here that
+ * degrades to exactly the behaviour this replaces rather than to an error.
+ *
+ * This is the fix for "only email works". The old version mapped every
+ * username to the synthetic address unconditionally, so a modern account's
+ * username matched no user at all and came back as invalid credentials -
+ * correct for legacy accounts, wrong for every account made since.
+ */
+async function resolveSignInEmail(supabase, identifier, password) {
+  const value = (identifier || "").trim();
+  if (value.includes("@")) return value.toLowerCase();
+
+  try {
+    const { data, error } = await supabase.rpc("sign_in_email_for", {
+      p_username: value,
+      p_password: password,
+    });
+    // A raised exception here is the throttle, and it carries a message the
+    // player needs to see - "wait a few minutes" rather than "wrong password",
+    // which is the message that makes someone reset a password that was fine.
+    if (error && /too many sign-in attempts/i.test(error.message || "")) {
+      throw new Error(error.message);
+    }
+    if (data) return String(data);
+  } catch (e) {
+    if (/too many sign-in attempts/i.test(e?.message || "")) throw e;
+    // Anything else - the function not deployed yet, no network to the RPC -
+    // falls through to the legacy address below. A username that IS a legacy
+    // account still signs in; one that is not fails at signInWithPassword with
+    // the same message it always did.
+  }
+  return usernameToEmail(value);
+}
+
 export async function signIn(identifier, password) {
   const supabase = await getSupabase();
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: resolveIdentifier(identifier),
+    email: await resolveSignInEmail(supabase, identifier, password),
     password,
   });
   if (error) throw new Error(translateAuthError(error));

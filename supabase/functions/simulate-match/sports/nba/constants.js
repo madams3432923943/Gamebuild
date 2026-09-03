@@ -278,7 +278,38 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
 // in four requires a real talent edge, and a real edge shows up on the
 // scoreboard. Tuning parity down trades win rate for a closer scoreline; the
 // knob is here if that trade is ever worth revisiting.
-export const TALENT_PARITY = 0.371;
+//
+// RE-SOLVED, 0.371 -> 0.40, AND THE TOOL ASKED FOR MORE THAN THAT. The figures
+// quoted above are the previous solve's and are left as the record of it.
+//
+// Basketball's engine has moved four times since that solve, and each change
+// altered how much of a talent gap survives to the scoreboard without anyone
+// re-running the tool - so the constant was holding a target it no longer hit.
+// Re-run, tools/calibrate-variance.mjs asks for 0.496 to restore the 75%
+// win rate at its own measured talent gap.
+//
+// It does not get 0.496, because that gap is not the only one that matters.
+// scripts/verify-simulation-statistics.mjs plays a deliberately lopsided pair
+// and holds the stronger side to at most 90% - a mismatch may be one-sided and
+// may not be a certainty - and parity blows through that ceiling somewhere
+// between 0.40 and 0.43: it wins 91.6% at 0.43 and 95.8% at 0.496. A win rate
+// quoted without the gap that produced it is not a reproducible claim, which
+// is the whole reason the two numbers can disagree.
+//
+// So this is a ceiling, the same way football's TALENT_PARITY is, and 0.40 is
+// as far toward the tool's answer as the engine will go while a blowout is
+// still a game. tools/calibrate-variance.mjs now carries the same ceiling so
+// it reports the shortfall rather than printing a value that cannot ship.
+//
+// The useful half of the run: the quarter-variance range below re-solves to
+// EXACTLY what it already carries. The noise floor did not drift; the talent
+// response did.
+//
+// One number is worth its own look and is not something this constant can fix:
+// the sweep rate lands at 17.3% against a ~27% target, and it misses at every
+// spread the tool tries rather than just at this one. Quarters have become
+// harder to sweep than they were.
+export const TALENT_PARITY = 0.40;
 
 // Turnover margin -> point swing. Each net extra possession (opponent
 // turnover margin in our favor) is worth roughly one NBA possession's

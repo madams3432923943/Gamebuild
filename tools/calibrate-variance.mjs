@@ -87,15 +87,34 @@ function measure(spread, games, parity) {
 const TARGET_MARGIN = 7;
 const TARGET_SWEEP = 27;
 
+/**
+ * The most parity this engine will actually ship, whatever the solve asks for.
+ *
+ * TARGET_GAME_WIN is measured at a gap of MIN_IMPACT_GAP, and that is not the
+ * only mismatch the game produces. scripts/verify-simulation-statistics.mjs
+ * plays a deliberately lopsided pair and holds the stronger side to at most
+ * 90% - a mismatch may be one-sided and may not be a certainty - and parity
+ * crosses that somewhere between 0.40 and 0.43 (91.6% at 0.43, 95.8% at
+ * 0.496). Without this bound the tool prints a number that cannot ship, and
+ * the last run did exactly that.
+ */
+const PARITY_CEILING = 0.40;
+
 function solveParity(spread, games = 260, iters = 8) {
-  let lo = 0, hi = 1, parity = 0.5;
+  let lo = 0, hi = PARITY_CEILING, parity = 0.5;
   for (let i = 0; i < iters; i++) {
     parity = (lo + hi) / 2;
     const m = measure(spread, games, parity);
     if (m.gameWin > TARGET_GAME_WIN) hi = parity;
     else lo = parity;
   }
-  return parity;
+  // Bisection on [0, ceiling] converges TOWARD the ceiling and never reaches
+  // it, so a target that is out of range printed 0.398 for a constant that
+  // ships at 0.40 - a difference that is not a measurement, just the last
+  // halving. Snapping it back reports the value that would actually be pasted.
+  // The NFL twin has carried this correction since it was written; this is the
+  // one that did not.
+  return parity > PARITY_CEILING * 0.98 ? PARITY_CEILING : parity;
 }
 
 console.log("spread | parity | game% | qtr% | sweep% | margin");
@@ -119,6 +138,14 @@ console.log(`  stronger wins game:    ${final.gameWin.toFixed(1)}%  (target ${TA
 console.log(`  stronger wins quarter: ${final.quarterWin.toFixed(1)}%`);
 console.log(`  sweeps all quarters:   ${final.sweep.toFixed(1)}%  (target ~${TARGET_SWEEP}%)`);
 console.log(`  mean quarter margin:   ${final.margin.toFixed(1)}  (target ~${TARGET_MARGIN})`);
+if (final.gameWin < TARGET_GAME_WIN - 2) {
+  console.log(
+    `\n  ^ SHORT OF THE WIN-RATE TARGET, AND CAPPED THERE ON PURPOSE. Parity is\n` +
+      `    bounded at ${PARITY_CEILING} because a lopsided pair must still be a game -\n` +
+      `    see PARITY_CEILING in this file. Raising it buys win rate at that gap by\n` +
+      `    turning every larger mismatch into a certainty.`
+  );
+}
 console.log(`\nexport const TALENT_PARITY = ${best.parity.toFixed(3)};`);
 console.log(`export const TEAM_QUARTER_VARIANCE_MIN = ${(1-best.spread).toFixed(2)};`);
 console.log(`export const TEAM_QUARTER_VARIANCE_MAX = ${(1+best.spread).toFixed(2)};`);
