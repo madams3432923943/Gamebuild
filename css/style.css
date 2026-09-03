@@ -2479,6 +2479,19 @@ table.box-table th, table.history-table th {
   text-transform: uppercase;
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 0.8em rgba(0, 0, 0, 0.75);
+  /* ITS OWN BACKDROP, because the card's is a team's colours and those are not
+     ours to change. White on the Nets' second colour - which is white - came
+     out at 3.03:1 even under the card's 42% scrim, and Milwaukee's cream at
+     3.77:1. Deepening the card scrim until those cleared would have darkened
+     every banner in the game to fix four, and would still not cover a banner
+     whose background is a PNG rather than a gradient.
+     A plate under the label is independent of both: it puts a known colour
+     behind the text whatever is behind IT, so the label is readable over a
+     team's colours, over artwork, and over anything added later.
+     See scripts/verify-contrast.mjs, which measures the composite. */
+  background: rgba(0, 0, 0, 0.55);
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
   white-space: nowrap;
   pointer-events: none;
   z-index: 2;
