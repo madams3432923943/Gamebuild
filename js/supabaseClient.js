@@ -305,7 +305,21 @@ function translateAuthError(error) {
   if (/database error (saving|creating)/i.test(message)) {
     return "Couldn't create that account. Try a different username - some are reserved or not allowed.";
   }
-  return message;
+
+  // ANYTHING NOT RECOGNISED ABOVE DOES NOT REACH THE PLAYER VERBATIM.
+  //
+  // This used to `return message`, which put whatever Auth or Postgres said
+  // straight on the sign-in screen. Every message the app deliberately shows is
+  // handled above; what falls through here is by definition one nobody wrote
+  // for a reader - a constraint name, a relation that does not exist, an
+  // internal identifier - and those describe the schema to a stranger while
+  // telling the player nothing they can act on.
+  //
+  // The real text still goes to the console, because the point is to stop
+  // SHOWING it, not to stop knowing it. Anyone debugging a report has it in
+  // front of them; anyone reading it in a screenshot does not.
+  console.error("Unhandled auth error:", message);
+  return "Something went wrong signing you in. Try again in a moment.";
 }
 
 export async function signOut() {
