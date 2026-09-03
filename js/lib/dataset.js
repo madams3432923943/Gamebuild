@@ -30,25 +30,46 @@
  * (each sport's preload) already turns a rejection into a retryable state.
  */
 export async function fetchDataset(name) {
-  // Relative to this module, so the app works from a sub-path - GitHub Pages
-  // serves a project site from /<repo>/, and an absolute "/data/..." would
-  // reach for the domain root and 404 there.
-  const url = new URL(`../../data/${name}.json`, import.meta.url);
-
   // NODE READS THE FILE, and it has to, because these sport modules are not
-  // browser-only. Every check that drives a real draft imports
-  // js/sports/<id>/index.js and calls preload() - and Node's fetch does not
-  // implement file:, so the first thing the conversion to JSON broke was the
-  // verify suite, with "not implemented... yet..." from undici and nothing
-  // saying which file it wanted.
+  // browser-only: every check that drives a real draft imports
+  // js/sports/<id>/index.js and calls preload(). The first thing the
+  // conversion to JSON broke was the verify suite, with "not implemented...
+  // yet..." from undici, because Node's fetch does not do file: URLs.
   //
-  // The import is inside the branch and specifier-guarded so a bundler or a
-  // browser never has to resolve node:fs at all.
-  if (url.protocol === "file:") {
-    const { readFile } = await import(/* @vite-ignore */ "node:fs/promises");
-    return JSON.parse(await readFile(url, "utf8"));
+  // It DELEGATES rather than reading the file itself. data/load.mjs already
+  // knows where the datasets live and caches them per process, and having two
+  // answers to "how does Node read a dataset" is how the two drift.
+  //
+  // THE SPECIFIER IS BUILT AT RUNTIME ON PURPOSE. `npm run bundle` compiles
+  // this app with esbuild as a browser iife, and a literal import of a Node
+  // path is a hard resolve error there - "Could not resolve node:fs/promises",
+  // which is exactly how CI caught the first version of this file. A computed
+  // specifier is left alone by the bundler and resolved at runtime, which is
+  // the honest description of what it is: a branch only Node ever takes.
+  if (typeof document === "undefined") {
+    const { loadDataset } = await import(["..", "..", "data", "load.mjs"].join("/"));
+    return loadDataset(name);
   }
 
+  // WHICH BASE, and both answers are needed because the app is loaded two ways.
+  //
+  // As MODULES - the real site, and the test harnesses - the right base is this
+  // file, because a harness page lives in scripts/selftest/ and a
+  // document-relative "data/..." would look for it beside the harness. That is
+  // not hypothetical: it is how the ranked-search harness 404'd when this
+  // resolved against document.baseURI only.
+  //
+  // BUNDLED, as `npm run bundle` builds it, `import.meta` is empty - esbuild
+  // says so out loud for an iife - so there is no module URL to be relative to
+  // and the document is the only base there is. The bundle is loaded from the
+  // site root, where "data/..." is correct.
+  //
+  // Neither absolute: GitHub Pages serves a project site from /<repo>/, so a
+  // leading slash reaches for the domain root and 404s there.
+  const moduleUrl = import.meta?.url;
+  const url = moduleUrl
+    ? new URL(`../../data/${name}.json`, moduleUrl)
+    : new URL(`data/${name}.json`, document.baseURI);
   const response = await fetch(url, { cache: "force-cache" });
   if (!response.ok) {
     throw new Error(`Could not load ${name} (${response.status} ${response.statusText})`);

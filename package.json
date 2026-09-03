@@ -6,7 +6,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bundle": "esbuild js/main.js --bundle --format=iife --outfile=dist/bundle.js",
+    "bundle": "esbuild js/main.js --bundle --format=esm --minify --outfile=dist/bundle.js",
     "verify": "npm run verify:node && npm run verify:browser",
     "verify:parity": "node scripts/verify-parity.mjs",
     "verify:live": "node scripts/verify-build.js",
