@@ -400,6 +400,11 @@ const shape = {
   // Per game per quarterback, for the low-tail check below. Games where he
   // barely threw are excluded - a 2-of-5 line is a game script, not a rate.
   compPct: [],
+  // WHO GETS NAMED MAN OF THE MATCH, which nothing measured until a live 9-6
+  // game handed it to a running back with 32 yards. One entry per game:
+  // { slot, contribution, low, won }, where `low` marks the games the
+  // complaint was about.
+  mvps: [],
 };
 // Drafting is the expensive half of this - about 10ms a pair against 2ms a
 // simulation - so a smaller set of pairs is drafted once and replayed. Each
@@ -457,6 +462,24 @@ for (let i = 0; i < RATE_GAMES; i++) {
     );
   }
   shape.combined.push(result.teamScoreA + result.teamScoreB);
+  // WHAT THE MAN NAMED ACTUALLY DID. Recorded as the separate quantities
+  // rather than as the engine's own score, so a check here cannot be satisfied
+  // by the same weights it is meant to be testing.
+  if (result.mvp) {
+    const line = result.mvp.line;
+    const n = (key) => Number(line[key]) || 0;
+    shape.mvps.push({
+      slot: result.mvp.slot,
+      reason: result.mvp.reason,
+      yards: n("pass_yds") + n("rush_yds") + n("rec_yds"),
+      touchdowns: n("pass_tds") + n("rush_tds") + n("rec_tds"),
+      fieldGoals: n("fgs"),
+      takeaways: n("ints") + n("fumbles"),
+      sacks: n("sacks"),
+      combined: result.teamScoreA + result.teamScoreB,
+      won: result.winner == null || result.mvp.side === result.winner,
+    });
+  }
   rate.seconds.push(result.teamStatsA.possessionSeconds + result.teamStatsB.possessionSeconds);
 }
 const mean = (list) => list.reduce((a, b) => a + b, 0) / Math.max(1, list.length);
@@ -635,6 +658,32 @@ const yppShape = summarise(shape.yardsPerPlay);
 const compShape = summarise(shape.compPct);
 const quietGames = shape.combined.filter((total) => total <= 20).length /
   Math.max(1, shape.combined.length);
+
+// ---- who gets named man of the match ---------------------------------------
+//
+// A LOW-SCORING GAME IS A DIFFERENT GAME, and the MVP has to read like one.
+// The reported fault was a 9-6 final naming a back with 32 yards, in a game
+// whose every point came off a kicker's foot. Two things are checked, and they
+// are separate questions.
+//
+// A FLOOR. Whoever is named must have done SOMETHING a fan would accept as the
+// reason. Yardage is not the only such thing - a secondary and a kicker have
+// none by definition - so the floor is a disjunction over every way football
+// lets a man decide a game.
+const MVP_LOW_SCORING_TOTAL = 24;
+const DEFENSIVE_SLOTS = new Set(["DL", "LB", "CB", "S", "DEF"]);
+const mvpDecided = (m) =>
+  m.yards >= 60 || m.touchdowns >= 1 || m.fieldGoals >= 2 || m.takeaways >= 1 || m.sacks >= 2;
+const mvpTrivial = shape.mvps.filter((m) => !mvpDecided(m));
+const mvpLow = shape.mvps.filter((m) => m.combined <= MVP_LOW_SCORING_TOTAL);
+const mvpLowDefensiveOrKicking = mvpLow.filter(
+  (m) => DEFENSIVE_SLOTS.has(m.slot) || m.slot === "ST"
+).length;
+const mvpLowShare = mvpLow.length ? mvpLowDefensiveOrKicking / mvpLow.length : 0;
+const mvpLosingShare = shape.mvps.length
+  ? shape.mvps.filter((m) => !m.won).length / shape.mvps.length
+  : 0;
+const mvpUnexplained = shape.mvps.filter((m) => !m.reason).length;
 
 const checks = [
   {
@@ -996,6 +1045,51 @@ const checks = [
     title: "Yards per play spreads the way a season's games do",
     ok: yppShape.p90 - yppShape.median >= 0.9 && yppShape.p90 <= 10 && yppShape.max < 12,
     detail: `median ${yppShape.median.toFixed(2)}, p90 ${yppShape.p90.toFixed(2)}, max ${yppShape.max.toFixed(2)}`,
+  },
+  {
+    // THE FLOOR, which did not exist. Measured before this check was written:
+    // 2% of games named a player with under 60 total yards and the first
+    // percentile was zero, so a man who did nothing at all could be the story
+    // of a game. Nothing here demands YARDS - a kicker and a secondary have
+    // none, and that is the point - only that the reason exists.
+    title: "Every man of the match did something that decided a game",
+    ok: mvpTrivial.length === 0,
+    detail: mvpTrivial.length === 0
+      ? `${shape.mvps.length} games, none named on a trivial line`
+      : `${mvpTrivial.length} of ${shape.mvps.length} named on nothing: ` +
+        mvpTrivial.slice(0, 3).map((m) => `${m.slot} ${m.yards}yds`).join(", "),
+  },
+  {
+    // AND WHO IT IS IN A GAME WITH NOTHING IN IT. Real football's low-scoring
+    // games belong to defences and kickers; this game's belonged to whichever
+    // skill player happened to lead a quiet box score, because yardage was
+    // priced the same in a 9-6 as in a 41-14 and a game has far more yards in
+    // it than points. The band is a floor rather than a target: skill players
+    // still win plenty of 17-7s, and demanding a majority would be claiming
+    // football's quiet games are ALWAYS a defensive story, which they are not.
+    title: "A game with nothing in it belongs to a defence or a kicker (20%+)",
+    ok: mvpLowShare >= 0.2,
+    detail: `${(100 * mvpLowShare).toFixed(1)}% of ${mvpLow.length} games at or under ` +
+      `${MVP_LOW_SCORING_TOTAL} combined points (was 10.5% before the scarcity weighting)`,
+  },
+  {
+    // The near-tie rule, from the other end. A losing player CAN be the best
+    // man on the field - a 400-yard game in a loss is a real thing - so this
+    // is a ceiling on how often, not a ban. Before the rule, side "A" broke
+    // exact ties, which is not a fact about the game at all.
+    title: "The man of the match is usually on the winning side (loser under 30%)",
+    ok: mvpLosingShare <= 0.3,
+    detail: `${(100 * mvpLosingShare).toFixed(1)}% of games named someone who lost`,
+  },
+  {
+    // Issue #19 asked for reasoning a card can print. A blank one would render
+    // as an empty line rather than as an error, which is the silent-failure
+    // shape CLAUDE.md forbids.
+    title: "Every man of the match can say why",
+    ok: mvpUnexplained === 0,
+    detail: mvpUnexplained === 0
+      ? `${shape.mvps.length} reasons, e.g. "${shape.mvps[0]?.reason ?? ""}"`
+      : `${mvpUnexplained} named with no reason`,
   },
   {
     title: "The drives still add up to the scoreboard",

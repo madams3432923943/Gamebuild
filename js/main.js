@@ -3560,6 +3560,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       name: mvp.player.name,
       team: mvpTeamName,
       line: formatMvpStatLine(sport(), mvp.line),
+      // Football explains itself; basketball has no reason to give yet, and
+      // the card omits the line rather than printing an empty one.
+      note: mvp.reason || null,
     });
     mvpCallout.classList.remove("hidden");
 

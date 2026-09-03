@@ -121,7 +121,7 @@ function seasonLabel(player) {
  * across a couch the number is what gets read and the word is what makes it
  * mean something. One string in one weight is a sentence you have to parse.
  */
-export function renderMvpCallout(container, { name, team, line }) {
+export function renderMvpCallout(container, { name, team, line, note }) {
   container.innerHTML = "";
 
   const tag = document.createElement("div");
@@ -139,6 +139,18 @@ export function renderMvpCallout(container, { name, team, line }) {
     side.className = "mvp-team";
     side.textContent = team;
     container.appendChild(side);
+  }
+
+  // WHY him, when the sport can say. Football's low-scoring games now go to a
+  // kicker or a secondary (see pickMvp in js/sports/nfl/engine.js), and a
+  // three-field-goal kicker taking the card off a running back reads as a
+  // glitch unless the card says what he did. Optional: a sport that offers no
+  // reason gets the card it always had rather than an empty line.
+  if (note) {
+    const why = document.createElement("div");
+    why.className = "mvp-note";
+    why.textContent = note;
+    container.appendChild(why);
   }
 
   const stats = document.createElement("div");

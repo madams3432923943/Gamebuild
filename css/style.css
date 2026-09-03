@@ -1891,6 +1891,21 @@ button.position-btn {
   margin-top: 0.1rem;
 }
 
+/* WHY he was named, between the team and the numbers. Sits below the name it
+   explains and above the line that proves it, because the sentence is what
+   makes an unexpected choice - a kicker, a secondary - read as a verdict. */
+.mvp-note {
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--text);
+  margin-top: 0.45rem;
+  /* The one place on this card a phrase is allowed to wrap: it is a clause,
+     not a label, and truncating it would lose the half that explains. */
+  max-width: 26rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .mvp-stats {
   display: flex;
   justify-content: center;

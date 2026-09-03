@@ -1453,9 +1453,12 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
 // the MVP's name is the line in the table. Nothing here invents a statistic:
 // every input is a number some play already wrote.
 //
-// Deliberately modest. Issue #19 replaces this with football-specific MVP
-// reasoning that can explain WHY a player was chosen; this exists so that a
-// football game can be finished at all in the meantime.
+// FOOTBALL-SPECIFIC REASONING, WHICH THIS DID NOT HAVE. The weights below are
+// the ordinary currency of a normal football game, and they were applied flat
+// to every game - which is why a 9-6 final named a running back with 32 yards.
+// Two faults, both visible in the measurements in tools/tmp and both fixed
+// below: a pass rush was worth literally nothing, and a kicker who scored all
+// of his team's points could not win a game his kicking decided.
 const MVP_WEIGHTS = {
   pass_yds: 0.04, pass_tds: 4,
   rush_yds: 0.1, rush_tds: 6,
@@ -1463,12 +1466,68 @@ const MVP_WEIGHTS = {
   fgs: 3,
   // A takeaway swings a possession, which is worth about what a score is.
   ints: 6, fumbles: 5,
+  // A SACK USED TO BE WORTH ZERO. `sacked` is the quarterback's charge for
+  // taking one; nothing credited the unit that got there. Measured over 400
+  // games a drafted pass rush reaches six in a game and sits at one or more in
+  // 28% of them, so the most visible thing a defensive line does was absent
+  // from the only ranking that names a defender. Half a takeaway is the usual
+  // ratio - a sack kills a down and the yardage behind it, a turnover kills
+  // the possession - and half of `ints` is what that comes to here.
+  sacks: 3,
   sacked: -0.5,
 };
 
-function mvpScore(line) {
+/**
+ * What a point was worth in THIS game, as a multiplier on scoring and
+ * takeaways.
+ *
+ * THE COMPLAINT THIS ANSWERS. A live 9-6 game named a running back with 32
+ * yards, in a game whose every point came off a kicker's foot. The flat
+ * weights above cannot get that right, because they price a yard the same in a
+ * game where nobody could move the ball as in a 41-point one - and a game has
+ * far more yards in it than points, so yardage always wins.
+ *
+ * The correction is the one a fan makes without thinking: WHEN NOBODY COULD
+ * SCORE, SCORING IS THE STORY, and yards that never became points were not.
+ * So scoring plays, field goals and takeaways are valued against how scarce a
+ * point actually was, while yardage keeps the flat weight it already had.
+ * Boosting one is the same as discounting the other, and this way round a
+ * normal game is left exactly as it was.
+ *
+ * DELIBERATELY INERT IN A NORMAL GAME. At the reference and above the
+ * multiplier is 1, so nothing about a 24-21 or a 41-14 changes - only games
+ * the flat weights were already getting wrong move at all.
+ */
+const MVP_REFERENCE_POINTS = 22;
+/** Below this the multiplier stops climbing: a shutout would divide by zero,
+ * and a game won 3-0 is not thirty times more about its kicker than a normal
+ * one is about its quarterback. */
+const MVP_SCARCITY_FLOOR_POINTS = 6;
+const MVP_SCARCITY_CAP = 3;
+
+function pointScarcity(scoreA, scoreB) {
+  const best = Math.max(Number(scoreA) || 0, Number(scoreB) || 0);
+  const points = Math.max(best, MVP_SCARCITY_FLOOR_POINTS);
+  return Math.min(MVP_SCARCITY_CAP, Math.max(1, MVP_REFERENCE_POINTS / points));
+}
+
+/** Which weights the scarcity multiplier reaches. Scores, kicks and takeaways
+ * - the things that put points on a board or took a possession away - and not
+ * yardage, receptions or the sack charge. */
+const MVP_SCARCE_KEYS = new Set(["pass_tds", "rush_tds", "rec_tds", "fgs", "ints", "fumbles"]);
+
+/** A man on the losing side does not take this off someone this close to him
+ * on the winning side. Not a thumb on the scale for winners generally - a
+ * losing player far clear of everyone still wins it, which is how a 400-yard
+ * game in a loss should read. */
+const MVP_NEAR_TIE_SHARE = 0.12;
+
+function mvpScore(line, scarcity = 1) {
   let total = 0;
-  for (const key of Object.keys(MVP_WEIGHTS)) total += (Number(line[key]) || 0) * MVP_WEIGHTS[key];
+  for (const key of Object.keys(MVP_WEIGHTS)) {
+    const weight = MVP_WEIGHTS[key] * (MVP_SCARCE_KEYS.has(key) ? scarcity : 1);
+    total += (Number(line[key]) || 0) * weight;
+  }
   return total;
 }
 
@@ -1483,16 +1542,56 @@ function totalTouchdowns(line) {
   return (Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0);
 }
 
+/** WHY this man, in football's own words. One short clause naming the thing he
+ * actually did, so a kicker or a secondary winning it reads as a verdict
+ * rather than a glitch - which is the whole complaint against a 32-yard back
+ * taking a game decided by field goals.
+ *
+ * Built from the SAME line the box score prints, in the order a fan would say
+ * it, and capped at two clauses because a third is a stat sheet. */
+function mvpReason(line, scarce) {
+  const n = (key) => Number(line[key]) || 0;
+  const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+  const clauses = [];
+
+  const tds = totalTouchdowns(line);
+  const takeaways = n("ints") + n("fumbles");
+  const yards = totalYards(line);
+
+  if (n("fgs")) clauses.push(plural(n("fgs"), "field goal"));
+  if (takeaways) {
+    if (n("ints")) clauses.push(plural(n("ints"), "interception"));
+    if (n("fumbles")) clauses.push(plural(n("fumbles"), "forced fumble"));
+  }
+  if (n("sacks")) clauses.push(plural(n("sacks"), "sack"));
+  if (yards >= 1) clauses.push(`${Math.round(yards)} yards`);
+  if (tds) clauses.push(plural(tds, "touchdown"));
+
+  if (!clauses.length) return "the quietest game any of them had";
+  const said = clauses.slice(0, 2).join(" and ");
+  // The scarcity multiplier is the reason the choice looks unusual, so when it
+  // was doing the work, say so. A normal game just gets the line.
+  return scarce ? `${said} in a game that had nothing else in it` : said;
+}
+
 /**
  * The best individual line in the game, from either roster.
  *
  * TIE-BREAKS ARE EXPLICIT AND ORDERED, because "whichever object key came out
  * first" is not a rule anyone can predict or reproduce: value, then total
- * yards, then touchdowns, then side, then slot order. Every step is a fact
- * about the game rather than about iteration order, so the same game always
- * names the same player - which is what makes the MVP checkable at all.
+ * yards, then touchdowns, then the winning side, then slot order. Every step
+ * is a fact about the game rather than about iteration order, so the same game
+ * always names the same player - which is what makes the MVP checkable at all.
+ *
+ * SIDE "A" USED TO BREAK EXACT TIES, which is not a fact about the game at
+ * all: on two identical lines the home slot won because of how the loop was
+ * written, and in an online game "A" is whoever the server listed first. The
+ * winner of the game breaks it now, and where neither side won, A still does -
+ * a tie needs SOME deterministic answer and there is no better one.
  */
-function pickMvp(rosterA, boxA, rosterB, boxB) {
+function pickMvp(rosterA, boxA, rosterB, boxB, scoreA = 0, scoreB = 0) {
+  const scarcity = pointScarcity(scoreA, scoreB);
+  const winner = scoreA === scoreB ? null : scoreA > scoreB ? "A" : "B";
   const candidates = [];
   for (const [roster, box, side] of [
     [rosterA, boxA, "A"],
@@ -1509,22 +1608,39 @@ function pickMvp(rosterA, boxA, rosterB, boxB) {
       const line = box[slot];
       candidates.push({
         player, line, side, slot,
-        score: mvpScore(line),
+        score: mvpScore(line, scarcity),
         yards: totalYards(line),
         tds: totalTouchdowns(line),
+        won: winner != null && side === winner,
         order: i,
       });
     }
   }
   if (!candidates.length) return null;
+  const preferWinner = (a, b) => (a.won === b.won ? 0 : a.won ? -1 : 1);
   candidates.sort((a, b) =>
     b.score - a.score ||
     b.yards - a.yards ||
     b.tds - a.tds ||
+    preferWinner(a, b) ||
     (a.side === b.side ? 0 : a.side === "A" ? -1 : 1) ||
     a.order - b.order
   );
-  return candidates[0];
+
+  // THE NEAR-TIE RULE. Ranking alone let a man on the losing side take this
+  // off someone a rounding error behind him on the winning one, which is the
+  // one case where a fan would say the ranking is simply wrong. Within
+  // MVP_NEAR_TIE_SHARE of the best score, the game's winner gets it.
+  let best = candidates[0];
+  if (winner && !best.won && best.score > 0) {
+    const floor = best.score * (1 - MVP_NEAR_TIE_SHARE);
+    const contender = candidates.find((c) => c.won && c.score >= floor);
+    if (contender) best = contender;
+  }
+
+  // Issue #19: the MVP can now say why. `scarce` is what makes a kicker's
+  // three field goals beat a hundred quiet yards, so it decides the phrasing.
+  return { ...best, reason: mvpReason(best.line, scarcity > 1.35) };
 }
 
 export function simulate(rosterA, rosterB, stats, opts = {}) {
@@ -1929,7 +2045,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       // the box score prints for him.
       return {
         boxA: a.box, boxB: b.box, teamStatsA: a.team, teamStatsB: b.team,
-        mvp: pickMvp(rosterA, a.box, rosterB, b.box),
+        mvp: pickMvp(rosterA, a.box, rosterB, b.box, teamScoreA, teamScoreB),
       };
     })(),
     quarterBoxScores, drives, overtimePeriods,
