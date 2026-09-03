@@ -968,6 +968,13 @@ function bellCowCeilingFor(entry) {
  * The small floor is the sneak-and-kneel share every quarterback has. */
 const QB_CARRY_FLOOR = 0.04;
 
+/** The same floor for everyone else: the jet-sweep and end-around share a
+ * receiving corps has whatever its members' own records say. Real teams give
+ * ALL their receivers and tight ends about 2% of their carries between them,
+ * so a single slot's floor is a fraction of that - enough that the sweep
+ * exists, far too little to be a running game. */
+const SKILL_CARRY_FLOOR = 0.01;
+
 function capBellCow(items, roster) {
   if (items.length < 2) return items;
   let top = items[0];
@@ -977,8 +984,32 @@ function capBellCow(items, roster) {
   if (top.weight <= ceiling) return items;
 
   const spare = top.weight - ceiling;
+  // THE ROETHLISBERGER RULE IS FOR EVERYONE, and it used to be for the
+  // quarterback alone. Every other slot was handed a ceiling of 1 - no limit
+  // at all - so the carries taken off the bell cow went almost entirely to the
+  // receivers, who between them offered four times the room the quarterback
+  // did and had no record justifying any of it.
+  //
+  // Measured over 500 games before this line changed:
+  //
+  //   RB 64.1% of team carries   (real NFL RB1 alone is about 70%)
+  //   WR 19.3%                   (real NFL: about 2%)
+  //   TE  6.2%                   (real NFL: about 0.3%)
+  //   QB 10.5%                   (real NFL: about 12%)
+  //
+  // A receiver was carrying it 5.4 times a game and as many as 17, when a real
+  // team hands off to ALL of its receivers about once. The reported line - a
+  // WR3 with five carries and a WR2 with six, on a roster with Derrick Henry
+  // in the backfield - is exactly what a 19% share looks like from a chair.
+  //
+  // The argument the quarterback's floor already makes is not about
+  // quarterbacks: a man's own record is the only thing that should decide how
+  // often he runs. A receiver who never took an end-around does not start
+  // taking them because the back beside him is capped.
   const ceilingFor = (item) =>
-    item.slot === "QB" ? Math.max(QB_CARRY_FLOOR, item.weight) : 1;
+    item.slot === "QB"
+      ? Math.max(QB_CARRY_FLOOR, item.weight)
+      : Math.max(SKILL_CARRY_FLOOR, item.weight);
   const rest = items.filter((item) => item !== top);
   // Only men whose own record says they carry the ball can absorb the spare,
   // and none of them past his own ceiling. What nobody can take stays with the

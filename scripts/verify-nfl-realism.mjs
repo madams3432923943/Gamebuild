@@ -410,6 +410,13 @@ function realCarriesPerGame(entry) {
 
 /** Backs split by the workload they really carried. The bands are the ones a
  * fan would use: a committee back, a starter, a bell cow. */
+/** Carries by position group over the whole run, and receivers' share per
+ * team-game. Real football hands off to ALL of its receivers and tight ends
+ * about once a game between them; everything else goes to the backfield and
+ * the quarterback. */
+const carriesByGroup = {};
+const receiverCarriesPerGame = [];
+
 const BACK_BUCKETS = [
   { key: "committee", label: "committee (<12 a game)", lo: 0, hi: 12, simulated: [], real: [] },
   { key: "starter", label: "starter (12-18)", lo: 12, hi: 18, simulated: [], real: [] },
@@ -473,6 +480,24 @@ for (let i = 0; i < RATE_GAMES; i++) {
     // THE DRAFTED BACK AGAINST HIS OWN RECORD, bucketed by what he really
     // carried. The mean above cannot see this: every back got the same 21
     // carries, so the average was right and every individual was wrong.
+    // WHO IS CARRYING IT, by position group. A drafted back sharing his
+    // backfield with three wide receivers is the fault this catches, and only
+    // a per-group share can see it: the team's carry TOTAL was correct the
+    // whole time it was happening.
+    for (const [slot, line] of Object.entries(box)) {
+      const carries = Number(line.carries) || 0;
+      if (!carries) continue;
+      const group = slot.replace(/\d+$/, "");
+      carriesByGroup[group] = (carriesByGroup[group] || 0) + carries;
+      carriesByGroup.__total = (carriesByGroup.__total || 0) + carries;
+    }
+    receiverCarriesPerGame.push(
+      Object.entries(box).reduce(
+        (sum, [slot, line]) =>
+          /^(WR|TE)/.test(slot) ? sum + (Number(line.carries) || 0) : sum,
+        0
+      )
+    );
     const backCarries = realCarriesPerGame(roster.RB);
     if (backCarries > 0) {
       const bucket = BACK_BUCKETS.find((b) => backCarries >= b.lo && backCarries < b.hi);
@@ -711,19 +736,11 @@ const backRatios = BACK_BUCKETS.map((bucket) => ({
     ? mean(bucket.simulated) / Math.max(1e-9, mean(bucket.real))
     : null,
 }));
-const measuredBuckets = backRatios.filter((b) => b.n >= 20 && b.ratio != null);
-// Two things, and they are different questions. First, nobody may run at a
-// workload wildly unlike his own. Second - and this is the one the flat
-// ceiling failed - the gap between a committee back and a workhorse has to
-// SURVIVE the simulation rather than being flattened out of it.
-const worstBackRatio = measuredBuckets.length
-  ? Math.max(...measuredBuckets.map((b) => b.ratio))
-  : 1;
-const committeeRatio = backRatios.find((b) => b.key === "committee")?.ratio ?? null;
-const workhorseRatio = backRatios.find((b) => b.key === "workhorse")?.ratio ?? null;
-const backSpread = committeeRatio != null && workhorseRatio != null
-  ? committeeRatio - workhorseRatio
-  : null;
+const receiverCarryShare = carriesByGroup.__total
+  ? ((carriesByGroup.WR || 0) + (carriesByGroup.TE || 0)) / carriesByGroup.__total
+  : 0;
+const meanReceiverCarries = mean(receiverCarriesPerGame);
+const backCarryMean = mean(BACK_BUCKETS.flatMap((b) => b.simulated));
 
 // ---- who gets named man of the match ---------------------------------------
 //
@@ -1113,30 +1130,45 @@ const checks = [
     detail: `median ${yppShape.median.toFixed(2)}, p90 ${yppShape.p90.toFixed(2)}, max ${yppShape.max.toFixed(2)}`,
   },
   {
-    // A CEILING ON THE OVERSTATEMENT. 1.88x was a committee back running a
-    // bell cow's workload; some overstatement is correct and has to be
-    // allowed, because this roster has ONE back slot and whoever fills it
-    // stands in for a whole backfield, so a man who split carries really does
-    // carry more here than he ever did. What is not allowed is that being the
-    // whole story.
-    title: "No back runs at a workload unlike his own (under 1.45x)",
-    ok: worstBackRatio <= 1.45,
-    detail: measuredBuckets
-      .map((b) => `${b.label} ${b.ratio.toFixed(2)}x (n=${b.n})`)
-      .join(", ") || "no bucket had enough backs to measure",
+    // THE BACKFIELD BELONGS TO THE BACK, and for a long time a fifth of it
+    // belonged to the wide receivers. capBellCow gave the quarterback a
+    // ceiling drawn from his own record - the Roethlisberger rule - and gave
+    // every other slot a ceiling of 1, no limit at all, so the carries taken
+    // off a bell cow went almost entirely to the receiving corps. Measured
+    // before the fix: WR 19.3% of team carries against real football's 2%, TE
+    // 6.2% against 0.3%, and a receiver carrying it 5.4 times a game.
+    //
+    // Reported from a real game, which is the point: a WR3 with five carries
+    // and a WR2 with six, on a roster with Derrick Henry in the backfield.
+    title: "Receivers barely carry the ball, the way they barely do (under 6%)",
+    ok: receiverCarryShare <= 0.06,
+    detail: `WR+TE take ${(100 * receiverCarryShare).toFixed(1)}% of carries ` +
+      `(real NFL about 2.3%; was 25.5% before the ceiling applied to them), ` +
+      `${meanReceiverCarries.toFixed(1)} a game against a real team's ~1`,
   },
   {
-    // THE SPREAD, which is the check that would have caught the original
-    // fault. Every ratio could sit inside the band above and the simulation
-    // still ignore who was drafted - that is exactly what a flat ceiling did.
-    // A committee back must come out FURTHER above his own record than a
-    // workhorse does, or his record changed nothing.
-    title: "A committee back and a bell cow are still told apart",
-    ok: backSpread == null || backSpread >= 0.15,
-    detail: backSpread == null
-      ? "not enough backs in both buckets to compare"
-      : `committee ${committeeRatio.toFixed(2)}x against workhorse ${workhorseRatio.toFixed(2)}x ` +
-        `- a gap of ${backSpread.toFixed(2)} (was 0.86 before the personal ceiling, but on 21 carries either way)`,
+    // AND THE BACK CARRIES A WHOLE BACKFIELD. This roster has one running back
+    // slot and no backups, so whoever fills it stands in for RB1, RB2 and RB3
+    // together - about 85% of a team's carries, not one back's 70%. Too few
+    // means somebody else is taking them (the fault above); too many means the
+    // quarterback stopped scrambling.
+    //
+    // THIS REPLACED A CHECK ON HOW FAR EACH BACK RAN ABOVE HIS OWN RECORD, and
+    // that check was measuring something structurally impossible. A committee
+    // back drafted as your only back MUST carry a full backfield's load - the
+    // carries have nowhere else honest to go - so every back lands near 24
+    // whatever he really did, and demanding otherwise was demanding the
+    // receivers keep absorbing them. See "known limitations" in the report:
+    // the draft signal at this slot has to live in yards per carry, and
+    // measured at 3.59/3.77/3.76 across the three workload bands it currently
+    // barely does. That is an open problem, not one this band should hide.
+    title: "The drafted back carries a full backfield (20-28 a game)",
+    ok: backCarryMean >= 20 && backCarryMean <= 28,
+    detail: `${backCarryMean.toFixed(1)} carries a game; ` +
+      backRatios
+        .filter((b) => b.n >= 20)
+        .map((b) => `${b.label} ${mean(b.simulated).toFixed(1)}`)
+        .join(", "),
   },
   {
     // THE FLOOR, which did not exist. Measured before this check was written:
