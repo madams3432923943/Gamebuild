@@ -17,6 +17,7 @@ import {
   mostTripleDoubles,
   winStreaks,
   historyFor,
+  RECENT_GAMES_SHOWN,
   mostMVPs,
   personalBestsFor,
   gameRecordFor,
@@ -2288,7 +2289,10 @@ export function renderProfileScreen(
 
   refs.historyBody.innerHTML = "";
   const scopedHistory = historyFor(profile, sport.id);
-  for (const entry of scopedHistory.games) {
+  // The most recent handful, not the whole stored history - see
+  // RECENT_GAMES_SHOWN. History is newest-first, so this is the last N played.
+  const shown = scopedHistory.games.slice(0, RECENT_GAMES_SHOWN);
+  for (const entry of shown) {
     const tr = document.createElement("tr");
     tr.className = entry.won ? "win-row" : "loss-row";
     const date = new Date(entry.date).toLocaleDateString();
@@ -2312,6 +2316,18 @@ export function renderProfileScreen(
   if (!scopedHistory.games.length) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="4" class="empty-note">No ${escapeHtml(sport.name)} games played yet.</td>`;
+    refs.historyBody.appendChild(tr);
+  }
+  // A shorter list than the player has games for should say so. The older ones
+  // are not gone - they still count toward the streak records above - they are
+  // just not what this panel is for.
+  const hidden = scopedHistory.games.length - shown.length;
+  if (hidden > 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td colspan="4" class="empty-note">Showing your last ${shown.length} of ` +
+      `${scopedHistory.games.length} ${escapeHtml(sport.name)} games. ` +
+      `Older games still count toward the records above.</td>`;
     refs.historyBody.appendChild(tr);
   }
   // Said out loud rather than quietly dropped. These are games from before

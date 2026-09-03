@@ -179,6 +179,21 @@ function putGameRecord(stored, sportId, game) {
 export const HISTORY_LIMIT = 50;
 
 /**
+ * How many of them Recent Games shows.
+ *
+ * A DISPLAY LIMIT, NOT A STORAGE ONE, and the two must not be confused. Fifty
+ * rows is a screen you scroll past rather than read, and the point of the
+ * panel is the last few games - but winStreaks() below reads the whole stored
+ * history to find your longest run, so capping what is KEPT at ten would quietly
+ * cap that record at ten as well. Only the table is shortened.
+ *
+ * The count of what is not shown is printed under the table rather than
+ * silently dropped, for the same reason the unattributed games are: a list
+ * that is shorter than the player expects should say why.
+ */
+export const RECENT_GAMES_SHOWN = 10;
+
+/**
  * Longest and current win streak, read off `history`.
  *
  * Computed rather than stored because history already carries what's needed
