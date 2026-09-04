@@ -430,18 +430,49 @@ button, input {
   color: var(--muted);
 }
 
-input[type="text"] {
-  background: var(--bg);
+/* EVERY TEXT FIELD, not just type="text".
+   
+   This rule was scoped to one input type, and the app has four: the sign-in
+   PASSWORD field, the recovery EMAIL field, the squad SEARCH box and every
+   textarea were rendering in the browser's own default - a white box with a
+   black border - on a dark screen. The password field on the sign-in card is
+   the second control anybody sees, directly under a correctly-styled one, and
+   it was white.
+   
+   The min-height floor further down this file already listed all four; only
+   the paint did not. */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="number"],
+select,
+textarea {
+  background: var(--surface-1);
   border: 1px solid var(--line);
   color: var(--text);
   border-radius: 8px;
   padding: 0.55rem 0.75rem;
   font-size: 1rem;
+  font-family: inherit;
+  width: 100%;
 }
 
-input[type="text"]:focus-visible {
+input[type="text"]:focus-visible,
+input[type="email"]:focus-visible,
+input[type="password"]:focus-visible,
+input[type="search"]:focus-visible,
+input[type="number"]:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 /* A small heading over a picker. The mode row, the era row and the button
@@ -3289,9 +3320,38 @@ table.box-table th {
 }
 
 /* ---- Auth screen ---- */
+/* The first screen anybody sees, and it was a form floating in the middle of
+   a very dark page. The glow is the same idea as the sport wash on the body -
+   a light source behind the thing you are meant to look at - and it is the one
+   place in the app where the accent can sit directly behind the brand mark,
+   because there is no content around it to fight.
+   
+   position:relative and z-index on the card, so the halo is behind the card
+   rather than over the form. */
 .auth-card {
+  position: relative;
   max-width: 420px;
   margin: 2rem auto 0;
+  z-index: 1;
+}
+
+.auth-card::before {
+  content: "";
+  position: absolute;
+  /* Anchored to the logo at the top of the card rather than to its middle:
+     the card is tall and mostly legal text, and a halo centred on it lights
+     the disclaimer. */
+  left: 50%;
+  top: 0;
+  /* Clamped to the viewport, not just to the card. At 26rem flat this is 416px
+     wide centred on a 360px screen - 28px hanging off each side, and a
+     pointer-events:none decoration still makes the page scroll sideways. */
+  width: min(26rem, 92vw);
+  height: min(26rem, 92vw);
+  transform: translate(-50%, -45%);
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.16) 0%, transparent 62%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .auth-card h2 {
