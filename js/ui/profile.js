@@ -396,6 +396,20 @@ function winPercent(wins, losses) {
  */
 export function createProfileHero() {
   const refs = createPlayerBannerCard("profile-hero-card");
+  // THE ID IS A CONTRACT, and this is where it moved to.
+  //
+  // The profile's name used to be an <h2 id="profile-display-name"> written in
+  // index.html. Rebuilding the header around the shared player card deleted
+  // that element, and with it an id that main.js writes to when the username
+  // changes and that scripts/verify-browser.mjs reads to check identity leads
+  // the screen - a check that then failed with an empty name, correctly.
+  //
+  // Set HERE and not in createPlayerBannerCard: that function also builds the
+  // home card and both matchup sides, and an id on a component with four
+  // instances is four elements sharing one id. The hero is built exactly once,
+  // at module scope in main.js.
+  refs.username.id = "profile-display-name";
+
   const progress = document.createElement("div");
   progress.className = "pb-progress";
   const track = document.createElement("div");
