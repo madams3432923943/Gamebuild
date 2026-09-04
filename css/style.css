@@ -67,23 +67,14 @@
   --text-xs: 0.8125rem;    /* 13px */
 
   /* ---- Surfaces and shape ----
-     Three depths and three radii, so a card is a card everywhere.
+     Three depths and three radii, so a card is a card everywhere. Five screens
+     previously picked five different treatments; together they read as five
+     different products.
 
-     Before these, every screen picked its own: the profile's record cards were
-     10px on --panel, the sport cards 14px on a gradient, the badge tiles 12px
-     on rgba(255,255,255,0.03), and the squad rows a 0.5rem border on --panel.
-     None of them was wrong on its own; together they read as five different
-     products, which is what "polished" is the absence of.
-
-     --surface-1 is the page's own furniture (a section header, a strip).
-     --surface-2 is a card sitting on the page. --surface-3 is something
-     sitting INSIDE a card - a row, a tile, a cell. Nesting the same value
-     twice is what makes a card-in-a-card invisible, so the scale exists to be
-     stepped through rather than reached into at random.
-
-     --line-soft is the divider WITHIN a surface; --line stays the edge OF one.
-     A single border colour doing both jobs is why every list looked like a
-     table. */
+     -1 is page furniture, -2 is a card on the page, -3 is something inside a
+     card. Step through the scale rather than reaching into it at random -
+     nesting one value twice is what makes a card-in-a-card invisible.
+     --line-soft divides WITHIN a surface; --line is the edge OF one. */
   --surface-1: #12171f;
   --surface-2: #171d27;
   --surface-3: #1d2532;
@@ -118,25 +109,12 @@
   box-sizing: border-box;
 }
 
-/* ---- The page's own depth -------------------------------------------------
-   Three layers over the flat --bg, all of them very low contrast, because the
-   brief for this is "subtle depth" and the failure mode is a neon esports
-   template.
-
-   1. A wide accent wash at the top, in the ACTIVE SPORT's colour. This is the
-      one place the whole page follows the sport rather than just its buttons -
-      basketball is faintly warm, football faintly cool - and at 7% it reads as
-      lighting rather than as a coloured background.
-   2. The cool blue-grey the page already had, kept, because it is what stops
-      the accent wash from tinting the whole screen.
-   3. A very fine noise texture, so large flat areas of --bg have something in
-      them at close range instead of banding. An inline SVG rather than a file:
-      it is 200 bytes, it costs no request, and the CSP forbids external images
-      anyway (see scripts/verify-csp.mjs).
-
-   fixed, so the lighting belongs to the SCREEN rather than to the document -
-   scrolling a long profile past a gradient anchored to the page drags the
-   light down with it, which reads as the background moving. */
+/* ---- Page depth ----
+   Accent wash in the ACTIVE SPORT's colour (the one place the whole page
+   follows the sport), the cool blue-grey that keeps it from tinting
+   everything, and fine noise so flat areas do not band. All very low contrast:
+   the failure mode here is a neon esports template. The SVG is inline because
+   the CSP forbids external images - see scripts/verify-csp.mjs. */
 body {
   margin: 0;
   background:
@@ -352,21 +330,15 @@ button, input {
   box-shadow: var(--shadow-card);
 }
 
-/* ---- Typography ----------------------------------------------------------
-   Six voices, and they have to be distinguishable. Almost everything on these
-   screens was 0.85-1rem body text in either --text or --muted, so a page
-   title, a card title and a caption differed by two pixels and a colour.
-
-   page title    .section-heading   display, 1.15rem, accent rule under it
-   section title .card-head h3      display, 1.05rem
-   card title    .card h2 / h3      display, 1.25rem / 1.05rem
-   primary stat  mono, 1.2-1.6rem, --scoreboard or --text
-   secondary     body, 0.85-0.95rem, --text
-   metadata      --text-micro, uppercase, letter-spaced, --muted
-
-   The two mono/metadata rows are conventions the file already followed; what
-   is new is the display face and size on the headings, which previously used
-   the browser's default h2/h3 sizing. */
+/* ---- Typography ----
+   Six voices that have to be distinguishable. Almost everything here was
+   0.85-1rem body text in --text or --muted, so a page title, a card title and
+   a caption differed by two pixels and a colour.
+     page title .section-heading 1.15rem + accent rule | card title .card h2/h3
+     1.25/1.05rem | primary stat mono 1.2-1.6rem | secondary body 0.85-0.95rem
+     | metadata --text-micro uppercase --muted
+   New here is the display face and size on headings, which previously used the
+   browser's default h2/h3 sizing. */
 .card h2, .card h3 {
   margin-top: 0;
   font-family: var(--font-display);
@@ -492,15 +464,11 @@ textarea:focus-visible {
   margin-top: 0.6rem;
 }
 
-/* --- Mode cards -----------------------------------------------------------
-   Three deliberate choices, not three rows of text. Each carries an icon, its
-   name, a sentence saying what it actually is, and - for Ranked - a badge
-   marking it as the one where the result is kept. The selected one takes the
-   accent border, a gradient lift off the panel behind it, and a tick.
-
-   The tick matters more than it looks: the selected state was a border colour
-   and a background tint, and both of those are the accent, so on the football
-   theme "selected" and "hovered" were nearly the same reading. */
+/* --- Mode cards ---
+   Three deliberate choices, not three rows of text. The tick matters more than
+   it looks: selected was a border colour plus a background tint, both of them
+   the accent, so on the football theme "selected" and "hovered" read the
+   same. */
 .mode-toggle {
   display: flex;
   flex-direction: column;
@@ -736,23 +704,14 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
-/* The home screen's sport list. Each card is the way into that sport, and
-   carries where you stand in it, its rank ladder and its rules.
+/* The home screen's sport list: where you stand in each sport, its ladder, its
+   rules, and the way in. It was a 56px strip with a 12px triangle doing the
+   whole job of "this is how you play" - the hub's most important decision as
+   its least prominent element.
 
-   IT USED TO BE A ROW. A 56px-tall strip holding an icon, a name, a rank line
-   and two pills, with a 12px triangle at the far right doing the whole job of
-   saying "this is how you play". The hub's most important decision - which
-   sport - was the least prominent thing on the screen, under a 260px banner.
-
-   Now: two cards, side by side on a desktop and stacked on a phone, each with
-   the sport's colour across its top edge, its standing in figures, and a call
-   to action that says what it does. The whole card body is one button, because
-   a click anywhere on a sport card should start that sport.
-
-   --card-accent is the sport's own colour, set per card in JS. The hub itself
-   is sport-neutral, but the cards are not: colour is how you recognise a sport
-   before you read the word, and a row of identical grey cards throws that
-   away. */
+   --card-accent is the sport's own colour, set per card in JS. The hub is
+   sport-neutral; the cards are not, because colour is how you recognise a
+   sport before you read the word. */
 .sport-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
@@ -1354,20 +1313,13 @@ button.position-btn {
    then a 3-2-1 countdown and a buzzer-red "GO!". --- */
 /* STACKED BELOW 900px, FACING EACH OTHER ABOVE IT.
    
-   Stacked was the only layout here for a while, and the reason was real: each
-   side is a whole player card - artwork, icon, name, badges, rep/rank/rating -
-   and two of those in a row are two narrow columns where the stats wrap and
-   the badges drop. That is still true at 700px and it is not true at 1280,
-   where the page has 1060px of content width and two 28rem cards plus a VS fit
-   inside it with room to spare.
+   Two whole player cards in a row are two narrow columns where the stats wrap
+   and the badges drop - true at 700px, not true at 1280, where two 28rem cards
+   plus a VS fit in 1060px of content width. The breakpoint decides rather than
+   the layout, and the fly-in directions already match both.
    
-   So the breakpoint decides rather than the layout: a phone stacks, a desktop
-   puts the two players opposite each other, and the fly-in directions already
-   match both (in from the sides on a desktop, from above and below on a phone
-   - see the 560px block further down). The width is checked, not assumed:
-   scripts/verify-matchup-intro.mjs asserts nothing is cropped inside either
-   card and nothing falls below the fold, at desktop, 360px portrait and
-   640x360 landscape. */
+   Checked, not assumed: verify-matchup-intro.mjs asserts nothing is cropped
+   and nothing falls below the fold at desktop, 360 portrait and 640x360. */
 .matchup-intro {
   position: relative;
   display: flex;
@@ -1701,18 +1653,11 @@ button.position-btn {
   .player-banner.matchup-card .pb-stat-value {
     font-size: 0.95rem;
   }
-  /* THE STATS PLATE COSTS HEIGHT, AND HERE THERE IS NONE.
-     
-     Giving .pb-stats its own padded, bordered plate fixed the home card, where
-     three numbers were floating loose on the artwork. It also added ~18px to
-     every card that shares the component - and two of them stack on a sideways
-     phone, which put the pair 27px below the fold at 640x360.
-     
-     The plate stays, because the contrast argument for it is the same here as
-     on the home screen; it just stops being padded at a height where the
-     padding is the difference between seeing your opponent and not.
-     verify-matchup-intro.mjs is what caught this, and is the reason it is a
-     number rather than a guess. */
+  /* THE STATS PLATE COSTS HEIGHT, AND HERE THERE IS NONE. Its ~18px per card,
+     doubled by two stacked cards, put the pair 27px below the fold at 640x360.
+     The plate stays - its contrast argument holds here too - it just stops
+     being padded at a height where the padding is the difference between
+     seeing your opponent and not. verify-matchup-intro.mjs caught it. */
   .player-banner.matchup-card .pb-stats {
     padding: 0.1rem 0.45rem;
     gap: 0.9rem;
@@ -1800,15 +1745,11 @@ button.position-btn {
   50% { opacity: 0.55; }
 }
 
-/* THE POOL IS THE READING SURFACE. It had 1.4 of a 3.4-unit grid - 420px of a
-   1060px page - while two roster panels that hold six short rows each took the
-   other 640. The pool is where every second of a draft is spent: it holds the
-   search box, fifteen player cards and their stat lines, and it was the
-   narrowest thing on screen with the widest content in it.
-   
-   The rosters are sized in rem rather than in fractions, because what they
-   need is fixed - a position tag and a name - and everything left over belongs
-   to the pool. */
+/* THE POOL IS THE READING SURFACE, and it had 420px of a 1060px page while two
+   roster panels holding six short rows each took the other 640 - the narrowest
+   thing on screen with the widest content in it. The rosters are sized in rem
+   because what they need is fixed (a position tag and a name); everything left
+   over belongs to the pool. */
 .draft-body {
   display: grid;
   grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr) minmax(12rem, 15rem);
@@ -1895,14 +1836,11 @@ button.position-btn {
   font-size: 0.95rem;
 }
 
-/* A LINEUP, NOT A LIST OF FIELDS. Six rows of "PG ......... open" separated by
-   hairlines is the shape of a table, and the two things that actually matter
-   on it - which slots are still open, and whose name is in the ones that are
-   not - carried no weight at all.
-   
-   Each slot is its own small surface now, and a filled one is visibly settled
-   while an open one is visibly a question. Same information, same order, same
-   markup. */
+/* A LINEUP, NOT A LIST OF FIELDS. Six rows of "PG ......... open" between
+   hairlines is the shape of a table, and the two things that matter - which
+   slots are open, and who is in the ones that are not - carried no weight.
+   Each slot is its own surface now: filled reads as settled, open as a
+   question. Same information, same order, same markup. */
 .roster-slot {
   display: flex;
   justify-content: space-between;
@@ -2540,16 +2478,11 @@ table.box-table th {
 
 /* ---- Profile screen ---- */
 
-/* --- The identity hero -----------------------------------------------------
-   The shared player card, plus a footer bar carrying the equipped title and
-   the two actions. The two are one object visually: the card's bottom corners
-   are square and the bar's top corners are, so the seam between them reads as
-   a fold in one card rather than as two stacked panels.
-
-   The card inside is .player-banner, which already knows how to paint an
-   equipped banner, its artwork, its emblem and its scrim - see the long note
-   above .player-banner. Nothing here repaints any of that; this is only the
-   frame it lands in. */
+/* --- The identity hero ---
+   The shared .player-banner card plus a footer bar carrying the equipped title
+   and the two actions. One object visually: the seam between them reads as a
+   fold rather than as two stacked panels. Nothing here repaints the card - see
+   the long note above .player-banner - this is only the frame it lands in. */
 .profile-hero {
   margin-bottom: 1rem;
   border-radius: var(--radius-card);
@@ -2725,11 +2658,9 @@ table.box-table th {
   margin: 0;
 }
 
-/* --- The career divider ----------------------------------------------------
-   Everything below this belongs to ONE sport, and the divider has to say so:
-   the subtab row used to float loose in the page four cards below the last
-   thing it governed. Heading and tabs share a line on a desktop and stack on a
-   phone, with the section's own accent rule underneath both. */
+/* --- The career divider ---
+   Everything below belongs to ONE sport, and the divider has to say so - the
+   subtab row used to float four cards below the last thing it governed. */
 .career-section-head {
   display: flex;
   flex-wrap: wrap;
@@ -2755,11 +2686,10 @@ table.box-table th {
   margin: 0;
 }
 
-/* --- The sport toggle ------------------------------------------------------
-   A bigger, more deliberate switch than the pill row it grew out of: the
-   active sport takes the accent as a filled chip and the inactive one is a
-   quiet outline, so which sport you are reading is answerable from across the
-   room rather than by comparing two pills. */
+/* --- The sport toggle ---
+   The active sport is a filled accent chip and the inactive one a quiet
+   outline, so which sport you are reading is answerable from across the room
+   rather than by comparing two pills. */
 .sport-toggle {
   gap: 0.35rem;
   padding: 0.25rem;
@@ -2857,12 +2787,11 @@ table.box-table th {
   }
 }
 
-/* --- Records by Era --------------------------------------------------------
+/* --- Records by Era ---
    A table on a desktop, a stack of cards on a phone, from one set of elements.
-   The desktop grid's column widths are shared by the header row and every era
-   row, which is what makes the numbers line up - the old flex rows did not,
-   so five brackets of records could not be compared against each other at all,
-   which is the only reason to break them out per era. */
+   The header row and every era row share the grid's column widths, which is
+   what makes the numbers line up - the old flex rows did not, so the brackets
+   could not be compared, which is the only reason to break them out. */
 .era-records {
   display: flex;
   flex-direction: column;
@@ -2997,12 +2926,10 @@ table.box-table th {
   }
 }
 
-/* --- Top Performances: the record board ------------------------------------
-   Grouped headings, then rows of what / who / how much / when. It was a single
-   undivided column of every tracked statistic - twelve of them for football,
-   each one a label and a mono string sharing a line, and on a phone each row
-   stacked into two lines of text. Twenty-four lines of prose where a board
-   should be. */
+/* --- Top Performances: the record board ---
+   Grouped headings, then rows of what / who / how much / when. It was one
+   undivided column of every tracked stat - twelve for football, each stacking
+   into two lines on a phone. Twenty-four lines of prose where a board goes. */
 .record-board {
   display: flex;
   flex-direction: column;
@@ -3109,10 +3036,9 @@ table.box-table th {
   outline-offset: 1px;
 }
 
-/* --- Recent Games: match history -------------------------------------------
-   One grid per game, reflowing into a card under 640px. The W/L chip is the
-   first thing in the row and the first thing read out, because the result is
-   the reason anyone opens this panel. */
+/* --- Recent Games: match history ---
+   One grid per game, reflowing into a card under 640px. The W/L chip leads the
+   row and is read out first: the result is why anyone opens this panel. */
 .match-list {
   display: flex;
   flex-direction: column;
@@ -3755,16 +3681,11 @@ table.box-table th {
   font-size: 1.3rem;
 }
 
-/* THE STATS SIT ON SOMETHING. They used to be three loose value-over-label
-   pairs laid straight onto the banner artwork, and over a busy banner that is
-   what "floating" looks like: three numbers with no relationship to each other
-   or to the card, each one legible only because of the card-wide scrim behind
-   it. As one plate they read as the card's stat line, and the plate is what
-   guarantees their contrast rather than the artwork happening to be dark
-   there.
-
-   width:max-content, so the plate is as wide as the numbers rather than
-   stretching across artwork it has nothing to say about. */
+/* THE STATS SIT ON SOMETHING. Three loose value-over-label pairs laid onto
+   busy artwork is what "floating" looks like, and their contrast depended on
+   the card-wide scrim happening to be dark there. As one plate they read as
+   the card's stat line and carry their own contrast. width:max-content, so it
+   is as wide as the numbers rather than stretching across artwork. */
 .pb-stats {
   display: flex;
   gap: 1.4rem;
@@ -3891,20 +3812,13 @@ table.box-table th {
   }
 }
 
-/* --- Rarity ---------------------------------------------------------------
+/* --- Rarity ---
    Every earned badge printed its tier in the same accent orange, so Bronze and
-   Hall of Fame looked identical apart from the word - which means the tab
-   could not be read at a glance at all, and the whole point of tiers is that
-   there is something to chase.
-   
-   --tier-ink is set from the tile's data-tier (written in renderBadgeCollection
-   from BADGE_TIERS) and drives the tier chip, the icon's rim and the progress
-   fill together. A fifth tier needs a colour here and nothing else.
-   
-   Violet for Hall of Fame rather than a brighter gold: it is the tier above
-   Gold, and "more gold" is not a reading anyone gets. Violet as the top rarity
-   is borrowed rather than invented - it is what the genre has taught people to
-   look for. */
+   Hall of Fame differed only by the word. --tier-ink comes from data-tier
+   (written in renderBadgeCollection from BADGE_TIERS) and drives the chip, the
+   icon rim and the progress fill together; a fifth tier needs a colour here
+   and nothing else. Violet tops the scale rather than a brighter gold, because
+   "more gold" is not a reading anyone gets. */
 .badge-tile {
   --tier-ink: var(--muted);
   background: var(--surface-2);
@@ -4534,12 +4448,10 @@ table.box-table th {
   outline-offset: 2px;
 }
 
-/* --- The wardrobe's action bar --------------------------------------------
-   What you have selected, and the one button that puts it on. It replaces one
-   pill per tile - twenty-one identical "Fly this" buttons in a grid - with one
-   button that says what it will do to the thing you just clicked.
-
-   Sticky, so browsing a long shelf never scrolls the commit off the screen. */
+/* --- The wardrobe's action bar ---
+   Replaces one pill per tile - twenty-one identical "Fly this" buttons in a
+   grid - with one button that says what it will do to what you just clicked.
+   Sticky, so browsing a long shelf never scrolls the commit off screen. */
 .locker-bar {
   position: sticky;
   bottom: 0;
@@ -6814,18 +6726,11 @@ html {
 }
 
 /* WHO THEY ARE, A BEAT AFTER THE CARD ITSELF.
-   
-   The card used to arrive complete: banner, name, badges, rank and record all
-   at once, which reads as a layout appearing rather than as a player being
-   introduced. The artwork and the name fly in with the card; the badges and
-   the rep/rank/rating row settle in just behind them, once the card has landed
-   and .settle is on.
-   
-   Scoped to .matchup-card so the home screen's copy of this component - which
-   has no arrival to stage - is untouched. Both properties are transitioned,
-   never animated, so the reduced-motion block only has to zero the duration.
-   The parts are always PRESENT: this is opacity, not display, so the layout
-   the gate measures is the same layout either way. */
+   The card arriving complete reads as a layout appearing rather than a player
+   being introduced, so the badges and the rep/rank/rating row settle in behind
+   it. Scoped to .matchup-card, so the home card - which stages no arrival - is
+   untouched. Transitioned, never animated, so reduced-motion only has to zero
+   the duration; opacity, never display, so the gate measures one layout. */
 .matchup-card .pb-badges,
 .matchup-card .pb-stats {
   transition: opacity 0.4s ease var(--intro-detail-delay, 0s),
@@ -6894,19 +6799,13 @@ html {
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
-/* ---- Lists that arrive ----------------------------------------------------
-   A short fade-and-rise, staggered down the list. These are the two places on
-   the profile where switching the sport tab replaces every row at once, and
-   with no motion at all the swap is indistinguishable from the screen having
-   glitched: the same shapes, different words, in one frame.
-
-   Pure CSS and keyed to nothing: the renderers rebuild these elements on every
-   paint, so the animation runs whenever the rows are new, which is exactly
-   when it should. The delay is capped at six rows - past that the last row
-   would arrive late enough to be noticed as waiting rather than as arriving.
-
-   `both` matters: without it row six is at full opacity for its 150ms of delay
-   and then fades in from nothing, which is a flicker rather than an entrance. */
+/* ---- Lists that arrive ----
+   Switching the profile's sport tab replaces every row at once; with no motion
+   the swap is indistinguishable from a glitch - same shapes, different words,
+   one frame. Pure CSS, keyed to nothing: the renderers rebuild these elements
+   on every paint, so it runs exactly when the rows are new. Capped at six rows,
+   past which the last one reads as waiting. `both` prevents a flicker: without
+   it row six sits opaque through its delay, then fades in from nothing. */
 .match-row,
 .record-group {
   animation: row-enter 260ms var(--ease-out) both;
