@@ -225,7 +225,18 @@ function renderSquadDetailFromCache() {
   const { squad, myRole, roster, inviteCode, rankInfo, myUserId } = squadDetailData;
   renderSquadHeader(
     squadHeaderEl,
-    { squad, myRole, memberCount: roster.length, rankInfo, inviteCode, editing: squadEditing },
+    {
+      squad,
+      myRole,
+      memberCount: roster.length,
+      rankInfo,
+      inviteCode,
+      editing: squadEditing,
+      // Who runs the squad, read off the roster rather than fetched: it is
+      // already here, and on a squad you have just joined it is the single
+      // thing you most want to know and the one the header never said.
+      leaderName: (roster.find((m) => m.role === "leader") || {}).username || null,
+    },
     {
       onToggleEdit: () => {
         squadEditing = !squadEditing;

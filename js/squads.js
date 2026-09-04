@@ -108,7 +108,11 @@ export async function loadSquadRoster(squadId) {
   const ids = members.map((m) => m.user_id);
   const { data: profiles, error: profileErr } = await supabase
     .from("profiles")
-    .select("id, username, online_wins, online_losses")
+    // equipped_icon comes along on the query that was already running: the
+    // roster used to draw a member as a name and a record, which is a database
+    // row rather than a person, and the mark they chose for themselves is one
+    // more column on a select that already reads this table.
+    .select("id, username, online_wins, online_losses, equipped_icon")
     .in("id", ids);
   if (profileErr) throw profileErr;
   const byId = new Map(profiles.map((p) => [p.id, p]));
@@ -122,6 +126,9 @@ export async function loadSquadRoster(squadId) {
       username: p ? p.username : "Player",
       onlineWins: p ? p.online_wins : 0,
       onlineLosses: p ? p.online_losses : 0,
+      // Null is the ordinary state, not an error - it means nothing has been
+      // chosen, and equippedIcon() resolves that to the default mark.
+      equippedIcon: p ? p.equipped_icon : null,
     };
   });
 }

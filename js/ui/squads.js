@@ -10,6 +10,9 @@ import { escapeHtml } from "../lib/escape-html.js";
 import { squadTierForRep } from "../squads.js";
 import { bannerById } from "../banners.js";
 import { bannerArt } from "./banner-art.js";
+// The member mark. Same renderer as the home card and the profile hero, so a
+// player is drawn the same way wherever they appear.
+import { renderPlayerIcon } from "./profile.js";
 import { renderNote } from "./note.js";
 
 // ---- Squads --------------------------------------------------------------
@@ -99,34 +102,58 @@ export function renderSquadBrowseList(container, squads, onJoin) {
  * in this app already works), while the editor's own emoji pick is handled
  * in-place so typing a motto doesn't get interrupted by a re-render. */
 export function renderSquadHeader(container, data, callbacks) {
-  const { squad, myRole, memberCount, rankInfo, inviteCode, editing } = data;
+  const { squad, myRole, memberCount, rankInfo, inviteCode, editing, leaderName } = data;
   const canManage = myRole === "leader" || myRole === "co-leader";
 
   container.innerHTML = "";
 
-  const top = document.createElement("div");
-  top.className = "squad-header-top";
-  top.innerHTML =
-    `<span class="squad-header-emoji" aria-hidden="true">${escapeHtml(squad.emoji)}</span>` +
-    `<div class="squad-header-titles">` +
-    `<div class="squad-header-name">${escapeHtml(squad.name)} <span class="squad-header-tag">[${escapeHtml(squad.tag)}]</span></div>` +
-    `<div class="squad-header-visibility">${squad.visibility === "public" ? "🌐 Public" : "🔒 Private"} · ${memberCount} / ${squad.memberCap} members</div>` +
+  // --- Identity -------------------------------------------------------------
+  // The crest, the name, the tag and the motto, on a plate tinted from the
+  // squad's own colour. This was a small emoji, a heading and a grey line of
+  // "Public · 7 / 20 members" - an administrative summary of a record rather
+  // than a team you belong to.
+  const identity = document.createElement("div");
+  identity.className = "squad-identity";
+  identity.innerHTML =
+    `<span class="squad-crest" aria-hidden="true"></span>` +
+    `<div class="squad-identity-text">` +
+    `<div class="squad-header-name"><span class="squad-name-text"></span><span class="squad-header-tag"></span></div>` +
+    `<div class="squad-header-motto"></div>` +
     `</div>`;
-  container.appendChild(top);
+  identity.querySelector(".squad-crest").textContent = squad.emoji;
+  identity.querySelector(".squad-name-text").textContent = squad.name;
+  identity.querySelector(".squad-header-tag").textContent = `[${squad.tag}]`;
+  const motto = identity.querySelector(".squad-header-motto");
+  // No motto is a real state - a squad is not required to have one - so the
+  // line is removed rather than left as an empty gap under the name.
+  if (squad.motto) motto.textContent = squad.motto;
+  else motto.remove();
+  container.appendChild(identity);
 
-  if (squad.motto) {
-    const motto = document.createElement("div");
-    motto.className = "squad-header-motto";
-    motto.textContent = squad.motto;
-    container.appendChild(motto);
+  // --- The four facts, in even cells ---------------------------------------
+  // Privacy, size, tier and who runs it were three of them buried in one grey
+  // sentence and one of them - the leader - not shown at all, which on a squad
+  // you have just joined is the single thing you most want to know.
+  const facts = document.createElement("div");
+  facts.className = "squad-facts";
+  for (const cell of [
+    { label: "Members", value: `${memberCount} / ${squad.memberCap}` },
+    { label: "Privacy", value: squad.visibility === "public" ? "🌐 Public" : "🔒 Private" },
+    { label: "Tier", value: rankInfo.tier.name },
+    { label: "Leader", value: leaderName || "—" },
+  ]) {
+    const el = document.createElement("div");
+    el.className = "squad-fact";
+    el.innerHTML = `<span class="squad-fact-label"></span><span class="squad-fact-value"></span>`;
+    el.querySelector(".squad-fact-label").textContent = cell.label;
+    el.querySelector(".squad-fact-value").textContent = cell.value;
+    facts.appendChild(el);
   }
+  container.appendChild(facts);
 
+  // --- Rep ------------------------------------------------------------------
   const rankWrap = document.createElement("div");
   rankWrap.className = "squad-rank-wrap";
-  const badge = document.createElement("span");
-  badge.className = "tier-badge";
-  badge.textContent = rankInfo.tier.name;
-  rankWrap.appendChild(badge);
 
   const track = document.createElement("div");
   track.className = "progress-bar-track";
@@ -155,6 +182,12 @@ export function renderSquadHeader(container, data, callbacks) {
 
   if (!canManage) return;
 
+  // --- Management, deliberately quiet --------------------------------------
+  // The invite code used to be the loudest thing under the name: a mono chip
+  // and a New Code button in their own row, above the buttons that edit and
+  // disband the squad. It is a string you copy once. It sits in the footer
+  // with everything else administrative now, and the footer is separated from
+  // the identity above it rather than being part of it.
   const manage = document.createElement("div");
   manage.className = "squad-manage";
 
@@ -235,26 +268,54 @@ const SQUAD_ROLE_LABEL = { leader: "👑 Leader", "co-leader": "⭐ Co-Leader", 
  * transfer/kick anyone but themself, a co-leader can only kick plain
  * members, and a plain member sees no action buttons at all.
  *
+ * THE ACTIONS ARE BEHIND A TOGGLE. A leader's view of their own squad used to
+ * be four red-and-grey buttons per row - "+ Friend  Promote  Make Leader
+ * Kick" - taking more width than the member they belonged to, on every row, so
+ * the roster read as an administration console rather than as a list of the
+ * people you play with. They are one "Manage" button now, and the row that
+ * opens holds the same actions unchanged. Nothing is removed and nothing is
+ * harder to reach than one tap; what changes is what the screen is ABOUT when
+ * you are not managing anybody, which is most of the time.
+ *
  * `friendIds` is the set of user ids you already have a friendship row with
  * (accepted or pending), so the Add Friend button only appears where it would
- * actually do something. */
+ * actually do something.
+ */
 export function renderSquadRoster(container, roster, myUserId, myRole, callbacks, friendIds = new Set()) {
   container.innerHTML = "";
   for (const member of roster) {
+    const isSelf = member.userId === myUserId;
+
     const row = document.createElement("div");
-    row.className = "squad-roster-row";
+    row.className = "squad-member" + (isSelf ? " is-me" : "");
+
+    // The mark they chose for themselves. Same renderer as the home card and
+    // the profile hero, so a member is drawn here exactly as they are drawn
+    // everywhere else - see renderPlayerIcon.
+    const avatar = document.createElement("span");
+    avatar.className = "player-avatar squad-member-avatar";
+    renderPlayerIcon(avatar, { equippedIcon: member.equippedIcon });
 
     const info = document.createElement("div");
-    info.className = "squad-roster-info";
+    info.className = "squad-member-info";
     info.innerHTML =
-      `<span class="squad-roster-name">${escapeHtml(member.username)}</span>` +
-      `<span class="squad-roster-role">${SQUAD_ROLE_LABEL[member.role]}</span>` +
-      `<span class="squad-roster-record">${member.onlineWins}-${member.onlineLosses} online</span>`;
-    row.appendChild(info);
+      `<span class="squad-member-name"></span>` +
+      `<span class="squad-member-meta">` +
+      `<span class="squad-member-role"></span>` +
+      `<span class="squad-member-record"></span>` +
+      `</span>`;
+    info.querySelector(".squad-member-name").textContent =
+      member.username + (isSelf ? " (you)" : "");
+    const role = info.querySelector(".squad-member-role");
+    role.textContent = SQUAD_ROLE_LABEL[member.role];
+    role.classList.add(`role-${member.role}`);
+    info.querySelector(".squad-member-record").textContent =
+      `${member.onlineWins}-${member.onlineLosses} online`;
+
+    row.append(avatar, info);
 
     const actions = document.createElement("div");
-    actions.className = "squad-roster-actions";
-    const isSelf = member.userId === myUserId;
+    actions.className = "squad-member-actions hidden";
 
     // Squadmates are the people you're most likely to want as friends, and
     // the only way to add one used to be retyping their name on the Friends
@@ -276,7 +337,24 @@ export function renderSquadRoster(container, roster, myUserId, myRole, callbacks
     } else if (!isSelf && myRole === "co-leader" && member.role === "member") {
       actions.appendChild(smallBtn("Kick", () => callbacks.onKick(member.userId), "btn-danger-small"));
     }
-    row.appendChild(actions);
+
+    // A row with nothing to do on it gets no toggle - an empty Manage panel is
+    // worse than no button, because it promises something.
+    if (actions.children.length) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "squad-member-manage";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-label", `Manage ${member.username}`);
+      toggle.innerHTML = `<span aria-hidden="true">⋯</span>`;
+      toggle.addEventListener("click", () => {
+        const open = actions.classList.toggle("hidden");
+        toggle.setAttribute("aria-expanded", String(!open));
+        row.classList.toggle("managing", !open);
+      });
+      row.appendChild(toggle);
+      row.appendChild(actions);
+    }
 
     container.appendChild(row);
   }
