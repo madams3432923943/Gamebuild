@@ -91,7 +91,7 @@ import { renderField, showEvent, liveStatusLabel } from "./field.js";
 import { buildTimeline, createLiveState, applyEvent, liveBox, liveScore } from "./playback.js";
 
 /** The order a football roster is READ in, which is not the order it is
- * drafted in. Offence before defence, and inside offence the skill positions
+ * drafted in. Offense before defense, and inside offense the skill positions
  * in depth-chart order - a box score that opens on a wide receiver reads as a
  * bug even when every number in it is right. Covers both roster shapes: Quick
  * Play's bare WR and ranked's WR1/WR2/WR3. */
@@ -145,10 +145,10 @@ const TIERS = [
 // offensive line is the exception) stay; everything else is trimmed to a line.
 const HOW_TO_PLAY = [
   ["The draft", "Each round rolls one team and era - say the 1985 Bears - and you both draft from it."],
-  ["Units, not just players", "You draft the skill positions man by man - quarterback, running back, receivers, tight end. The line and the whole defence go as units."],
+  ["Units, not just players", "You draft the skill positions man by man - quarterback, running back, receivers, tight end. The line and the whole defense go as units."],
   ["For a unit, type the position", "Not a name: type \"linebackers\", \"cornerbacks\", \"safeties\", \"defensive line\", \"offensive line\" or \"special teams\". That takes the squad's whole group in one pick."],
-  ["Why there is no name to type", "The stat sheets this is built from cover passers, rushers and receivers - nobody on defence or the line appears in them as an individual. There is no Ray Lewis to type, so the group is the pick."],
-  ["Your roster", "Twelve picks: seven on offence, five on defence and special teams."],
+  ["Why there is no name to type", "The stat sheets this is built from cover passers, rushers and receivers - nobody on defense or the line appears in them as an individual. There is no Ray Lewis to type, so the group is the pick."],
+  ["Your roster", "Twelve picks: seven on offense, five on defense and special teams."],
   ["Game plan", "Three offered at random, and what one is worth depends on who you drew - Ground and Pound wants a running quarterback."],
   ["Coin toss", "Winner receives or kicks. Tied after four quarters, both sides get a possession in overtime."],
   ["Modes", "Quick Play is casual. Ranked Practice is the full game against a bot. Ranked moves your record."],
@@ -239,14 +239,14 @@ export const NFL = {
   // (QB, RB1, RB2, WR1, WR2, TE, FLEX, K, DEF, BENCH1) modelled fantasy
   // football rather than football - a FLEX and a lone kicker are fantasy
   // constructs, and one catch-all DEF slot throws away the whole point of
-  // drafting a defence in units.
+  // drafting a defense in units.
   //
   // THREE receivers, not two. Eleven personnel - one back, one tight end,
-  // three wide - has been the league's base offence for over a decade; a
+  // three wide - has been the league's base offense for over a decade; a
   // two-receiver ranked roster would be drafting a personnel package the
   // modern game only uses part-time. It also makes the third receiver a real
   // decision rather than a luxury, which is where a lot of the good arguments
-  // about an offence actually live.
+  // about an offense actually live.
   //
   // Twelve rather than basketball's ten because dropping special teams to hit
   // a round number would be a mistake: field goals decide real games, and a
@@ -299,8 +299,11 @@ export const NFL = {
   // reason `att` is not: these keys become personal bests, and a record for
   // most carries or most field goals missed rewards volume and failure rather
   // than anything anyone would want to chase.
+  // `ints_thrown` is deliberately absent from statLabels below, for the same
+  // reason `att`, `carries` and `fga` are: these keys become PERSONAL BESTS,
+  // and a record for most interceptions thrown is a trophy for being bad.
   lineKeys: ["comp", "att", "pass_yds", "pass_tds", "carries", "rush_yds", "rush_tds",
-             "rec", "rec_yds", "rec_tds", "ints", "fumbles", "sacks", "fgs", "fga"],
+             "rec", "rec_yds", "rec_tds", "ints", "ints_thrown", "fumbles", "sacks", "fgs", "fga"],
 
   // Placeholders, and honestly so: no NFL game has been simulated, so every
   // one of these reads as a dash on the profile. They are declared now because
@@ -308,7 +311,7 @@ export const NFL = {
   // the NFL subtab would have nothing to draw at all, and showing what WILL be
   // tracked is more useful than an empty panel.
   //
-  // Both sides of the ball, because football records that only covered offence
+  // Both sides of the ball, because football records that only covered offense
   // would leave half a roster with nothing to chase. Keyed to match what a
   // football box score will carry (lineKeys above), so when the engine lands
   // these start filling in rather than needing renaming.
@@ -330,17 +333,12 @@ export const NFL = {
     // anything anyone would want to chase.
   },
 
-  // Which side of the ball each record belongs to, for the profile's Top
-  // Performances board. Twelve football records under a single heading read as
-  // a wall - a sack, an interception and a receiving touchdown are not the
-  // same kind of achievement and should not sit in one undivided column.
-  //
-  // Field goals get their own group rather than being filed under offence:
-  // the kicker is not on the offensive unit, and burying the only special
-  // teams record among eight offensive ones is how it stops being looked at.
-  //
-  // Every key in statLabels must appear in exactly one group - see the note in
-  // js/sports/nba/index.js, and the check in scripts/verify-sport-contract.mjs.
+  // Which side of the ball each record belongs to on the profile's Top
+  // Performances board. Twelve records under one heading read as a wall. Field
+  // goals get their own group rather than being filed under offense - the
+  // kicker is not on the offensive unit, and burying the only special-teams
+  // record among eight offensive ones is how it stops being looked at.
+  // Every statLabels key must be in exactly one group - see nba/index.js.
   statGroups: [
     { label: "Offense", keys: ["pass_yds", "pass_tds", "rush_yds", "rush_tds", "rec_yds", "rec_tds", "comp", "rec"] },
     { label: "Defense", keys: ["ints", "sacks", "fumbles"] },
@@ -428,7 +426,7 @@ export const NFL = {
   // is made of them - but they are a terrible way to read a football PLAYER.
   // A quarterback who throws for 400 and four touchdowns scores none of them,
   // so ranking a table by points put the kicker above him on any night he
-  // outkicked the offence. What a football player did is yardage and scores,
+  // outkicked the offense. What a football player did is yardage and scores,
   // which is what these columns are now.
   //
   // Used for personal records and for the MVP line (formatMvpStatLine reads
@@ -464,21 +462,42 @@ export const NFL = {
    */
   boxGroups: [
     {
+      // PASSING IS ITS OWN TABLE. The quarterback shared a six-slot "Offense"
+      // table with backs and linemen, so his row was three passing numbers and
+      // seven dashes. It also makes room for INT, which in a shared table would
+      // have been a dash on every non-quarterback row.
+      key: "passing",
+      label: "Passing",
+      slots: ["QB"],
+      columns: [
+        ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
+        ["ints_thrown", "INT"],
+        // He runs too, and on a scrambler that is a third of his game.
+        ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
+      ],
+      rank: (line) =>
+        (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) +
+        100 * ((Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0)) -
+        // Ordering only - nothing here changes the simulation.
+        50 * (Number(line.ints_thrown) || 0),
+    },
+    {
       key: "offense",
       label: "Offense",
-      slots: ["QB", "RB", "WR", "TE", "OL", "FLEX"],
+      slots: ["RB", "WR", "TE", "OL", "FLEX"],
       columns: [
         ["total_yds", "TOT YDS", (line) =>
-          (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0)],
-        ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
+          (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0)],
         ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
         ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
       ],
       // Total yards first, touchdowns as the tie-break - scaled so a score is
-      // worth a hundred yards rather than swamping the yardage entirely.
+      // worth a hundred yards rather than swamping the yardage entirely. No
+      // passing terms: the passer is in his own table above, and TOT YDS here
+      // is rushing plus receiving for the same reason.
       rank: (line) =>
-        (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0) +
-        100 * ((Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0)),
+        (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0) +
+        100 * ((Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0)),
     },
     {
       key: "defense",

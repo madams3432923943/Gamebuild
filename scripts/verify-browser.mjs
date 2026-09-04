@@ -1022,7 +1022,12 @@ export async function runBrowserChecks(opts = {}) {
           "browser:nfl-box-groups",
           boxFaults.length
             ? `NFL box score is wrong — ${boxFaults.join("; ")}`
-            : `NFL box score is three tables (${postGame.groups.join(", ")}) over ` +
+            // COUNTED, NOT HARDCODED. This said "three tables" in prose while
+            // asserting nothing about the number, so splitting the passer into
+            // his own table left the message stating a figure that had stopped
+            // being true - the exact shape of stale test output that gets
+            // trusted because it is green.
+            : `NFL box score is ${postGame.groups.length} tables (${postGame.groups.join(", ")}) over ` +
               `${postGame.groupRows.reduce((a, b) => a + b, 0)} rows, with no basketball columns`,
           boxFaults.length ? FAIL : PASS
         )

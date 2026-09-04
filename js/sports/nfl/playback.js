@@ -182,7 +182,7 @@ export function emptyPlayerLine() {
   return {
     comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
     carries: 0, targets: 0, sacked: 0,
-    rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, sacks: 0, fgs: 0, fga: 0,
+    rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, ints_thrown: 0, fumbles: 0, sacks: 0, fgs: 0, fga: 0,
     td: 0, pts: 0,
   };
 }
@@ -314,6 +314,17 @@ function accumulateResult(playerDeltas, teamDeltas, drive, enteredRedZone) {
     if (drive.credit) {
       bump(playerDeltas, other(side), drive.credit, drive.takeaway === "fumble" ? "fumbles" : "ints", 1);
     }
+    // AND THE MAN WHO THREW IT WEARS IT. Only the defense was ever credited, so
+    // a quarterback could throw four picks and finish with a box score that
+    // mentioned none of them.
+    //
+    // `ints_thrown`, NOT `ints`: different events sharing a name. `ints` on a
+    // defensive line means picks CAUGHT; the dataset uses `r.ints` on a passer
+    // to mean picks THROWN (COMPOSITES.QB in units.js subtracts it). Writing
+    // thrown picks into `ints` would put them in the defensive table's INT
+    // column and feed the profile's personal bests - a "Most Interceptions"
+    // record for having been bad at quarterback.
+    if (drive.takeaway === "int") bump(playerDeltas, side, "QB", "ints_thrown", 1);
   }
 }
 
