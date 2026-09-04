@@ -772,25 +772,19 @@ function usageWeights(roster) {
     .filter(([, e]) => e && !isUnit(e))
     .map(([slot, entry]) => ({ slot, entry }));
   const build = (list, weightOf) => {
-    // `entry` rides along because capBellCow needs the MAN, not just his share:
-    // how much of a backfield he is allowed to be is a fact about his own
-    // career, and a normalised weight has already thrown that away.
-    const items = list.map(({ slot, entry }) => ({ slot, entry, weight: Math.max(0, weightOf(slot, entry) || 0) }));
+    const items = list.map(({ slot, entry }) => ({ slot, weight: Math.max(0, weightOf(slot, entry) || 0) }));
     const total = items.reduce((s, i) => s + i.weight, 0);
     // A roster with no production in this column (a data gap) shares evenly
     // rather than dropping the touches on the floor.
     if (total <= 0) return items.map((i) => ({ ...i, weight: 1 / (items.length || 1) }));
     return items.map((i) => ({ ...i, weight: i.weight / total }));
   };
-  const ground = capBellCow(
-    build(skill, (slot, entry) => carriesPerGame(entry) * (CARRY_SHARE[slot.replace(/\d+$/, "")] ?? 0))
-  );
   return {
     catchers: build(skill.filter(({ slot }) => slot !== "QB"), (slot, entry) => Number(entry.rec) || 0),
-    rushers: ground.items,
-    // The share of the ground game no man on this roster can honestly carry.
-    // buildPlays runs that many fewer times; see capBellCow.
-    groundLoss: ground.groundLoss,
+    rushers: capBellCow(
+      build(skill, (slot, entry) => carriesPerGame(entry) * (CARRY_SHARE[slot.replace(/\d+$/, "")] ?? 0)),
+      roster
+    ),
   };
 }
 
@@ -905,70 +899,58 @@ function planTilt(mod) {
 const BELL_COW_CEILING = 0.74;
 
 /**
- * ...and the least, for a back whose own career says he was never the whole
- * backfield.
+ * A REAL TEAM'S RUSHING ATTEMPTS IN A GAME, and the denominator that turns a
+ * man's own carry count into the share of a backfield he really was.
  *
- * THIS IS THE ONE THAT WAS MISSING, and it is the difference between a slot
- * and a man. BELL_COW_CEILING above is a flat cap, and on a twelve-slot roster
- * the drafted back's raw share almost always exceeds it - so he landed AT the
- * cap whoever he was. Measured over 5,000 drafted backs, the carries he
- * received were 21.1 a game for one who really carried 12, 20.9 for one who
- * really carried 16, and 20.9 for one who really carried 20. Carries were a
- * property of the SLOT; the man in it had no influence on his own volume at
- * all.
+ * Modern NFL teams run the ball about 26-27 times a game. It is a fact about
+ * football rather than a lever, and nothing should tune it.
+ */
+const TEAM_CARRIES_PER_GAME = 27;
+
+/**
+ * The least of a team's carries the drafted back can be cut to.
  *
- * What that did to a box score, over the same sample: a committee back ran at
- * 1.35x his real per-game production while a genuine workhorse ran at 0.91x.
- * The reported line was Mike Davis 2021 - 8.1 carries and 44.8 total yards a
- * game in real life - going for 194 yards on 22 carries. He was handed a
- * bell-cow's workload because the slot always was.
- *
- * carrierWorkloadTrust already measured exactly the right thing and was only
- * ever spent on his RATE: his yards per carry regressed toward the league's,
- * while his volume did not. That comment even says "He was not a bell-cow and
- * should not run like one" and then fixed half of it. This is the other half.
- *
- * NOT ZERO, and the floor is the honest part. This roster drafts one back, so
- * whoever he is he IS the backfield - there is no second man to hand the rest
- * to. He should not run like a workhorse; he still has to run like a starter.
- * What he does not take goes to the men whose own record justifies it, through
- * the redistribution capBellCow already does - a quarterback's scrambles never
- * rise above his own, which is the Roethlisberger rule below.
+ * THIS ROSTER HAS ONE RUNNING BACK SLOT, so whoever is drafted stands in for a
+ * whole backfield and cannot be held to the share he had when he was splitting
+ * one. Half is the floor: a committee back promoted to being somebody's only
+ * back would carry more than he ever did, which is true, and he still does.
  */
 const COMMITTEE_CARRY_CEILING = 0.50;
 
 /**
- * A real bell-cow's carries per game - the anchor for how much of a backfield
- * a man is.
+ * THE CEILING IS PERSONAL, AND IT USED NOT TO BE.
  *
- * DELIBERATELY NOT STARTER_CARRIES_PER_GAME, though the first version of this
- * reused it. They answer different questions and the answers are different
- * numbers. That one asks how much of a man's YARDS PER CARRY to believe, and
- * saturates at 16 because a rate measured over a starter's season is a rate you
- * can trust - past that, more carries tell you nothing new about his average.
- * This one asks how much of the BACKFIELD he was, and there the difference
- * between 16 and 22 carries a game is the whole question. Sharing the divisor
- * made the ceiling saturate long before a workhorse: a back who really carried
- * 13 a game came out at 83% of a bell-cow and drew 19.9 carries against a true
- * workhorse's 20.8, which is the man having almost no say in his own volume.
+ * BELL_COW_CEILING was applied flat to every back, so the ceiling was the only
+ * thing deciding the carry count and every back got the same one. Measured over
+ * 1,200 games, bucketed by what each man really carried:
  *
- * 20 is where the league's actual every-down backs sit.
+ *   committee  (<12 real carries a game)   21.4 simulated against 11.4   1.88x
+ *   starter    (12-18)                     20.6 against 15.6            1.32x
+ *   workhorse  (18+)                       20.7 against 20.3            1.02x
+ *
+ * A workhorse was right and everyone else was handed his workload. That is not
+ * only unrealistic, it flattens a draft decision: knowing which backs were
+ * bell cows is exactly the kind of thing this game is meant to reward, and
+ * there was no cost at all to drafting a man who split carries his whole
+ * career.
+ *
+ * So a man's ceiling is the share of a real backfield HE really was - his own
+ * carries against a real team's - bounded at both ends. The bounds are what
+ * keep it honest about this roster's shape rather than about his old team's:
+ * never below COMMITTEE_CARRY_CEILING, because he is the only back here, and
+ * never above BELL_COW_CEILING, because nobody carries every snap.
+ *
+ * Nothing here invents a number. carriesPerGame is measured from the dataset's
+ * own rushing yards and yards per carry.
  */
-const BELL_COW_CARRIES_PER_GAME = 20;
-
-/** How much of a backfield this man really was, 0 to 1. Unknown means all of
- * it - a row built before car_pg existed carries no role information, and
- * reading that as "committee" would flatten every pre-refresh dataset. */
 function backfieldShare(entry) {
-  const perGame = Number(entry?.car_pg);
-  if (!Number.isFinite(perGame) || perGame <= 0) return 1;
-  return Math.max(0, Math.min(1, perGame / BELL_COW_CARRIES_PER_GAME));
+  return carriesPerGame(entry) / TEAM_CARRIES_PER_GAME;
 }
 
-/** How much of a team's carries THIS back may take, from his own workload. */
 function bellCowCeilingFor(entry) {
-  return COMMITTEE_CARRY_CEILING +
-    (BELL_COW_CEILING - COMMITTEE_CARRY_CEILING) * backfieldShare(entry);
+  const share = backfieldShare(entry);
+  if (!(share > 0)) return COMMITTEE_CARRY_CEILING;
+  return Math.min(BELL_COW_CEILING, Math.max(COMMITTEE_CARRY_CEILING, share));
 }
 
 /** The most of a team's carries a QUARTERBACK can take, however the rest of
@@ -986,90 +968,63 @@ function bellCowCeilingFor(entry) {
  * The small floor is the sneak-and-kneel share every quarterback has. */
 const QB_CARRY_FLOOR = 0.04;
 
-/**
- * The same rule for everyone else: nobody is lifted above the share his own
- * record justifies, except by the small positional floor beside his group.
- *
- * IT USED TO BE THE QUARTERBACK'S RULE ALONE, and every other slot was capped
- * at 1 - which is no cap. That was survivable while the bell-cow ceiling was a
- * flat 0.74, because the spare it shed was small and constant. Making the
- * ceiling personal made the spare big for a committee back, and it all went to
- * the receivers: measured with Keaton Mitchell 2023 (6.7 real carries a game)
- * in the reference cast, the wideouts and tight end went from 2.14 rushing
- * attempts a game to 6.08. Six jet sweeps a game is not football, and the
- * constant's own comment claimed the spare went "to the men whose own record
- * justifies it" while only one man's record was actually consulted.
- *
- * The floors are the real end-arounds and sneaks a season contains, not a
- * redistribution budget. TE is zero for the same reason RUSH_CARRIER_WEIGHTS.TE
- * is: a tight end taking a handoff is a called play, and this model has no
- * plays to call.
- */
-const CARRY_ABSORB_FLOOR = { QB: QB_CARRY_FLOOR, WR: 0.08, FLEX: 0.09, TE: 0 };
+/** The same floor for everyone else: the jet-sweep and end-around share a
+ * receiving corps has whatever its members' own records say. Real teams give
+ * ALL their receivers and tight ends about 2% of their carries between them,
+ * so a single slot's floor is a fraction of that - enough that the sweep
+ * exists, far too little to be a running game. */
+const SKILL_CARRY_FLOOR = 0.01;
 
-/**
- * Caps the drafted back at the share his own workload justifies, and reports
- * the part of the ground game that nobody on the roster can honestly take.
- *
- * WHAT NOBODY CAN TAKE DOES NOT HAPPEN. The previous version parked it back on
- * the bell cow, which made the ceiling inert exactly when it mattered most -
- * a committee back's spare is the largest and his team-mates' room the
- * smallest, so the man the cap was written for was the one it never touched.
- * Handing it to the receivers instead is worse, and was the bug above.
- *
- * The honest third answer is that those carries are not carried by anyone: a
- * real offence without a bell-cow RUNS LESS and throws more. So the leftover
- * comes back as `groundLoss`, and buildPlays trims the team's run share by it.
- * The weights that remain are renormalised so the draw is still a distribution.
- */
-function capBellCow(items) {
-  if (items.length < 2) return { items, groundLoss: 0 };
+function capBellCow(items, roster) {
+  if (items.length < 2) return items;
   let top = items[0];
   for (const item of items) if (item.weight > top.weight) top = item;
-  if (top.weight <= BELL_COW_CEILING) return { items, groundLoss: 0 };
+  // The ceiling belongs to the MAN, not to the slot - see bellCowCeilingFor.
+  const ceiling = bellCowCeilingFor(roster?.[top.slot]);
+  if (top.weight <= ceiling) return items;
 
-  // STAGE ONE: THE REST OF A REAL BACKFIELD. Everything above the flat ceiling
-  // is the work a real team spreads over a second back, a scrambling
-  // quarterback and the occasional sweep, and this roster has no second back -
-  // so the other skill slots stand in for it, none of them past his own
-  // ceiling. This is what the file has always done; what is new is that the
-  // ceiling now applies to EVERYONE rather than to the quarterback alone.
-  const spare = top.weight - BELL_COW_CEILING;
+  const spare = top.weight - ceiling;
+  // THE ROETHLISBERGER RULE IS FOR EVERYONE, and it used to be for the
+  // quarterback alone. Every other slot was handed a ceiling of 1 - no limit
+  // at all - so the carries taken off the bell cow went almost entirely to the
+  // receivers, who between them offered four times the room the quarterback
+  // did and had no record justifying any of it.
+  //
+  // Measured over 500 games before this line changed:
+  //
+  //   RB 64.1% of team carries   (real NFL RB1 alone is about 70%)
+  //   WR 19.3%                   (real NFL: about 2%)
+  //   TE  6.2%                   (real NFL: about 0.3%)
+  //   QB 10.5%                   (real NFL: about 12%)
+  //
+  // A receiver was carrying it 5.4 times a game and as many as 17, when a real
+  // team hands off to ALL of its receivers about once. The reported line - a
+  // WR3 with five carries and a WR2 with six, on a roster with Derrick Henry
+  // in the backfield - is exactly what a 19% share looks like from a chair.
+  //
+  // The argument the quarterback's floor already makes is not about
+  // quarterbacks: a man's own record is the only thing that should decide how
+  // often he runs. A receiver who never took an end-around does not start
+  // taking them because the back beside him is capped.
   const ceilingFor = (item) =>
-    Math.max(CARRY_ABSORB_FLOOR[item.slot.replace(/\d+$/, "")] ?? 0, item.weight);
+    item.slot === "QB"
+      ? Math.max(QB_CARRY_FLOOR, item.weight)
+      : Math.max(SKILL_CARRY_FLOOR, item.weight);
   const rest = items.filter((item) => item !== top);
+  // Only men whose own record says they carry the ball can absorb the spare,
+  // and none of them past his own ceiling. What nobody can take stays with the
+  // back: he really is the whole backfield on a twelve-slot roster, and
+  // inventing carries for a quarterback who never ran is the worse error.
   const room = rest.map((item) => Math.max(0, ceilingFor(item) - item.weight));
   const roomTotal = room.reduce((sum, r) => sum + r, 0);
   const absorbed = Math.min(spare, roomTotal);
 
-  const shared = items.map((item) => {
-    // What nobody can take stays with the back: he really is the whole
-    // backfield here, and inventing carries for men who never ran is worse.
+  return items.map((item) => {
     if (item === top) return { ...item, weight: top.weight - absorbed };
     const i = rest.indexOf(item);
     const share = roomTotal > 0 ? room[i] / roomTotal : 0;
     return { ...item, weight: item.weight + absorbed * share };
   });
-
-  // STAGE TWO: THE MAN HIMSELF. Whatever he is still holding is trimmed to the
-  // share his own workload justifies, and THAT part is carried by nobody - a
-  // real offence with no every-down back runs less and throws more, which is
-  // what buildPlays does with groundLoss. It has to be a separate stage from
-  // the sharing above, because the two answer different questions and mixing
-  // them breaks both: measured as one step, a committee back shed a third of
-  // the ground game at once, the receivers could not legitimately take it, and
-  // the team ran 24.6 times a game at 3.58 a carry - outside football on both
-  // counts. Split, the stage-one spare lands where it always did and only the
-  // personal trim - 0.036 of the ground game on an average roster, 0.10 at its
-  // widest - actually disappears.
-  const held = shared.find((item) => item.slot === top.slot);
-  const personal = bellCowCeilingFor(top.entry);
-  const groundLoss = Math.max(0, held.weight - personal);
-  if (groundLoss <= 0) return { items: shared, groundLoss: 0 };
-
-  held.weight -= groundLoss;
-  const total = shared.reduce((sum, item) => sum + item.weight, 0) || 1;
-  return { items: shared.map((item) => ({ ...item, weight: item.weight / total })), groundLoss };
 }
 
 /** Who the ball is handed to on an ordinary carry, as a multiplier on that
@@ -1124,7 +1079,7 @@ const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sa
  * box score whether you spent it on Peyton Manning or on a rookie. 0.14 puts
  * the two ends on 57.1% and 70.0%.
  *
- * THIS COSTS NOTHING ON THE SCOREBOARD, which is why it can be changed without
+ * THIS COSTS NOTHING ELSEWHERE, which is why it can be changed without
  * re-running the calibrators. Dead plays are carved out of a play count that
  * is already fixed, and the yards a drive gains are decided before any of them
  * are dealt, so this moves only HOW a drive's yardage was gained - more
@@ -1132,15 +1087,6 @@ const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sa
  * side of the change: 397 yards a team at 6.38 a play for 24.4 points before,
  * and 397 at 6.38 for 24.4 after. Only yards per completion moves, 13.2 to
  * 12.7, toward real football's 11.5.
- *
- * IT DOES COST CLOCK, and an earlier version of this note said "nothing
- * elsewhere", which was too broad. An incompletion takes 6 seconds off and the
- * completion replacing it takes 30 to 32 (see PLAY_SECONDS), so a game with
- * fewer dead plays is a longer game: a good quarterback's now runs about three
- * minutes more. The harness reads 63.3 minutes for both sides against its
- * solved 54-66 band, and an elite-against-elite fixture 61.0, so this sits
- * inside football rather than at an edge - but it is a real coupling and the
- * band is what holds it, not the absence of one.
  *
  * WHY IT WAS LOOKED AT. A live 9-6 game was reported, in which the winning
  * quarterback completed 8 of 28. The final was not the fault: both sides had
@@ -1245,22 +1191,68 @@ const RUN_SHARE_MAX = 0.77;
  * check was passing for the wrong reason. It passes on its own merits now.
  *
  * This lever moves ONLY the run/pass split: yards per play held at 6.11 across
- * a 0.15-0.20 sweep, so nothing about total offence is being tuned here.
+ * a 0.15-0.20 sweep, so nothing about total offence is being tuned here. */
+const RUN_YARD_WEIGHT = 0.17;
+
+/**
+ * THE SHAPE OF A CARRY, which used to be a flat draw and is the reason
+ * drafting a great back was barely worth anything.
  *
- * RE-SOLVED AT 0.20 when the bell-cow ceiling became personal. That change
- * removes the carries no man on the roster can honestly take (see capBellCow),
- * so a team runs 27.2 times a game instead of 28.2 - and with the yardage pool
- * split by play type, fewer runs meant a smaller ground share, taking yards
- * per carry from 3.83 to 3.76 and out of the 3.8-5.0 band.
+ * Every play's share of a drive's yardage was `0.35 + rand() * 1.3` - a
+ * uniform band, symmetric, bounded, and identical for a run and a throw.
+ * Measured against real football over 16,752 carries:
  *
- * It was re-solved to 4.05 rather than back to 3.83, because 3.83 was three
- * hundredths above a floor and real football is 4.3. A band edge is a bad
- * place to sit: the previous value survived on 0.03 of headroom, so any change
- * anywhere near the running game failed this check whether or not it made the
- * football worse. The sweep confirms the lever is still clean - across
- * 0.17-0.20, yards per play held at 6.33, plays at 62.3 and yards per drive at
- * 35.5, and only yards per carry moved. */
-const RUN_YARD_WEIGHT = 0.20;
+ *                sim     real NFL
+ *   p50          3.0     3
+ *   p90          8.0     10
+ *   p99         20.0     28
+ *   explosive    4.5%    ~11%
+ *   stuffed      7.5%    ~17%
+ *
+ * The median was right and the TAIL was less than half of football's. That is
+ * not a cosmetic miss, it is the whole mechanism by which one back is better
+ * than another: a great runner's edge is not half a yard on every carry, it is
+ * the one he breaks. With no breakaway to be had, every back settled into the
+ * same safe three or four a pop and the draft board stopped meaning anything -
+ * an elite back beat a weak one by 0.53 a carry where their own records differ
+ * by 0.72, and by fourteen yards a game.
+ *
+ * A carry is drawn from a Weibull now, which is the ordinary shape for
+ * "usually small, occasionally enormous". SHAPE above 1 is what fattens the
+ * tail; the floor is the stuffed run that still has to exist. Solved against
+ * the two numbers a fan would recognise - the explosive rate and p90 - rather
+ * than picked.
+ *
+ * PASSES ARE UNCHANGED, deliberately. A throw's distribution is already
+ * carried by the completion model and the deep/short split above it, and the
+ * measured passing shape is not the one that is wrong.
+ */
+const RUN_GAIN_FLOOR = 0.12;
+const RUN_GAIN_SHAPE = 1.35;
+
+/**
+ * How much of the tail a particular back gets.
+ *
+ * The same carrier rate that already scales his average now also decides how
+ * often he breaks one, because in football those are the same fact: a back
+ * averaging 5.2 is not gaining 5.2 every carry, he is gaining 3 like everyone
+ * else and then running 40. Applying his rate ONLY to the mean, which is what
+ * carrierYardScale did alone, produced a better back who was uniformly
+ * slightly better - which is not what watching one looks like.
+ *
+ * Bounded either side of 1 so the shape stays a football shape whoever is
+ * carrying: the worst back in the dataset still breaks the occasional long
+ * one, and the best does not turn every handoff into a race.
+ */
+const RUN_TAIL_MIN = 0.82;
+const RUN_TAIL_MAX = 1.28;
+
+function runGainWeight(rand, tail) {
+  // Inverse-transform on a Weibull. One draw, so the random stream stays as
+  // cheap as the uniform it replaces.
+  const u = Math.min(1 - 1e-9, Math.max(1e-9, rand()));
+  return RUN_GAIN_FLOOR + Math.pow(-Math.log(1 - u), RUN_GAIN_SHAPE * tail);
+}
 
 /**
  * The plays inside one drive.
@@ -1368,17 +1360,11 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // the ones spent two scores behind. The narrowed band still leaves Ground
   // Control and Vertical Attack at opposite ends of the league - about 70% runs
   // against about 70% throws - which is the whole point of the choice.
-  const usage = usageWeights(roster);
-  // A TEAM WITHOUT A BELL-COW RUNS LESS. usage.groundLoss is the part of the
-  // ground game the drafted back's own workload does not justify and nobody
-  // else's record can absorb - see capBellCow. Trimming the run share is what
-  // makes those carries disappear rather than reappear on a receiver, and it
-  // is what a real offence does when it has no every-down back: it throws.
-  // Still clamped into the same band, so a roster cannot leave football.
   const runShare = Math.max(
     RUN_SHARE_MIN,
-    Math.min(RUN_SHARE_MAX, RUN_SHARE * planTilt(plan.runShare) * (1 - usage.groundLoss))
+    Math.min(RUN_SHARE_MAX, RUN_SHARE * planTilt(plan.runShare))
   );
+  const usage = usageWeights(roster);
   // Relative to THIS backfield's own average, so weighting a carry by the man
   // taking it decides how the ground yards are shared out without changing how
   // many there are. An absolute scale would quietly hand a team with a 5.8-a-
@@ -1412,7 +1398,18 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
     // of a drive rather than the drive's total. A weak back means fewer yards
     // on the ground and more through the air, which is what a team with no run
     // game actually does.
-    raw[i] = (0.35 + rand() * 1.3) * (isRun ? RUN_YARD_WEIGHT * carrierBoost * meanCarrierScale : 1);
+    // A run and a throw are drawn from DIFFERENT SHAPES now. They never should
+    // have shared one: a completed pass is a fairly even thing and a carry is
+    // not, and giving both the same flat band is what flattened the backs.
+    if (isRun) {
+      const tail = Math.max(
+        RUN_TAIL_MIN,
+        Math.min(RUN_TAIL_MAX, carrierYardScale(roster[carriers[i]]))
+      );
+      raw[i] = runGainWeight(rand, tail) * RUN_YARD_WEIGHT * carrierBoost * meanCarrierScale;
+    } else {
+      raw[i] = 0.35 + rand() * 1.3;
+    }
   }
   const rawTotal = raw.reduce((s, v) => s + v, 0);
   // The productive plays make up whatever the sacks gave away.
@@ -1616,9 +1613,12 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
 // the MVP's name is the line in the table. Nothing here invents a statistic:
 // every input is a number some play already wrote.
 //
-// Deliberately modest. Issue #19 replaces this with football-specific MVP
-// reasoning that can explain WHY a player was chosen; this exists so that a
-// football game can be finished at all in the meantime.
+// FOOTBALL-SPECIFIC REASONING, WHICH THIS DID NOT HAVE. The weights below are
+// the ordinary currency of a normal football game, and they were applied flat
+// to every game - which is why a 9-6 final named a running back with 32 yards.
+// Two faults, both visible in the measurements in tools/tmp and both fixed
+// below: a pass rush was worth literally nothing, and a kicker who scored all
+// of his team's points could not win a game his kicking decided.
 const MVP_WEIGHTS = {
   pass_yds: 0.04, pass_tds: 4,
   rush_yds: 0.1, rush_tds: 6,
@@ -1626,12 +1626,68 @@ const MVP_WEIGHTS = {
   fgs: 3,
   // A takeaway swings a possession, which is worth about what a score is.
   ints: 6, fumbles: 5,
+  // A SACK USED TO BE WORTH ZERO. `sacked` is the quarterback's charge for
+  // taking one; nothing credited the unit that got there. Measured over 400
+  // games a drafted pass rush reaches six in a game and sits at one or more in
+  // 28% of them, so the most visible thing a defensive line does was absent
+  // from the only ranking that names a defender. Half a takeaway is the usual
+  // ratio - a sack kills a down and the yardage behind it, a turnover kills
+  // the possession - and half of `ints` is what that comes to here.
+  sacks: 3,
   sacked: -0.5,
 };
 
-function mvpScore(line) {
+/**
+ * What a point was worth in THIS game, as a multiplier on scoring and
+ * takeaways.
+ *
+ * THE COMPLAINT THIS ANSWERS. A live 9-6 game named a running back with 32
+ * yards, in a game whose every point came off a kicker's foot. The flat
+ * weights above cannot get that right, because they price a yard the same in a
+ * game where nobody could move the ball as in a 41-point one - and a game has
+ * far more yards in it than points, so yardage always wins.
+ *
+ * The correction is the one a fan makes without thinking: WHEN NOBODY COULD
+ * SCORE, SCORING IS THE STORY, and yards that never became points were not.
+ * So scoring plays, field goals and takeaways are valued against how scarce a
+ * point actually was, while yardage keeps the flat weight it already had.
+ * Boosting one is the same as discounting the other, and this way round a
+ * normal game is left exactly as it was.
+ *
+ * DELIBERATELY INERT IN A NORMAL GAME. At the reference and above the
+ * multiplier is 1, so nothing about a 24-21 or a 41-14 changes - only games
+ * the flat weights were already getting wrong move at all.
+ */
+const MVP_REFERENCE_POINTS = 22;
+/** Below this the multiplier stops climbing: a shutout would divide by zero,
+ * and a game won 3-0 is not thirty times more about its kicker than a normal
+ * one is about its quarterback. */
+const MVP_SCARCITY_FLOOR_POINTS = 6;
+const MVP_SCARCITY_CAP = 3;
+
+function pointScarcity(scoreA, scoreB) {
+  const best = Math.max(Number(scoreA) || 0, Number(scoreB) || 0);
+  const points = Math.max(best, MVP_SCARCITY_FLOOR_POINTS);
+  return Math.min(MVP_SCARCITY_CAP, Math.max(1, MVP_REFERENCE_POINTS / points));
+}
+
+/** Which weights the scarcity multiplier reaches. Scores, kicks and takeaways
+ * - the things that put points on a board or took a possession away - and not
+ * yardage, receptions or the sack charge. */
+const MVP_SCARCE_KEYS = new Set(["pass_tds", "rush_tds", "rec_tds", "fgs", "ints", "fumbles"]);
+
+/** A man on the losing side does not take this off someone this close to him
+ * on the winning side. Not a thumb on the scale for winners generally - a
+ * losing player far clear of everyone still wins it, which is how a 400-yard
+ * game in a loss should read. */
+const MVP_NEAR_TIE_SHARE = 0.12;
+
+function mvpScore(line, scarcity = 1) {
   let total = 0;
-  for (const key of Object.keys(MVP_WEIGHTS)) total += (Number(line[key]) || 0) * MVP_WEIGHTS[key];
+  for (const key of Object.keys(MVP_WEIGHTS)) {
+    const weight = MVP_WEIGHTS[key] * (MVP_SCARCE_KEYS.has(key) ? scarcity : 1);
+    total += (Number(line[key]) || 0) * weight;
+  }
   return total;
 }
 
@@ -1646,16 +1702,56 @@ function totalTouchdowns(line) {
   return (Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0);
 }
 
+/** WHY this man, in football's own words. One short clause naming the thing he
+ * actually did, so a kicker or a secondary winning it reads as a verdict
+ * rather than a glitch - which is the whole complaint against a 32-yard back
+ * taking a game decided by field goals.
+ *
+ * Built from the SAME line the box score prints, in the order a fan would say
+ * it, and capped at two clauses because a third is a stat sheet. */
+function mvpReason(line, scarce) {
+  const n = (key) => Number(line[key]) || 0;
+  const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+  const clauses = [];
+
+  const tds = totalTouchdowns(line);
+  const takeaways = n("ints") + n("fumbles");
+  const yards = totalYards(line);
+
+  if (n("fgs")) clauses.push(plural(n("fgs"), "field goal"));
+  if (takeaways) {
+    if (n("ints")) clauses.push(plural(n("ints"), "interception"));
+    if (n("fumbles")) clauses.push(plural(n("fumbles"), "forced fumble"));
+  }
+  if (n("sacks")) clauses.push(plural(n("sacks"), "sack"));
+  if (yards >= 1) clauses.push(`${Math.round(yards)} yards`);
+  if (tds) clauses.push(plural(tds, "touchdown"));
+
+  if (!clauses.length) return "the quietest game any of them had";
+  const said = clauses.slice(0, 2).join(" and ");
+  // The scarcity multiplier is the reason the choice looks unusual, so when it
+  // was doing the work, say so. A normal game just gets the line.
+  return scarce ? `${said} in a game that had nothing else in it` : said;
+}
+
 /**
  * The best individual line in the game, from either roster.
  *
  * TIE-BREAKS ARE EXPLICIT AND ORDERED, because "whichever object key came out
  * first" is not a rule anyone can predict or reproduce: value, then total
- * yards, then touchdowns, then side, then slot order. Every step is a fact
- * about the game rather than about iteration order, so the same game always
- * names the same player - which is what makes the MVP checkable at all.
+ * yards, then touchdowns, then the winning side, then slot order. Every step
+ * is a fact about the game rather than about iteration order, so the same game
+ * always names the same player - which is what makes the MVP checkable at all.
+ *
+ * SIDE "A" USED TO BREAK EXACT TIES, which is not a fact about the game at
+ * all: on two identical lines the home slot won because of how the loop was
+ * written, and in an online game "A" is whoever the server listed first. The
+ * winner of the game breaks it now, and where neither side won, A still does -
+ * a tie needs SOME deterministic answer and there is no better one.
  */
-function pickMvp(rosterA, boxA, rosterB, boxB) {
+function pickMvp(rosterA, boxA, rosterB, boxB, scoreA = 0, scoreB = 0) {
+  const scarcity = pointScarcity(scoreA, scoreB);
+  const winner = scoreA === scoreB ? null : scoreA > scoreB ? "A" : "B";
   const candidates = [];
   for (const [roster, box, side] of [
     [rosterA, boxA, "A"],
@@ -1672,22 +1768,39 @@ function pickMvp(rosterA, boxA, rosterB, boxB) {
       const line = box[slot];
       candidates.push({
         player, line, side, slot,
-        score: mvpScore(line),
+        score: mvpScore(line, scarcity),
         yards: totalYards(line),
         tds: totalTouchdowns(line),
+        won: winner != null && side === winner,
         order: i,
       });
     }
   }
   if (!candidates.length) return null;
+  const preferWinner = (a, b) => (a.won === b.won ? 0 : a.won ? -1 : 1);
   candidates.sort((a, b) =>
     b.score - a.score ||
     b.yards - a.yards ||
     b.tds - a.tds ||
+    preferWinner(a, b) ||
     (a.side === b.side ? 0 : a.side === "A" ? -1 : 1) ||
     a.order - b.order
   );
-  return candidates[0];
+
+  // THE NEAR-TIE RULE. Ranking alone let a man on the losing side take this
+  // off someone a rounding error behind him on the winning one, which is the
+  // one case where a fan would say the ranking is simply wrong. Within
+  // MVP_NEAR_TIE_SHARE of the best score, the game's winner gets it.
+  let best = candidates[0];
+  if (winner && !best.won && best.score > 0) {
+    const floor = best.score * (1 - MVP_NEAR_TIE_SHARE);
+    const contender = candidates.find((c) => c.won && c.score >= floor);
+    if (contender) best = contender;
+  }
+
+  // Issue #19: the MVP can now say why. `scarce` is what makes a kicker's
+  // three field goals beat a hundred quiet yards, so it decides the phrasing.
+  return { ...best, reason: mvpReason(best.line, scarcity > 1.35) };
 }
 
 export function simulate(rosterA, rosterB, stats, opts = {}) {
@@ -2092,7 +2205,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       // the box score prints for him.
       return {
         boxA: a.box, boxB: b.box, teamStatsA: a.team, teamStatsB: b.team,
-        mvp: pickMvp(rosterA, a.box, rosterB, b.box),
+        mvp: pickMvp(rosterA, a.box, rosterB, b.box, teamScoreA, teamScoreB),
       };
     })(),
     quarterBoxScores, drives, overtimePeriods,

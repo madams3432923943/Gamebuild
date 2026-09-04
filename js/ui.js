@@ -17,6 +17,7 @@ import {
   mostTripleDoubles,
   winStreaks,
   historyFor,
+  RECENT_GAMES_SHOWN,
   mostMVPs,
   personalBestsFor,
   gameRecordFor,
@@ -121,7 +122,7 @@ function seasonLabel(player) {
  * across a couch the number is what gets read and the word is what makes it
  * mean something. One string in one weight is a sentence you have to parse.
  */
-export function renderMvpCallout(container, { name, team, line }) {
+export function renderMvpCallout(container, { name, team, line, note }) {
   container.innerHTML = "";
 
   const tag = document.createElement("div");
@@ -139,6 +140,18 @@ export function renderMvpCallout(container, { name, team, line }) {
     side.className = "mvp-team";
     side.textContent = team;
     container.appendChild(side);
+  }
+
+  // WHY him, when the sport can say. Football's low-scoring games now go to a
+  // kicker or a secondary (see pickMvp in js/sports/nfl/engine.js), and a
+  // three-field-goal kicker taking the card off a running back reads as a
+  // glitch unless the card says what he did. Optional: a sport that offers no
+  // reason gets the card it always had rather than an empty line.
+  if (note) {
+    const why = document.createElement("div");
+    why.className = "mvp-note";
+    why.textContent = note;
+    container.appendChild(why);
   }
 
   const stats = document.createElement("div");
@@ -2276,7 +2289,10 @@ export function renderProfileScreen(
 
   refs.historyBody.innerHTML = "";
   const scopedHistory = historyFor(profile, sport.id);
-  for (const entry of scopedHistory.games) {
+  // The most recent handful, not the whole stored history - see
+  // RECENT_GAMES_SHOWN. History is newest-first, so this is the last N played.
+  const shown = scopedHistory.games.slice(0, RECENT_GAMES_SHOWN);
+  for (const entry of shown) {
     const tr = document.createElement("tr");
     tr.className = entry.won ? "win-row" : "loss-row";
     const date = new Date(entry.date).toLocaleDateString();
@@ -2300,6 +2316,18 @@ export function renderProfileScreen(
   if (!scopedHistory.games.length) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="4" class="empty-note">No ${escapeHtml(sport.name)} games played yet.</td>`;
+    refs.historyBody.appendChild(tr);
+  }
+  // A shorter list than the player has games for should say so. The older ones
+  // are not gone - they still count toward the streak records above - they are
+  // just not what this panel is for.
+  const hidden = scopedHistory.games.length - shown.length;
+  if (hidden > 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td colspan="4" class="empty-note">Showing your last ${shown.length} of ` +
+      `${scopedHistory.games.length} ${escapeHtml(sport.name)} games. ` +
+      `Older games still count toward the records above.</td>`;
     refs.historyBody.appendChild(tr);
   }
   // Said out loud rather than quietly dropped. These are games from before

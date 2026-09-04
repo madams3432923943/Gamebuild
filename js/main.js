@@ -15,6 +15,7 @@ import { newSimulationSeed, provenanceFor } from "./lib/provenance.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
+import { adviceNote, isNote, noteText } from "./gradenotes.js";
 import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
@@ -1949,6 +1950,36 @@ function hideDraftGrade() {
   draftGradeEl.classList.add("hidden");
 }
 
+/**
+ * One note on the grade card.
+ *
+ * A FACT IS A ROW, ADVICE IS A CLAUSE, and the difference is why the card
+ * stopped wrapping. A fact puts its label and its value at opposite ends of
+ * one line and forbids either from breaking; a clause is allowed the words it
+ * needs. See js/gradenotes.js for the measurements that led here.
+ *
+ * A plain string still renders - as a clause - because a sport is free not to
+ * have been converted, and a card that throws on one note is worse than a card
+ * with one long bullet in it.
+ */
+function gradeNoteRow(note) {
+  const li = document.createElement("li");
+  if (!isNote(note) || note.kind === "advice") {
+    li.className = "grade-note grade-advice";
+    li.textContent = noteText(note);
+    return li;
+  }
+  li.className = `grade-note grade-stat grade-${note.tone || "neutral"}`;
+  const label = document.createElement("span");
+  label.className = "grade-note-label";
+  label.textContent = note.label;
+  const value = document.createElement("span");
+  value.className = "grade-note-value";
+  value.textContent = note.value;
+  li.append(label, value);
+  return li;
+}
+
 /** @param opts.oppRoster adds the counterplay read when the opponent's roster
  *   is already known - it always is by the time a draft finishes. */
 function showDraftGrade(roster, opts = {}) {
@@ -1969,11 +2000,12 @@ function showDraftGrade(roster, opts = {}) {
 
   const reasons = [...grade.reasons];
   const hint = sport().rotationHint(roster);
-  if (hint) reasons.push(hint);
+  // The rotation nudge is advice by nature - it tells you to go and change
+  // something - so it joins the clauses at the bottom rather than the numbers
+  // at the top.
+  if (hint) reasons.push(adviceNote(hint));
   for (const reason of reasons) {
-    const li = document.createElement("li");
-    li.textContent = reason;
-    draftGradeReasonsEl.appendChild(li);
+    draftGradeReasonsEl.appendChild(gradeNoteRow(reason));
   }
 
   // Grade band drives the colour, so an A doesn't arrive in the same grey as
@@ -3560,6 +3592,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       name: mvp.player.name,
       team: mvpTeamName,
       line: formatMvpStatLine(sport(), mvp.line),
+      // Football explains itself; basketball has no reason to give yet, and
+      // the card omits the line rather than printing an empty one.
+      note: mvp.reason || null,
     });
     mvpCallout.classList.remove("hidden");
 

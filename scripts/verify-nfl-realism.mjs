@@ -44,6 +44,7 @@
 // threw for 76 yards a game is in the bottom tier because that is what he did.
 
 import { NFL } from "../js/sports/nfl/index.js";
+import { rateEntry } from "../js/sports/nfl/units.js";
 import { FG_RANGE_YARD } from "../js/sports/nfl/constants.js";
 import { setActiveSport } from "../js/sports/index.js";
 import { DraftState } from "../js/draft.js";
@@ -380,21 +381,6 @@ console.log(
 // they are tight enough that the failure above could not pass any of them.
 const RATE_GAMES = 400;
 const rate = { plays: [], yards: [], rush: [], drives: [], carries: [], seconds: [], backYards: [], backCarries: [] };
-/**
- * Every drafted back's simulated volume beside the volume he really carried.
- *
- * WHY THIS IS COLLECTED AT ALL. Nothing in this file had ever compared the two,
- * and the tier table above cannot: it swaps ONE man into a fixed cast, so it
- * measures whether a better back gains more - which he did - and never whether
- * he is handed more of the ball. He was not. Measured over 5,000 drafted backs,
- * the carries the RB slot received were 21.1 a game for a man who really
- * carried 12, 20.9 for one who carried 16 and 20.9 for one who carried 20.
- * Volume was a property of the SLOT and the man in it had no influence on his
- * own, so a committee back ran at 1.35x his real per-game production while a
- * genuine workhorse ran at 0.91x. The reported line was Mike Davis 2021 - 8.1
- * carries a game in real life - going for 194 yards on 22.
- */
-const backWorkload = [];
 // HOW A TEAM SCORES, not just how much. The engine drew 32% of touchdowns as
 // runs and produced 1.75 passing against 0.73 rushing, where football is about
 // 1.45 and 0.95 - while the TOTAL, 2.48 against 2.40, looked perfect. A split
@@ -407,6 +393,55 @@ const tds = { pass: 0, rush: 0, sides: 0 };
 // and the 64-attempt passing game both sat inside a table whose means looked
 // perfect. What separates football from a plausible mean is the spread and the
 // tail, so those are measured too.
+/**
+ * A man's real carries a game, from the dataset's own numbers - the same
+ * measurement carriesPerGame makes inside the engine.
+ *
+ * DELIBERATELY COMPUTED HERE RATHER THAN IMPORTED. A check that reuses the
+ * engine's own function agrees with the engine by construction; the point of
+ * this one is to hold the engine against the DATA, so it reads the data.
+ */
+const LEAGUE_YPC = 4.3;
+function realCarriesPerGame(entry) {
+  const yards = Math.max(0, Number(entry?.rush_yds) || 0);
+  if (yards <= 0) return 0;
+  const ypc = Number(entry?.ypc) || 0;
+  return ypc > 0 ? yards / ypc : yards / LEAGUE_YPC;
+}
+
+/** Backs split by the workload they really carried. The bands are the ones a
+ * fan would use: a committee back, a starter, a bell cow. */
+/**
+ * THE SHAPE OF A CARRY, and whether the back you drafted is worth drafting.
+ *
+ * Every rate above this is a MEAN, and a mean is what a flat draw gets right
+ * while getting football wrong. Run gains used to come from a uniform band, so
+ * the median carry was correct and the tail was less than half of football's -
+ * 4.2% explosive against a real 11%, 7.3% stuffed against 17%. A carry was a
+ * safe three yards for everyone.
+ *
+ * That is not a cosmetic miss. A great back's edge is not half a yard every
+ * time he touches it, it is the one he breaks, so with no breakaway to be had
+ * there was nothing for one back to be better than another AT.
+ */
+const runGains = [];
+/** The drafted back's line against his own draft rating, which is the number
+ * the board showed the player when they spent the pick. */
+const backsByRating = [];
+
+/** Carries by position group over the whole run, and receivers' share per
+ * team-game. Real football hands off to ALL of its receivers and tight ends
+ * about once a game between them; everything else goes to the backfield and
+ * the quarterback. */
+const carriesByGroup = {};
+const receiverCarriesPerGame = [];
+
+const BACK_BUCKETS = [
+  { key: "committee", label: "committee (<12 a game)", lo: 0, hi: 12, simulated: [], real: [] },
+  { key: "starter", label: "starter (12-18)", lo: 12, hi: 18, simulated: [], real: [] },
+  { key: "workhorse", label: "workhorse (18+)", lo: 18, hi: 999, simulated: [], real: [] },
+];
+
 const shape = {
   score: [], yardsPerPlay: [], sacks: [], attempts: [], fieldGoals: [], touchdowns: [],
   // Per GAME rather than per side: a scoreboard is the thing a player looks at,
@@ -415,6 +450,11 @@ const shape = {
   // Per game per quarterback, for the low-tail check below. Games where he
   // barely threw are excluded - a 2-of-5 line is a game script, not a rate.
   compPct: [],
+  // WHO GETS NAMED MAN OF THE MATCH, which nothing measured until a live 9-6
+  // game handed it to a running back with 32 yards. One entry per game:
+  // { slot, contribution, low, won }, where `low` marks the games the
+  // complaint was about.
+  mvps: [],
 };
 // Drafting is the expensive half of this - about 10ms a pair against 2ms a
 // simulation - so a smaller set of pairs is drafted once and replayed. Each
@@ -456,16 +496,45 @@ for (let i = 0; i < RATE_GAMES; i++) {
     // came back at 297 yards.
     rate.backYards.push((box.RB || {}).rush_yds || 0);
     rate.backCarries.push((box.RB || {}).carries || 0);
-    // THE MAN AGAINST HIS SLOT. Held beside the back's own real workload so
-    // the two checks below can ask whether he had any say in his own volume;
-    // for a long time he did not - see backWorkload's own note.
-    if (roster.RB) {
-      backWorkload.push({
-        realCarries: Number(roster.RB.car_pg) || 0,
-        carries: (box.RB || {}).carries || 0,
-        yards: ((box.RB || {}).rush_yds || 0) + ((box.RB || {}).rec_yds || 0),
-        realYards: (Number(roster.RB.rush_yds) || 0) + (Number(roster.RB.rec_yds) || 0),
+    // THE DRAFTED BACK AGAINST HIS OWN RECORD, bucketed by what he really
+    // carried. The mean above cannot see this: every back got the same 21
+    // carries, so the average was right and every individual was wrong.
+    // WHO IS CARRYING IT, by position group. A drafted back sharing his
+    // backfield with three wide receivers is the fault this catches, and only
+    // a per-group share can see it: the team's carry TOTAL was correct the
+    // whole time it was happening.
+    for (const [slot, line] of Object.entries(box)) {
+      const carries = Number(line.carries) || 0;
+      if (!carries) continue;
+      const group = slot.replace(/\d+$/, "");
+      carriesByGroup[group] = (carriesByGroup[group] || 0) + carries;
+      carriesByGroup.__total = (carriesByGroup.__total || 0) + carries;
+    }
+    receiverCarriesPerGame.push(
+      Object.entries(box).reduce(
+        (sum, [slot, line]) =>
+          /^(WR|TE)/.test(slot) ? sum + (Number(line.carries) || 0) : sum,
+        0
+      )
+    );
+    if (roster.RB && (box.RB?.carries || 0) > 0) {
+      backsByRating.push({
+        rating: rateEntry(roster.RB, ctx),
+        ypc: (box.RB.rush_yds || 0) / box.RB.carries,
+        yards: box.RB.rush_yds || 0,
+        // His OWN rate, carried alongside, so the check below can compare the
+        // simulation against the very backs it simulated rather than against a
+        // remembered number from a different sample.
+        realYpc: Number(roster.RB.ypc) || 0,
       });
+    }
+    const backCarries = realCarriesPerGame(roster.RB);
+    if (backCarries > 0) {
+      const bucket = BACK_BUCKETS.find((b) => backCarries >= b.lo && backCarries < b.hi);
+      if (bucket) {
+        bucket.simulated.push((box.RB || {}).carries || 0);
+        bucket.real.push(backCarries);
+      }
     }
     tds.sides += 1;
     for (const line of Object.values(box)) {
@@ -482,7 +551,30 @@ for (let i = 0; i < RATE_GAMES; i++) {
       Object.values(box).reduce((sum, line) => sum + (line.rush_tds || 0) + (line.rec_tds || 0), 0)
     );
   }
+  for (const drive of result.drives) {
+    for (const play of drive.plays || []) {
+      if (play.type === "run") runGains.push(play.gain);
+    }
+  }
   shape.combined.push(result.teamScoreA + result.teamScoreB);
+  // WHAT THE MAN NAMED ACTUALLY DID. Recorded as the separate quantities
+  // rather than as the engine's own score, so a check here cannot be satisfied
+  // by the same weights it is meant to be testing.
+  if (result.mvp) {
+    const line = result.mvp.line;
+    const n = (key) => Number(line[key]) || 0;
+    shape.mvps.push({
+      slot: result.mvp.slot,
+      reason: result.mvp.reason,
+      yards: n("pass_yds") + n("rush_yds") + n("rec_yds"),
+      touchdowns: n("pass_tds") + n("rush_tds") + n("rec_tds"),
+      fieldGoals: n("fgs"),
+      takeaways: n("ints") + n("fumbles"),
+      sacks: n("sacks"),
+      combined: result.teamScoreA + result.teamScoreB,
+      won: result.winner == null || result.mvp.side === result.winner,
+    });
+  }
   rate.seconds.push(result.teamStatsA.possessionSeconds + result.teamStatsB.possessionSeconds);
 }
 const mean = (list) => list.reduce((a, b) => a + b, 0) / Math.max(1, list.length);
@@ -659,21 +751,86 @@ const tdToFg = tdPerGame / Math.max(1e-9, fgPerGame);
 const scoreShape = summarise(shape.score);
 const yppShape = summarise(shape.yardsPerPlay);
 const compShape = summarise(shape.compPct);
-// Split the drafted backs by the workload they really carried, so "does the
-// man decide his own volume" can be asked as a number.
-const ranked = backWorkload.filter((b) => b.realCarries > 0).sort((a, b) => a.realCarries - b.realCarries);
-const quartile = (list) => {
-  const cut = Math.max(1, Math.floor(list.length / 4));
-  return { light: list.slice(0, cut), heavy: list.slice(-cut) };
-};
-const { light: lightBacks, heavy: heavyBacks } = quartile(ranked);
-const meanOf = (list, key) => (list.length ? list.reduce((sum, b) => sum + b[key], 0) / list.length : 0);
-const productionRatio = (list) => {
-  const real = meanOf(list, "realYards");
-  return real > 0 ? meanOf(list, "yards") / real : 0;
-};
 const quietGames = shape.combined.filter((total) => total <= 20).length /
   Math.max(1, shape.combined.length);
+
+// ---- does the man you drafted run like himself ------------------------------
+//
+// The mean carry count was right all along and every individual back was
+// wrong. BELL_COW_CEILING was applied flat, so it was the ONLY thing deciding
+// the count and every back hit the same one: 21.4 carries for a committee back
+// who really carried 11.4, against 20.7 for a workhorse who really carried
+// 20.3. A back's own record decided nothing, which is a realism fault and a
+// gameplay one at once - knowing who the bell cows were is exactly what this
+// game is meant to reward, and drafting a man who split carries his whole
+// career cost nothing at all.
+const backRatios = BACK_BUCKETS.map((bucket) => ({
+  ...bucket,
+  n: bucket.simulated.length,
+  ratio: bucket.simulated.length
+    ? mean(bucket.simulated) / Math.max(1e-9, mean(bucket.real))
+    : null,
+}));
+// ---- the shape of a carry ---------------------------------------------------
+const EXPLOSIVE_RUN_YARDS = 12;
+const explosiveRunRate = runGains.length
+  ? runGains.filter((g) => g >= EXPLOSIVE_RUN_YARDS).length / runGains.length
+  : 0;
+const stuffedRunRate = runGains.length
+  ? runGains.filter((g) => g <= 0).length / runGains.length
+  : 0;
+
+// ---- is the man you drafted worth drafting ----------------------------------
+//
+// Split at the thirds of what the BOT ACTUALLY DRAFTS rather than of the whole
+// pool: the pool is mostly backups nobody takes, and thirds of it would compare
+// two bands that never appear in a game.
+const ratedBacks = [...backsByRating].sort((a, b) => a.rating - b.rating);
+const third = Math.floor(ratedBacks.length / 3);
+const weakBacks = ratedBacks.slice(0, third);
+const eliteBacks = ratedBacks.slice(-third);
+const meanOf = (list, key) => (list.length ? mean(list.map((b) => b[key])) : 0);
+const talentYpcGap = meanOf(eliteBacks, "ypc") - meanOf(weakBacks, "ypc");
+const talentYardGap = meanOf(eliteBacks, "yards") - meanOf(weakBacks, "yards");
+// THE SAME GAP IN THE DATA, from the same backs. An absolute band would be
+// measuring the sample as much as the engine: these 50 drafted pairs happen to
+// hold backs whose real rates differ by 0.52, while a 120-pair sample of the
+// same draft holds backs differing by 0.70. Both are honest draws; a fixed
+// band would pass one and fail the other while the engine did the same thing.
+const realTalentGap = meanOf(eliteBacks, "realYpc") - meanOf(weakBacks, "realYpc");
+const talentCarryThrough = realTalentGap > 0 ? talentYpcGap / realTalentGap : 0;
+
+const receiverCarryShare = carriesByGroup.__total
+  ? ((carriesByGroup.WR || 0) + (carriesByGroup.TE || 0)) / carriesByGroup.__total
+  : 0;
+const meanReceiverCarries = mean(receiverCarriesPerGame);
+const backCarryMean = mean(BACK_BUCKETS.flatMap((b) => b.simulated));
+
+// ---- who gets named man of the match ---------------------------------------
+//
+// A LOW-SCORING GAME IS A DIFFERENT GAME, and the MVP has to read like one.
+// The reported fault was a 9-6 final naming a back with 32 yards, in a game
+// whose every point came off a kicker's foot. Two things are checked, and they
+// are separate questions.
+//
+// A FLOOR. Whoever is named must have done SOMETHING a fan would accept as the
+// reason. Yardage is not the only such thing - a secondary and a kicker have
+// none by definition - so the floor is a disjunction over every way football
+// lets a man decide a game.
+const MVP_LOW_SCORING_TOTAL = 24;
+const DEFENSIVE_SLOTS = new Set(["DL", "LB", "CB", "S", "DEF"]);
+const mvpDecided = (m) =>
+  m.yards >= 60 || m.touchdowns >= 1 || m.fieldGoals >= 2 || m.takeaways >= 1 || m.sacks >= 2;
+const mvpTrivial = shape.mvps.filter((m) => !mvpDecided(m));
+const mvpLow = shape.mvps.filter((m) => m.combined <= MVP_LOW_SCORING_TOTAL);
+const mvpLowDefensiveOrKicking = mvpLow.filter(
+  (m) => DEFENSIVE_SLOTS.has(m.slot) || m.slot === "ST"
+).length;
+const mvpLowShare = mvpLow.length ? mvpLowDefensiveOrKicking / mvpLow.length : 0;
+const mvpLosingShare = shape.mvps.length
+  ? shape.mvps.filter((m) => !m.won).length / shape.mvps.length
+  : 0;
+const mvpUnexplained = shape.mvps.filter((m) => !m.reason).length;
 
 const checks = [
   {
@@ -794,49 +951,6 @@ const checks = [
       const e = eff(tierStats.get(t.key));
       return `${t.key} ${(e.yardsPerGame / Math.max(1, e.realYardsPerGame)).toFixed(2)}x`;
     }).join("  "),
-  },
-  {
-    // CARRIES ARE THE MAN'S, NOT THE SLOT'S.
-    //
-    // A twelve-slot roster drafts one back, so whoever he is he absorbs the
-    // backfield - and BELL_COW_CEILING is a flat cap his raw share almost
-    // always exceeded, so he landed AT it every time. Measured before the fix:
-    // 21.1 carries for a back who really carried 12, 20.9 for one who carried
-    // 16, 20.9 for one who carried 20. Nothing in this file asked, because the
-    // tier table swaps one man into a fixed cast and so can only see whether a
-    // better back GAINS more, never whether he is HANDED more.
-    //
-    // The bar is deliberately modest: the drafted back really is the whole
-    // backfield here, so a committee man still starts. What is forbidden is
-    // that his own career makes no difference at all.
-    title: "The back's carries follow the man, not the slot",
-    ok: lightBacks.length > 0 && heavyBacks.length > 0 &&
-      meanOf(lightBacks, "carries") < meanOf(heavyBacks, "carries") * 0.95,
-    detail: `bottom quartile by real workload ${meanOf(lightBacks, "carries").toFixed(1)} carries ` +
-      `(really ${meanOf(lightBacks, "realCarries").toFixed(1)}), ` +
-      `top quartile ${meanOf(heavyBacks, "carries").toFixed(1)} (really ${meanOf(heavyBacks, "realCarries").toFixed(1)})`,
-  },
-  {
-    // The back's version of "Simulated production tracks real production
-    // within 1.6x", which until now only the quarterback had. He had both a
-    // floor and a ceiling against his own record; the back had neither, only
-    // an ordinal check that a better back gains more than a worse one. A
-    // bench player posting a starter's line passes that check every time.
-    // BOTH ENDS, and the first version of this had only one. Its comment
-    // claimed to mirror the quarterback's pair of checks - a floor at 0.4x so
-    // a weak passer is rated low rather than erased, and a ceiling at 1.6x -
-    // and then asserted the ceiling alone. A back producing a fifth of his
-    // real output passed it, and passed the ordinal sibling check too, so the
-    // erasure failure the QB floor exists to catch had no counterpart here at
-    // all. 0.5x rather than the quarterback's 0.4x because a back's real
-    // per-game average is less depressed by partial games than a backup
-    // passer's is.
-    title: "A back's production tracks his own, within 1.6x and above half",
-    ok: lightBacks.length > 0 && heavyBacks.length > 0 &&
-      productionRatio(lightBacks) < 1.6 && productionRatio(heavyBacks) < 1.6 &&
-      productionRatio(lightBacks) > 0.5 && productionRatio(heavyBacks) > 0.5,
-    detail: `bottom quartile ${productionRatio(lightBacks).toFixed(2)}x his real per-game, ` +
-      `top quartile ${productionRatio(heavyBacks).toFixed(2)}x`,
   },
   {
     title: "Rushing production tracks the back's own rate",
@@ -1078,6 +1192,131 @@ const checks = [
     title: "Yards per play spreads the way a season's games do",
     ok: yppShape.p90 - yppShape.median >= 0.9 && yppShape.p90 <= 10 && yppShape.max < 12,
     detail: `median ${yppShape.median.toFixed(2)}, p90 ${yppShape.p90.toFixed(2)}, max ${yppShape.max.toFixed(2)}`,
+  },
+  {
+    // A CARRY IS MOSTLY SHORT AND OCCASIONALLY ENORMOUS, which a flat draw
+    // cannot be. Real football breaks one of about nine carries for twelve or
+    // more; this game managed one in twenty-two, and the mean was right the
+    // whole time - which is exactly why only a distribution check catches it.
+    title: "Runs break the way football's do (8-14% go for 12+)",
+    ok: explosiveRunRate >= 0.08 && explosiveRunRate <= 0.14,
+    detail: `${(100 * explosiveRunRate).toFixed(1)}% explosive over ${runGains.length} carries ` +
+      `(real NFL about 11%; this harness measured 4.2% on the flat draw)`,
+  },
+  {
+    // The other shoulder. A distribution with no tail also had no stuffs -
+    // every carry was a safe gain, which is the same fault seen from the other
+    // end and would let a fat tail be faked by simply adding yards.
+    title: "And they get stuffed the way football's do (12-22% go nowhere)",
+    ok: stuffedRunRate >= 0.12 && stuffedRunRate <= 0.22,
+    detail: `${(100 * stuffedRunRate).toFixed(1)}% gained nothing or lost ground ` +
+      `(real NFL about 17%; this harness measured 7.3% on the flat draw)`,
+  },
+  {
+    // WHAT THE PICK IS WORTH. The commercial question, and the one nothing
+    // asked: a player spends a high pick on a great back, and this is what he
+    // gets for it. Measured against the same rating the draft board showed him.
+    //
+    // MEASURED AS A SHARE OF THE GAP THE DATA ITSELF CONTAINS, not as an
+    // absolute. Both directions are wrong: carry too little through and the
+    // board is lying about the difference between two backs; carry too much and
+    // the sport stops being football, where a great starter beats a poor one by
+    // well under a yard a carry. Under 1 is expected and correct - a defence, an
+    // offensive line and a thin-sample regression all legitimately compress a
+    // man's career rate - so the floor is what says the compression has not
+    // become erasure.
+    title: "A better back is worth what a better back is worth (50-150% of the real gap)",
+    ok: talentCarryThrough >= 0.5 && talentCarryThrough <= 1.5,
+    detail: `top third of drafted backs beat the bottom third by ` +
+      `${talentYpcGap.toFixed(2)} a carry and ${talentYardGap.toFixed(0)} yards a game, ` +
+      `against a real gap of ${realTalentGap.toFixed(2)} - ` +
+      `${(100 * talentCarryThrough).toFixed(0)}% carried through (48% on the flat draw)`,
+  },
+  {
+    // THE BACKFIELD BELONGS TO THE BACK, and for a long time a fifth of it
+    // belonged to the wide receivers. capBellCow gave the quarterback a
+    // ceiling drawn from his own record - the Roethlisberger rule - and gave
+    // every other slot a ceiling of 1, no limit at all, so the carries taken
+    // off a bell cow went almost entirely to the receiving corps. Measured
+    // before the fix: WR 19.3% of team carries against real football's 2%, TE
+    // 6.2% against 0.3%, and a receiver carrying it 5.4 times a game.
+    //
+    // Reported from a real game, which is the point: a WR3 with five carries
+    // and a WR2 with six, on a roster with Derrick Henry in the backfield.
+    title: "Receivers barely carry the ball, the way they barely do (under 6%)",
+    ok: receiverCarryShare <= 0.06,
+    detail: `WR+TE take ${(100 * receiverCarryShare).toFixed(1)}% of carries ` +
+      `(real NFL about 2.3%; was 25.5% before the ceiling applied to them), ` +
+      `${meanReceiverCarries.toFixed(1)} a game against a real team's ~1`,
+  },
+  {
+    // AND THE BACK CARRIES A WHOLE BACKFIELD. This roster has one running back
+    // slot and no backups, so whoever fills it stands in for RB1, RB2 and RB3
+    // together - about 85% of a team's carries, not one back's 70%. Too few
+    // means somebody else is taking them (the fault above); too many means the
+    // quarterback stopped scrambling.
+    //
+    // THIS REPLACED A CHECK ON HOW FAR EACH BACK RAN ABOVE HIS OWN RECORD, and
+    // that check was measuring something structurally impossible. A committee
+    // back drafted as your only back MUST carry a full backfield's load - the
+    // carries have nowhere else honest to go - so every back lands near 24
+    // whatever he really did, and demanding otherwise was demanding the
+    // receivers keep absorbing them. See "known limitations" in the report:
+    // the draft signal at this slot has to live in yards per carry, and
+    // measured at 3.59/3.77/3.76 across the three workload bands it currently
+    // barely does. That is an open problem, not one this band should hide.
+    title: "The drafted back carries a full backfield (20-28 a game)",
+    ok: backCarryMean >= 20 && backCarryMean <= 28,
+    detail: `${backCarryMean.toFixed(1)} carries a game; ` +
+      backRatios
+        .filter((b) => b.n >= 20)
+        .map((b) => `${b.label} ${mean(b.simulated).toFixed(1)}`)
+        .join(", "),
+  },
+  {
+    // THE FLOOR, which did not exist. Measured before this check was written:
+    // 2% of games named a player with under 60 total yards and the first
+    // percentile was zero, so a man who did nothing at all could be the story
+    // of a game. Nothing here demands YARDS - a kicker and a secondary have
+    // none, and that is the point - only that the reason exists.
+    title: "Every man of the match did something that decided a game",
+    ok: mvpTrivial.length === 0,
+    detail: mvpTrivial.length === 0
+      ? `${shape.mvps.length} games, none named on a trivial line`
+      : `${mvpTrivial.length} of ${shape.mvps.length} named on nothing: ` +
+        mvpTrivial.slice(0, 3).map((m) => `${m.slot} ${m.yards}yds`).join(", "),
+  },
+  {
+    // AND WHO IT IS IN A GAME WITH NOTHING IN IT. Real football's low-scoring
+    // games belong to defences and kickers; this game's belonged to whichever
+    // skill player happened to lead a quiet box score, because yardage was
+    // priced the same in a 9-6 as in a 41-14 and a game has far more yards in
+    // it than points. The band is a floor rather than a target: skill players
+    // still win plenty of 17-7s, and demanding a majority would be claiming
+    // football's quiet games are ALWAYS a defensive story, which they are not.
+    title: "A game with nothing in it belongs to a defence or a kicker (20%+)",
+    ok: mvpLowShare >= 0.2,
+    detail: `${(100 * mvpLowShare).toFixed(1)}% of ${mvpLow.length} games at or under ` +
+      `${MVP_LOW_SCORING_TOTAL} combined points (was 10.5% before the scarcity weighting)`,
+  },
+  {
+    // The near-tie rule, from the other end. A losing player CAN be the best
+    // man on the field - a 400-yard game in a loss is a real thing - so this
+    // is a ceiling on how often, not a ban. Before the rule, side "A" broke
+    // exact ties, which is not a fact about the game at all.
+    title: "The man of the match is usually on the winning side (loser under 30%)",
+    ok: mvpLosingShare <= 0.3,
+    detail: `${(100 * mvpLosingShare).toFixed(1)}% of games named someone who lost`,
+  },
+  {
+    // Issue #19 asked for reasoning a card can print. A blank one would render
+    // as an empty line rather than as an error, which is the silent-failure
+    // shape CLAUDE.md forbids.
+    title: "Every man of the match can say why",
+    ok: mvpUnexplained === 0,
+    detail: mvpUnexplained === 0
+      ? `${shape.mvps.length} reasons, e.g. "${shape.mvps[0]?.reason ?? ""}"`
+      : `${mvpUnexplained} named with no reason`,
   },
   {
     title: "The drives still add up to the scoreboard",

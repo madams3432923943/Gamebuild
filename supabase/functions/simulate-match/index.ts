@@ -230,17 +230,99 @@ async function loadWholeTable(admin: any, table: string): Promise<any[] | null> 
  * dataset, the same for every caller.
  */
 const DATASET_TTL_MS = 10 * 60 * 1000;
-const datasetStatsCache = new Map<string, { at: number; stats: any }>();
 
-async function datasetStatsFor(admin: any, sportEngine: any): Promise<any | null> {
+/**
+ * IS THE TABLE STILL THE ONE THE BAKED STATISTICS DESCRIBE?
+ *
+ * A `count(*)` with head:true is a header and no rows, so this asks the
+ * question for approximately nothing - against the 6.72MB the full read costs.
+ *
+ * It exists because baking creates a way for the server to be quietly wrong.
+ * The seed workflow and the deploy workflow both fire on a push to main, but
+ * they are separate jobs and either can fail alone: a seed that lands without
+ * its deploy leaves the function serving percentiles for a pool that no longer
+ * exists, and every number it produces stays plausible. The count is the
+ * cheapest fact that distinguishes the two.
+ *
+ * It is a HEURISTIC, deliberately. A dataset rebuilt to exactly the same row
+ * count with different numbers inside would slip past, which is why
+ * scripts/verify-baked-stats.mjs compares the whole context in CI and the
+ * dataset version travels onto every stored result. This guards the deploy
+ * accident, not a malicious one.
+ */
+async function liveRowCount(admin: any, table: string): Promise<number | null> {
+  const { count, error } = await admin
+    .from(table)
+    .select("*", { count: "exact", head: true });
+  if (error || typeof count !== "number") return null;
+  return count;
+}
+/**
+ * THE VERSION IS CACHED WITH THE STATS, because the rows it is computed from
+ * do not survive this function and the handler needs it at the very end.
+ *
+ * The handler read `playerRows` directly - a `const` that lives in HERE, in a
+ * different scope - and threw `ReferenceError: playerRows is not defined` on
+ * the line that stamps the dataset version onto a finished match. Every online
+ * game since 2026-08-24 simulated correctly and then died at the final step,
+ * so both players watched "STILL SIMULATING..." and got "couldn't load the
+ * result". The bug is at the last statement of a long handler and only on the
+ * path that finishes a real match, which is why nothing but a real pair of
+ * players found it.
+ *
+ * Returning the VERSION rather than the rows is deliberate: the rows are ten
+ * thousand records the caller has no other use for, and handing them back
+ * would invite exactly the accidental retention this cache exists to avoid.
+ */
+type DatasetForSport = { stats: any; version: string };
+const datasetStatsCache = new Map<string, { at: number; stats: any; version: string }>();
+
+async function datasetStatsFor(admin: any, sportEngine: any): Promise<DatasetForSport | null> {
   const cached = datasetStatsCache.get(sportEngine.table);
-  if (cached && Date.now() - cached.at < DATASET_TTL_MS) return cached.stats;
+  if (cached && Date.now() - cached.at < DATASET_TTL_MS) {
+    return { stats: cached.stats, version: cached.version };
+  }
+
+  // THE BAKED PATH, which is the one every ordinary request takes.
+  //
+  // The rating context is a pure function of the dataset - percentile
+  // distributions over the public pool - so it is computed once at build time
+  // by tools/bake-server-stats.mjs and shipped inside this function. Deriving
+  // it here meant paging the entire table in on EVERY request, because the
+  // cache above never survives: measured against this project, 12 isolate
+  // boots served 6 requests, so each isolate computed the context once and
+  // died. That was about 19MB of egress per online football match to arrive at
+  // a number that had not changed since the last deploy.
+  const baked = sportEngine.baked;
+  if (baked?.stats) {
+    const count = await liveRowCount(admin, sportEngine.table);
+    if (count === baked.rowCount) {
+      datasetStatsCache.set(sportEngine.table, {
+        at: Date.now(), stats: baked.stats, version: baked.datasetVersion,
+      });
+      return { stats: baked.stats, version: baked.datasetVersion };
+    }
+    // LOUDLY, because this is a deploy that half-landed. The function keeps
+    // working - it reads the table properly below - but a server quietly
+    // running on precomputed statistics for a pool that has been replaced is
+    // exactly the silent failure CLAUDE.md forbids, and the only way anyone
+    // finds out is if it says so.
+    console.error(
+      `baked ${sportEngine.table} stats are stale: baked for ${baked.rowCount} rows, ` +
+        `table holds ${count === null ? "an unreadable count" : count}. ` +
+        `Falling back to a full read - redeploy the Edge Function, or re-run the seed.`
+    );
+  }
 
   const playerRows = await loadWholeTable(admin, sportEngine.table);
   if (!playerRows) return null;
   const stats = sportEngine.computeDatasetStats(playerRows);
-  datasetStatsCache.set(sportEngine.table, { at: Date.now(), stats });
-  return stats;
+  const version = sportEngine.datasetVersion(playerRows);
+  // The browser's draft-grade curve wants every entry on the context; the
+  // server never reads one back, and on football they are 4.8MB per isolate.
+  delete stats.__allEntries;
+  datasetStatsCache.set(sportEngine.table, { at: Date.now(), stats, version });
+  return { stats, version };
 }
 
 Deno.serve(async (req: Request) => {
@@ -291,8 +373,9 @@ Deno.serve(async (req: Request) => {
   const sportEngine = engineFor(sportId);
   if (!sportEngine) return json({ error: `no server engine for sport '${sportId}'` }, 501);
 
-  const datasetStats = await datasetStatsFor(admin, sportEngine);
-  if (!datasetStats) return json({ error: `failed to load ${sportId} player dataset` }, 500);
+  const dataset = await datasetStatsFor(admin, sportEngine);
+  if (!dataset) return json({ error: `failed to load ${sportId} player dataset` }, 500);
+  const datasetStats = dataset.stats;
 
   // Every sport owns these conversions. This is the critical boundary that
   // prevents a shared online shell from turning an NFL roster into basketball
@@ -424,7 +507,7 @@ Deno.serve(async (req: Request) => {
   };
   const engineVersion = `${sportId}-engine-2026-08-11.1`;
   const rulesVersion = `${match.game_mode || "ranked"}-rules-2026-08-11.1`;
-  const datasetVersion = sportEngine.datasetVersion(playerRows);
+  const datasetVersion = dataset.version;
 
   const { data: finalized, error: finalizeErr } = await admin.rpc("finalize_match_result", {
     p_match_id: matchId,

@@ -159,9 +159,27 @@ function eraKey(row) {
   return Number.isFinite(season) ? String(Math.floor(season / 10) * 10) : "all";
 }
 
+/**
+ * How much of a unit's measured quality to believe, from how many men were
+ * actually in it. A two-man linebacker corps really is thinner than a five-man
+ * one, and the sample behind its numbers is thinner too.
+ *
+ * A DEPTH OF ZERO IS THE THINNEST UNIT THERE IS, NOT AN AVERAGE ONE. It used
+ * to return 0.85, which sits ABOVE the factor for a one-deep (0.776) and a
+ * two-deep (0.832) unit - so a unit nobody could even name outranked a stable
+ * one. Zero never means "no players": a unit with no members is one where
+ * every man passed through too fast to clear the games threshold, which is
+ * maximum churn. It is treated as one-deep, the thinnest real unit, rather
+ * than as a missing value handed a plausible-looking default - the exact
+ * failure CLAUDE.md names.
+ *
+ * Two rows in the shipped data reach it: the 2002 Jaguars special teams and
+ * one safeties unit. The safeties row was already there and already scored
+ * this way, which is why nothing had noticed.
+ */
 function depthFactor(depth) {
   const value = Number(depth);
-  if (!Number.isFinite(value) || value <= 0) return 0.85;
+  if (!Number.isFinite(value) || value <= 1) return Math.min(1, 0.72 + 0.056);
   return Math.min(1, 0.72 + 0.056 * value);
 }
 
@@ -341,6 +359,31 @@ function rateDefensiveUnit(row, ctx) {
   return clamp(0.5 + (withSample - 0.5) * depthFactor(row.depth));
 }
 
+/**
+ * Groups whose DEPTH SAYS NOTHING ABOUT THEIR QUALITY.
+ *
+ * depthFactor exists because a two-man linebacker corps really is thinner than
+ * a five-man one - more men means more of the job covered, and more games
+ * behind the average. Neither is true of a kicking unit. A team has ONE
+ * kicker; that is a complete special teams, not a thin one, and his field-goal
+ * percentage over a season is a perfectly good sample from one man.
+ *
+ * This was hidden until the punter was taken out of the unit. `P` was in the
+ * membership filter, so 656 of 830 kicking units came out exactly two deep -
+ * a kicker and a punter - and the punter was quietly paying the depth
+ * penalty's rent. Remove him and every kicking unit correctly becomes one
+ * deep, at which point the penalty it should never have been paying is
+ * suddenly visible as a 6% cut to every kicker in the game.
+ *
+ * OL is here for a reason this file already accepted: there are no named
+ * linemen in the source at all, so its depth is hardcoded to 5 in the build.
+ * Naming the exemption is better than encoding it as a magic number in the
+ * data, and it is why ST could not simply be pinned to 1 the same way - that
+ * would state a fact about the roster in the one place a reader looks for
+ * facts about the season.
+ */
+const DEPTH_IS_NOT_QUALITY = new Set(["ST", "OL"]);
+
 export function rateUnit(row, ctx) {
   const group = canonicalGroup(row);
   if (DEFENSIVE_GROUPS.has(group)) return rateDefensiveUnit(row, ctx);
@@ -349,7 +392,8 @@ export function rateUnit(row, ctx) {
   const raw = percentile(ctx.units[group], composite(row));
   const trust = n(row.games) >= MIN_RATED_GAMES ? 1 : Math.max(0, n(row.games)) / MIN_RATED_GAMES;
   const withSample = 0.5 + (raw - 0.5) * trust;
-  return clamp(0.5 + (withSample - 0.5) * depthFactor(row.depth));
+  const depth = DEPTH_IS_NOT_QUALITY.has(group) ? 1 : depthFactor(row.depth);
+  return clamp(0.5 + (withSample - 0.5) * depth);
 }
 
 export const isUnit = (entry) => typeof entry?.group === "string";

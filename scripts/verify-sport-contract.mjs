@@ -15,6 +15,7 @@
 // Add a hook to js/ui.js, add its name here.
 
 import { SPORTS, ensureSportData } from "../js/sports/index.js";
+import { isNote, notesText } from "../js/gradenotes.js";
 
 // A sport may load its dataset on demand rather than on boot - football does,
 // because its data is larger than the rest of the app combined. The contract
@@ -70,6 +71,31 @@ const REQUIRED_ARITY = { playersInEra: 2 };
 const REQUIRED_SHAPES = {
   gradeDraft: { fields: ["letter", "headline", "reasons"], arrays: ["reasons"] },
 };
+
+/** `reasons` CARRIES NOTES, NOT SENTENCES - see js/gradenotes.js for why. Each
+ * entry is either a stat row ({kind:"stat", label, value}) or a clause
+ * ({kind:"advice", text}), and js/main.js renders the two differently: a row
+ * cannot wrap, a clause can. A plain string still renders, as a clause, so a
+ * sport is free not to have been converted - but a note that is an object of
+ * some THIRD shape renders as an empty bullet, which is the silent failure this
+ * checks for. */
+function noteShapeFaults(notes) {
+  const faults = [];
+  for (const [index, note] of (notes || []).entries()) {
+    if (typeof note === "string") continue;
+    if (isNote(note)) {
+      if (note.kind === "stat" && !(note.label && note.value)) {
+        faults.push(`reasons[${index}] is a stat row missing its label or value`);
+      }
+      if (note.kind === "advice" && !note.text) {
+        faults.push(`reasons[${index}] is advice with no text`);
+      }
+      continue;
+    }
+    faults.push(`reasons[${index}] is neither a string nor a grade note (${JSON.stringify(note)})`);
+  }
+  return faults;
+}
 
 /** Hooks inside `presentation`, per stage.
  *
@@ -260,14 +286,26 @@ for (const meta of SPORTS) {
         .filter((n) => !myNames.has(n));
 
       const graded = sport.gradeDraft(mine, ctx, { oppRoster: theirs, forfeits: [] });
-      const text = (graded?.reasons || []).join(" ");
-      const named = theirNames.filter((n) => text.includes(n));
+      // notesText, NOT join(" "). Notes are objects now and joining them gave
+      // "[object Object] [object Object]", so this check passed or failed on
+      // nothing at all. One flattener, in js/gradenotes.js, for exactly this
+      // reason - every reader of a note wanting its own way to stringify one
+      // is how two descriptions of the same note end up disagreeing.
+      const text = notesText(graded?.reasons);
+      // A SURNAME COUNTS. The card names people the way a person would -
+      // "Andrews", "Falcons OL" - because a clause built out of full names and
+      // full team names ran to 117 characters and wrapped to four lines. So
+      // this asks whether any WORD of an opponent's name appears, skipping the
+      // one-and-two-letter fragments that would match by accident.
+      const words = (name) => String(name).split(/\s+/).filter((w) => w.length > 2);
+      const named = theirNames.filter((n) => words(n).some((w) => text.includes(w)));
 
       if (theirNames.length === 0) {
         missing.push("could not build two distinct rosters to check the opponent read");
       } else if (named.length === 0) {
         missing.push("gradeDraft() with an oppRoster never names an opponent - the matchup read is missing");
       }
+      missing.push(...noteShapeFaults(graded?.reasons));
     } catch (e) {
       missing.push(`gradeDraft() with an oppRoster threw: ${e.message}`);
     }

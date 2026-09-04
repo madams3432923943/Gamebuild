@@ -1891,6 +1891,21 @@ button.position-btn {
   margin-top: 0.1rem;
 }
 
+/* WHY he was named, between the team and the numbers. Sits below the name it
+   explains and above the line that proves it, because the sentence is what
+   makes an unexpected choice - a kicker, a secondary - read as a verdict. */
+.mvp-note {
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--text);
+  margin-top: 0.45rem;
+  /* The one place on this card a phrase is allowed to wrap: it is a clause,
+     not a label, and truncating it would lose the half that explains. */
+  max-width: 26rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .mvp-stats {
   display: flex;
   justify-content: center;
@@ -5001,14 +5016,75 @@ html {
   color: var(--text);
 }
 
+/* THE NOTES STOPPED BEING SENTENCES. They were seven prose bullets of 29-117
+   characters against a body about 190px wide on a 360px phone - roughly 27
+   characters - so each wrapped to three or four lines and the verdict arrived
+   as a paragraph. A fact is a row now and only advice carries words; see
+   js/gradenotes.js for the measurements and js/main.js gradeNoteRow for the
+   markup. No bullet glyphs: a row with its value flush right does not need
+   one, and the padding it cost is width the numbers now use. */
 .draft-grade-reasons {
   margin: 0;
-  padding-left: 1.1rem;
+  padding-left: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.15rem;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+/* Label left, value right, and NEITHER MAY WRAP - that is the whole promise of
+   the row. A label long enough to collide with its value truncates, which is a
+   failure a designer can see, rather than reflowing the card silently. */
+.grade-note.grade-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  white-space: nowrap;
+  /* The dotted rule that carries the eye across the gap - the same device a
+     scorecard uses, and it makes a two-column row readable without a border
+     per line. */
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.15rem;
+}
+
+.grade-note-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grade-note-value {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Only the value takes the verdict colour. Colouring the whole row turned the
+   card into a traffic light and made the labels harder to read than the
+   numbers, which is the wrong way round. */
+.grade-note.grade-good .grade-note-value { color: #06d6a0; }
+.grade-note.grade-bad .grade-note-value { color: var(--buzzer); }
+
+/* The one note allowed words, and therefore the one allowed to wrap: a clause
+   truncated in the middle loses the half that says what to do. Marked with a
+   leading arrow rather than a bullet because it is an instruction. */
+.grade-note.grade-advice {
+  position: relative;
+  padding-left: 1rem;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.grade-note.grade-advice::before {
+  content: "\2192";
+  position: absolute;
+  left: 0;
+  color: var(--accent-bright);
 }
 
 /* The grade lands rather than appears - it's a verdict, and a verdict that

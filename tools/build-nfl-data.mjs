@@ -391,12 +391,37 @@ for (const row of defence) {
 // without a filter every one of them would be counted a member of their team's
 // special-teams unit - the sums would stay right (nobody else has an fg_att)
 // while the roster and its games-played counts silently became the whole team.
-const KICK_POS = new Set(["K", "P"]);
+//
+// THE PUNTER IS NOT IN THE KICKING UNIT, and he used to be. `P` was in the
+// position filter, so every punter in the league was counted a member of his
+// team's special teams. The SUMS were never affected - a punter has no field
+// goal attempts to add - but membership is not bookkeeping here, it is three
+// things a player sees:
+//
+//   WHO CLAIMS THE UNIT. Members are the names you can type to draft it, so
+//   the ball-knowledge test was rewarding you for knowing the punter of a unit
+//   whose entire simulated job is kicking field goals.
+//
+//   WHO IT LOOKS LIKE. Members are sorted by games played and punters play all
+//   sixteen while kickers get hurt and replaced, so the punter frequently came
+//   out FIRST. The Arizona Cardinals Special Teams read "Scott Player, Bill
+//   Gramatica" - the punter fronting the kicker in three of its four rows -
+//   and Sam Koch, Brad Maynard and Bryan Anger headline theirs.
+//
+//   HOW DEEP IT IS. `depth` counts members, and 656 of 830 units were exactly
+//   two deep: one kicker and one punter, reported as a two-man kicking unit.
+//
+// This file's own header already says what the unit is - "there is no punting
+// or return data in the kicking file. The special teams unit is the kicking
+// game only (FG, PAT, game-winners)". So a member of it is somebody who
+// attempted one, which is what the condition asks now. When punting is folded
+// in later, as that note anticipates, the punter comes back with data behind
+// him rather than as a name attached to somebody else's work.
 for (const row of kicking) {
   const era = eraOf(num(row.season));
   const team = teamOf(row);
   if (!era || !team) continue;
-  if (!KICK_POS.has(row.position) && !num(row.fg_att) && !num(row.pat_att)) continue;
+  if (!num(row.fg_att) && !num(row.pat_att)) continue;
   const u = ensureUnit(team, era, num(row.season), "ST");
   countMember(u, row.player_display_name || row.player_name);
   const s = u.sums;

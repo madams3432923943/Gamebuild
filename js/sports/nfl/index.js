@@ -421,7 +421,10 @@ export const NFL = {
     ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
     ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
     ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
-    ["ints", "INT"], ["fumbles", "FUM"], ["fgs", "FG"],
+    // Sacks belong here for the same reason they now carry MVP weight: a pass
+    // rush that got there six times had NOTHING to say on the MVP card, and
+    // formatMvpStatLine reads this list to build it.
+    ["ints", "INT"], ["fumbles", "FUM"], ["sacks", "SACK"], ["fgs", "FG"],
   ],
 
   /**

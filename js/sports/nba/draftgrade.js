@@ -15,7 +15,8 @@
 import { constructionMetrics, rosterTilt, impact } from "./engine.js";
 import { isBenchSlot, orderedRosterSlots, basePosition, RANKED_SLOTS } from "./constants.js";
 import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
-import { matchupReads } from "../../matchups.js";
+import { matchupNotes } from "../../matchups.js";
+import { statNote, adviceNote } from "../../gradenotes.js";
 
 // Weighted toward how the roster is BUILT rather than how good its players
 // are. Talent still counts - a grade that ignored it would call a squad of
@@ -148,7 +149,14 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   // falling back to the fixed bands only if no curve exists.
   const curve = curveFor(datasetStats);
   const letter = curve ? curveLetter(score, curve) : letterFor(score);
+  // ROWS AND CLAUSES, NOT SENTENCES. Measured on a real bot draft these ran
+  // 54-91 characters each, seven of them, on a card body about 27 characters
+  // wide on a phone. See js/gradenotes.js.
   const reasons = [];
+  // See the NFL grade for why there are two: only two clauses fit on the card,
+  // and a clause naming the opponent beats a restatement of the rows above it.
+  const keyAdvice = [];
+  const advice = [];
 
   const strong = CATEGORY_WORDS[metrics.strongest];
   const weak = CATEGORY_WORDS[metrics.weakest];
@@ -163,34 +171,38 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     headline = "A serviceable roster with no strong identity.";
   }
 
+  const pct = (value) => `${Math.round(100 * value)}`;
+  reasons.push(statNote("Talent", pct(metrics.talent), metrics.talent >= 0.6 ? "good" : "bad"));
+  reasons.push(statNote("Balance", pct(metrics.balance), metrics.balance >= 0.6 ? "good" : "bad"));
+
   if (metrics.hasBench) {
-    if (metrics.uncovered.length === 0) {
-      reasons.push("Every position has a backup - nobody has to play all 48.");
-    } else if (metrics.uncovered.length <= 2) {
-      reasons.push(
-        `No cover at ${metrics.uncovered.join(" or ")} - ${
-          metrics.uncovered.length === 1
-            ? "that starter has to play the whole game and tires late"
-            : "those starters have to play the whole game and tire late"
-        }.`
-      );
-    } else {
-      reasons.push(
-        `${metrics.uncovered.length} positions have no backup (${metrics.uncovered.join(
-          ", "
-        )}) - your starters wear down late.`
-      );
+    // The count as a row, the consequence as a clause. "No cover at SG - that
+    // starter has to play the whole game and tires late" packed both into 72
+    // characters and neither survived the wrap.
+    const short = metrics.uncovered.length <= 2
+      ? metrics.uncovered.join(", ")
+      : `${metrics.uncovered.length} spots`;
+    reasons.push(
+      metrics.uncovered.length === 0
+        ? statNote("Bench cover", "complete", "good")
+        : statNote("No cover at", short, "bad")
+    );
+    if (metrics.uncovered.length > 0) {
+      advice.push("Those starters play all 48 and tire late.");
     }
 
-    if (metrics.versatility >= 0.6) {
-      reasons.push("Your bench can cover more than one spot, so it plugs whichever hole opens up.");
-    } else if (metrics.versatility <= 0.25) {
-      reasons.push("Every bench player is a specialist - they all pile onto the same position.");
+    reasons.push(statNote(
+      "Bench spread",
+      metrics.versatility >= 0.6 ? "versatile" : metrics.versatility <= 0.25 ? "specialists" : "mixed",
+      metrics.versatility >= 0.6 ? "good" : metrics.versatility <= 0.25 ? "bad" : "neutral"
+    ));
+    if (metrics.versatility <= 0.25) {
+      advice.push("Your bench all covers the same spot.");
     }
   }
 
   if (metrics.talent >= 0.75 && metrics.balance <= 0.45) {
-    reasons.push("Plenty of talent, but it's all pointed the same way - the best player available isn't always the best fit.");
+    advice.push("Best available is not the same as best fit.");
   }
 
   if (opts.oppRoster) {
@@ -202,31 +214,58 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     const mine = rosterTilt(roster, datasetStats);
     const theirs = rosterTilt(opts.oppRoster, datasetStats);
     const read = counterRead(mine, theirs);
-    if (read) reasons.push(read);
+    if (read) keyAdvice.push(read);
 
-    reasons.push(
-      ...matchupReads(roster, opts.oppRoster, {
-        rate: impact,
-        // "SF", not "SF2" - the bench slot's number is a roster-shape detail,
-        // and a sentence about a position should name the position.
-        label: basePosition,
-        slots: orderedRosterSlots(roster),
-      })
-    );
+    for (const note of matchupNotes(roster, opts.oppRoster, {
+      rate: impact,
+      // "SF", not "SF2" - the bench slot's number is a roster-shape detail,
+      // and a row about a position should name the position.
+      label: basePosition,
+      // STARTERS ONLY, and this fixes two things at once.
+      //
+      // basePosition RETURNS NULL FOR A BENCH SLOT and the old prose
+      // interpolated it straight into the sentence, so the card really did
+      // read "Their null Damian Lillard has an advantageous matchup against
+      // your null Clark Kellogg." That was the visible half.
+      //
+      // The invisible half is that the read was meaningless there anyway. A
+      // bench is deliberately not position-locked (see STARTER_SLOTS in
+      // ./constants.js), so BENCH1 is a draft-order accident - my BENCH1 does
+      // not guard theirs, and comparing the two compares nothing. Basketball's
+      // matchups are real between starters, which is where this now looks.
+      slots: orderedRosterSlots(roster).filter((slot) => !isBenchSlot(slot)),
+    })) {
+      if (note.kind === "advice") keyAdvice.push(note.text);
+      else reasons.push(note);
+    }
   }
 
   if (forfeits.length > 0) {
     // Naming the slots is useful when it's one or two you can go and think
     // about; at ten it's a wall of BENCH3, BENCH4, BENCH5 saying nothing the
     // count didn't already say.
-    const named = forfeits.length <= 3 ? ` (${forfeits.join(", ")})` : "";
-    reasons.push(
-      `${forfeits.length} pick${forfeits.length === 1 ? "" : "s"} went to the clock${named} - ` +
-        `the game drafted for you and it shows.`
-    );
+    reasons.push(statNote(
+      "Clock drafted",
+      forfeits.length <= 3 ? forfeits.join(", ") : `${forfeits.length} picks`,
+      "bad"
+    ));
+    advice.push("Picks that ran out of clock cost you a letter.");
   }
 
-  return { letter, score, headline, reasons, metrics, forfeits };
+  return {
+    letter,
+    score,
+    headline,
+    // Numbers, then the clauses about them, each capped - see the NFL grade for
+    // the same reasoning. Eleven notes is a screen; six rows and two clauses is
+    // a card.
+    reasons: [
+      ...reasons.slice(0, 6),
+      ...[...keyAdvice, ...advice].slice(0, 2).map(adviceNote),
+    ],
+    metrics,
+    forfeits,
+  };
 }
 
 /** The counterplay sentence: did this roster attack the opponent's shape or
@@ -261,5 +300,11 @@ function capitalize(s) {
 export function rotationHint(roster) {
   const standout = benchStandout(roster);
   if (!standout) return null;
-  return `${standout.player.name} came off your bench better than ${standout.overPlayer.name} at ${standout.overSlot} - he's worth real minutes.`;
+  // AN INSTRUCTION, NOT AN OBSERVATION. This used to read "Trae Young came off
+  // your bench better than Michael Finley at SF - he's worth real minutes",
+  // which is 90 characters and seven lines on a phone to say one thing the
+  // player can do. Naming both men keeps it checkable against the roster panel
+  // right beside it.
+  const surname = (player) => String(player?.name || "").split(/\s+/).pop();
+  return `Start ${surname(standout.player)} over ${surname(standout.overPlayer)} at ${standout.overSlot}.`;
 }

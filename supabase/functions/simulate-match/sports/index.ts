@@ -7,6 +7,12 @@
 
 import { simulateGame as simulateNba, computeDatasetStats as computeNbaStats } from "./nba/engine.js";
 import { simulate as simulateNfl, computeDatasetStats as computeNflStats } from "./nfl/engine.js";
+import {
+  ROW_COUNT as NBA_ROW_COUNT, DATASET_VERSION as NBA_DATASET_VERSION, STATS as NBA_STATS,
+} from "./nba/stats.generated.js";
+import {
+  ROW_COUNT as NFL_ROW_COUNT, DATASET_VERSION as NFL_DATASET_VERSION, STATS as NFL_STATS,
+} from "./nfl/stats.generated.js";
 
 export type SportEngine = {
   simulate: (rosterA: any, rosterB: any, datasetStats: any, opts: any) => any;
@@ -15,6 +21,11 @@ export type SportEngine = {
   normalizeRoster: (roster: Record<string, any>) => Record<string, any>;
   computeDatasetStats: (rows: Record<string, any>[]) => any;
   datasetVersion: (rows: Record<string, any>[]) => string;
+  /** The rating context, precomputed at build time from the same rows the seed
+   * writes, so an ordinary request never pages the table in to derive it. See
+   * tools/bake-server-stats.mjs; `baked.rowCount` is what the drift probe in
+   * index.ts compares a live count(*) against. */
+  baked: { rowCount: number; datasetVersion: string; stats: any };
 };
 
 const numOrNull = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -88,6 +99,7 @@ const REGISTRY: Record<string, SportEngine> = {
     normalizeRoster: normalizeNbaRoster,
     computeDatasetStats: (rows) => computeNbaStats(rows.map(normalizeNbaRow)),
     datasetVersion: (rows) => `nba-players-${rows.length}-${maxSeason(rows)}`,
+    baked: { rowCount: NBA_ROW_COUNT, datasetVersion: NBA_DATASET_VERSION, stats: NBA_STATS },
   },
   nfl: {
     table: "nfl_players",
@@ -106,6 +118,7 @@ const REGISTRY: Record<string, SportEngine> = {
       return computeNflStats(players, units);
     },
     datasetVersion: (rows) => `nfl-generated-${rows.length}-${maxSeason(rows)}`,
+    baked: { rowCount: NFL_ROW_COUNT, datasetVersion: NFL_DATASET_VERSION, stats: NFL_STATS },
   },
 };
 
