@@ -1352,7 +1352,11 @@ function renderMatchList(container, profile, sport, sportLabel) {
       `<span class="match-date"></span>` +
       `<span class="sr-only"></span>`;
     row.querySelector(".match-result").textContent = entry.won ? "W" : "L";
-    row.querySelector(".match-opponent").textContent = `vs ${entry.opponentLabel}`;
+    const opponent = row.querySelector(".match-opponent");
+    opponent.textContent = `vs ${entry.opponentLabel}`;
+    // Recoverable when the column has to truncate it - see .match-opponent in
+    // style.css. Only worth setting when there is something to recover.
+    if (entry.opponentLabel.length > 12) opponent.title = entry.opponentLabel;
     row.querySelector(".match-tag-sport").textContent = sportLabel;
     // "local" was pass-and-play, which no longer exists - but games played
     // before it was removed are still in saved history and should keep their
@@ -1463,7 +1467,11 @@ function renderSportSummary(container, profile, sport, sportRankInfo) {
     el.innerHTML =
       `<span class="summary-label"></span><span class="summary-value"></span><span class="summary-note"></span>`;
     el.querySelector(".summary-label").textContent = cell.label;
-    el.querySelector(".summary-value").textContent = cell.value;
+    const value = el.querySelector(".summary-value");
+    value.textContent = cell.value;
+    // Recoverable if the cell has to truncate it - see .summary-cell-text in
+    // style.css. Only the name cell can truncate; the figures never do.
+    if (cell.text && cell.value.length > 12) value.title = cell.value;
     el.querySelector(".summary-note").textContent = cell.note;
     container.appendChild(el);
   }

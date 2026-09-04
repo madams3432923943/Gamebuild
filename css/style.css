@@ -2491,6 +2491,14 @@ table.box-table th {
   margin-bottom: 0.4rem;
 }
 
+/* A button's label is not prose. "Open Profile" broke across two lines beside
+   a two-line label and the row read as four ragged fragments; the label is a
+   sentence and may wrap, the control may not. */
+.settings-row .btn {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
 .settings-links {
   list-style: none;
   margin: 0 0 0.4rem;
@@ -2516,15 +2524,46 @@ table.box-table th {
 .settings-links span {
   color: var(--muted);
   font-size: var(--text-xs);
+  /* The label never wraps. It is one short word and it is the thing that
+     tells you what the address beside it is for. */
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
-/* overflow-wrap, because an address is one long unbreakable token and a
-   360px phone has nowhere to put support@draftnovagame.com otherwise. */
+/* AN EMAIL ADDRESS IS ONE WORD, AND IT MUST NOT BE BROKEN IN HALF.
+   
+   This was 16px (inherited) sharing a line with its label, which at 360px left
+   about 240px for a 26-character address that wants 280 - so
+   `business@draftnovagame.com` broke after "draftnovaga" and the second line
+   read "me.com". An address split mid-token is not just ugly, it is unreadable
+   as an address: you cannot tell whether the break is a hyphen, and you cannot
+   double-tap to select it.
+   
+   Sized to --text-xs and given the whole row on a phone (see below), so it
+   fits on one line at 360px with room to spare. overflow-wrap stays as a
+   LAST resort - a longer address than any we publish must still not push the
+   page sideways - but nothing we ship reaches it now. */
 .settings-links a {
   color: var(--accent-bright);
   font-weight: 600;
+  font-size: var(--text-xs);
   text-align: right;
   overflow-wrap: anywhere;
+}
+
+/* On a phone the label goes above and the address takes the full width of the
+   row. Two items on one line is a desktop shape; at 360px the address needs
+   every pixel the row has. */
+@media (max-width: 560px) {
+  .settings-links li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+  }
+
+  .settings-links a {
+    text-align: left;
+  }
 }
 
 .settings-build {
@@ -2850,6 +2889,17 @@ table.box-table th {
   letter-spacing: 0.01em;
 }
 
+/* The most-drafted PLAYER, and the only cell here holding a name that can be
+   one long unbroken token. Truncated rather than broken in half, for the same
+   reason as .match-opponent: half a name is not a name. A tier name is not
+   given this treatment - those come from a fixed ladder and every one of them
+   contains a space, so they wrap where they should. */
+.summary-cell-text .summary-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .summary-note {
   font-size: var(--text-micro);
   color: var(--muted);
@@ -3122,7 +3172,13 @@ table.box-table th {
 
 .match-row {
   display: grid;
-  grid-template-columns: 2.4rem 1fr auto auto;
+  /* minmax(0, 1fr), NOT 1fr - the same trap .banner-grid documents further up
+     this file. A bare `1fr` is `minmax(auto, 1fr)`, and that `auto` floor is
+     the track's MIN-CONTENT width, so a 20-character username made the column
+     wider than its share and the ellipsis on .match-opponent never had a
+     narrower box to trigger against. The 0 floor lets the track shrink and the
+     text truncate, which is what both rules were for. */
+  grid-template-columns: 2.4rem minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.35rem 0.9rem;
   padding: 0.6rem 0.8rem;
@@ -3168,9 +3224,26 @@ table.box-table th {
   min-width: 0;
 }
 
+/* A USERNAME IS ONE WORD, AND HALF A USERNAME IS NOT A NAME.
+   
+   `overflow-wrap: anywhere` kept the row from overflowing but paid for it by
+   splitting the opponent in two - "WWWWWWWWWWWW" over "WWWWWWWW" - and the
+   opponent is the thing this row exists to tell you. Usernames are capped at
+   20 characters (maxlength on both inputs), and 20 wide ones do not fit the
+   ~245px this column gets at 390px however they are broken.
+   
+   So it truncates instead. In the common case - a real, mixed-case name -
+   this never triggers at all; in the rare one it degrades to something still
+   readable AS a name, and the full string stays available three ways: the
+   title attribute, the .sr-only line the row already carries for screen
+   readers, and the game's own record. An ellipsis says "there is more"; a
+   mid-word break says nothing and looks broken. */
 .match-opponent {
   font-weight: 600;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .match-tags {
@@ -3214,7 +3287,7 @@ table.box-table th {
      on their own line under the tags. Four columns at 360px put the score and
      the date in ~50px each and broke "128-119" across two lines. */
   .match-row {
-    grid-template-columns: 2.4rem 1fr;
+    grid-template-columns: 2.4rem minmax(0, 1fr);
   }
 
   .match-result {
