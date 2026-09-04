@@ -281,7 +281,25 @@ async function main() {
         [...document.querySelectorAll("#live-scoreboard .scoreboard-score")]
           .map((el) => Number(el.textContent.trim()) || 0);
       window.__bkScoreLog = [];
+      // HOW OFTEN THE DIGITS ARE REBUILT, which is a different question from
+      // how often they CHANGE and for a long time had a much worse answer.
+      // Football's playback repainted the whole board on every event - 192.9 a
+      // game measured over 60 drafted games, against 8.8 scores and 4.1
+      // quarter endings - so the score elements were destroyed and recreated
+      // between plays and the CSS pulse on them restarted from frame zero
+      // about twice a second. The board twitched all game, and nothing here
+      // could see it: every check below reads the board's CONTENT, and the
+      // content was right the whole time.
+      window.__bkScoreNodeSwaps = 0;
+      let lastScoreNode = null;
+      const trackNode = () => {
+        const node = document.querySelector("#live-scoreboard .scoreboard-score-a");
+        if (!node || node === lastScoreNode) return;
+        lastScoreNode = node;
+        window.__bkScoreNodeSwaps += 1;
+      };
       const push = () => {
+        trackNode();
         const [a = 0, b = 0] = read();
         const last = window.__bkScoreLog[window.__bkScoreLog.length - 1];
         if (last && last.a === a && last.b === b) return;
@@ -340,6 +358,7 @@ async function main() {
     // increments. That number comes from the game that was actually played, so
     // it cannot be too strict for a low-scoring one or too lax for a high one.
     const scoreLog = await page.evaluate(() => window.__bkScoreLog || []);
+    const scoreNodeSwaps = await page.evaluate(() => window.__bkScoreNodeSwaps || 0);
     const logTotals = scoreLog.map((s) => s.a + s.b);
     const monotonicScore = logTotals.every((n, i) => i === 0 || n >= logTotals[i - 1]);
     const finalTotal = logTotals.length ? logTotals[logTotals.length - 1] : 0;
@@ -447,6 +466,17 @@ async function main() {
           : `no sample matched a clock; board centre read "${samples.find((s) => s.status)?.status || "(empty)"}"` },
       { title: "The clock on the board counts down as plays run", ok: clockCountsDown,
         detail: `${distinctClocks} distinct readings across ${clockSamples.length} samples` },
+      {
+        // The board may be rebuilt when the SCOREBOARD changes - a score, a
+        // quarter column - and must not be rebuilt for an ordinary snap. The
+        // bar is generous on purpose: what it forbids is a rebuild per event,
+        // which was 192.9 a game and is now at most one per score plus one per
+        // quarter. Anything under 40 is that behaviour; 190 is the old one.
+        title: "The scoreboard is not rebuilt between plays",
+        ok: scoreNodeSwaps > 0 && scoreNodeSwaps < 40,
+        detail: `${scoreNodeSwaps} rebuilds of the score element for ` +
+          `${scoreLog.length} scoreboard states across the game`,
+      },
       { title: "The clock does not blink", ok: blinkingClocks === 0,
         detail: blinkingClocks === 0
           ? `all ${clockSamples.length} clock samples had the blink suppressed`
