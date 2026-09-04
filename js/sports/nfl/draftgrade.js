@@ -6,7 +6,7 @@ import { OFFENSE_WEIGHTS, DEFENSE_WEIGHTS } from "./constants.js";
 import { rateEntry, unitLabel, isUnit } from "./units.js";
 import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
 import { matchupNotes } from "../../matchups.js";
-import { statNote, adviceNote } from "../../gradenotes.js";
+import { statNote, adviceNote, gridNote } from "../../gradenotes.js";
 
 const canonicalSlot = (slot) => String(slot || "").replace(/\d+$/, "").toUpperCase();
 
@@ -254,8 +254,7 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const keyAdvice = [];
   const advice = [];
   const pct = (value) => `${Math.round(100 * value)}`;
-  notes.push(statNote("Offence", pct(offense), offense >= defense ? "good" : "neutral"));
-  notes.push(statNote("Defence", pct(defense), defense > offense ? "good" : "neutral"));
+
 
   // THE WEAKEST UNIT, WHICH THE OLD DUMP MADE THE READER FIND. Printing
   // "DL 92 · LB 85 · CB 70 · S 68" asks a player to scan four numbers for the
@@ -264,11 +263,56 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const rated = Object.keys(DEFENSE_WEIGHTS)
     .filter((slot) => Number.isFinite(defenseGroups[slot]))
     .map((slot) => ({ slot, rating: defenseGroups[slot] }));
-  if (rated.length > 1) {
-    const weakest = rated.reduce((a, b) => (b.rating < a.rating ? b : a));
-    const strongest = rated.reduce((a, b) => (b.rating > a.rating ? b : a));
-    notes.push(statNote("Best unit", `${strongest.slot} ${pct(strongest.rating)}`, "good"));
-    notes.push(statNote("Weakest", `${weakest.slot} ${pct(weakest.rating)}`, "bad"));
+
+  // EVERY PICK, NOT JUST THE TWO EXTREMES. The best and worst rows above answer
+  // "which one should I look at"; they cannot answer "what did I actually get",
+  // and that is the question a drafter asks first - they just spent twelve
+  // picks and the card described two of them.
+  //
+  // The old comment on the weakest-unit row argued the opposite, that printing
+  // "DL 59 · LB 94 · CB 96 · S 90" makes a reader scan for the smallest number.
+  // That was right about the DUMP and wrong about the DATA. A run-on line of
+  // separators is unreadable at 190px; a grid is not, and it reflows by column
+  // instead of wrapping mid-value. So the numbers come back, laid out - see
+  // gridNote in js/gradenotes.js.
+  //
+  // Offence and defence stay separate grids because they are the two halves the
+  // card already scores at the top, and a twelve-chip block with no seam in it
+  // is a table the eye has to parse rather than two shapes it can compare.
+  const gridFor = (weights) =>
+    Object.keys(weights)
+      .map((slot) => ({ slot, entry: entryForSlot(roster, slot) }))
+      .filter(({ entry }) => entry)
+      .map(({ slot, entry }) => {
+        const rating = rateEntry(entry, ctx);
+        return {
+          key: slot,
+          value: pct(rating),
+          // Only the ends are coloured. Tinting every chip by its rating turns
+          // the block into a heat map, which reads as decoration rather than as
+          // a verdict - the same reason a stat row colours its value and not
+          // its label.
+          //
+          // ABSOLUTE, NOT RELATIVE TO THIS ROSTER. Marking each grid's own best
+          // and worst would put a red chip on a roster where every unit is
+          // strong, which is a lie about the pick - the weakest of eleven good
+          // units is still good. The thresholds are what a rating MEANS: 0.70
+          // is a unit that wins its matchup, 0.45 is one that loses it, and in
+          // between is a unit that turns up. A roster can legitimately show
+          // eleven green chips or none.
+          tone: rating >= 0.70 ? "good" : rating <= 0.45 ? "bad" : "neutral",
+        };
+      });
+
+  const offenceGrid = gridFor(OFFENSE_WEIGHTS);
+  const defenceGrid = gridFor(DEFENSE_WEIGHTS);
+  if (offenceGrid.length) {
+    notes.push(gridNote("Offence", offenceGrid, pct(offense),
+      offense >= defense ? "good" : "neutral"));
+  }
+  if (defenceGrid.length) {
+    notes.push(gridNote("Defence", defenceGrid, pct(defense),
+      defense > offense ? "good" : "neutral"));
   }
 
   if (forfeits.length) {

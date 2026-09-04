@@ -50,6 +50,45 @@ export function statNote(label, value, tone = "neutral") {
 }
 
 /**
+ * A grid: every slot at once, as short key/value chips.
+ *
+ * THE THIRD KIND, AND IT REVERSES A DECISION MADE HERE. The note above argues
+ * that naming the weakest unit beats printing "DL 59 · LB 94 · CB 96 · S 90",
+ * because a dump asks the reader to scan for the smallest number. That was
+ * right about the DUMP and wrong about the DATA: a drafter wants to see the
+ * whole board they just built, and the fault was that a run-on line of
+ * separators is unreadable at 190px, not that the numbers were unwanted.
+ *
+ * So the numbers come back, laid out rather than concatenated. Each entry is a
+ * key short enough to be a chip (a slot name) and a value short enough to sit
+ * under it (a rating), wrapped into a grid that reflows by column count instead
+ * of by character. The best and worst still get named above it, because "which
+ * one should I look at" is a different question from "what did I get", and the
+ * grid answers only the second.
+ *
+ * The heading carries a VALUE of its own - the side's overall score - because
+ * the grid replaces the stat row that used to state it. Two rows saying
+ * "Offence 88" and then listing the seven slots that average to 88 is the
+ * redundancy that made this card long; one heading does both jobs.
+ *
+ * @param entries [{ key, value, tone }] - key and value both stay chip-short.
+ * @param value   optional headline number for the group.
+ */
+export function gridNote(label, entries, value = "", tone = "neutral") {
+  return {
+    kind: "grid",
+    label: String(label),
+    value: String(value),
+    tone: TONES.includes(tone) ? tone : "neutral",
+    entries: (entries || []).map((e) => ({
+      key: String(e.key),
+      value: String(e.value),
+      tone: TONES.includes(e.tone) ? e.tone : "neutral",
+    })),
+  };
+}
+
+/**
  * Advice: one imperative clause about what to do differently.
  *
  * The only note allowed real words, and the only one allowed to wrap - a
@@ -65,7 +104,8 @@ export function adviceNote(text) {
  * converted yet, and a card that throws on one is worse than a card with one
  * long bullet in it. */
 export function isNote(value) {
-  return !!value && typeof value === "object" && (value.kind === "stat" || value.kind === "advice");
+  return !!value && typeof value === "object" &&
+    (value.kind === "stat" || value.kind === "advice" || value.kind === "grid");
 }
 
 /**
@@ -80,7 +120,15 @@ export function isNote(value) {
 export function noteText(note) {
   if (typeof note === "string") return note;
   if (!isNote(note)) return "";
-  return note.kind === "advice" ? note.text : `${note.label} ${note.value}`;
+  if (note.kind === "advice") return note.text;
+  // A grid flattens to the same "label value" pairs a row of stat notes would
+  // have produced, so verify-sport-contract and anything else searching the
+  // text still finds a slot named in a grid.
+  if (note.kind === "grid") {
+    const head = `${note.label} ${note.value}`.trim();
+    return `${head} ${note.entries.map((e) => `${e.key} ${e.value}`).join(" ")}`.trim();
+  }
+  return `${note.label} ${note.value}`;
 }
 
 /** Every note as one string, for a caller that wants to search the lot. */

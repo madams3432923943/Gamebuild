@@ -1969,6 +1969,41 @@ function gradeNoteRow(note) {
     li.textContent = noteText(note);
     return li;
   }
+  // A grid is a row of chips rather than a label/value pair: one chip per slot,
+  // wrapping by column count so it reflows on a phone instead of truncating.
+  if (note.kind === "grid") {
+    li.className = "grade-note grade-grid";
+    const heading = document.createElement("span");
+    heading.className = "grade-grid-label";
+    const headingName = document.createElement("span");
+    headingName.textContent = note.label;
+    heading.appendChild(headingName);
+    // The side's own score sits in the heading rather than on a row of its
+    // own - see gridNote. Same tone rule as a stat row: the number takes the
+    // verdict colour, the word does not.
+    if (note.value) {
+      const headingValue = document.createElement("span");
+      headingValue.className = `grade-grid-value grade-${note.tone || "neutral"}`;
+      headingValue.textContent = note.value;
+      heading.appendChild(headingValue);
+    }
+    const chips = document.createElement("span");
+    chips.className = "grade-grid-chips";
+    for (const entry of note.entries) {
+      const chip = document.createElement("span");
+      chip.className = `grade-chip grade-${entry.tone || "neutral"}`;
+      const key = document.createElement("span");
+      key.className = "grade-chip-key";
+      key.textContent = entry.key;
+      const value = document.createElement("span");
+      value.className = "grade-chip-value";
+      value.textContent = entry.value;
+      chip.append(key, value);
+      chips.appendChild(chip);
+    }
+    li.append(heading, chips);
+    return li;
+  }
   li.className = `grade-note grade-stat grade-${note.tone || "neutral"}`;
   const label = document.createElement("span");
   label.className = "grade-note-label";

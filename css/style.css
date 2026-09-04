@@ -6679,3 +6679,86 @@ table.box-table tfoot .box-totals td:nth-child(2) {
     width: fit-content;
   }
 }
+
+/* THE PER-SLOT GRID. Every pick on one card, which a run-on line of
+   "DL 59 · LB 94 · CB 96 · S 90" could never be at this width - the card body
+   is about 190px on a 360px phone. A grid reflows by COLUMN, so a chip is
+   never split and adding a slot costs a row rather than a wrap mid-number. */
+.grade-note.grade-grid {
+  display: block;
+  margin-top: 0.35rem;
+  /* The grid is a block, and the stat rows after it are single lines with a
+     dotted underline. Without this the first of those sits flush against the
+     last row of chips and reads as part of the grid. */
+  margin-bottom: 0.5rem;
+}
+
+/* DIMMED WITH COLOUR, NOT OPACITY, and that distinction is the bug this row
+   started with. `opacity` applies to a whole subtree and a child cannot exceed
+   its parent's, so dimming this heading to 0.65 and then trying to restore the
+   score inside it is impossible - the value would have been stuck at 65% too.
+   Setting a muted colour on the caption leaves the number free to use its own. */
+.grade-grid-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+/* The side's overall score, in the heading rather than on a row of its own. */
+.grade-grid-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.grade-grid-value.grade-good { color: #06d6a0; }
+.grade-grid-value.grade-bad { color: var(--buzzer); }
+
+/* auto-fill rather than a fixed count: seven offensive slots and four
+   defensive ones share this, and on a wide card both should use the width
+   they have instead of one being padded to the other's shape. */
+.grade-grid-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr));
+  gap: 0.25rem;
+}
+
+.grade-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.2rem 0.1rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  line-height: 1.1;
+}
+
+.grade-chip-key {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.grade-chip-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+/* Only the ends take a colour, for the same reason a stat row colours its
+   value and not its label: tinting all twelve turns the block into a heat map,
+   which reads as decoration rather than as a verdict. */
+.grade-chip.grade-good .grade-chip-value { color: #06d6a0; }
+.grade-chip.grade-bad .grade-chip-value { color: var(--buzzer); }
