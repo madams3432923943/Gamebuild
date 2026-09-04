@@ -1667,8 +1667,11 @@ button.position-btn {
 @media (max-height: 560px) and (orientation: landscape) {
   .matchup-intro {
     min-height: 0;
-    gap: 0.3rem;
-    padding: 0.35rem 0.75rem;
+    gap: 0.25rem;
+    /* The last few pixels come out of the stage's own padding rather than out
+       of anything on the cards. At this height the intro is two cards, a VS
+       and a countdown against 360px, and every one of those is content. */
+    padding: 0.15rem 0.75rem;
   }
   /* Tightened to pay for the type floor. Raising every sub-13px label added
      a few pixels per card, and two stacked cards put the pair 4px below the
@@ -1697,6 +1700,22 @@ button.position-btn {
   }
   .player-banner.matchup-card .pb-stat-value {
     font-size: 0.95rem;
+  }
+  /* THE STATS PLATE COSTS HEIGHT, AND HERE THERE IS NONE.
+     
+     Giving .pb-stats its own padded, bordered plate fixed the home card, where
+     three numbers were floating loose on the artwork. It also added ~18px to
+     every card that shares the component - and two of them stack on a sideways
+     phone, which put the pair 27px below the fold at 640x360.
+     
+     The plate stays, because the contrast argument for it is the same here as
+     on the home screen; it just stops being padded at a height where the
+     padding is the difference between seeing your opponent and not.
+     verify-matchup-intro.mjs is what caught this, and is the reason it is a
+     number rather than a guess. */
+  .player-banner.matchup-card .pb-stats {
+    padding: 0.1rem 0.45rem;
+    gap: 0.9rem;
   }
   .player-banner.matchup-card.has-banner::before {
     font-size: 4rem;
