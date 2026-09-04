@@ -85,6 +85,7 @@ import {
   renderScoreboard,
   setScoreboardStatus,
   renderProfileScreen,
+  createProfileHero,
   renderPlayerBannerCard,
   renderBadgeCollection,
   renderBadgeSportTabs,
@@ -4275,28 +4276,33 @@ btnGameHome.addEventListener("click", () => {
 
 // ---- Profile screen ----
 
+// The identity card at the top of the profile. Built rather than written into
+// index.html because it is the SAME component the home screen and the matchup
+// intro draw - see createProfileHero in js/ui/profile.js. It is created once,
+// at module scope, so profileRefs can point straight at its parts exactly the
+// way it used to point at markup.
+const profileHero = createProfileHero();
+document.getElementById("profile-hero-card").appendChild(profileHero.card);
+
 const profileRefs = {
   usernameInput: document.getElementById("input-profile-username"),
-  avatar: document.getElementById("profile-avatar"),
-  displayName: document.getElementById("profile-display-name"),
+  hero: profileHero,
+  // The two the rest of this file still writes to directly, aliased so those
+  // call sites did not have to learn where identity now lives.
+  avatar: profileHero.avatar,
+  displayName: profileHero.username,
   kitPicker: document.getElementById("profile-kit-picker"),
   kitName: document.getElementById("profile-kit-name"),
-  tierBadge: document.getElementById("profile-tier-badge"),
-  tierCaption: document.getElementById("profile-tier-caption"),
   onlineRecord: document.getElementById("online-record"),
   offlineRecord: document.getElementById("offline-record"),
   totalGames: document.getElementById("total-games"),
+  totalWinPct: document.getElementById("total-win-pct"),
+  careerHeading: document.getElementById("profile-career-heading"),
+  careerSection: document.getElementById("profile-career"),
+  sportSummary: document.getElementById("profile-sport-summary"),
   eraRecords: document.getElementById("era-records"),
-  mostDrafted: document.getElementById("most-drafted"),
   topPerformances: document.getElementById("top-performances"),
-  highestScoringGame: document.getElementById("highest-scoring-game"),
-  largestMargin: document.getElementById("largest-margin"),
-  mostTripleDoubles: document.getElementById("most-triple-doubles"),
-  mostMvps: document.getElementById("most-mvps"),
-  longestWinStreak: document.getElementById("longest-win-streak"),
   historyBody: document.getElementById("history-body"),
-  sportRankHeading: document.getElementById("profile-sport-rank-heading"),
-  sportRank: document.getElementById("profile-sport-rank"),
 };
 const profileStatsTabsEl = document.getElementById("profile-stats-sport-tabs");
 
@@ -4686,7 +4692,11 @@ async function afterCustomize() {
   const profile = await loadProfile();
   currentProfile = profile;
   renderEquippedBanner(profileEquippedBannerEl, profile);
-  renderPlayerIcon(profileRefs.avatar, profile);
+  // The whole hero, not just the icon: the profile's identity card now paints
+  // the equipped BANNER as its background, so equipping one and repainting
+  // only the avatar left the card wearing the previous banner until the next
+  // full load of the screen.
+  await renderProfileFor(profile);
   await refreshHome();
 }
 

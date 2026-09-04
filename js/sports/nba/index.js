@@ -226,6 +226,25 @@ export const NBA = {
   // is not a football record.
   statLabels: { pts: "Points", reb: "Rebounds", ast: "Assists", stl: "Steals", blk: "Blocks" },
 
+  // How the profile's Top Performances board GROUPS those records. Without
+  // this the board is one undifferentiated list of every tracked stat, which
+  // is what it was: twelve rows of football under one heading, with an
+  // interception sitting between two receiving records.
+  //
+  // Rebounds sit with the defensive stats rather than with scoring. A rebound
+  // is won at both ends, so either home is arguable - it is grouped by where
+  // the number is CHASED, and a player hunting boards is playing the defensive
+  // glass. The heading says so rather than pretending it is purely defence.
+  //
+  // Every key in statLabels must appear in exactly one group; the profile
+  // renderer draws any that do not under a trailing "Other" heading and
+  // scripts/verify-sport-contract.mjs fails the build, because a record
+  // silently vanishing off the board is the failure this shape invites.
+  statGroups: [
+    { label: "Offense", keys: ["pts", "ast"] },
+    { label: "Defense & Boards", keys: ["reb", "stl", "blk"] },
+  ],
+
   // ---- Simulation ---------------------------------------------------------
   computeDatasetStats: (players) => {
     const pool = players ?? loadedPlayers();

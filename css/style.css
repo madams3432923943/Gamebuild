@@ -59,6 +59,49 @@
   --text-micro: 0.75rem;   /* 12px */
   --text-xs: 0.8125rem;    /* 13px */
 
+  /* ---- Surfaces and shape ----
+     Three depths and three radii, so a card is a card everywhere.
+
+     Before these, every screen picked its own: the profile's record cards were
+     10px on --panel, the sport cards 14px on a gradient, the badge tiles 12px
+     on rgba(255,255,255,0.03), and the squad rows a 0.5rem border on --panel.
+     None of them was wrong on its own; together they read as five different
+     products, which is what "polished" is the absence of.
+
+     --surface-1 is the page's own furniture (a section header, a strip).
+     --surface-2 is a card sitting on the page. --surface-3 is something
+     sitting INSIDE a card - a row, a tile, a cell. Nesting the same value
+     twice is what makes a card-in-a-card invisible, so the scale exists to be
+     stepped through rather than reached into at random.
+
+     --line-soft is the divider WITHIN a surface; --line stays the edge OF one.
+     A single border colour doing both jobs is why every list looked like a
+     table. */
+  --surface-1: #12171f;
+  --surface-2: #171d27;
+  --surface-3: #1d2532;
+  --line-soft: rgba(255, 255, 255, 0.07);
+  --radius-card: 14px;
+  --radius-inner: 10px;
+  --radius-pill: 999px;
+
+  /* Depth, not decoration: one shadow for a card at rest and one for a card
+     being pressed or hovered, so nothing invents its own. The inset top
+     highlight is what makes a dark card read as lit from above rather than as
+     a hole cut in the page. */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 6px 18px rgba(0, 0, 0, 0.34);
+  --shadow-lift: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 10px 26px rgba(0, 0, 0, 0.44);
+
+  /* ---- Motion ----
+     One duration for a state change you should barely notice, one for a
+     transition you should. Anything longer than --motion-slow on an
+     interaction is an animation the player is waiting on rather than one that
+     is answering them. */
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 0.68, 0.36, 1);
+
   --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
@@ -1964,7 +2007,7 @@ button.position-btn {
   margin-top: 0.75rem;
 }
 
-table.box-table, table.history-table {
+table.box-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1.25rem;
@@ -1972,14 +2015,13 @@ table.box-table, table.history-table {
   font-family: var(--font-mono);
 }
 
-table.box-table th, table.box-table td,
-table.history-table th, table.history-table td {
+table.box-table th, table.box-table td {
   padding: 0.45rem 0.6rem;
   text-align: left;
   border-bottom: 1px solid var(--line);
 }
 
-table.box-table th, table.history-table th {
+table.box-table th {
   color: var(--muted);
   font-weight: 600;
   text-transform: uppercase;
@@ -2003,27 +2045,700 @@ table.box-table th, table.history-table th {
   margin: 1rem 0 0.4rem;
 }
 
-.win-row {
-  color: var(--win);
-}
-
-.loss-row {
-  color: var(--buzzer);
-}
 
 /* ---- Profile screen ---- */
-.profile-header {
+
+/* --- The identity hero -----------------------------------------------------
+   The shared player card, plus a footer bar carrying the equipped title and
+   the two actions. The two are one object visually: the card's bottom corners
+   are square and the bar's top corners are, so the seam between them reads as
+   a fold in one card rather than as two stacked panels.
+
+   The card inside is .player-banner, which already knows how to paint an
+   equipped banner, its artwork, its emblem and its scrim - see the long note
+   above .player-banner. Nothing here repaints any of that; this is only the
+   frame it lands in. */
+.profile-hero {
+  margin-bottom: 1rem;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  /* So the card's artwork cannot paint over the rounded corner. */
+  overflow: hidden;
+}
+
+.profile-hero-card {
+  margin: 0;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  border-bottom: none;
+  /* The profile is the one place this card is the page's headline rather than
+     one element on a screen, so it gets more room to breathe than the home
+     screen's copy of it. */
+  padding: 1.35rem 1.4rem 1.15rem;
+  box-shadow: none;
+}
+
+/* Rank progress, on the card. Only the profile's copy of the card has this:
+   the home screen and the matchup intro draw the same component without it,
+   because how close you are to Gold is a thing you look at deliberately, not
+   something an opponent needs during a five-second intro. */
+.pb-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* A card heading and the sentence under it are ONE unit. Left to their own
+   default margins an <h3> and a <p> put 1.4rem between two lines that belong
+   together, and the hint then reads as loose body copy rather than as the
+   heading's own caption. */
+.card-head {
+  margin-bottom: 0.9rem;
+}
+
+.card-head h3 {
+  margin: 0 0 0.15rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.card-head .hint-text {
+  margin: 0;
+}
+
+.pb-progress-track .progress-bar-track {
+  margin: 0;
+  /* On a banner rather than on a panel, so the empty half of the bar has to be
+     a hole in the artwork rather than the panel colour - which on a pale
+     banner disappeared entirely. */
+  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.35);
+  height: 12px;
+  /* Its own shadow, because the thing behind it is a player's artwork and
+     some of that artwork is nearly white - Arctic Stripe put a pale bar on a
+     pale field and the whole track disappeared. */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.pb-progress-caption {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  line-height: 1.4;
+}
+
+/* The fold: title on the left, actions on the right. */
+.profile-hero-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+
+.profile-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* --- The career strip ------------------------------------------------------
+   Four tiles that must look like four of the same thing, so they are a grid of
+   equal columns rather than flex items sized by their content: "12-4" and
+   "100%" are different widths and as flex items the tiles would be too, which
+   makes the row read as four unrelated boxes. */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
   margin-bottom: 1rem;
 }
 
-.profile-header .equipped-banner {
-  margin-bottom: 0.5rem;
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 0.9rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inner);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
 }
 
-.profile-header #btn-customize-banner {
-  margin-top: 0.2rem;
+.stat-tile-label {
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 700;
 }
 
+.stat-tile-value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--scoreboard);
+}
+
+.stat-tile-note {
+  font-size: var(--text-micro);
+  color: var(--muted);
+}
+
+/* 2x2 on a phone, as specified - four tiles across a 360px screen gives each
+   one 78px, which cannot hold "Practice Record" or a mono "128". */
+@media (max-width: 720px) {
+  .stat-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- Team colours ----------------------------------------------------------
+   The head and the swatches used to stack, so a card whose entire content is
+   one row of 28px swatches stood three times taller than it needed to. */
+.card-tight {
+  padding: 0.9rem 1rem;
+}
+
+.profile-kits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.profile-kits-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.profile-kits .kit-swatches {
+  margin: 0;
+}
+
+/* The hint goes underneath the row rather than beside it - it is a sentence,
+   and a sentence competing for a row with a colour picker gets neither. */
+.profile-kits-hint {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+/* --- The career divider ----------------------------------------------------
+   Everything below this belongs to ONE sport, and the divider has to say so:
+   the subtab row used to float loose in the page four cards below the last
+   thing it governed. Heading and tabs share a line on a desktop and stack on a
+   phone, with the section's own accent rule underneath both. */
+.career-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 1.6rem 0 0.9rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 2px solid rgba(var(--accent-rgb), 0.5);
+}
+
+.career-section-head .section-heading {
+  margin: 0;
+  /* The section rule is on the head now, so the heading's own underline would
+     be a second line 4px above it. */
+  border-bottom: none;
+  padding-bottom: 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.career-section-head .subtabs {
+  margin: 0;
+}
+
+/* --- The sport toggle ------------------------------------------------------
+   A bigger, more deliberate switch than the pill row it grew out of: the
+   active sport takes the accent as a filled chip and the inactive one is a
+   quiet outline, so which sport you are reading is answerable from across the
+   room rather than by comparing two pills. */
+.sport-toggle {
+  gap: 0.35rem;
+  padding: 0.25rem;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+
+.sport-toggle .subtab {
+  border: none;
+  background: none;
+  padding: 0.45rem 1rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  transition: background var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out);
+}
+
+.sport-toggle .subtab.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.35);
+}
+
+.sport-toggle .subtab:not(.active):hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+/* --- The per-sport summary strip ------------------------------------------- */
+.sport-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  /* One-pixel gaps over a line-coloured ground: the cells are a single object
+     divided up, not six cards with six borders. Six borders at this size is
+     more line than content. */
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.85rem 0.95rem;
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+/* Rank and Most Drafted carry a sentence rather than a number, so they take
+   two columns. Everything else is a figure and fits one. */
+.summary-cell-wide {
+  grid-column: span 2;
+}
+
+.summary-label {
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.summary-value {
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/* A player's name and a tier name are words, not readings off a scoreboard. */
+.summary-cell-text .summary-value,
+.summary-cell-wide .summary-value {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+}
+
+.summary-note {
+  font-size: var(--text-micro);
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .sport-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- Records by Era --------------------------------------------------------
+   A table on a desktop, a stack of cards on a phone, from one set of elements.
+   The desktop grid's column widths are shared by the header row and every era
+   row, which is what makes the numbers line up - the old flex rows did not,
+   so five brackets of records could not be compared against each other at all,
+   which is the only reason to break them out per era. */
+.era-records {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+}
+
+.era-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.6fr) 1fr 1fr 1fr;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.era-row:last-child {
+  border-bottom: none;
+}
+
+.era-head {
+  background: var(--surface-1);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* An unplayed bracket is dimmed, not hidden: which brackets exist is
+   information, and a list that grows as you play them reads as broken. */
+.era-row-empty .era-cell-value,
+.era-row-empty .era-rank-chip {
+  opacity: 0.5;
+}
+
+.era-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.era-label {
+  overflow-wrap: anywhere;
+}
+
+.era-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* On a desktop the column header says what each cell is, so repeating it in
+   every cell would be three extra words per row times five brackets. On a
+   phone there is no header row, and the label is the only thing that says
+   which record is which - see the phone block below. */
+.era-cell-label {
+  display: none;
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.era-cell-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.era-rank-chip {
+  display: inline-block;
+  font-size: var(--text-micro);
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  /* Each bracket becomes its own card: name across the top, the three readings
+     as labelled cells beneath it. A four-column table at 360px gives each
+     column 80px, and "Grandpa's Game" does not fit in 80px. */
+  .era-records {
+    border: none;
+    gap: 0.5rem;
+  }
+
+  .era-head {
+    display: none;
+  }
+
+  .era-row {
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-inner);
+    padding: 0.7rem 0.85rem;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .era-name {
+    grid-column: 1 / -1;
+  }
+
+  .era-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+  }
+
+  /* The rank is a chip, not a figure, so it does not want the stacked
+     label-over-value shape the two record cells take - as a third cell in a
+     two-column grid it took a whole row for one short pill with a heading
+     floating above it. Side by side across the full width instead. */
+  .era-cell-rank {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .era-cell-label {
+    display: block;
+  }
+}
+
+/* --- Top Performances: the record board ------------------------------------
+   Grouped headings, then rows of what / who / how much / when. It was a single
+   undivided column of every tracked statistic - twelve of them for football,
+   each one a label and a mono string sharing a line, and on a phone each row
+   stacked into two lines of text. Twenty-four lines of prose where a board
+   should be. */
+.record-board {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.record-group-heading {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-bright);
+  font-weight: 800;
+}
+
+.record-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+  width: 100%;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.record-group .record-row:last-child {
+  border-bottom: none;
+}
+
+.record-what {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.record-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Who holds it - a player, a unit, or the opponent a game record was set
+   against. Quieter than the label, because the label is what you scan for and
+   the holder is what you read once you have found it. */
+.record-holder {
+  font-size: var(--text-micro);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.record-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  text-align: right;
+}
+
+.record-value {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--scoreboard);
+  white-space: nowrap;
+}
+
+.record-date {
+  font-size: var(--text-micro);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* An unset record keeps its row - showing what WILL be tracked is more useful
+   than an empty card - but it should not look like an achievement. */
+.record-row-empty .record-value {
+  color: var(--muted);
+}
+
+/* A row is only a button when there is a box score behind it. */
+.record-row-link {
+  cursor: pointer;
+  border-radius: 6px;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  margin-left: -0.4rem;
+  margin-right: -0.4rem;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.record-row-link:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.record-row-link:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+/* --- Recent Games: match history -------------------------------------------
+   One grid per game, reflowing into a card under 640px. The W/L chip is the
+   first thing in the row and the first thing read out, because the result is
+   the reason anyone opens this panel. */
+.match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.match-row {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr auto auto;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius-inner);
+}
+
+/* Colour is the SECOND reading, never the only one - the chip already says W
+   or L in a letter. */
+.match-won { border-left-color: var(--win); }
+.match-lost { border-left-color: var(--buzzer); }
+
+.match-result {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.match-won .match-result {
+  background: rgba(63, 207, 142, 0.16);
+  border: 1px solid rgba(63, 207, 142, 0.55);
+  color: var(--win);
+}
+
+.match-lost .match-result {
+  background: rgba(232, 67, 61, 0.16);
+  border: 1px solid rgba(232, 67, 61, 0.55);
+  color: var(--buzzer);
+}
+
+.match-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.match-opponent {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.match-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-micro);
+  color: var(--muted);
+}
+
+.match-tag {
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.match-mvp b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.match-score {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.match-date {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  /* Chip down the left, everything else in a column beside it, score and date
+     on their own line under the tags. Four columns at 360px put the score and
+     the date in ~50px each and broke "128-119" across two lines. */
+  .match-row {
+    grid-template-columns: 2.4rem 1fr;
+  }
+
+  .match-result {
+    grid-row: span 2;
+    align-self: start;
+  }
+
+  .match-score {
+    grid-column: 2;
+    font-size: 1.05rem;
+  }
+
+  .match-date {
+    grid-column: 2;
+    margin-top: -0.2rem;
+  }
+}
 .tier-badge {
   display: inline-block;
   background: var(--accent);
@@ -2049,77 +2764,6 @@ table.box-table th, table.history-table th {
 .progress-bar-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--scoreboard));
-}
-
-.records-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 600px) {
-  .records-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.record-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 1rem;
-  text-align: center;
-}
-
-.record-card h4 {
-  margin: 0 0 0.4rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  font-size: var(--text-xs);
-  letter-spacing: 0.04em;
-}
-
-.record-value {
-  font-family: var(--font-mono);
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--scoreboard);
-}
-
-.performance-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.45rem 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.85rem;
-}
-
-.performance-row:last-child {
-  border-bottom: none;
-}
-
-/* Top Performances renders its first five records into one container and then
-   each remaining record into its own wrapper, so every one of those is
-   :last-child within its wrapper and lost its divider to the rule above - the
-   card ruled cleanly down to Most Blocks and then ran on as an undivided
-   block. These put the dividers back; only the genuinely final row goes
-   without. */
-#highest-scoring-game,
-#largest-margin .performance-row,
-#most-triple-doubles .performance-row,
-#most-mvps .performance-row {
-  border-bottom: 1px solid var(--line);
-}
-
-#longest-win-streak .performance-row {
-  border-bottom: none;
-}
-
-.performance-line {
-  font-family: var(--font-mono);
-  color: var(--muted);
-  font-size: var(--text-xs);
 }
 
 /* A player's stats: a row of value/label pairs that WRAP BETWEEN PAIRS AND
@@ -2177,31 +2821,6 @@ table.box-table th, table.history-table th {
   color: var(--muted);
   font-size: 0.85rem;
   font-style: italic;
-}
-
-.record-link {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: 0.45rem 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 0.85rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.record-link:not(:disabled):hover {
-  color: var(--accent-bright);
-}
-
-.record-link:disabled {
-  color: var(--muted);
-  font-style: italic;
-  cursor: default;
 }
 
 .pool-elsewhere-note {
@@ -2651,18 +3270,12 @@ table.box-table th, table.history-table th {
   box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.3);
 }
 
-/* An emblem fills its circle edge to edge - the drawing carries its own disc
-   (see emblemSvg in js/emblems.js), so the avatar's own background and padding
-   would show as a ring of the wrong colour around it. Emoji icons keep the
-   ring; that is what makes them read as sitting IN a slot rather than being
-   the slot. */
 /* An emblem fills its circle edge to edge and now carries its own rim in the
    team's second colour (see emblemSvg), so the avatar's usual accent border
    would sit outside it as a second, differently-coloured ring. No border, no
    background: the drawing IS the avatar. Emoji icons keep the ring, which is
    what makes them read as sitting in a slot rather than being the slot. */
-.player-avatar.has-emblem-icon,
-.profile-avatar.has-emblem-icon {
+.player-avatar.has-emblem-icon {
   background: none;
   border: none;
   box-shadow: none;
@@ -2670,8 +3283,7 @@ table.box-table th, table.history-table th {
   overflow: hidden;
 }
 
-.player-avatar .emblem,
-.profile-avatar .emblem {
+.player-avatar .emblem {
   width: 100%;
   height: 100%;
   display: block;
@@ -3104,7 +3716,9 @@ table.box-table th, table.history-table th {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  margin-top: 0.4rem;
+  /* No top margin: this used to be a block of its own under the profile
+     header, and is now the left-hand half of the hero's footer bar, where a
+     margin would push it out of line with the buttons opposite it. */
   padding: 0.3rem 0.5rem;
   border-radius: 6px;
   border-left: 3px solid var(--my-kit-ink, var(--accent));
@@ -4038,55 +4652,6 @@ table.box-table th, table.history-table th {
   line-height: 1;
 }
 
-/* --- Profile: per-era records ---------------------------------------------
-   One row per bracket, online/offline broken out - this is the ONLY place a
-   record is shown per era; the home screen's chips are choice-only. */
-.era-records {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.era-record-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--panel);
-  flex-wrap: wrap;
-}
-
-.era-record-name {
-  font-weight: 600;
-  flex: 1 1 auto;
-  min-width: 8rem;
-}
-
-.era-record-split {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--text);
-  white-space: nowrap;
-}
-
-.era-record-label {
-  font-family: var(--font-body);
-  color: var(--muted);
-  font-size: var(--text-micro);
-  margin-right: 0.3rem;
-}
-
-.era-record-rank {
-  font-family: var(--font-body);
-  color: var(--muted);
-  font-size: var(--text-micro);
-  font-style: italic;
-  margin-left: 0.4rem;
-}
-
 /* --- Online ticker -------------------------------------------------------
    Sits between the brand and the nav tabs. Hidden until the first successful
    count so a network failure shows nothing rather than a misleading "0". */
@@ -4567,10 +5132,10 @@ html {
   overscroll-behavior-y: contain;
 }
 
-/* Box scores and history are genuinely wider than a phone. Let them scroll
-   inside their own frame rather than squeezing columns to nothing. */
-#full-box-score,
-.table-scroll {
+/* A box score is genuinely wider than a phone. Let it scroll inside its own
+   frame rather than squeezing columns to nothing. Recent Games used to need
+   this too and no longer does - it is a list of match rows now, not a table. */
+#full-box-score {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -4731,67 +5296,6 @@ html {
     font-size: 2rem;
   }
 
-  /* ---- Profile records ----
-     These are label-left / value-right rows. At this width a long label
-     ("Most Rebounds - Victor Wembanyama") and a mono value ("20 - 7/28/2026")
-     fight for the same line: the label wraps, the value wraps, and on the
-     worst rows they end up touching. Stacking them makes every row the same
-     shape regardless of how long the player's name is. */
-  .performance-row,
-  .record-link {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.1rem;
-  }
-
-  /* Never breaks mid-value - "20 -" on one line and the date on the next was
-     the worst of it. */
-  .performance-line {
-    white-space: nowrap;
-  }
-
-  /* Era rows wrapped differently for every era, because the name was a
-     flex item with min-width: 8rem competing with two nowrap splits - "All
-     Years" left Offline stranded on its own line while "Grandpa's Game" took
-     the whole first row. A grid gives every era the same shape: name across
-     the top, Online and Offline as two even columns beneath. */
-  .era-record-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: baseline;
-    gap: 0.35rem 0.5rem;
-    padding: 0.6rem 0.7rem;
-  }
-
-  .era-record-name {
-    grid-column: 1 / -1;
-    min-width: 0;
-  }
-
-  /* ---- Recent Games ----
-     Four mono columns at desktop size gave every cell two or three lines and
-     made each row ~150px tall. */
-  table.history-table {
-    font-size: var(--text-xs);
-  }
-
-  table.history-table th,
-  table.history-table td {
-    padding: 0.4rem 0.35rem;
-  }
-
-  /* The score is the one thing that must never break across lines. */
-  table.history-table td.history-score {
-    white-space: nowrap;
-  }
-
-  /* Mode drops under the result rather than widening the column. */
-  .history-mode {
-    display: block;
-    font-size: var(--text-micro);
-    color: var(--muted);
-    font-family: var(--font-body);
-  }
 }
 
 /* The bottom bar applies to PHONES, not to narrow windows.
@@ -6212,49 +6716,9 @@ table.box-table th:nth-child(2) {
 
 /* ---- Profile: identity before administration ------------------------------
    The screen opened on two text inputs, so the first thing you saw on your own
-   profile was an account form and your rank sat below it. Name, tier and
-   banner lead now; the fields that edit the account are one fold down behind a
-   closed disclosure. */
-.profile-identity {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  margin-bottom: 0.8rem;
-}
-
-.profile-avatar {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 3.2rem;
-  height: 3.2rem;
-  border-radius: 50%;
-  background: rgba(var(--accent-rgb), 0.15);
-  border: 1px solid rgba(var(--accent-rgb), 0.45);
-  color: var(--accent-bright);
-  font-size: 1.4rem;
-}
-
-/* min-width:0 so a long username wraps instead of pushing the row wide - the
-   same flex default that let football's roster names escape a phone. */
-.profile-identity-text { min-width: 0; }
-
-.profile-name {
-  margin: 0 0 0.2rem;
-  font-family: var(--font-display);
-  font-size: 1.45rem;
-  line-height: 1.15;
-  letter-spacing: 0.01em;
-  overflow-wrap: anywhere;
-}
-
-.profile-header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
+   profile was an account form and your rank sat below it. Identity leads now -
+   as the shared player card, see .profile-hero - and the fields that edit the
+   account are one fold down behind a closed disclosure. */
 .profile-account {
   margin-top: 1rem;
   border-top: 1px solid var(--line);
@@ -6280,14 +6744,6 @@ table.box-table th:nth-child(2) {
 
 .profile-account-body {
   padding-top: 0.6rem;
-}
-
-@media (max-width: 480px) {
-  .profile-name { font-size: 1.2rem; }
-  .profile-avatar { width: 2.6rem; height: 2.6rem; font-size: 1.1rem; }
-  /* Full-width action buttons on a phone: two half-width buttons side by side
-     at 360px leave labels like "Customize Banner" truncated. */
-  .profile-header-actions .btn { flex: 1 1 100%; }
 }
 
 /* ===========================================================================

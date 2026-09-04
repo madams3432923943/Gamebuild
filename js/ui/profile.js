@@ -55,14 +55,22 @@ import {
   historyFor,
 } from "../profile.js";
 
-export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
+/**
+ * @param options.showBadge  draw the tier name as a pill above the progress
+ *   bar. The profile hero passes false: its card already carries the rank as
+ *   one of the stats along its foot, and a second copy of the word "Bronze II"
+ *   four lines under the first is noise rather than emphasis. Everywhere else
+ *   the pill IS the statement of rank, so it stays on by default.
+ */
+export function renderTierSummary(badgeContainer, captionContainer, rankInfo, options = {}) {
+  const { showBadge = true } = options;
   badgeContainer.innerHTML = "";
   const badge = document.createElement("span");
   badge.className = "tier-badge";
 
   if (rankInfo.provisional) {
     badge.textContent = "Provisional";
-    badgeContainer.appendChild(badge);
+    if (showBadge) badgeContainer.appendChild(badge);
     const g = rankInfo.gamesNeeded;
     captionContainer.textContent = `${g} more online ${g === 1 ? "game" : "games"} to get a rank.`;
     return;
@@ -70,7 +78,7 @@ export function renderTierSummary(badgeContainer, captionContainer, rankInfo) {
 
   const { tier, next, percentile, rank, totalQualifying } = rankInfo;
   badge.textContent = tier.name;
-  badgeContainer.appendChild(badge);
+  if (showBadge) badgeContainer.appendChild(badge);
 
   const track = document.createElement("div");
   track.className = "progress-bar-track";
@@ -344,14 +352,71 @@ export function renderPlayerBannerCard(refs, profile, rankInfo) {
   // The rating itself, only once it means something. Showing "500" to someone
   // with two games would present the starting number as an achievement.
   if (!rankInfo.provisional) parts.push({ label: "Rating", value: String(rankInfo.rating) });
-  for (const part of parts) {
-    const stat = document.createElement("div");
-    stat.className = "pb-stat";
-    stat.innerHTML = `<span class="pb-stat-value"></span><span class="pb-stat-label"></span>`;
-    stat.querySelector(".pb-stat-value").textContent = part.value;
-    stat.querySelector(".pb-stat-label").textContent = part.label;
-    refs.record.appendChild(stat);
-  }
+  for (const part of parts) refs.record.appendChild(cardStat(part.label, part.value));
+}
+
+/** One value-over-label block in a player card's stat foot. Extracted so the
+ * profile hero can append to the same row rather than growing a second,
+ * differently-styled one underneath it. */
+function cardStat(label, value) {
+  const stat = document.createElement("div");
+  stat.className = "pb-stat";
+  stat.innerHTML = `<span class="pb-stat-value"></span><span class="pb-stat-label"></span>`;
+  stat.querySelector(".pb-stat-value").textContent = value;
+  stat.querySelector(".pb-stat-label").textContent = label;
+  return stat;
+}
+
+/** Every game on the account, in every mode. Practice games do not move rank,
+ * but they are still games you played. */
+function totalGamesPlayed(profile) {
+  return profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses;
+}
+
+/** Wins over games, as a whole-number percent - or a dash when nothing has
+ * been played. Deliberately NOT 0% for a player with no games: 0% reads as a
+ * record of losses, which is a different and much worse thing than no record
+ * at all. */
+function winPercent(wins, losses) {
+  const played = wins + losses;
+  if (!played) return "—";
+  return `${Math.round((100 * wins) / played)}%`;
+}
+
+/**
+ * The profile's identity header: the SAME card the home screen and the matchup
+ * intro draw, plus the two things that only make sense on your own profile -
+ * how many games you have played, and how far you are from the next rank.
+ *
+ * Composed rather than copied. An earlier version of this screen had its own
+ * avatar, its own name heading and its own tier pill built from separate
+ * markup, and they drifted from the card immediately: the home card showed a
+ * banner and featured badges, the profile showed a star on a grey panel, and
+ * the same player had two identities depending on which tab they were on.
+ */
+export function createProfileHero() {
+  const refs = createPlayerBannerCard("profile-hero-card");
+  const progress = document.createElement("div");
+  progress.className = "pb-progress";
+  const track = document.createElement("div");
+  track.className = "pb-progress-track";
+  const caption = document.createElement("div");
+  caption.className = "pb-progress-caption";
+  progress.append(track, caption);
+  refs.card.appendChild(progress);
+  return { ...refs, progressTrack: track, progressCaption: caption };
+}
+
+/** @param rankInfo the GENERAL, all-sports standing - the one the banner
+ *   carries. Per-sport rank lives further down the screen, under that sport's
+ *   own tab, and is a different number. */
+export function renderProfileHero(refs, profile, rankInfo) {
+  renderPlayerBannerCard(refs, profile, rankInfo);
+  // Games played is deliberately absent from the shared card - it is private,
+  // and the card is what an opponent sees. Your own profile is the one place
+  // it belongs, so it is added here rather than in the shared renderer.
+  refs.record.appendChild(cardStat("Games", String(totalGamesPlayed(profile))));
+  renderTierSummary(refs.progressTrack, refs.progressCaption, rankInfo, { showBadge: false });
 }
 
 /**
@@ -966,64 +1031,391 @@ export function renderIcons(container, summaryEl, profile, onEquip, sport = "nba
   }
 }
 
-/** One row per era bracket, online and offline broken out separately - a
- * rank earned in Modern Ball says nothing about Grandpa's Game, so folding
- * them into one number would hide more than it showed. Lives on the Profile
- * tab only; the home screen's era chips are for picking what to play next,
- * not for re-showing a record.
+/** Every era bracket for one sport, as a table on a desktop and a stack of
+ * compact cards on a phone.
  *
- * The online side also shows a per-era rank. Today that's always
- * "Provisional" - loadRankInfo() (profile.js) only computes the one
- * cross-era percentile shown at the top of the profile; a real per-era
- * version (same idea, scoped to eraRecord's online_wins/online_losses
- * instead of the profile-wide total) is a follow-up, not built yet. */
+ * It was a full-width row per era, each one three loose spans deep, so five
+ * brackets took most of a screen to say almost nothing - and the numbers did
+ * not line up with each other, because nothing put them in columns. As a grid
+ * the same five brackets read in a glance and the online records can actually
+ * be compared, which is the only reason to break them out per era at all.
+ *
+ * Online and offline stay separate. A rank earned in Modern Ball says nothing
+ * about Grandpa's Game, and folding a practice record into a ranked one would
+ * hide more than it showed.
+ *
+ * The rank column is honest about being unbuilt: loadRankInfo() (js/profile.js)
+ * only computes the one cross-era percentile shown at the top of the screen, so
+ * every bracket reads "Provisional" today. A real per-era version - the same
+ * idea, scoped to eraRecord's online_wins/online_losses instead of the
+ * profile-wide total - is a follow-up, not built yet.
+ */
 function renderEraRecords(container, profile, sport) {
   container.innerHTML = "";
+
+  const head = document.createElement("div");
+  head.className = "era-row era-head";
+  head.setAttribute("aria-hidden", "true");
+  head.innerHTML =
+    `<span>Era</span><span>Online</span><span>Practice</span><span>Rank</span>`;
+  container.appendChild(head);
+
   // The active sport's brackets, and its record keys. Era ids are only unique
   // within a sport (every sport wants an "all"), so the key is namespaced -
   // see eraRecordKey in js/sports/index.js.
   for (const era of sport.eras) {
     const rec = eraRecord(profile, eraRecordKey(sport.id, era.id));
+    const played = rec.online_wins + rec.online_losses + rec.offline_wins + rec.offline_losses;
     const row = document.createElement("div");
-    row.className = "era-record-row";
+    // An unplayed bracket is dimmed rather than hidden: which brackets exist is
+    // information, and a list that grows as you play them reads as broken.
+    row.className = "era-row" + (played ? "" : " era-row-empty");
     row.innerHTML =
-      `<span class="era-record-name"><span aria-hidden="true">${era.emoji}</span> ${era.label}</span>` +
-      `<span class="era-record-split"><span class="era-record-label">Online</span> ${rec.online_wins}-${rec.online_losses}` +
-      `<span class="era-record-rank">Provisional</span></span>` +
-      `<span class="era-record-split"><span class="era-record-label">Offline</span> ${rec.offline_wins}-${rec.offline_losses}</span>`;
+      `<span class="era-name"><span class="era-emoji" aria-hidden="true"></span><span class="era-label"></span></span>` +
+      `<span class="era-cell"><span class="era-cell-label">Online</span><span class="era-cell-value"></span></span>` +
+      `<span class="era-cell"><span class="era-cell-label">Practice</span><span class="era-cell-value"></span></span>` +
+      `<span class="era-cell era-cell-rank"><span class="era-cell-label">Rank</span>` +
+      `<span class="era-rank-chip">Provisional</span></span>`;
+    row.querySelector(".era-emoji").textContent = era.emoji;
+    row.querySelector(".era-label").textContent = era.label;
+    const values = row.querySelectorAll(".era-cell-value");
+    values[0].textContent = `${rec.online_wins}-${rec.online_losses}`;
+    values[1].textContent = `${rec.offline_wins}-${rec.offline_losses}`;
     container.appendChild(row);
   }
 }
 
 /**
- * One Top Performances row.
+ * One record on the Top Performances board: what it is, who holds it, the
+ * number, and when it was set.
  *
  * A row becomes a button when the record carries the box score of the game it
  * was set in, and stays a plain div when it doesn't - which is every record
  * written before snapshots existed, and every empty placeholder. That is the
  * honest split: a row only looks clickable when there is something behind it.
+ *
+ * The four parts are four elements rather than one run of text. As a sentence
+ * ("Most Passing Yards — 2013 Peyton Manning — 412 — 3/4/2026") the value and
+ * the date competed with the label at the same weight and the board read as
+ * prose; in columns the numbers line up down the card and the holder's name
+ * can wrap without dragging the number onto a second line with it.
  */
-function performanceRow(label, value, game = null, onOpenGame = null) {
+function recordRow({ label, holder = "", value = "—", date = "", game = null, onOpenGame = null }) {
   const clickable = !!(game && game.boxA && game.boxB && onOpenGame);
   const row = document.createElement(clickable ? "button" : "div");
-  row.className = "performance-row" + (clickable ? " record-link" : "");
+  row.className = "record-row" + (clickable ? " record-row-link" : "") + (holder || value !== "—" ? "" : " record-row-empty");
   if (clickable) {
     row.type = "button";
     row.addEventListener("click", () => onOpenGame(game));
   }
-  row.innerHTML = `<span></span><span class="performance-line"></span>`;
-  // innerHTML for the label because callers pass pre-escaped markup for the
-  // player-name half; the value is always ours and goes in as text.
-  row.firstChild.innerHTML = label;
-  row.lastChild.textContent = value;
+  row.innerHTML =
+    `<span class="record-what"><span class="record-label"></span><span class="record-holder"></span></span>` +
+    `<span class="record-figure"><span class="record-value"></span><span class="record-date"></span></span>`;
+  row.querySelector(".record-label").textContent = label;
+  row.querySelector(".record-holder").textContent = holder;
+  row.querySelector(".record-value").textContent = value;
+  row.querySelector(".record-date").textContent = date;
   return row;
+}
+
+/** A heading plus its rows, appended to the board. Skipped entirely when the
+ * group has no rows - an empty "Special Teams" heading is worse than no
+ * heading, because it reads as a rendering fault rather than as a sport that
+ * does not track that. */
+function recordGroup(container, label, rows) {
+  if (!rows.length) return;
+  const group = document.createElement("div");
+  group.className = "record-group";
+  const heading = document.createElement("h4");
+  heading.className = "record-group-heading";
+  heading.textContent = label;
+  group.appendChild(heading);
+  for (const row of rows) group.appendChild(row);
+  container.appendChild(group);
+}
+
+const shortDate = (value) => new Date(value).toLocaleDateString();
+
+/**
+ * The whole Top Performances board for one sport: the per-stat personal bests,
+ * grouped the way that sport groups them, and then the game-level records that
+ * every sport shares.
+ *
+ * The grouping comes from the sport (`statGroups`), not from here. Football's
+ * twelve records split into offence, defence and special teams; basketball's
+ * five split into offence and the defensive glass. Shared code deciding which
+ * of those a "sack" is would be shared code special-casing a sport, which is
+ * the thing js/sports/ exists to prevent.
+ */
+function renderRecordBoard(container, profile, sport, onOpenGame) {
+  container.innerHTML = "";
+
+  const statLabels = sport.statLabels || {};
+  const bests = personalBestsFor(profile, sport.id);
+  const keys = Object.keys(statLabels);
+
+  if (!keys.length) {
+    renderNote(container, `No stats tracked for ${sport.name} yet.`);
+  } else {
+    const grouped = new Set();
+    for (const group of sport.statGroups || []) {
+      const rows = [];
+      for (const key of group.keys) {
+        if (!(key in statLabels)) continue;
+        grouped.add(key);
+        rows.push(bestRow(key));
+      }
+      recordGroup(container, group.label, rows);
+    }
+    // A stat that is tracked but filed under no group. verify:contract fails
+    // the build on this, so it should be unreachable - but a record silently
+    // disappearing off the board is exactly the failure that would go unnoticed
+    // for months, so the board shows it rather than dropping it.
+    const strays = keys.filter((k) => !grouped.has(k)).map(bestRow);
+    recordGroup(container, "Other", strays);
+  }
+
+  // Game-level records: not a player's line, so not in statGroups, and the
+  // same four for every sport.
+  const gameRows = [];
+
+  const scoringGame = gameRecordFor(profile.highestScoringGame, sport.id);
+  gameRows.push(
+    recordRow({
+      label: "Highest Score",
+      holder: scoringGame ? `vs ${scoringGame.opponentLabel}` : "",
+      value: scoringGame ? String(scoringGame.scoreFor) : "—",
+      date: scoringGame ? shortDate(scoringGame.date) : "",
+      game: scoringGame,
+      onOpenGame,
+    })
+  );
+
+  const marginGame = gameRecordFor(profile.largestMarginGame, sport.id);
+  gameRows.push(
+    recordRow({
+      label: "Biggest Win",
+      holder: marginGame ? `vs ${marginGame.opponentLabel}` : "",
+      value: marginGame ? `+${marginGame.value}` : "—",
+      date: marginGame ? shortDate(marginGame.date) : "",
+      game: marginGame,
+      onOpenGame,
+    })
+  );
+
+  const mvps = mostMVPs(profile, sport.id);
+  gameRows.push(
+    recordRow({
+      label: "Most MVPs",
+      holder: mvps ? mvps.name : "",
+      value: mvps ? `${mvps.count}x` : "—",
+    })
+  );
+
+  // Scoped to this sport: a football win did not extend a basketball streak.
+  const streaks = winStreaks(profile, sport.id);
+  gameRows.push(
+    recordRow({
+      label: "Win Streak",
+      // Said out loud when it is measured over a window rather than the whole
+      // career, because "3 games" and "3 games in the last 20" are different
+      // claims and only one of them is true.
+      holder: streaks.complete ? "" : `last ${streaks.sampled} games`,
+      value: streaks.longest > 0 ? `${streaks.longest}` : "—",
+      date: streaks.current > 1 ? `on ${streaks.current} now` : "",
+    })
+  );
+
+  // A TRIPLE-DOUBLE IS BASKETBALL'S. This used to render unconditionally, so
+  // the football tab carried a row for a thing football does not have and can
+  // never record - permanently a dash, and a dash that reads as "you have not
+  // done this yet" rather than "this does not exist here". The sport says
+  // whether it has a signature record; one that does not gets no row.
+  if (sport.signatureRecord) {
+    const holder = mostTripleDoubles(profile, sport.id);
+    gameRows.push(
+      recordRow({
+        label: sport.signatureRecord.label,
+        holder: holder ? holder.name : "",
+        value: holder ? `${holder.count}x` : "—",
+      })
+    );
+  }
+
+  recordGroup(container, "Game Records", gameRows);
+
+  function bestRow(key) {
+    const best = bests[key];
+    return recordRow({
+      label: statLabels[key],
+      holder: best ? (best.season ? `${best.season} ${best.playerName}` : best.playerName) : "",
+      value: best ? String(roundStat(best.value)) : "—",
+      date: best ? shortDate(best.date) : "",
+      game: best?.game,
+      onOpenGame,
+    });
+  }
+}
+
+/**
+ * Recent games as match rows: a result chip, who it was against, the score,
+ * how it was played, who was MVP, and when.
+ *
+ * It was a four-column <table> inside a horizontal scroller. On a 360px phone
+ * the date, the result, the score and the MVP name did not fit, so the panel
+ * scrolled sideways - and a result you have to swipe to read is a result
+ * nobody reads. This is one grid that becomes a stacked card under 640px.
+ *
+ * The W/L chip is a chip and not just green or red text. Colour alone is not a
+ * reading: eight percent of men cannot separate those two hues, and the whole
+ * row is coloured by the same thing, so there was nothing to compare it
+ * against.
+ */
+function renderMatchList(container, profile, sport, sportLabel) {
+  container.innerHTML = "";
+  const scoped = historyFor(profile, sport.id);
+  // The most recent handful, not the whole stored history - see
+  // RECENT_GAMES_SHOWN. History is newest-first, so this is the last N played.
+  const shown = scoped.games.slice(0, RECENT_GAMES_SHOWN);
+
+  for (const entry of shown) {
+    const row = document.createElement("div");
+    row.className = "match-row " + (entry.won ? "match-won" : "match-lost");
+    row.innerHTML =
+      `<span class="match-result" aria-hidden="true"></span>` +
+      `<span class="match-main">` +
+      `<span class="match-opponent"></span>` +
+      `<span class="match-tags">` +
+      `<span class="match-tag match-tag-sport"></span>` +
+      `<span class="match-tag"></span>` +
+      `<span class="match-mvp">MVP <b></b></span>` +
+      `</span></span>` +
+      `<span class="match-score"></span>` +
+      `<span class="match-date"></span>` +
+      `<span class="sr-only"></span>`;
+    row.querySelector(".match-result").textContent = entry.won ? "W" : "L";
+    row.querySelector(".match-opponent").textContent = `vs ${entry.opponentLabel}`;
+    row.querySelector(".match-tag-sport").textContent = sportLabel;
+    // "local" was pass-and-play, which no longer exists - but games played
+    // before it was removed are still in saved history and should keep their
+    // real label rather than being mislabelled as bot games.
+    row.querySelectorAll(".match-tag")[1].textContent =
+      entry.mode === "online" ? "Ranked" : entry.mode === "local" ? "Local" : "Practice";
+    row.querySelector(".match-mvp b").textContent = entry.mvpName;
+    row.querySelector(".match-score").textContent = `${entry.scoreFor}-${entry.scoreAgainst}`;
+    row.querySelector(".match-date").textContent = shortDate(entry.date);
+    // The chip is aria-hidden because "W" read aloud on its own is a letter,
+    // not a result. This says the whole thing once, in order.
+    row.querySelector(".sr-only").textContent =
+      `${entry.won ? "Win" : "Loss"} against ${entry.opponentLabel}, ${entry.scoreFor} to ${entry.scoreAgainst}.`;
+    container.appendChild(row);
+  }
+
+  if (!scoped.games.length) {
+    renderNote(container, `No ${sport.name} games played yet.`);
+  }
+  // A shorter list than the player has games for should say so. The older ones
+  // are not gone - they still count toward the streak records above - they are
+  // just not what this panel is for.
+  const hidden = scoped.games.length - shown.length;
+  if (hidden > 0) {
+    renderNote(
+      container,
+      `Showing your last ${shown.length} of ${scoped.games.length} ${sport.name} games. ` +
+        `Older games still count toward the records above.`
+    );
+  }
+  // Said out loud rather than quietly dropped. These are games from before
+  // history recorded which sport it was, and there is no honest way to assign
+  // them - so they are counted and named instead of being guessed into one
+  // sport's list.
+  if (scoped.unattributed > 0) {
+    renderNote(
+      container,
+      `${scoped.unattributed} earlier game${scoped.unattributed === 1 ? "" : "s"} predate ` +
+        `per-sport history and are not shown under any sport.`
+    );
+  }
+}
+
+/**
+ * The per-sport summary strip: where you stand in this sport, what your record
+ * in it is, and who you keep drafting.
+ *
+ * One strip rather than a card per number. Rank and Most Drafted used to be two
+ * full-width cards with a heading each, and each one held a single short
+ * answer - a tier name in the middle of ninety pixels of empty panel, then the
+ * same again for one player's name.
+ *
+ * The record is summed across the sport's own era brackets rather than read off
+ * the profile's top-level counters, because those counters are cross-sport:
+ * profile.onlineWins includes your football wins whichever tab you are on.
+ * bumpEraRecord (js/profile.js) writes to exactly the bracket that was played,
+ * so the brackets add up to the sport and nothing double-counts.
+ */
+function renderSportSummary(container, profile, sport, sportRankInfo) {
+  container.innerHTML = "";
+
+  let onlineWins = 0, onlineLosses = 0, offlineWins = 0, offlineLosses = 0;
+  for (const era of sport.eras) {
+    const rec = eraRecord(profile, eraRecordKey(sport.id, era.id));
+    onlineWins += rec.online_wins;
+    onlineLosses += rec.online_losses;
+    offlineWins += rec.offline_wins;
+    offlineLosses += rec.offline_losses;
+  }
+  const wins = onlineWins + offlineWins;
+  const losses = onlineLosses + offlineLosses;
+
+  // Rank and rating are one cell, not two: the rating is what the tier is
+  // computed FROM, so they are one fact stated twice over and belong together.
+  let rankValue = "—";
+  let rankNote = `${sport.name} isn't playable yet.`;
+  if (sportRankInfo?.provisional) {
+    const g = sportRankInfo.gamesNeeded;
+    rankValue = "Provisional";
+    rankNote = `${g} more online ${g === 1 ? "game" : "games"} to rank`;
+  } else if (sportRankInfo) {
+    rankValue = sportRankInfo.tier.name;
+    rankNote = `${sportRankInfo.rating} rating — #${sportRankInfo.rank} of ${sportRankInfo.totalQualifying}`;
+  }
+
+  const top = mostDraftedPlayer(profile, sport.id);
+  const cells = [
+    { label: `${sport.name} Rank`, value: rankValue, note: rankNote, wide: true },
+    { label: "Ranked", value: `${onlineWins}-${onlineLosses}`, note: "online record" },
+    { label: "Practice", value: `${offlineWins}-${offlineLosses}`, note: "unranked" },
+    { label: "Games", value: String(wins + losses), note: "in this sport" },
+    { label: "Win %", value: winPercent(wins, losses), note: "every mode" },
+    {
+      label: "Most Drafted",
+      value: top ? top.name : "—",
+      note: top ? `${top.count}x drafted` : `Play a ${sport.name} draft to track this`,
+      wide: true,
+      // A player's name is not a statistic and does not want the mono
+      // scoreboard face or the size that goes with it.
+      text: true,
+    },
+  ];
+
+  for (const cell of cells) {
+    const el = document.createElement("div");
+    el.className =
+      "summary-cell" + (cell.wide ? " summary-cell-wide" : "") + (cell.text ? " summary-cell-text" : "");
+    el.innerHTML =
+      `<span class="summary-label"></span><span class="summary-value"></span><span class="summary-note"></span>`;
+    el.querySelector(".summary-label").textContent = cell.label;
+    el.querySelector(".summary-value").textContent = cell.value;
+    el.querySelector(".summary-note").textContent = cell.note;
+    container.appendChild(el);
+  }
 }
 
 /**
  * @param rankInfo the player's GENERAL, all-sports standing - the one on their
  *   banner. It sits at the top of the screen because it is the headline.
- * @param sport which sport's career stats to show. Everything below the subtab
- *   row is scoped to it, including `sportRankInfo` - that sport's own ELO
+ * @param sport which sport's career stats to show. Everything below the career
+ *   divider is scoped to it, including `sportRankInfo` - that sport's own ELO
  *   standing on its own ladder, which is a different number from `rankInfo`
  *   and is the whole point of ratings being per-sport.
  * @param onOpenGame called with a stored game snapshot when a record row is
@@ -1038,188 +1430,37 @@ export function renderProfileScreen(
   onOpenGame = null
 ) {
   refs.usernameInput.value = profile.username || "";
-  // The name as a HEADING, not only as the value of a text box. The input is
-  // still the way to change it - it just lives under "Account settings" now,
-  // and a profile whose only statement of who you are is an editable field
-  // reads as a form rather than as yours.
-  if (refs.displayName) refs.displayName.textContent = profile.username || "Player";
-  renderPlayerIcon(refs.avatar, profile);
-  renderTierSummary(refs.tierBadge, refs.tierCaption, rankInfo);
+  renderProfileHero(refs.hero, profile, rankInfo);
 
-  if (refs.sportRankHeading) refs.sportRankHeading.textContent = `${sport.name} Rank`;
-  if (refs.sportRank) {
-    refs.sportRank.innerHTML = "";
-    if (!sportRankInfo) {
-      refs.sportRank.innerHTML = `<div class="empty-note">${sport.name} isn't playable yet, so there's no rank to earn here.</div>`;
-    } else if (sportRankInfo.provisional) {
-      const g = sportRankInfo.gamesNeeded;
-      refs.sportRank.innerHTML =
-        `<div class="empty-note">${g} more online ${g === 1 ? "game" : "games"} in ${sport.name} to get a ${sport.name} rank.</div>`;
-    } else {
-      const badge = document.createElement("span");
-      badge.className = "tier-badge";
-      badge.textContent = sportRankInfo.tier.name;
-      const line = document.createElement("div");
-      line.className = "performance-line";
-      line.textContent =
-        `${sportRankInfo.rating} rating — #${sportRankInfo.rank} of ${sportRankInfo.totalQualifying} in ${sport.name}`;
-      refs.sportRank.append(badge, line);
-    }
-  }
-
+  const wins = profile.onlineWins + profile.offlineWins;
+  const losses = profile.onlineLosses + profile.offlineLosses;
   refs.onlineRecord.textContent = `${profile.onlineWins}-${profile.onlineLosses}`;
   refs.offlineRecord.textContent = `${profile.offlineWins}-${profile.offlineLosses}`;
-  // Practice games don't move rank, but they are still games you played, so
-  // the total counts every mode.
-  refs.totalGames.textContent = String(
-    profile.onlineWins + profile.onlineLosses + profile.offlineWins + profile.offlineLosses
-  );
+  refs.totalGames.textContent = String(wins + losses);
+  refs.totalWinPct.textContent = winPercent(wins, losses);
 
+  if (refs.careerHeading) refs.careerHeading.textContent = `${sport.name} Career`;
+  // THE SPORT'S OWN COLOUR, SCOPED TO THIS SECTION ONLY.
+  //
+  // The four --accent tokens are app-wide and follow the sport you are PLAYING
+  // (applyTheme in js/main.js). The profile's career tab is deliberately not
+  // that: reading your football records must not switch the app out from under
+  // you, which is why profileStatsSportId is its own state.
+  //
+  // Written onto this element rather than the root, the same tokens re-resolve
+  // for everything inside it and for nothing outside it - so the football
+  // section is football blue while the nav, the hero and the career strip stay
+  // on whatever sport is actually selected. A hardcoded per-sport stylesheet
+  // would be the other way to do this, and would be a second place every
+  // future sport has to be added to.
+  if (refs.careerSection && sport.theme) {
+    refs.careerSection.style.setProperty("--accent", sport.theme.accent);
+    refs.careerSection.style.setProperty("--accent-bright", sport.theme.accentBright);
+    refs.careerSection.style.setProperty("--accent-rgb", sport.theme.accentRgb);
+    refs.careerSection.style.setProperty("--accent-contrast", sport.theme.accentContrast);
+  }
+  renderSportSummary(refs.sportSummary, profile, sport, sportRankInfo);
   renderEraRecords(refs.eraRecords, profile, sport);
-
-  const top = mostDraftedPlayer(profile, sport.id);
-  refs.mostDrafted.innerHTML = top
-    ? `<div class="performance-row"><span>${escapeHtml(top.name)}</span><span class="performance-line">${top.count}x drafted</span></div>`
-    : `<div class="empty-note">Play a ${sport.name} draft to start tracking this.</div>`;
-
-  // Labels come from the sport, so the NFL tab lists passing yards rather than
-  // rebounds. A sport nobody has played yet still draws every row as a dash -
-  // showing what WILL be tracked is more useful than an empty card.
-  refs.topPerformances.innerHTML = "";
-  const statLabels = sport.statLabels || {};
-  const bests = personalBestsFor(profile, sport.id);
-  const bestKeys = Object.keys(statLabels);
-  if (!bestKeys.length) {
-    refs.topPerformances.innerHTML = `<div class="empty-note">No stats tracked for ${sport.name} yet.</div>`;
-  } else if (!bestKeys.some((k) => bests[k])) {
-    refs.topPerformances.innerHTML = `<div class="empty-note">No ${sport.name} games played yet.</div>`;
-  } else {
-    for (const key of bestKeys) {
-      const best = bests[key];
-      const label = `Most ${statLabels[key]}`;
-      refs.topPerformances.appendChild(
-        best
-          ? performanceRow(
-              `${label} — ${escapeHtml(best.season ? `${best.season} ${best.playerName}` : best.playerName)}`,
-              `${roundStat(best.value)} — ${new Date(best.date).toLocaleDateString()}`,
-              best.game,
-              onOpenGame
-            )
-          : performanceRow(label, "—")
-      );
-    }
-  }
-
-  // Both game records are keyed by sport now, so the football tab cannot show
-  // your best basketball night. gameRecordFor also reads the old flat shape.
-  const scoringGame = gameRecordFor(profile.highestScoringGame, sport.id);
-  refs.highestScoringGame.replaceWith(
-    (refs.highestScoringGame = performanceRow(
-      scoringGame ? `Highest Scoring Game — vs ${escapeHtml(scoringGame.opponentLabel)}` : "Highest Scoring Game",
-      scoringGame ? `${scoringGame.scoreFor} — ${new Date(scoringGame.date).toLocaleDateString()}` : "—",
-      scoringGame,
-      onOpenGame
-    ))
-  );
-
-  const marginGame = gameRecordFor(profile.largestMarginGame, sport.id);
-  refs.largestMargin.innerHTML = "";
-  refs.largestMargin.appendChild(
-    performanceRow(
-      marginGame ? `Biggest Win — vs ${escapeHtml(marginGame.opponentLabel)}` : "Biggest Win",
-      marginGame
-        ? `${marginGame.value}-point win — ${new Date(marginGame.date).toLocaleDateString()}`
-        : "—",
-      marginGame,
-      onOpenGame
-    )
-  );
-
-  // A TRIPLE-DOUBLE IS BASKETBALL'S. It was rendered unconditionally, so the
-  // football tab carried a row for a thing football does not have and can
-  // never record - permanently a dash, and a dash that reads as "you have not
-  // done this yet" rather than "this does not exist here". The sport says
-  // whether it has a signature record; one that does not gets no row.
-  if (sport.signatureRecord) {
-    const holder = mostTripleDoubles(profile, sport.id);
-    refs.mostTripleDoubles.hidden = false;
-    refs.mostTripleDoubles.innerHTML = holder
-      ? `<div class="performance-row"><span>${escapeHtml(sport.signatureRecord.label)} — ${escapeHtml(holder.name)}</span><span class="performance-line">${holder.count}x</span></div>`
-      : `<div class="performance-row"><span>${escapeHtml(sport.signatureRecord.label)}</span><span class="performance-line">—</span></div>`;
-  } else {
-    refs.mostTripleDoubles.innerHTML = "";
-    refs.mostTripleDoubles.hidden = true;
-  }
-
-  // Scoped to this sport: a football win did not extend a basketball streak.
-  const streaks = winStreaks(profile, sport.id);
-  const streakScope = streaks.complete ? "" : ` (last ${streaks.sampled})`;
-  const streakLine =
-    streaks.longest > 0
-      ? `${streaks.longest} game${streaks.longest === 1 ? "" : "s"}` +
-        (streaks.current > 1 ? ` — on ${streaks.current} now` : "")
-      : "—";
-  refs.longestWinStreak.innerHTML =
-    `<div class="performance-row"><span>Longest Win Streak${streakScope}</span>` +
-    `<span class="performance-line">${streakLine}</span></div>`;
-
-  const mvps = mostMVPs(profile, sport.id);
-  refs.mostMvps.innerHTML = mvps
-    ? `<div class="performance-row"><span>Most MVPs — ${mvps.name}</span><span class="performance-line">${mvps.count}x</span></div>`
-    : `<div class="performance-row"><span>Most MVPs</span><span class="performance-line">—</span></div>`;
-
-  refs.historyBody.innerHTML = "";
-  const scopedHistory = historyFor(profile, sport.id);
-  // The most recent handful, not the whole stored history - see
-  // RECENT_GAMES_SHOWN. History is newest-first, so this is the last N played.
-  const shown = scopedHistory.games.slice(0, RECENT_GAMES_SHOWN);
-  for (const entry of shown) {
-    const tr = document.createElement("tr");
-    tr.className = entry.won ? "win-row" : "loss-row";
-    const date = new Date(entry.date).toLocaleDateString();
-    // "local" was pass-and-play, which no longer exists - but games played
-    // before it was removed are still in saved history and should keep their
-    // real label rather than being mislabelled as bot games.
-    const modeTag = entry.mode === "online" ? "Online" : entry.mode === "local" ? "Local" : "Practice";
-    // Mode is its own element rather than "(Online)" inside the result text:
-    // on a phone that parenthetical was what pushed the result cell to three
-    // lines, and as a tag it can drop underneath instead of widening the
-    // column. Escaped because an opponent's username and an MVP name are
-    // both player-supplied.
-    tr.innerHTML =
-      `<td>${date}</td>` +
-      `<td>${entry.won ? "Win" : "Loss"} vs ${escapeHtml(entry.opponentLabel)}` +
-      `<span class="history-mode">${modeTag}</span></td>` +
-      `<td class="history-score">${entry.scoreFor}-${entry.scoreAgainst}</td>` +
-      `<td>${escapeHtml(entry.mvpName)}</td>`;
-    refs.historyBody.appendChild(tr);
-  }
-  if (!scopedHistory.games.length) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="4" class="empty-note">No ${escapeHtml(sport.name)} games played yet.</td>`;
-    refs.historyBody.appendChild(tr);
-  }
-  // A shorter list than the player has games for should say so. The older ones
-  // are not gone - they still count toward the streak records above - they are
-  // just not what this panel is for.
-  const hidden = scopedHistory.games.length - shown.length;
-  if (hidden > 0) {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td colspan="4" class="empty-note">Showing your last ${shown.length} of ` +
-      `${scopedHistory.games.length} ${escapeHtml(sport.name)} games. ` +
-      `Older games still count toward the records above.</td>`;
-    refs.historyBody.appendChild(tr);
-  }
-  // Said out loud rather than quietly dropped. These are games from before
-  // history recorded which sport it was, and there is no honest way to assign
-  // them - so they are counted and named instead of being guessed into one
-  // sport's list.
-  if (scopedHistory.unattributed > 0) {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      `<td colspan="4" class="empty-note">${scopedHistory.unattributed} earlier game` +
-      `${scopedHistory.unattributed === 1 ? "" : "s"} predate per-sport history and are not shown under any sport.</td>`;
-    refs.historyBody.appendChild(tr);
-  }
+  renderRecordBoard(refs.topPerformances, profile, sport, onOpenGame);
+  renderMatchList(refs.historyBody, profile, sport, sport.name);
 }

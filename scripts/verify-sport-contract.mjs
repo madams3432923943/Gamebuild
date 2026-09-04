@@ -48,6 +48,11 @@ const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "la
   // The profile screen builds its records and career totals from these, so a
   // sport without its own would show basketball's categories under its tab.
   "statKeys", "lineKeys", "statLabels",
+  // How the profile's Top Performances board divides those labels into
+  // headings. Required rather than optional: a sport without it renders one
+  // undivided column of every record it tracks, which is the layout the board
+  // was redesigned away from.
+  "statGroups",
   // Vocabulary and shape shared code would otherwise have to assume. Each of
   // these was once hardcoded to basketball in js/main.js or js/ui.js, and each
   // one showed up as football being narrated in boards, dimes and minutes.
@@ -157,6 +162,25 @@ for (const meta of SPORTS) {
   // can never be set, and nothing else would have caught it.
   for (const key of Object.keys(sport?.statLabels || {})) {
     if (!(sport.lineKeys || []).includes(key)) missing.push(`statLabels.${key} is not in lineKeys`);
+  }
+  // ...and every label must be filed under exactly one heading. A stat added
+  // to statLabels but not to a group would still render - the board puts
+  // strays under "Other" rather than dropping them - but "Other" is a bug
+  // report, not a design, so it is caught here instead of shipped.
+  const groupedKeys = (sport?.statGroups || []).flatMap((g) => g.keys || []);
+  for (const key of Object.keys(sport?.statLabels || {})) {
+    const seen = groupedKeys.filter((k) => k === key).length;
+    if (seen === 0) missing.push(`statLabels.${key} is in no statGroups group`);
+    if (seen > 1) missing.push(`statLabels.${key} is in ${seen} statGroups groups`);
+  }
+  for (const [i, group] of (sport?.statGroups || []).entries()) {
+    if (!group?.label) missing.push(`statGroups[${i}] has no label`);
+    if (!group?.keys?.length) missing.push(`statGroups[${i}] ("${group?.label}") has no keys`);
+    for (const key of group?.keys || []) {
+      if (!(key in (sport.statLabels || {}))) {
+        missing.push(`statGroups[${i}].keys has "${key}", which is not in statLabels`);
+      }
+    }
   }
   // The stage a sport declares brings obligations with it.
   const stage = sport?.presentation?.stage;

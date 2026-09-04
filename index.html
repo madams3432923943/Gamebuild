@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=d115a30" />
+  <link rel="stylesheet" href="css/style.css?v=1629ef1" />
 </head>
 <body>
   <header class="top-nav">
@@ -468,150 +468,170 @@
     </section>
 
     <section id="screen-profile" class="screen hidden">
-      <!-- IDENTITY FIRST.
+      <!-- IDENTITY FIRST, AND IDENTITY AS ONE OBJECT.
            This screen used to open on two text inputs - "Your name" and
            "Recovery email" - so the first thing a player saw on their own
-           profile was an account settings form, and their rank, banner and
-           record were below it. Who you are and how you are doing lead now;
-           the fields that edit the account are still here, one fold down,
-           behind a disclosure that is closed by default.
+           profile was an account settings form. Identity led after that, but
+           as five separate stacked blocks: an avatar row, a banner strip, a
+           colour picker, a button row and a disclosure, each its own island of
+           padding. Six hundred pixels of profile before a single statistic.
 
-           Every id is unchanged. This is a re-ordering, not a rewrite: the
-           profile screen is wired by id from js/main.js and js/profile.js, and
-           renaming anything here to make the markup tidier would be a
-           gratuitous way to break it. -->
-      <div class="profile-header">
-        <div class="profile-identity">
-          <!-- Same mark as the home card, same renderer. aria-hidden because
-               the icon repeats identity the heading beside it already gives. -->
-          <span class="profile-avatar" id="profile-avatar" aria-hidden="true">★</span>
-          <div class="profile-identity-text">
-            <h2 class="profile-name" id="profile-display-name">Player</h2>
-            <div id="profile-tier-badge"></div>
-            <div id="profile-tier-caption" class="player-stats"></div>
+           Now the top of the screen is ONE player card - the same
+           .player-banner card the home screen and the matchup intro draw, from
+           the same renderer (createPlayerBannerCard/renderPlayerBannerCard in
+           js/ui/profile.js), with a footer bar carrying the equipped title and
+           the two actions. What another player sees when they are matched
+           against you is what you see at the top of your own profile, which is
+           the point of a profile.
+
+           The card itself is built in JS rather than written here because it
+           is the shared component; this element is only where it lands. -->
+      <div class="profile-hero">
+        <div id="profile-hero-card"></div>
+        <div class="profile-hero-bar">
+          <div class="equipped-banner" id="profile-equipped-banner" hidden></div>
+          <div class="profile-hero-actions">
+            <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
+            <button type="button" id="btn-customize-banner" class="btn btn-secondary btn-small">Customize Profile</button>
           </div>
         </div>
+      </div>
 
-        <div class="equipped-banner" id="profile-equipped-banner" hidden></div>
+      <!-- The career line, four tiles wide on a desktop and 2x2 on a phone.
+           Deliberately the same four numbers at every width rather than a set
+           that thins out on mobile: these are the totals the rest of the
+           screen is a breakdown OF, so dropping one on a phone would make the
+           per-sport numbers below it unreadable in context. -->
+      <div class="stat-strip" id="profile-career-strip">
+        <div class="stat-tile">
+          <span class="stat-tile-label">Online Record</span>
+          <span class="stat-tile-value" id="online-record"></span>
+          <span class="stat-tile-note">vs. other players</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-tile-label">Practice Record</span>
+          <span class="stat-tile-value" id="offline-record"></span>
+          <span class="stat-tile-note">vs. Bot &amp; friends</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-tile-label">Total Games</span>
+          <span class="stat-tile-value" id="total-games"></span>
+          <span class="stat-tile-note">every mode combined</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-tile-label">Win %</span>
+          <span class="stat-tile-value" id="total-win-pct"></span>
+          <span class="stat-tile-note">every mode combined</span>
+        </div>
+      </div>
 
-        <!-- Your kit: the two colours you wear. Sits at the top with identity
-             rather than under Account settings, because it is the same kind of
-             thing as your name and your banner - who you are, not how the
-             account is configured. Rendered from KITS in js/kits.js so the
-             palette is declared in one place. -->
-        <div class="profile-kits">
-          <div class="profile-kits-head">
-            <span class="profile-kits-title">Team colours</span>
-            <span class="profile-kits-note" id="profile-kit-name"></span>
+      <!-- Your kit: the two colours you wear. It stays up here with identity
+           rather than being demoted into Account settings, because it is the
+           same kind of thing as your name and your banner - who you are, not
+           how the account is configured. What changed is its shape: the head
+           and the swatches share a row now instead of stacking into a card
+           three times taller than the swatches inside it. Rendered from KITS
+           in js/kits.js so the palette is declared in one place. -->
+      <div class="card card-tight profile-kits">
+        <div class="profile-kits-head">
+          <span class="profile-kits-title">Team colours</span>
+          <span class="profile-kits-note" id="profile-kit-name"></span>
+        </div>
+        <div class="kit-swatches" id="profile-kit-picker" role="radiogroup" aria-label="Team colours"></div>
+        <p class="hint-text profile-kits-hint">
+          You wear your first colour at home and your second away, so two teams never clash.
+        </p>
+      </div>
+
+      <!-- Closed by default. Editing your name or recovery email is a rare,
+           deliberate act; showing it is one of maybe twenty. <details> rather
+           than a JS toggle so it is keyboard reachable and announced as
+           expandable without anything having to wire it up. -->
+      <details class="profile-account">
+        <summary>Account settings</summary>
+        <div class="profile-account-body">
+          <div class="field-row">
+            <label for="input-profile-username">Your name</label>
+            <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
           </div>
-          <div class="kit-swatches" id="profile-kit-picker" role="radiogroup" aria-label="Team colours"></div>
-          <p class="hint-text profile-kits-hint">
-            You wear your first colour at home and your second away, so two teams never clash.
-          </p>
-        </div>
-
-        <div class="profile-header-actions">
-          <button type="button" id="btn-rank-ladder" class="btn btn-secondary btn-small">View Rank Ladder</button>
-          <button type="button" id="btn-customize-banner" class="btn btn-secondary btn-small">Customize Profile</button>
-        </div>
-
-        <!-- Closed by default. Editing your name or recovery email is a rare,
-             deliberate act; showing it is one of maybe twenty. <details> rather
-             than a JS toggle so it is keyboard reachable and announced as
-             expandable without anything having to wire it up. -->
-        <details class="profile-account">
-          <summary>Account settings</summary>
-          <div class="profile-account-body">
-            <div class="field-row">
-              <label for="input-profile-username">Your name</label>
-              <input id="input-profile-username" type="text" maxlength="20" placeholder="Player 1" />
-            </div>
-            <!-- Accounts made before email sign-up existed have a synthetic
-                 address nobody can read, so they can't be recovered. This is how
-                 they become recoverable. -->
-            <div class="field-row" id="profile-email-row">
-              <label for="input-profile-email">Recovery email</label>
-              <input id="input-profile-email" type="email" placeholder="you@example.com" autocomplete="email" />
-            </div>
-            <div class="profile-email-actions">
-              <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
-              <span id="profile-email-status" class="hint-text"></span>
-            </div>
-            <!-- Sound, moved off the header. aria-pressed rather than a label
-                 that changes meaning: a button reading "Sound" that is
-                 sometimes a state and sometimes a command is ambiguous to a
-                 screen reader and to everyone else. The label is visible here
-                 rather than screen-reader-only, because a settings row has the
-                 space and a row that only reads as an emoji is a guess. -->
-            <div class="field-row field-row-setting">
-              <span id="setting-sound-title">Sound</span>
-              <button type="button" id="setting-sound" class="btn btn-secondary btn-small" aria-pressed="true" aria-labelledby="setting-sound-title setting-sound-label">
-                <span aria-hidden="true" id="setting-sound-icon">&#128266;</span>
-                <span id="setting-sound-label">On</span>
-              </button>
-            </div>
+          <!-- Accounts made before email sign-up existed have a synthetic
+               address nobody can read, so they can't be recovered. This is how
+               they become recoverable. -->
+          <div class="field-row" id="profile-email-row">
+            <label for="input-profile-email">Recovery email</label>
+            <input id="input-profile-email" type="email" placeholder="you@example.com" autocomplete="email" />
           </div>
-        </details>
-      </div>
-
-      <div class="records-row">
-        <div class="record-card">
-          <h4>Online Record</h4>
-          <div id="online-record" class="record-value"></div>
-          <div class="player-stats">vs. other players</div>
+          <div class="profile-email-actions">
+            <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
+            <span id="profile-email-status" class="hint-text"></span>
+          </div>
+          <!-- Sound, moved off the header. aria-pressed rather than a label
+               that changes meaning: a button reading "Sound" that is
+               sometimes a state and sometimes a command is ambiguous to a
+               screen reader and to everyone else. The label is visible here
+               rather than screen-reader-only, because a settings row has the
+               space and a row that only reads as an emoji is a guess. -->
+          <div class="field-row field-row-setting">
+            <span id="setting-sound-title">Sound</span>
+            <button type="button" id="setting-sound" class="btn btn-secondary btn-small" aria-pressed="true" aria-labelledby="setting-sound-title setting-sound-label">
+              <span aria-hidden="true" id="setting-sound-icon">&#128266;</span>
+              <span id="setting-sound-label">On</span>
+            </button>
+          </div>
         </div>
-        <div class="record-card">
-          <h4>Practice Record</h4>
-          <div id="offline-record" class="record-value"></div>
-          <div class="player-stats">vs. Bot &amp; friends (not ranked)</div>
+      </details>
+
+      <!-- CAREER, BY SPORT.
+           Everything from here down is scoped to one sport, and the divider
+           says so out loud. The subtab row used to sit loose in the page four
+           cards below the last thing it governed, so the football tab looked
+           like it belonged to "Most Drafted Player" alone; now it opens a
+           titled section and every card below it is visibly inside that
+           section. A passing record and a points record are not the same list,
+           and Most Drafted must not rank a quarterback against a point guard. -->
+      <div class="career-section" id="profile-career">
+        <div class="career-section-head">
+          <h3 class="section-heading" id="profile-career-heading">Career</h3>
+          <div class="subtabs sport-toggle" id="profile-stats-sport-tabs"></div>
         </div>
-        <div class="record-card">
-          <h4>Total Games</h4>
-          <div id="total-games" class="record-value"></div>
-          <div class="player-stats">every mode combined</div>
+
+        <!-- One compact strip, not one card per number. Rank, rating, record,
+             games, win % and the most-drafted player used to be two separate
+             full-width cards with a heading each; at that size a two-word
+             answer sat in the middle of 90px of empty panel. -->
+        <div id="profile-sport-summary" class="sport-summary"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Records by Era</h3>
+            <p class="hint-text">Each bracket keeps its own record and rank.</p>
+          </div>
+          <div id="era-records" class="era-records"></div>
         </div>
-      </div>
 
-      <div class="card">
-        <h3>Records/Rank by Era</h3>
-        <p class="hint-text">Each bracket keeps its own record and rank - Modern Ball and Grandpa's Game don't share one.</p>
-        <div id="era-records" class="era-records"></div>
-      </div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Top Performances</h3>
+            <p class="hint-text">Your best single-game numbers. Rows with a box score behind them open it.</p>
+          </div>
+          <!-- ONE container now. The game records used to be five sibling
+               elements outside this one, each rendered by its own ref and each
+               losing its divider to :last-child - the card ruled cleanly down
+               to Most Blocks and then ran on as an undivided block. They are
+               all groups on one board now, drawn by one loop. -->
+          <div id="top-performances" class="record-board"></div>
+        </div>
 
-      <!-- Career stats are per-sport: a passing record and a points record are
-           not the same list, and Most Drafted must not rank a quarterback
-           against a point guard. One subtab row governs every card below it,
-           including that sport's own rank. -->
-      <div class="subtabs" id="profile-stats-sport-tabs"></div>
-
-      <div class="card">
-        <h3 id="profile-sport-rank-heading">Rank</h3>
-        <div id="profile-sport-rank"></div>
-      </div>
-
-      <div class="card">
-        <h3>Most Drafted Player</h3>
-        <div id="most-drafted"></div>
-      </div>
-
-      <div class="card">
-        <h3>Top Performances</h3>
-        <div id="top-performances"></div>
-        <button type="button" id="highest-scoring-game" class="performance-row record-link" disabled></button>
-        <div id="largest-margin"></div>
-        <div id="most-triple-doubles"></div>
-        <div id="most-mvps"></div>
-        <div id="longest-win-streak"></div>
-      </div>
-
-      <h3>Recent Games</h3>
-      <div class="table-scroll">
-        <table class="history-table">
-          <thead>
-            <tr><th>Date</th><th>Result</th><th>Score</th><th>MVP</th></tr>
-          </thead>
-          <tbody id="history-body"></tbody>
-        </table>
+        <div class="card">
+          <div class="card-head">
+            <h3>Recent Games</h3>
+          </div>
+          <!-- A match list, not a table. The four-column table needed a
+               horizontal scroller on a phone to show a date, a result, a score
+               and an MVP, and a horizontally scrolling table is how a result
+               goes unread. Each game is one row that reflows into a card. -->
+          <div id="history-body" class="match-list"></div>
+        </div>
       </div>
     </section>
 
@@ -759,6 +779,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=d115a30"></script>
+  <script type="module" src="js/main.js?v=1629ef1"></script>
 </body>
 </html>

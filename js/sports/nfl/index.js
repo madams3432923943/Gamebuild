@@ -330,6 +330,23 @@ export const NFL = {
     // anything anyone would want to chase.
   },
 
+  // Which side of the ball each record belongs to, for the profile's Top
+  // Performances board. Twelve football records under a single heading read as
+  // a wall - a sack, an interception and a receiving touchdown are not the
+  // same kind of achievement and should not sit in one undivided column.
+  //
+  // Field goals get their own group rather than being filed under offence:
+  // the kicker is not on the offensive unit, and burying the only special
+  // teams record among eight offensive ones is how it stops being looked at.
+  //
+  // Every key in statLabels must appear in exactly one group - see the note in
+  // js/sports/nba/index.js, and the check in scripts/verify-sport-contract.mjs.
+  statGroups: [
+    { label: "Offense", keys: ["pass_yds", "pass_tds", "rush_yds", "rush_tds", "rec_yds", "rec_tds", "comp", "rec"] },
+    { label: "Defense", keys: ["ints", "sacks", "fumbles"] },
+    { label: "Special Teams", keys: ["fgs"] },
+  ],
+
   // ---- Data ---------------------------------------------------------------
   // Reading the pool before preload() throws rather than returning something
   // plausible. An empty roster or a 0-0 result would let a half-loaded NFL
