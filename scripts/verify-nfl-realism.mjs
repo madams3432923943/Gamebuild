@@ -380,6 +380,21 @@ console.log(
 // they are tight enough that the failure above could not pass any of them.
 const RATE_GAMES = 400;
 const rate = { plays: [], yards: [], rush: [], drives: [], carries: [], seconds: [], backYards: [], backCarries: [] };
+/**
+ * Every drafted back's simulated volume beside the volume he really carried.
+ *
+ * WHY THIS IS COLLECTED AT ALL. Nothing in this file had ever compared the two,
+ * and the tier table above cannot: it swaps ONE man into a fixed cast, so it
+ * measures whether a better back gains more - which he did - and never whether
+ * he is handed more of the ball. He was not. Measured over 5,000 drafted backs,
+ * the carries the RB slot received were 21.1 a game for a man who really
+ * carried 12, 20.9 for one who carried 16 and 20.9 for one who carried 20.
+ * Volume was a property of the SLOT and the man in it had no influence on his
+ * own, so a committee back ran at 1.35x his real per-game production while a
+ * genuine workhorse ran at 0.91x. The reported line was Mike Davis 2021 - 8.1
+ * carries a game in real life - going for 194 yards on 22.
+ */
+const backWorkload = [];
 // HOW A TEAM SCORES, not just how much. The engine drew 32% of touchdowns as
 // runs and produced 1.75 passing against 0.73 rushing, where football is about
 // 1.45 and 0.95 - while the TOTAL, 2.48 against 2.40, looked perfect. A split
@@ -420,9 +435,9 @@ for (let i = 0; i < RATE_GAMES; i++) {
   const result = NFL.simulate(rosterA, rosterB, ctx, {
     strategyA: BAL, strategyB: BAL, rand: mulberry32(i * 15486071 + 3),
   });
-  for (const [box, team, score] of [
-    [result.boxA, result.teamStatsA, result.teamScoreA],
-    [result.boxB, result.teamStatsB, result.teamScoreB],
+  for (const [box, team, score, roster] of [
+    [result.boxA, result.teamStatsA, result.teamScoreA, rosterA],
+    [result.boxB, result.teamStatsB, result.teamScoreB, rosterB],
   ]) {
     shape.score.push(score);
     shape.yardsPerPlay.push(team.plays > 0 ? team.totalYards / team.plays : 0);
@@ -441,6 +456,17 @@ for (let i = 0; i < RATE_GAMES; i++) {
     // came back at 297 yards.
     rate.backYards.push((box.RB || {}).rush_yds || 0);
     rate.backCarries.push((box.RB || {}).carries || 0);
+    // THE MAN AGAINST HIS SLOT. Held beside the back's own real workload so
+    // the two checks below can ask whether he had any say in his own volume;
+    // for a long time he did not - see backWorkload's own note.
+    if (roster.RB) {
+      backWorkload.push({
+        realCarries: Number(roster.RB.car_pg) || 0,
+        carries: (box.RB || {}).carries || 0,
+        yards: ((box.RB || {}).rush_yds || 0) + ((box.RB || {}).rec_yds || 0),
+        realYards: (Number(roster.RB.rush_yds) || 0) + (Number(roster.RB.rec_yds) || 0),
+      });
+    }
     tds.sides += 1;
     for (const line of Object.values(box)) {
       tds.pass += line.pass_tds || 0;
@@ -633,6 +659,19 @@ const tdToFg = tdPerGame / Math.max(1e-9, fgPerGame);
 const scoreShape = summarise(shape.score);
 const yppShape = summarise(shape.yardsPerPlay);
 const compShape = summarise(shape.compPct);
+// Split the drafted backs by the workload they really carried, so "does the
+// man decide his own volume" can be asked as a number.
+const ranked = backWorkload.filter((b) => b.realCarries > 0).sort((a, b) => a.realCarries - b.realCarries);
+const quartile = (list) => {
+  const cut = Math.max(1, Math.floor(list.length / 4));
+  return { light: list.slice(0, cut), heavy: list.slice(-cut) };
+};
+const { light: lightBacks, heavy: heavyBacks } = quartile(ranked);
+const meanOf = (list, key) => (list.length ? list.reduce((sum, b) => sum + b[key], 0) / list.length : 0);
+const productionRatio = (list) => {
+  const real = meanOf(list, "realYards");
+  return real > 0 ? meanOf(list, "yards") / real : 0;
+};
 const quietGames = shape.combined.filter((total) => total <= 20).length /
   Math.max(1, shape.combined.length);
 
@@ -755,6 +794,39 @@ const checks = [
       const e = eff(tierStats.get(t.key));
       return `${t.key} ${(e.yardsPerGame / Math.max(1, e.realYardsPerGame)).toFixed(2)}x`;
     }).join("  "),
+  },
+  {
+    // CARRIES ARE THE MAN'S, NOT THE SLOT'S.
+    //
+    // A twelve-slot roster drafts one back, so whoever he is he absorbs the
+    // backfield - and BELL_COW_CEILING is a flat cap his raw share almost
+    // always exceeded, so he landed AT it every time. Measured before the fix:
+    // 21.1 carries for a back who really carried 12, 20.9 for one who carried
+    // 16, 20.9 for one who carried 20. Nothing in this file asked, because the
+    // tier table swaps one man into a fixed cast and so can only see whether a
+    // better back GAINS more, never whether he is HANDED more.
+    //
+    // The bar is deliberately modest: the drafted back really is the whole
+    // backfield here, so a committee man still starts. What is forbidden is
+    // that his own career makes no difference at all.
+    title: "The back's carries follow the man, not the slot",
+    ok: lightBacks.length > 0 && heavyBacks.length > 0 &&
+      meanOf(lightBacks, "carries") < meanOf(heavyBacks, "carries") * 0.95,
+    detail: `bottom quartile by real workload ${meanOf(lightBacks, "carries").toFixed(1)} carries ` +
+      `(really ${meanOf(lightBacks, "realCarries").toFixed(1)}), ` +
+      `top quartile ${meanOf(heavyBacks, "carries").toFixed(1)} (really ${meanOf(heavyBacks, "realCarries").toFixed(1)})`,
+  },
+  {
+    // The back's version of "Simulated production tracks real production
+    // within 1.6x", which until now only the quarterback had. He had both a
+    // floor and a ceiling against his own record; the back had neither, only
+    // an ordinal check that a better back gains more than a worse one. A
+    // bench player posting a starter's line passes that check every time.
+    title: "A back's production tracks his own, within 1.6x",
+    ok: lightBacks.length > 0 && heavyBacks.length > 0 &&
+      productionRatio(lightBacks) < 1.6 && productionRatio(heavyBacks) < 1.6,
+    detail: `bottom quartile ${productionRatio(lightBacks).toFixed(2)}x his real per-game, ` +
+      `top quartile ${productionRatio(heavyBacks).toFixed(2)}x`,
   },
   {
     title: "Rushing production tracks the back's own rate",

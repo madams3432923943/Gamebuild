@@ -772,7 +772,10 @@ function usageWeights(roster) {
     .filter(([, e]) => e && !isUnit(e))
     .map(([slot, entry]) => ({ slot, entry }));
   const build = (list, weightOf) => {
-    const items = list.map(({ slot, entry }) => ({ slot, weight: Math.max(0, weightOf(slot, entry) || 0) }));
+    // `entry` rides along because capBellCow needs the MAN, not just his share:
+    // how much of a backfield he is allowed to be is a fact about his own
+    // career, and a normalised weight has already thrown that away.
+    const items = list.map(({ slot, entry }) => ({ slot, entry, weight: Math.max(0, weightOf(slot, entry) || 0) }));
     const total = items.reduce((s, i) => s + i.weight, 0);
     // A roster with no production in this column (a data gap) shares evenly
     // rather than dropping the touches on the floor.
@@ -897,6 +900,73 @@ function planTilt(mod) {
  * entire running game. */
 const BELL_COW_CEILING = 0.74;
 
+/**
+ * ...and the least, for a back whose own career says he was never the whole
+ * backfield.
+ *
+ * THIS IS THE ONE THAT WAS MISSING, and it is the difference between a slot
+ * and a man. BELL_COW_CEILING above is a flat cap, and on a twelve-slot roster
+ * the drafted back's raw share almost always exceeds it - so he landed AT the
+ * cap whoever he was. Measured over 5,000 drafted backs, the carries he
+ * received were 21.1 a game for one who really carried 12, 20.9 for one who
+ * really carried 16, and 20.9 for one who really carried 20. Carries were a
+ * property of the SLOT; the man in it had no influence on his own volume at
+ * all.
+ *
+ * What that did to a box score, over the same sample: a committee back ran at
+ * 1.35x his real per-game production while a genuine workhorse ran at 0.91x.
+ * The reported line was Mike Davis 2021 - 8.1 carries and 44.8 total yards a
+ * game in real life - going for 194 yards on 22 carries. He was handed a
+ * bell-cow's workload because the slot always was.
+ *
+ * carrierWorkloadTrust already measured exactly the right thing and was only
+ * ever spent on his RATE: his yards per carry regressed toward the league's,
+ * while his volume did not. That comment even says "He was not a bell-cow and
+ * should not run like one" and then fixed half of it. This is the other half.
+ *
+ * NOT ZERO, and the floor is the honest part. This roster drafts one back, so
+ * whoever he is he IS the backfield - there is no second man to hand the rest
+ * to. He should not run like a workhorse; he still has to run like a starter.
+ * What he does not take goes to the men whose own record justifies it, through
+ * the redistribution capBellCow already does - a quarterback's scrambles never
+ * rise above his own, which is the Roethlisberger rule below.
+ */
+const COMMITTEE_CARRY_CEILING = 0.50;
+
+/**
+ * A real bell-cow's carries per game - the anchor for how much of a backfield
+ * a man is.
+ *
+ * DELIBERATELY NOT STARTER_CARRIES_PER_GAME, though the first version of this
+ * reused it. They answer different questions and the answers are different
+ * numbers. That one asks how much of a man's YARDS PER CARRY to believe, and
+ * saturates at 16 because a rate measured over a starter's season is a rate you
+ * can trust - past that, more carries tell you nothing new about his average.
+ * This one asks how much of the BACKFIELD he was, and there the difference
+ * between 16 and 22 carries a game is the whole question. Sharing the divisor
+ * made the ceiling saturate long before a workhorse: a back who really carried
+ * 13 a game came out at 83% of a bell-cow and drew 19.9 carries against a true
+ * workhorse's 20.8, which is the man having almost no say in his own volume.
+ *
+ * 20 is where the league's actual every-down backs sit.
+ */
+const BELL_COW_CARRIES_PER_GAME = 20;
+
+/** How much of a backfield this man really was, 0 to 1. Unknown means all of
+ * it - a row built before car_pg existed carries no role information, and
+ * reading that as "committee" would flatten every pre-refresh dataset. */
+function backfieldShare(entry) {
+  const perGame = Number(entry?.car_pg);
+  if (!Number.isFinite(perGame) || perGame <= 0) return 1;
+  return Math.max(0, Math.min(1, perGame / BELL_COW_CARRIES_PER_GAME));
+}
+
+/** How much of a team's carries THIS back may take, from his own workload. */
+function bellCowCeilingFor(entry) {
+  return COMMITTEE_CARRY_CEILING +
+    (BELL_COW_CEILING - COMMITTEE_CARRY_CEILING) * backfieldShare(entry);
+}
+
 /** The most of a team's carries a QUARTERBACK can take, however the rest of
  * the backfield is capped.
  *
@@ -916,9 +986,10 @@ function capBellCow(items) {
   if (items.length < 2) return items;
   let top = items[0];
   for (const item of items) if (item.weight > top.weight) top = item;
-  if (top.weight <= BELL_COW_CEILING) return items;
+  const ceiling = bellCowCeilingFor(top.entry);
+  if (top.weight <= ceiling) return items;
 
-  const spare = top.weight - BELL_COW_CEILING;
+  const spare = top.weight - ceiling;
   const ceilingFor = (item) =>
     item.slot === "QB" ? Math.max(QB_CARRY_FLOOR, item.weight) : 1;
   const rest = items.filter((item) => item !== top);
