@@ -100,7 +100,7 @@ could have.
 
 ## Known limitations
 
-- `applyArtFallback()` in `js/ui.js` drops the card back to the banner's two
+- `applyArtFallback()` in `js/ui/profile.js` (module-private there) drops the card back to the banner's two
   colours if a file fails to load, so a bad file degrades rather than rendering a
   blank slab. It does not check size — that is a build-time gate now.
 - The Rewards grid renders all twenty at ~8 MB total. Fine today; if the set
