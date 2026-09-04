@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=3efa557" />
+  <link rel="stylesheet" href="css/style.css?v=4d5fc4d" />
 </head>
 <body>
   <header class="top-nav">
@@ -150,7 +150,15 @@
              it is a fallback rather than a caption: onload removes it once the
              image is really there, onerror keeps it when the file is not. -->
         <div class="auth-brand">
-          <img class="auth-brand-mark" src="assets/brand/draft-nova-lockup.png" alt="Draft Nova" />
+          <!-- lazy + async: this is a 100KB lockup on the SIGN-IN card, and a
+               signed-in player never sees it - but the browser fetched it on
+               every boot regardless, because a src on a hidden element is
+               still a src. Lazy images inside a display:none screen are not
+               fetched at all, and for a signed-out visitor it is in the
+               viewport, where lazy loads it immediately anyway. Worth ~100KB
+               of the 1.5MB boot budget, for nobody's loss. -->
+          <img class="auth-brand-mark" src="assets/brand/draft-nova-lockup.png" alt="Draft Nova"
+               loading="lazy" decoding="async" />
           <span class="auth-brand-word">Draft Nova</span>
         </div>
         <h2 id="auth-heading">Sign In</h2>
@@ -228,6 +236,13 @@
              the screen that card is on - customizing it used to mean leaving
              for the Profile tab and finding a button that only did banners. -->
         <button type="button" id="btn-customize-profile" class="sport-card-action">🎨 Customize</button>
+        <!-- Settings. A gear rather than a word because it sits next to a
+             worded button and two labels side by side read as a choice between
+             two equal things, which these are not: one is the wardrobe you
+             open often, the other is where the rules and the contact
+             addresses live. aria-label carries the name a screen reader
+             needs. -->
+        <button type="button" id="btn-settings" class="sport-card-action icon-action" aria-label="Settings" title="Settings">⚙️</button>
       </div>
 
       <div class="player-banner card" id="player-banner">
@@ -247,6 +262,55 @@
         </div>
         <div class="pb-badges" id="home-featured-badges"></div>
         <div class="pb-stats" id="home-record"></div>
+      </div>
+
+      <!-- THE SETTINGS SHEET, parked here and MOVED into the modal on open.
+           Not built in JS: the sound toggle below is wired by id at module
+           load, and rebuilding it per open would either re-register listeners
+           or lose them. openModal appends this node and closeModal detaches
+           it; the reference in main.js keeps it and its listeners alive
+           between openings. Hidden until then. -->
+      <div id="settings-body" hidden>
+        <h3 class="field-heading">Game</h3>
+        <div class="settings-row">
+          <span id="setting-sound-title">Sound</span>
+          <button type="button" id="setting-sound" class="btn btn-secondary btn-small" aria-pressed="true" aria-labelledby="setting-sound-title setting-sound-label">
+            <span aria-hidden="true" id="setting-sound-icon">&#128266;</span>
+            <span id="setting-sound-label">On</span>
+          </button>
+        </div>
+
+        <h3 class="field-heading">Account</h3>
+        <div class="settings-row">
+          <span>Name and recovery email</span>
+          <button type="button" id="btn-settings-account" class="btn btn-secondary btn-small">Open Profile</button>
+        </div>
+
+        <h3 class="field-heading">Contact</h3>
+        <ul class="settings-links">
+          <li><span>Support</span> <a href="mailto:support@draftnovagame.com">support@draftnovagame.com</a></li>
+          <li><span>Business</span> <a href="mailto:business@draftnovagame.com">business@draftnovagame.com</a></li>
+          <li><span>Privacy</span> <a href="mailto:privacy@draftnovagame.com">privacy@draftnovagame.com</a></li>
+        </ul>
+
+        <h3 class="field-heading">Legal</h3>
+        <ul class="settings-links">
+          <li><span>Privacy Policy</span> <a href="privacy.html">Read</a></li>
+          <li><span>Terms of Service</span> <a href="terms.html">Read</a></li>
+        </ul>
+
+        <h3 class="field-heading">About</h3>
+        <!-- The build, because "what version are you on?" is the first
+             question any bug report needs and nothing on screen answered it.
+             Filled by JS from the stamp on the entry script. -->
+        <div class="settings-row">
+          <span>Build</span>
+          <span class="settings-build" id="settings-build">—</span>
+        </div>
+        <p class="hint-text settings-disclaimer">
+          Draft Nova is an unofficial fan project. It is not affiliated with, endorsed by, or
+          sponsored by the NFL, the NBA, or any team.
+        </p>
       </div>
 
       <!-- One row per sport: where you stand in it, its own rank ladder, its
@@ -566,19 +630,11 @@
             <button type="button" id="btn-save-email" class="btn btn-secondary btn-small">Save Email</button>
             <span id="profile-email-status" class="hint-text"></span>
           </div>
-          <!-- Sound, moved off the header. aria-pressed rather than a label
-               that changes meaning: a button reading "Sound" that is
-               sometimes a state and sometimes a command is ambiguous to a
-               screen reader and to everyone else. The label is visible here
-               rather than screen-reader-only, because a settings row has the
-               space and a row that only reads as an emoji is a guess. -->
-          <div class="field-row field-row-setting">
-            <span id="setting-sound-title">Sound</span>
-            <button type="button" id="setting-sound" class="btn btn-secondary btn-small" aria-pressed="true" aria-labelledby="setting-sound-title setting-sound-label">
-              <span aria-hidden="true" id="setting-sound-icon">&#128266;</span>
-              <span id="setting-sound-label">On</span>
-            </button>
-          </div>
+          <!-- Sound used to be here. It moved to Settings (the gear on the
+               home screen), where the rest of the app-wide preferences are -
+               it is not an account field, and it was the only thing in this
+               disclosure that was not one. There is exactly one sound control
+               in the app; two would drift. -->
         </div>
       </details>
 
@@ -780,6 +836,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=3efa557"></script>
+  <script type="module" src="js/main.js?v=4d5fc4d"></script>
 </body>
 </html>

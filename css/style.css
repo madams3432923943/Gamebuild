@@ -2476,6 +2476,81 @@ table.box-table th {
 }
 
 
+/* ---- Settings sheet ----
+   Rows of "label, then the control or the value", and short link lists. Same
+   shapes as everywhere else in the app; nothing here is its own design. */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inner);
+  margin-bottom: 0.4rem;
+}
+
+.settings-links {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+}
+
+.settings-links li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--surface-2);
+}
+
+.settings-links span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* overflow-wrap, because an address is one long unbreakable token and a
+   360px phone has nowhere to put support@draftnovagame.com otherwise. */
+.settings-links a {
+  color: var(--accent-bright);
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.settings-build {
+  font-family: var(--font-mono);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.settings-disclaimer {
+  margin: 0.7rem 0 0;
+  line-height: 1.5;
+}
+
+/* A gear needs no label, but it still needs a target. Square so the 44px
+   floor lands on both axes - a one-glyph button is the classic case where a
+   width floor is set and a height floor is forgotten. */
+.icon-action {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.35rem;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 /* ---- Profile screen ---- */
 
 /* --- The identity hero ---

@@ -4541,6 +4541,47 @@ async function renderProfileFor(profile) {
 btnCustomizeBanner.addEventListener("click", () => openCustomizeModal());
 document.getElementById("btn-customize-profile").addEventListener("click", () => openCustomizeModal());
 
+// ---- Settings ----
+// The sheet lives in index.html (see #settings-body) rather than being built
+// here, so the sound toggle keeps the ids wired at module load. openModal
+// appends the node; closeModal detaches it. This reference is what keeps it -
+// and its listeners - alive between openings.
+const settingsBodyEl = document.getElementById("settings-body");
+const settingsBuildEl = document.getElementById("settings-build");
+
+/** The commit this build was stamped with, read off the entry script's own
+ * cache-busting query (see tools/stamp-build.mjs).
+ *
+ * Worth showing: "what version are you on?" is the first question any bug
+ * report needs, and until now nothing on screen could answer it - the stamp
+ * existed purely to defeat the browser cache. Falls back to "dev" for a
+ * checkout served without a stamp, which is the honest answer rather than a
+ * blank. */
+function buildStamp() {
+  const src = document.querySelector('script[src*="js/main.js"]')?.getAttribute("src") || "";
+  return new URLSearchParams(src.split("?")[1] || "").get("v") || "dev";
+}
+
+function openSettings() {
+  settingsBodyEl.hidden = false;
+  if (settingsBuildEl) settingsBuildEl.textContent = buildStamp();
+  openModal("Settings", settingsBodyEl);
+}
+
+document.getElementById("btn-settings").addEventListener("click", openSettings);
+
+// Account fields stayed on the Profile screen - they are account state, not
+// app preferences - so Settings points at them rather than duplicating them.
+document.getElementById("btn-settings-account").addEventListener("click", () => {
+  closeModal();
+  // goToTab, not openProfileScreen directly: it also tears down the watchers
+  // and timers the screen you are leaving may have running, and marks the nav.
+  // Calling the opener alone leaves "Play" highlighted while the profile is on
+  // screen, which is the bug every hand-rolled navigation in this file has
+  // had at some point.
+  goToTab("profile", openProfileScreen);
+});
+
 // ---- Recovery email ----
 // Attaching one is the whole point of the account rework: an account with no
 // reachable address can't be recovered, and every account made before email
