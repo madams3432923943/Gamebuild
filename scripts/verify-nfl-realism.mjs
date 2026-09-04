@@ -822,9 +822,19 @@ const checks = [
     // floor and a ceiling against his own record; the back had neither, only
     // an ordinal check that a better back gains more than a worse one. A
     // bench player posting a starter's line passes that check every time.
-    title: "A back's production tracks his own, within 1.6x",
+    // BOTH ENDS, and the first version of this had only one. Its comment
+    // claimed to mirror the quarterback's pair of checks - a floor at 0.4x so
+    // a weak passer is rated low rather than erased, and a ceiling at 1.6x -
+    // and then asserted the ceiling alone. A back producing a fifth of his
+    // real output passed it, and passed the ordinal sibling check too, so the
+    // erasure failure the QB floor exists to catch had no counterpart here at
+    // all. 0.5x rather than the quarterback's 0.4x because a back's real
+    // per-game average is less depressed by partial games than a backup
+    // passer's is.
+    title: "A back's production tracks his own, within 1.6x and above half",
     ok: lightBacks.length > 0 && heavyBacks.length > 0 &&
-      productionRatio(lightBacks) < 1.6 && productionRatio(heavyBacks) < 1.6,
+      productionRatio(lightBacks) < 1.6 && productionRatio(heavyBacks) < 1.6 &&
+      productionRatio(lightBacks) > 0.5 && productionRatio(heavyBacks) > 0.5,
     detail: `bottom quartile ${productionRatio(lightBacks).toFixed(2)}x his real per-game, ` +
       `top quartile ${productionRatio(heavyBacks).toFixed(2)}x`,
   },
