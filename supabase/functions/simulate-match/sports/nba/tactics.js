@@ -46,7 +46,7 @@
 // thing this engine converts directly into wins, and hand-picked scoring
 // bonuses on a pace/transition style previously ran away with a 65% win rate
 // before that pass. Re-solved after defender ratings were damped, since that
-// changed how much defence suppresses scoring.
+// changed how much defense suppresses scoring.
 //
 // Re-solved again after real per-game stats replaced the 1980s-2020s
 // placeholder data and scoringEfficiencyFactor (engine.js) started letting
@@ -73,7 +73,7 @@
 // Every defensive style moved the same way - Lockdown Defense 0.9378 ->
 // 0.9544, Defensive Pressure 0.9656 -> 0.9740, Zone Defense 0.9788 -> 0.9862 -
 // which is what a raised TALENT_PARITY does: more of a roster's talent reaches
-// the scoreboard, so a style that buys defence with points was being charged
+// the scoreboard, so a style that buys defense with points was being charged
 // for points that had become worth more. That is a coherent story rather than
 // fifteen independent nudges, and it is the kind of drift nobody can see by
 // reading the numbers.

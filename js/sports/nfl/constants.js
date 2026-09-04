@@ -48,7 +48,7 @@ export const DRIVE_START_YARD = 25;
 export const FG_RANGE_YARD = 62;
 
 /**
- * Outcome weights for a league-average drive, before any offence/defence
+ * Outcome weights for a league-average drive, before any offense/defense
  * adjustment and BEFORE the field-position rules below act on the result.
  * Sums to 1: most drives end in a punt, and turnovers are rarer than people
  * remember.
@@ -87,9 +87,9 @@ export const DRIVE_OUTCOMES = {
  *
  * IT USED TO BE AN ACCIDENT, WHICH IS WHY IT IS A CONSTANT NOW. The lift was
  * real and shipped, but nobody had chosen it: `edge` compared a roster's
- * offence rating against its opponent's defence rating as though the two were
+ * offense rating against its opponent's defense rating as though the two were
  * on the same scale, and they are not. Measured over 600 bot-drafted ranked
- * rosters, offence rates 0.904 and defence 0.794 - so EVERY team, in every
+ * rosters, offense rates 0.904 and defense 0.794 - so EVERY team, in every
  * game, carried a systematic +0.11 that TALENT_PARITY then multiplied into a
  * 1.18x on all scoring. The number the game shipped at was that product.
  *
@@ -102,7 +102,7 @@ export const DRIVE_OUTCOMES = {
  *
  *   Quick Play scored less than Ranked. A Quick Play roster drafts ONE defensive
  *   unit standing in for four slots, and it rates 0.884 against ranked's 0.794
- *   while its offence rates lower - a gap of -0.02 against ranked's +0.11. The
+ *   while its offense rates lower - a gap of -0.02 against ranked's +0.11. The
  *   same two rosters therefore played a ~20% lower-scoring game in one mode
  *   than the other, for a reason no player could see and no comment mentioned.
  *
@@ -132,8 +132,8 @@ export const SCORING_LIFT = 1.0;
  *
  * `edge` compares one roster's OFFENCE rating against another's DEFENCE
  * rating, and the two are not on the same scale. Measured over 600
- * bot-drafted rosters of each shape: a ranked roster rates 0.904 on offence
- * and 0.794 on defence, so every ranked game carried a systematic +0.11 that
+ * bot-drafted rosters of each shape: a ranked roster rates 0.904 on offense
+ * and 0.794 on defense, so every ranked game carried a systematic +0.11 that
  * TALENT_PARITY multiplied into a lift on all scoring. Quick Play, where ONE
  * drafted DEF unit stands in for four defensive slots, rates -0.02 the other
  * way. Subtracting the right one puts an average game of either shape at 1.
@@ -221,7 +221,7 @@ export const TWO_POINT_MARGINS = [-2, -5, -10, -16, 1, 4, 5, 12];
 export const TWO_POINT_CHART_QUARTER = 4;
 
 /**
- * How much each roster slot feeds the offence rating. Sums to 1.
+ * How much each roster slot feeds the offense rating. Sums to 1.
  *
  * THESE ARE A GAME-FEEL DECISION, NOT A FOOTBALL ONE. Say it plainly, because
  * the previous version of this comment argued the opposite and the numbers
@@ -234,7 +234,7 @@ export const TWO_POINT_CHART_QUARTER = 4;
  * What that changes from the previous set:
  *
  *   QB 0.44 -> 0.40. Still first by a distance, and still the pick that most
- *   decides a game - just no longer most of the offence on its own.
+ *   decides a game - just no longer most of the offense on its own.
  *
  *   OL 0.18 -> 0.10, from second to last. This is the deliberate one. The line
  *   is the only offensive slot with no box-score presence: it never scores,
@@ -267,12 +267,12 @@ export const OFFENSE_WEIGHTS = {
 };
 
 /**
- * Same for the defence: FLAT. Every defensive slot is worth the same. Sums to 1.
+ * Same for the defense: FLAT. Every defensive slot is worth the same. Sums to 1.
  *
  * This replaces { DL: 0.30, LB: 0.24, CB: 0.26, S: 0.20 }, whose comment argued
  * the front seven should outweigh the secondary because pressure is what breaks
  * a drive. That is a real football opinion, and it is the kind of opinion this
- * game has no way to earn: unlike the offence, where a quarterback demonstrably
+ * game has no way to earn: unlike the offense, where a quarterback demonstrably
  * touches the ball on every snap, nothing here measures whether a rush or a
  * coverage actually decided more drives. The spread was authored, not observed,
  * and an unearned spread is worse than none - it silently made the DL pick the
@@ -287,7 +287,7 @@ export const OFFENSE_WEIGHTS = {
  * roster's rating about 1.75x as much as an offensive one (0.25 against 0.143
  * on average). That is why a roster of famous skill players can lose to one
  * that quietly won the defensive picks. Flattening redistributes WITHIN the
- * defence; it does not touch defence's share of the outcome. Changing that is a
+ * defense; it does not touch defense's share of the outcome. Changing that is a
  * separate decision about what the game wants to be.
  */
 export const DEFENSE_WEIGHTS = { DL: 0.25, LB: 0.25, CB: 0.25, S: 0.25 };
@@ -310,7 +310,7 @@ export const DEFENSE_WEIGHTS = { DL: 0.25, LB: 0.25, CB: 0.25, S: 0.25 };
  * rate nobody chose.
  *
  * Receivers keep a small share for the end-arounds and jet sweeps that are a
- * real part of a modern offence and that the data does support.
+ * real part of a modern offense and that the data does support.
  */
 export const RUSH_CARRIER_WEIGHTS = { RB: 1, QB: 1, FLEX: 0.6, WR: 0.12, TE: 0 };
 
@@ -318,7 +318,7 @@ export const RUSH_CARRIER_WEIGHTS = { RB: 1, QB: 1, FLEX: 0.6, WR: 0.12, TE: 0 }
  * regressed toward the mean. A three-game sample is noise wearing a name. */
 export const MIN_RATED_GAMES = 6;
 
-/** How far talent separates a great offence from a poor one.
+/** How far talent separates a great offense from a poor one.
  *
  * SOLVED, by tools/calibrate-nfl-variance.mjs - and the solve's answer is that
  * 1.6 was right. The previous comment here said the value was arrived at by
@@ -326,7 +326,7 @@ export const MIN_RATED_GAMES = 6;
  *
  * That is a real result rather than a wasted run, because the reason is now
  * written down. The calibrator solves parity against a product target - a
- * roster whose combined offence-plus-defence rating beats its opponent's by
+ * roster whose combined offense-plus-defense rating beats its opponent's by
  * 0.10 or more, the top quartile of bot-drafted pairs, should win 75% of the
  * time, which is deliberately basketball's number because ranked runs ONE ELO
  * ladder across both sports. Football's engine does not reach it. Solved
@@ -355,7 +355,7 @@ export const TALENT_PARITY = 1.6;
  * `edge` is 1 + TALENT_PARITY * (off - def) and had no lower bound, so a gap
  * wider than 1/TALENT_PARITY - about 0.63 of rating, which real drafted rosters
  * do reach - drove it to zero and through it. A NEGATIVE multiplier is not a
- * very bad offence, it is a nonsensical one: it scales the drive-outcome
+ * very bad offense, it is a nonsensical one: it scales the drive-outcome
  * weights, so touchdown and field-goal probabilities come out negative and the
  * drive gains negative ground. Games in that state reported negative team
  * yardage and four-point finals.

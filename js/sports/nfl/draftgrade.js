@@ -43,18 +43,18 @@ const MATCHUPS = [
   // The one honest like-for-like in football.
   { mine: "ST", theirs: "ST", label: "special teams", against: "special teams" },
 
-  // QUICK PLAY IS A DIFFERENT ROSTER SHAPE. Ranked drafts the defence in four
+  // QUICK PLAY IS A DIFFERENT ROSTER SHAPE. Ranked drafts the defense in four
   // units (DL/LB/CB/S); Quick Play drafts one combined DEF, and its receivers
   // are a single WR rather than WR1-3. Pairings naming only the ranked slots
   // resolved to nothing at all on a Quick Play roster - crossMatchups skips a
   // pair when either side is unfilled, so the read came back silently empty.
   // Both shapes are listed and each roster matches the half that applies to it.
-  { mine: "OL", theirs: "DEF", label: "offensive line", against: "defence" },
-  { mine: "DEF", theirs: "OL", label: "defence", against: "offensive line" },
-  { mine: "WR", theirs: "DEF", label: "WR", against: "defence" },
-  { mine: "RB", theirs: "DEF", label: "RB", against: "defence" },
-  { mine: "TE", theirs: "DEF", label: "TE", against: "defence" },
-  { mine: "QB", theirs: "DEF", label: "QB", against: "defence" },
+  { mine: "OL", theirs: "DEF", label: "offensive line", against: "defense" },
+  { mine: "DEF", theirs: "OL", label: "defense", against: "offensive line" },
+  { mine: "WR", theirs: "DEF", label: "WR", against: "defense" },
+  { mine: "RB", theirs: "DEF", label: "RB", against: "defense" },
+  { mine: "TE", theirs: "DEF", label: "TE", against: "defense" },
+  { mine: "QB", theirs: "DEF", label: "QB", against: "defense" },
 ];
 
 /** Units identify themselves with `group` (DL/LB/CB/S/OL/ST), while players
@@ -135,7 +135,7 @@ function decidingRead(roster, oppRoster, ctx) {
   const gaps = [];
   let offGap = 0;
   let defGap = 0;
-  for (const [side, weights] of [["offence", OFFENSE_WEIGHTS], ["defence", DEFENSE_WEIGHTS]]) {
+  for (const [side, weights] of [["offense", OFFENSE_WEIGHTS], ["defense", DEFENSE_WEIGHTS]]) {
     for (const [slot, w] of Object.entries(weights)) {
       const mine = entryForSlot(roster, slot);
       const theirs = entryForSlot(oppRoster, slot);
@@ -143,7 +143,7 @@ function decidingRead(roster, oppRoster, ctx) {
       const a = rateEntry(mine, ctx);
       const b = rateEntry(theirs, ctx);
       const delta = w * (a - b);
-      if (side === "offence") offGap += delta;
+      if (side === "offense") offGap += delta;
       else defGap += delta;
       gaps.push({ slot, side, delta, mine: a, theirs: b });
     }
@@ -155,9 +155,9 @@ function decidingRead(roster, oppRoster, ctx) {
   // won it. A player who WON deserves to be told why just as much.
   const behind = [offGap, defGap].some((g) => g < 0);
   const side = behind
-    ? (offGap <= defGap ? "offence" : "defence")
-    : (offGap >= defGap ? "offence" : "defence");
-  const gap = side === "offence" ? offGap : defGap;
+    ? (offGap <= defGap ? "offense" : "defense")
+    : (offGap >= defGap ? "offense" : "defense");
+  const gap = side === "offense" ? offGap : defGap;
   const points = Math.round(100 * Math.abs(gap));
   // "THEY OUT-RATE YOU THERE BY 0" was printed for real - a claim that a half
   // of the roster decided the game, with a magnitude of nothing behind it.
@@ -224,8 +224,8 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const defense = sideScore(roster, DEFENSE_WEIGHTS, ctx);
   const defenseGroups = defensiveBreakdown(roster, ctx);
 
-  // Both halves count equally. A roster that drafted a superb offence and
-  // ignored its defence has drafted half a team, not a great full roster.
+  // Both halves count equally. A roster that drafted a superb offense and
+  // ignored its defense has drafted half a team, not a great full roster.
   const raw = (offense + defense) / 2;
   const penalty = forfeits.length * 0.05;
   const score = Math.max(0, raw - penalty);
@@ -247,7 +247,7 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // function they happened to be added. A clause about the OPPONENT wins:
   // "Andrews has the edge on your safeties" names a man on the other roster
   // and a slot on yours, which is the most actionable thing a grade can say,
-  // where "Offence-heavy" is a restatement of the two rows at the top of the
+  // where "Offense-heavy" is a restatement of the two rows at the top of the
   // card. It is also what scripts/verify-sport-contract.mjs looks for - a
   // grade handed an opponent must name one - so letting a generic clause push
   // it out would fail the build as well as the reader.
@@ -276,7 +276,7 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // instead of wrapping mid-value. So the numbers come back, laid out - see
   // gridNote in js/gradenotes.js.
   //
-  // Offence and defence stay separate grids because they are the two halves the
+  // Offense and defense stay separate grids because they are the two halves the
   // card already scores at the top, and a twelve-chip block with no seam in it
   // is a table the eye has to parse rather than two shapes it can compare.
   const gridFor = (weights) =>
@@ -304,14 +304,14 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
         };
       });
 
-  const offenceGrid = gridFor(OFFENSE_WEIGHTS);
-  const defenceGrid = gridFor(DEFENSE_WEIGHTS);
-  if (offenceGrid.length) {
-    notes.push(gridNote("Offence", offenceGrid, pct(offense),
+  const offenseGrid = gridFor(OFFENSE_WEIGHTS);
+  const defenseGrid = gridFor(DEFENSE_WEIGHTS);
+  if (offenseGrid.length) {
+    notes.push(gridNote("Offense", offenseGrid, pct(offense),
       offense >= defense ? "good" : "neutral"));
   }
-  if (defenceGrid.length) {
-    notes.push(gridNote("Defence", defenceGrid, pct(defense),
+  if (defenseGrid.length) {
+    notes.push(gridNote("Defense", defenseGrid, pct(defense),
       defense > offense ? "good" : "neutral"));
   }
 
@@ -322,8 +322,8 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // The identity read, as advice rather than as an observation: a drafter can
   // act on "you have to win this low-scoring" before kickoff, by picking the
   // gameplan that suits it.
-  if (offense - defense > 0.15) advice.push("Offence-heavy - your defence will give it back.");
-  else if (defense - offense > 0.15) advice.push("Defence-first - you need this game low-scoring.");
+  if (offense - defense > 0.15) advice.push("Offense-heavy - your defense will give it back.");
+  else if (defense - offense > 0.15) advice.push("Defense-first - you need this game low-scoring.");
   if (forfeits.length) advice.push("Empty slots rate zero - never let the clock draft.");
 
   // Football's counterplay read, and until now it did not exist. NFL.draftAnalysis

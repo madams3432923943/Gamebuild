@@ -1200,8 +1200,8 @@ const shortDate = (value) => new Date(value).toLocaleDateString();
  * every sport shares.
  *
  * The grouping comes from the sport (`statGroups`), not from here. Football's
- * twelve records split into offence, defence and special teams; basketball's
- * five split into offence and the defensive glass. Shared code deciding which
+ * twelve records split into offense, defense and special teams; basketball's
+ * five split into offense and the defensive glass. Shared code deciding which
  * of those a "sack" is would be shared code special-casing a sport, which is
  * the thing js/sports/ exists to prevent.
  */

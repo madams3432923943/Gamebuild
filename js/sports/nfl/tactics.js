@@ -1,4 +1,4 @@
-// NFL gameplans: one for offence, one for defence.
+// NFL gameplans: one for offense, one for defense.
 //
 // The rule this is designed around is the one at the top of
 // js/sports/nba/tactics.js, and it is not negotiable: a plan must be a real
@@ -38,11 +38,11 @@
 //     fg         your kicker's accuracy
 //
 //   DEFENSIVE
-//     def                  overall quality of your defence
-//     takeaway             how often your defence ends a drive in a turnover
+//     def                  overall quality of your defense
+//     takeaway             how often your defense ends a drive in a turnover
 //     passRush             pressure, which converts drives into stops and sacks
-//     coverage             the other half of pass defence
-//     runDef               run defence, which shortens the opponent's drives
+//     coverage             the other half of pass defense
+//     runDef               run defense, which shortens the opponent's drives
 //     explosivePrevention  how well you keep a scoring drive to three points
 //
 // SOLVED, by tools/calibrate-nfl-gamestyles.mjs. Everything below this line
@@ -211,7 +211,7 @@ export function plansFor(strategy) {
 }
 
 /** What the opponent committed to. Each side is drawn independently, because a
- * bot that always paired the same offence with the same defence would make
+ * bot that always paired the same offense with the same defense would make
  * half its plan predictable from the other half. */
 export function randomStrategy(rand = Math.random) {
   return {
@@ -352,7 +352,7 @@ export const FIT = {
 // `comp` was in that first pass too. No entry in the dataset carries it, so
 // that term contributed exactly zero to every West Coast score - the quiet kind
 // of wrong that still returns a plausible number.
-/** Touchdowns per ten yards of offence. The discriminator between a back who
+/** Touchdowns per ten yards of offense. The discriminator between a back who
  *  finishes drives and one who merely gains ground. Guarded against a tiny
  *  denominator: six yards and one touchdown is not a red-zone specialist, it is
  *  one carry. */
@@ -473,8 +473,8 @@ function scalePlan(plan, roster, into) {
 /**
  * One side's complete modifier bag, from BOTH of its plans.
  *
- * The two catalogues write disjoint keys - offence never sets `coverage`,
- * defence never sets `runShare` - so composing them is a merge rather than a
+ * The two catalogues write disjoint keys - offense never sets `coverage`,
+ * defense never sets `runShare` - so composing them is a merge rather than a
  * negotiation, and the engine keeps reading one bag per side exactly as it did
  * when there was one plan.
  */

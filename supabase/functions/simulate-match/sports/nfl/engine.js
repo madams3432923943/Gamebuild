@@ -117,12 +117,12 @@ function sideRating(roster, weights, forfeits, ctx) {
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
     // Quick Play drafts one DEF unit instead of four, so it stands in for
-    // every defensive slot - one pick really is the whole defence there.
+    // every defensive slot - one pick really is the whole defense there.
     //
     // The same rule has to reach the OFFENCE, and for a long time it did not.
     // Quick Play drafts a bare "WR" while the weights are keyed WR1/WR2/WR3, so
     // all three missed, fell to the 0.5 below, and pinned a fifth of the Quick
-    // Play offence at league average - the drafted receiver changed the rating
+    // Play offense at league average - the drafted receiver changed the rating
     // by nothing at all. Stripping the depth ordinal is the same resolution the
     // rest of football already uses (pickScorer does it for carries, the draft
     // board does it for eligibility): the trailing digit is a depth-chart index,
@@ -157,7 +157,7 @@ export function rosterRatings(roster, ctx, forfeits) {
 }
 
 /**
- * Turns an offence/defence gap into a multiplier on drive quality.
+ * Turns an offense/defense gap into a multiplier on drive quality.
  *
  * TALENT_PARITY compresses it: football has enormous per-possession variance,
  * and a sim where the better roster converted every mismatch would produce
@@ -167,7 +167,7 @@ export function rosterRatings(roster, ctx, forfeits) {
  * "centred on 1 so an even matchup is average", and it was not: it compared
  * one roster's OFFENCE rating against another's DEFENCE rating as if the two
  * were the same measurement, and they are not. Over 600 bot-drafted ranked
- * rosters offence rates 0.904 and defence 0.794, so both sides of every game
+ * rosters offense rates 0.904 and defense 0.794, so both sides of every game
  * carried a systematic +0.11 - which is a lift on all scoring, not a talent
  * edge, and it moved whenever TALENT_PARITY did. See SCORING_LIFT in
  * constants.js for the full account and for the second symptom, Quick Play
@@ -177,7 +177,7 @@ export function rosterRatings(roster, ctx, forfeits) {
  * rates at (EDGE_BASELINE), so subtracting it puts an average game at 1 and
  * leaves everything else measured from there. It is deliberately not the two
  * rosters' OWN mean, which is the tempting version and is wrong: centring each
- * pair on itself makes the model purely relative, so a poor offence stops
+ * pair on itself makes the model purely relative, so a poor offense stops
  * being poor in absolute terms and only makes its opponent look good. Measured
  * that way, a bottom-tier quarterback threw for 231 yards a game instead of
  * 161 - the model had stopped saying anything about him.
@@ -204,7 +204,7 @@ function edge(off, def, baseline = 0, parity = TALENT_PARITY) {
  * Decided from every slot the game KNOWS ABOUT - both rosters' keys plus the
  * slots either side forfeited - rather than from the entries that happen to be
  * present. A forfeited pick leaves no key behind, so reading filled slots
- * alone makes a Quick Play game where both sides skipped the defence look like
+ * alone makes a Quick Play game where both sides skipped the defense look like
  * a ranked one. Forfeits are exactly the case this has to survive, since they
  * are the reason a slot can be missing at all.
  */
@@ -255,7 +255,7 @@ function resolveTuning(opts) {
 const DEFAULT_TUNING = resolveTuning({});
 
 /** Picks a drive's ending from the league-average chart, tilted by the edge.
- * Scoring outcomes scale up with a good offence and punts/turnovers take the
+ * Scoring outcomes scale up with a good offense and punts/turnovers take the
  * difference, so the four still sum to 1 and no probability can go negative. */
 /**
  * How a drive ends - and, when it matters, whether punting is even a choice.
@@ -274,7 +274,7 @@ const DEFAULT_TUNING = resolveTuning({});
 function driveOutcome(mult, rand, mustScore = false, mustTouchdown = false) {
   const td = DRIVE_OUTCOMES.touchdown * mult;
   // A FIELD GOAL THAT CANNOT TIE THE GAME IS NOT AN OUTCOME. Reported from a
-  // live game: down seven in overtime, the offence kicked three. No team has
+  // live game: down seven in overtime, the offense kicked three. No team has
   // ever done that, because three points on the last possession of a game you
   // trail by seven loses by four instead of by seven. When the deficit is
   // bigger than a field goal and there is no next possession, the drive is
@@ -304,7 +304,7 @@ function driveOutcome(mult, rand, mustScore = false, mustTouchdown = false) {
   return "turnover";
 }
 
-/** How often a fourth-down attempt by a desperate offence converts AND the
+/** How often a fourth-down attempt by a desperate offense converts AND the
  * drive goes on to score. Real fourth-down conversion runs near 50%, and not
  * every conversion produces points. */
 const FOURTH_DOWN_CONVERSION = 0.34;
@@ -348,7 +348,7 @@ function pickScorer(roster, kind, rand) {
  * score - which is the point of drafting it.
  *
  * The same shape as pickStopper below, and next to it on purpose: both answer
- * "who on defence did this", and a sack is exactly as much of a defensive play
+ * "who on defense did this", and a sack is exactly as much of a defensive play
  * as a takeaway. It was the one that had no answer at all - a sack existed
  * only as a cost to the quarterback, so a drafted pass rush was invisible in
  * the table however often it got there.
@@ -401,7 +401,7 @@ function pickStopper(roster, rand) {
  * that went three and out, which is what makes field position compound. */
 function driveYards(outcome, startYard, mult, rand) {
   // The WHOLE reach scales with talent, not just the variable part. With the
-  // floor outside the multiplier a hopeless offence still marched 18 yards a
+  // floor outside the multiplier a hopeless offense still marched 18 yards a
   // drive for free, which is most of why a backup quarterback's yardage
   // looked like a starter's.
   //
@@ -416,14 +416,14 @@ function driveYards(outcome, startYard, mult, rand) {
   // The number has moved three times. First 18/42 -> 22/50, when adding SAF to
   // tools/build-nfl-data.mjs pulled 43 more (mostly weaker) safety units into
   // the pool, shifting the S percentile distribution, lifting every safety's
-  // rating and suppressing offence about 8%. Then 22/50 -> 28/62 for the target
+  // rating and suppressing offense about 8%. Then 22/50 -> 28/62 for the target
   // above.
   //
   // Then 28/62 -> 24/53, and that one is worth reading, because 28/62 was never
   // really measured. verify-nfl-realism rates every drive on ONE fixture, and
   // its offensive line came out of `unitFor('OL')` - the middle of an unsorted
   // list. That line rated 0.155, near the floor, and a floor-rated line drags a
-  // whole sample's offence down. 28/62 was solved against that suppression, so
+  // whole sample's offense down. 28/62 was solved against that suppression, so
   // the bands passed while the engine actually produced 5.44 a carry for any
   // ordinary roster - outside the band it was being certified against.
   //
@@ -459,7 +459,7 @@ function driveYards(outcome, startYard, mult, rand) {
   // yards, which is roughly double what a real punting drive gains - and since
   // three drives in five end this way it was most of why the simulation
   // produced 438 yards a game against football's 340. Scaled rather than
-  // shifted, so a good offence still out-gains a poor one on the drives it
+  // shifted, so a good offense still out-gains a poor one on the drives it
   // fails to finish instead of both clamping at the floor.
   return Math.max(-8, Math.min(100 - startYard - 1, reach * 0.55 - 10));
 }
@@ -587,8 +587,8 @@ function describeConversion(conversion) {
  *   Only the conversion decision reads it; a drive itself does not care.
  */
 function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0) {
-  // The gamestyle acts on BOTH sides: yours lifts your offence, theirs lifts
-  // the defence you are running into. A style that only helped its owner would
+  // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
+  // the defense you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
   const offAdj = off * mine.off;
   const defAdj = def * theirs.def * ((theirs.passRush + theirs.coverage + theirs.runDef) / 3);
@@ -613,16 +613,16 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   }
   // Explosive styles convert their scoring drives into touchdowns rather than
   // field goals - the difference between Vertical Attack and West Coast.
-  // Finishing a drive is a CONTEST, not a property of the offence. How hard you
+  // Finishing a drive is a CONTEST, not a property of the offense. How hard you
   // go for the touchdown is your explosiveness and your red-zone intent
-  // together; how well they hold you to three is theirs. A defence that keeps
+  // together; how well they hold you to three is theirs. A defense that keeps
   // everything in front of it really does turn touchdowns into field goals.
   const finish = (mine.explosive * mine.redZone) / (theirs.explosivePrevention || 1);
   if (outcome === "fieldGoal" && finish > 1 && rand() < (finish - 1)) {
     outcome = "touchdown";
   } else if (outcome === "touchdown" && finish < 1 && rand() < (1 - finish) * 0.6) {
-    // ...but a defence cannot hold a team to three when three is not on offer:
-    // an offence that must have seven is going for it on fourth down, so a
+    // ...but a defense cannot hold a team to three when three is not on offer:
+    // an offense that must have seven is going for it on fourth down, so a
     // stop here is a stop on downs. Without this the mustTouchdown rule above
     // could still be undone one branch later.
     outcome = mustTouchdown ? "downs" : "fieldGoal";
@@ -745,7 +745,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     qbRating: roster.QB ? rateEntry(roster.QB, ctx) : 0.5,
   });
   // Credited AFTER the snaps exist, next to where a takeaway is credited,
-  // rather than inside buildPlays - that function reconstructs one offence's
+  // rather than inside buildPlays - that function reconstructs one offense's
   // downs and has no business knowing who lined up across from it.
   for (const play of plays) {
     if (play.type === "sack") play.sackBy = pickSacker(oppRoster, rand)?.slot ?? null;
@@ -871,7 +871,7 @@ function carrierYardScale(entry) {
  * the direction and the ORDER of the plans exactly as authored while pulling
  * their reach in: a 1.50 ground tilt becomes 1.22, a 0.55 passing tilt becomes
  * 0.74. Choosing a plan should be worth a handful of snaps a game, not a
- * different offence.
+ * different offense.
  *
  * The efficiency mods (off, explosive, redZone, security, protection) are NOT
  * damped - those are what a plan is actually for, and they are already solved
@@ -1131,14 +1131,14 @@ const RUN_SHARE = 0.56;
 /** The extremes a GAMEPLAN may push that to.
  *
  * These are measured off real seasons rather than picked as guard rails: the
- * most pass-happy offences in the league run the ball on about 35% of their
+ * most pass-happy offenses in the league run the ball on about 35% of their
  * snaps and the most committed ground teams on about 68%. A team outside that
  * pair of numbers is not running a plan, it is playing from four scores down -
  * which is a game state, not a gameplan, and this band is about gameplans. */
 const RUN_SHARE_MIN = 0.45;
 const RUN_SHARE_MAX = 0.77;
 // BOTH ENDS ARE THE COMMENT'S OWN ANCHORS, CONVERTED. The band is quoted above
-// in shares of ALL snaps - 35% for the most pass-happy offences, 68% for the
+// in shares of ALL snaps - 35% for the most pass-happy offenses, 68% for the
 // most committed ground ones - while the constant is a share of PRODUCTIVE
 // snaps, and the two are not the same number. Converting at football's
 // completion rate: 0.35 / (0.35 + 0.65 x 0.62) = 0.46, and 0.68 / (0.68 + 0.32
@@ -1162,7 +1162,7 @@ const RUN_SHARE_MAX = 0.77;
  * so the throws this competes with are the ones that were caught. Real football
  * is about 4.3 a carry against 11 a completion.
  *
- * 0.17, and this is what decides WHERE the extra offence goes.
+ * 0.17, and this is what decides WHERE the extra offense goes.
  *
  * Runs and passes draw their gains from one normalised pool, so without this
  * weight yards per carry simply tracks yards per play - and lifting the game to
@@ -1176,7 +1176,7 @@ const RUN_SHARE_MAX = 0.77;
  * The cost is paid by the drafted back's median line: 74 yards against a real
  * 80, where an unweighted pool would give him 86.
  *
- * WHY 0.17 RATHER THAN THE 0.20 THIS REPLACES. The offence weights above were
+ * WHY 0.17 RATHER THAN THE 0.20 THIS REPLACES. The offense weights above were
  * rebalanced (OL 0.18 -> 0.10), which lifted total yardage and carried yards
  * per carry from 4.90 to 5.18 - outside the band. Re-solving this weight is the
  * documented response to exactly that symptom, and it is the honest one, so it
@@ -1191,7 +1191,7 @@ const RUN_SHARE_MAX = 0.77;
  * check was passing for the wrong reason. It passes on its own merits now.
  *
  * This lever moves ONLY the run/pass split: yards per play held at 6.11 across
- * a 0.15-0.20 sweep, so nothing about total offence is being tuned here. */
+ * a 0.15-0.20 sweep, so nothing about total offense is being tuned here. */
 const RUN_YARD_WEIGHT = 0.17;
 
 /**
@@ -1293,7 +1293,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // The cap is on the WHOLE count, not just the base. Capping only the base
   // (which is at most 3) capped nothing, and the yardage term is unbounded, so
   // a 90-yard drive in a shootout ran seventeen snaps and a game could reach
-  // 108 offensive plays. No offence runs that many; twelve snaps is already a
+  // 108 offensive plays. No offense runs that many; twelve snaps is already a
   // long, chain-moving drive.
   //
   // The divisor is 16, up from 13, and it is the counterweight to driveYards'
@@ -1302,7 +1302,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // minutes with it. Sixteen holds the game at 60.4 plays over 56.3 minutes
   // while the yards go up - which is the whole point: MORE YARDS PER SNAP, not
   // more snaps. A drive that gains more without taking longer is an explosive
-  // offence; one that gains more by running more plays is just a longer game.
+  // offense; one that gains more by running more plays is just a longer game.
   const count = Math.min(
     12,
     Math.max(1, (SNAPS_BASE[outcome] ?? 3) + Math.round(Math.abs(net) / 16) + Math.floor(rand() * 3))
@@ -1368,7 +1368,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // Relative to THIS backfield's own average, so weighting a carry by the man
   // taking it decides how the ground yards are shared out without changing how
   // many there are. An absolute scale would quietly hand a team with a 5.8-a-
-  // carry back extra offence and take it off his quarterback's passing line.
+  // carry back extra offense and take it off his quarterback's passing line.
   const meanCarrierScale = usage.rushers.reduce(
     (sum, r) => sum + r.weight * carrierYardScale(roster[r.slot]), 0
   ) || 1;
@@ -1392,7 +1392,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
     // it cancelled entirely: whoever was drafted got the same rushing total,
     // and a backup's regressed rate reached nothing. The comment this replaces
     // worried that an absolute scale would "hand a team with a 5.8-a-carry back
-    // extra offence and take it off his quarterback's passing line". That is
+    // extra offense and take it off his quarterback's passing line". That is
     // not a bug, it is the run game mattering - and because every raw weight is
     // normalised against the same gainPool below, it moves the RUN/PASS SPLIT
     // of a drive rather than the drive's total. A weak back means fewer yards
@@ -1422,7 +1422,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   // once and the drive is reported as a set of catches for minus yards. That
   // is not a thing football does. It showed up as receiving lines like -13 on
   // three catches, and on 9.3% of player lines once TALENT_PARITY was solved -
-  // a suppressed offence reaches a negative net far more often than the old
+  // a suppressed offense reaches a negative net far more often than the old
   // hand-set value ever let it, so the artefact went from rare to routine
   // without anything about it changing.
   //
@@ -1587,7 +1587,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
 //
 // The toss stays because it is real football and a genuine choice: electing to
 // kick hands over the first possession to take the ball out of halftime, which
-// is what a coach with a strong defence actually does. The second-half reversal
+// is what a coach with a strong defense actually does. The second-half reversal
 // gives each side exactly one opening drive, so the structure is fair by
 // construction rather than by measurement.
 //
@@ -1960,7 +1960,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   let teamScoreB = Math.round(quarterBoxScores.reduce((s, q) => s + periodTotal(q, "b"), 0));
 
   // Overtime: both sides get the ball, then the lead decides it. Capped so a
-  // pathological pair of defences cannot spin forever - at the cap the game is
+  // pathological pair of defenses cannot spin forever - at the cap the game is
   // recorded as a genuine tie, which is what football does too.
   let overtimePeriods = 0;
   const OT_CAP = 6;
@@ -1975,7 +1975,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     for (const side of [receiver, other(receiver)]) {
       const foe = other(side);
       // In overtime a trailing team has no next possession to punt for. This
-      // is the case that was reported: down three, and the offence punted.
+      // is the case that was reported: down three, and the offense punted.
       const margin = side === "A" ? teamScoreA - teamScoreB : teamScoreB - teamScoreA;
       const trailing = margin < 0;
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
@@ -2165,7 +2165,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     // additions, so they cannot drift.
     if (box.QB) box.QB.pass_yds = team.passYards;
 
-    // What this defence DID, over on the other side's drives - so a drafted
+    // What this defense DID, over on the other side's drives - so a drafted
     // ball-hawking secondary and a drafted pass rush both show up in the box
     // score rather than only in the recap.
     for (const d of drives.filter((x) => x.team !== side && (onlyQuarter == null || x.quarter === onlyQuarter))) {

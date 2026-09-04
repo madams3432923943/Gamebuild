@@ -235,7 +235,7 @@ export function matchupNotes(roster, oppRoster, { rate, label, slots, pairings, 
  * matchups - your small forward really does guard theirs - so comparing like
  * slot to like slot is the game. Football has none. Nobody's tight end covers
  * the other tight end, and nobody's offensive line blocks the other offensive
- * line; football is offence against DEFENCE. Reading it slot-for-slot produced
+ * line; football is offense against DEFENCE. Reading it slot-for-slot produced
  * lines like "your TE badly outmatches their TE", which is true of the ratings
  * and describes nothing that happens on a field.
  *

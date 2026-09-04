@@ -85,15 +85,15 @@ export function buildPostGameAnalysis(result, side = "A") {
   const defGap = (mine.def ?? 0.5) - (theirs.off ?? 0.5);
 
   notes.push(offGap > 0.05
-    ? "Your offence outclassed the defence it faced."
+    ? "Your offense outclassed the defense it faced."
     : offGap < -0.05
-      ? "Their defence was better than your offence."
-      : "The offences and defences were evenly matched.");
+      ? "Their defense was better than your offense."
+      : "The offenses and defenses were evenly matched.");
   notes.push(defGap > 0.05
-    ? "Your defence held up better than their offence."
+    ? "Your defense held up better than their offense."
     : defGap < -0.05
-      ? "Their offence was too much for your defence."
-      : "Neither defence had a clear edge.");
+      ? "Their offense was too much for your defense."
+      : "Neither defense had a clear edge.");
 
   const mySide = result.drives.filter((d) => d.team === side);
   const stalls = mySide.filter((d) => d.outcome === "downs").length;

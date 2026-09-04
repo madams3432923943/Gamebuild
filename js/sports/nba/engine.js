@@ -417,7 +417,7 @@ export function schemeFactor(roster, matchups, oppRoster, minutes, oppMinutes, d
  * Done by rewriting the players rather than by threading a penalty through
  * simulateQuarter: the whole engine reads stats off the roster, so scaling
  * them here applies the penalty to scoring, rebounding, the matchup a
- * forfeited player loses AND the defence he fails to provide, all at once
+ * forfeited player loses AND the defense he fails to provide, all at once
  * and in the right order. Names and positions are untouched, so the box
  * score, the MVP pick and the recap still see the real player.
  *
@@ -572,7 +572,7 @@ function defendersOf(slot, oppMatchups, oppRoster) {
   return found;
 }
 
-/** The defence a player actually faces over a whole game.
+/** The defense a player actually faces over a whole game.
  *
  * Two things are folded in. First, several defenders can share the job, so
  * their stats are blended by minutes. Second - and this is what stops a
@@ -1037,7 +1037,7 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
   for (const slot of Object.keys(totalsB)) addLine(totalsB[slot], q4.totalsB[slot]);
   quarterBoxScores.push(...q4.quarterBoxScores);
 
-  // Zone defence reaches across to the other side's front court, so it runs
+  // Zone defense reaches across to the other side's front court, so it runs
   // before the draft/coaching multipliers rather than being folded into them -
   // it changes WHO scored, and those scale whatever total it leaves behind.
   applyZoneDefense(totalsB, rosterB, opts.tacticA);
@@ -1137,7 +1137,7 @@ export function draftAnalysis(roster, oppRoster, datasetStats, forfeitedSlots = 
   };
 }
 
-/** Zone defence: pull down the OPPONENT'S front-court scoring.
+/** Zone defense: pull down the OPPONENT'S front-court scoring.
  *
  * Every other gamestyle expresses itself through the six stats of the team
  * holding the ball, which is enough for "we rebound more" or "we force
