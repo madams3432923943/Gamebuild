@@ -43,6 +43,14 @@ for (const m of src.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from/g)) defined.add
 const globals = new Set(["document","window","console","Math","Object","Array","String","Number","Boolean","JSON","Date","Set","Map","Promise","Intl","RegExp","Error","fetch","setTimeout","clearTimeout","setInterval","clearInterval","requestAnimationFrame","navigator","location","localStorage","sessionStorage","URL","Image","MutationObserver","IntersectionObserver","CustomEvent","Event","getComputedStyle","performance","structuredClone","isNaN","parseInt","parseFloat","undefined","null","true","false","this","arguments","globalThis","HTMLElement","Node","AbortController","crypto","btoa","atob","encodeURIComponent","decodeURIComponent","queueMicrotask","alert"]);
 // candidate calls / references at statement level
 const used = new Set();
+// Calls.
 for (const m of strip.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) used.add(m[1]);
+// SCREAMING_CASE constants, referenced rather than called. Added after a third
+// miss: FEATURED_BADGE_SLOTS is read, never invoked, so a call-only scan said
+// the extracted profile module was clean and every profile screen threw
+// "FEATURED_BADGE_SLOTS is not defined". Module-level constants are the other
+// half of what moving code loses, and this shape catches them without the
+// false-positive flood that scanning every bare identifier would bring.
+for (const m of strip.matchAll(/(?<![.\w$])([A-Z][A-Z0-9_]{2,})\b/g)) used.add(m[1]);
 const missing = [...used].filter((n) => !defined.has(n) && !globals.has(n));
 console.log(missing.length ? missing.join("\n") : "(none)");
