@@ -41,3 +41,9 @@ db/seed/nfl-seed.sql
 # because fewer things were measured gets read as progress.
 docs/audits/*-mobile-baseline/*-partial.md
 docs/audits/*-mobile-baseline/*-partial.json
+
+# Throwaway screenshot drivers used while a redesign is in flight. They need to
+# sit in the repo root to resolve `playwright` out of node_modules, and they are
+# a scratch loop - change a rule, re-shoot, look - rather than anything anyone
+# else should inherit. The real, keepable browser tooling is scripts/selftest/.
+.shoot*.mjs

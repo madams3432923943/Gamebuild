@@ -1018,12 +1018,22 @@ button.position-btn {
    draft starts (see playMatchupIntro in main.js) - both banners fly in from
    the edges with a little overshoot, an impact flash lands as they settle,
    then a 3-2-1 countdown and a buzzer-red "GO!". --- */
-/* STACKED, not side by side. Each side is now a whole player card - artwork,
-   icon, name, badges, rep/rank/rating - and a card is a wide thing: two of
-   them in a row are two narrow columns where the stats wrap and the badges
-   drop, at every width including a desktop one. Stacked, each card gets the
-   full width it was designed for, VS sits between them, and the phone layout
-   is the same layout rather than a second one. */
+/* STACKED BELOW 900px, FACING EACH OTHER ABOVE IT.
+   
+   Stacked was the only layout here for a while, and the reason was real: each
+   side is a whole player card - artwork, icon, name, badges, rep/rank/rating -
+   and two of those in a row are two narrow columns where the stats wrap and
+   the badges drop. That is still true at 700px and it is not true at 1280,
+   where the page has 1060px of content width and two 28rem cards plus a VS fit
+   inside it with room to spare.
+   
+   So the breakpoint decides rather than the layout: a phone stacks, a desktop
+   puts the two players opposite each other, and the fly-in directions already
+   match both (in from the sides on a desktop, from above and below on a phone
+   - see the 560px block further down). The width is checked, not assumed:
+   scripts/verify-matchup-intro.mjs asserts nothing is cropped inside either
+   card and nothing falls below the fold, at desktop, 360px portrait and
+   640x360 landscape. */
 .matchup-intro {
   position: relative;
   display: flex;
@@ -1034,6 +1044,41 @@ button.position-btn {
   min-height: 60vh;
   min-height: 60dvh;
   padding: 2rem 1rem;
+  /* So the drifting light below is clipped to the stage rather than washing
+     over the nav. */
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .matchup-intro {
+    flex-direction: row;
+    gap: 1.75rem;
+  }
+
+  /* Between two 28rem cards, 2.2rem of VS reads as a separator rather than as
+     the collision the animation is selling. */
+  .matchup-vs {
+    font-size: 3.6rem;
+  }
+
+  .matchup-side {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 28rem;
+  }
+
+  /* Not quite a flat row: one card rides a little high and the other a little
+     low, so the pair reads as two players squaring up rather than as a table
+     with two columns. Margin rather than transform, deliberately - transform
+     is what the fly-in animates, and a resting offset written there would be
+     wiped the moment .fly-in set translateX(0). */
+  .matchup-side-a {
+    margin-bottom: 2.4rem;
+  }
+
+  .matchup-side-b {
+    margin-top: 2.4rem;
+  }
 }
 
 /* A brief radial glow timed to the banners landing - sells the two sides
@@ -1051,6 +1096,48 @@ button.position-btn {
 
 .matchup-intro.impact-flash::before {
   animation: matchup-impact-flash 0.7s ease-out;
+}
+
+/* The stage's own light, drifting. A completely still background under a
+   timed animation makes the two seconds where you are reading the opponent's
+   name feel like a frozen frame; a slow off-centre wash makes the screen read
+   as a place rather than a screenshot.
+   
+   Two very wide, very low-opacity radials on one layer, moved together. Cheap
+   enough to be a compositor-only transform, and far too slow to be noticed as
+   an animation - which is the point. Off entirely under reduced motion. */
+.matchup-intro::after {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(var(--accent-rgb), 0.16), transparent 42%),
+    radial-gradient(circle at 72% 68%, rgba(120, 170, 255, 0.12), transparent 46%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.matchup-intro.intro-lit::after {
+  animation: matchup-stage-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes matchup-stage-drift {
+  0% { transform: translate3d(-2%, -1.5%, 0) scale(1); }
+  100% { transform: translate3d(2.5%, 2%, 0) scale(1.08); }
+}
+
+/* Everything the player is actually looking at sits above the wash. The
+   countdown gets the z-index only - it is absolutely positioned further down
+   this file, and re-declaring `position` here would leave that working by
+   source order alone. */
+.matchup-side,
+.matchup-vs {
+  position: relative;
+  z-index: 1;
+}
+
+.matchup-countdown {
+  z-index: 2;
 }
 
 @keyframes matchup-impact-flash {
@@ -1170,6 +1257,7 @@ button.position-btn {
   font-family: var(--font-display);
   font-weight: 900;
   font-size: 2.2rem;
+  letter-spacing: 0.04em;
   color: var(--accent-bright);
   flex-shrink: 0;
   filter: drop-shadow(0 0 10px rgba(var(--accent-rgb), 0.5));
@@ -5780,6 +5868,57 @@ html {
   100% { filter: brightness(1); }
 }
 
+/* WHO THEY ARE, A BEAT AFTER THE CARD ITSELF.
+   
+   The card used to arrive complete: banner, name, badges, rank and record all
+   at once, which reads as a layout appearing rather than as a player being
+   introduced. The artwork and the name fly in with the card; the badges and
+   the rep/rank/rating row settle in just behind them, once the card has landed
+   and .settle is on.
+   
+   Scoped to .matchup-card so the home screen's copy of this component - which
+   has no arrival to stage - is untouched. Both properties are transitioned,
+   never animated, so the reduced-motion block only has to zero the duration.
+   The parts are always PRESENT: this is opacity, not display, so the layout
+   the gate measures is the same layout either way. */
+.matchup-card .pb-badges,
+.matchup-card .pb-stats {
+  transition: opacity 0.4s ease var(--intro-detail-delay, 0s),
+              transform 0.4s var(--ease-out) var(--intro-detail-delay, 0s);
+}
+
+.matchup-side:not(.settle) .matchup-card .pb-badges,
+.matchup-side:not(.settle) .matchup-card .pb-stats {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.matchup-side.settle .matchup-card .pb-stats {
+  /* The record reads a fraction after the badges, so the eye is walked down
+     the card rather than having two rows appear together. */
+  --intro-detail-delay: 0.12s;
+}
+
+/* THE LANDING. One punch as the card arrives, before the slow glow below takes
+   over: the fly-in's back-out curve already overshoots, and this is the weight
+   behind the overshoot rather than a second movement after it. Scale only, and
+   under 300ms - a card that keeps moving after it has landed reads as not
+   having landed. */
+/* On the SLOT rather than on the side itself. .matchup-side.settle already
+   owns that element's `animation`, and `animation` is one property rather than
+   a list that accumulates - whichever of the two rules came later in this file
+   would silently cancel the other, which for the second card is a 50ms window
+   between landing and settling. The slot animates nothing else. */
+.matchup-side.impact .matchup-card-slot {
+  animation: matchup-side-impact 0.28s var(--ease-out);
+}
+
+@keyframes matchup-side-impact {
+  0% { transform: scale(1.05); }
+  55% { transform: scale(0.985); }
+  100% { transform: scale(1); }
+}
+
 /* A settled banner keeps a slow glow, so the screen stays alive during the
    beat where you're actually reading the opponent's name and rank. */
 .matchup-side.settle {
@@ -5817,9 +5956,20 @@ html {
   .draft-grade.grade-stamp .draft-grade-badge,
   .final-banner.win-flare,
   .matchup-intro.intro-lit,
+  .matchup-intro.intro-lit::after,
   .matchup-side.settle,
+  .matchup-side.impact .matchup-card-slot,
   .matchup-vs.vs-land {
     animation: none;
+  }
+
+  /* A transition, not an animation, so `animation: none` above does not reach
+     it - and a card whose badges and record fade in is still a card that
+     moves. Zeroed rather than removed, so the settled state is identical. */
+  .matchup-card .pb-badges,
+  .matchup-card .pb-stats {
+    transition-duration: 0s;
+    transition-delay: 0s;
   }
 }
 

@@ -2127,6 +2127,22 @@ const matchupCountdownEl = document.getElementById("matchup-countdown");
 const matchupRefsA = { slot: document.getElementById("matchup-card-a") };
 const matchupRefsB = { slot: document.getElementById("matchup-card-b") };
 
+/** Whether this player asked the operating system for less motion.
+ *
+ * Read at call time rather than cached: the setting can change while the tab
+ * is open, and a value read once at boot would keep animating for the rest of
+ * the session for someone who just turned it on.
+ *
+ * The CSS already stops every animation on this screen under the same query
+ * (see the reduced-motion block in style.css). What CSS cannot do is shorten
+ * the WAITS: the sequence below sleeps through the fly-in and the impact
+ * whether or not they are drawn, so someone who asked for no motion sat
+ * looking at a static screen for the full length of an animation they were
+ * never shown. This is what lets those beats be skipped instead. */
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
 /** The "you've been matched" beat between finding an opponent and the draft
  * actually starting.
  *
@@ -2149,7 +2165,7 @@ const matchupRefsB = { slot: document.getElementById("matchup-card-b") };
 async function playMatchupIntro(mySide, oppSide) {
   showScreen("matchupIntro");
   for (const el of [matchupSideAEl, matchupSideBEl]) {
-    el.classList.remove("fly-in", "settle");
+    el.classList.remove("fly-in", "settle", "impact");
   }
   matchupVsEl.classList.remove("vs-fade", "vs-land");
   matchupIntroEl.classList.remove("impact-flash", "intro-lit");
@@ -2172,20 +2188,37 @@ async function playMatchupIntro(mySide, oppSide) {
   // them back here actually retriggers the transitions instead of no-op'ing
   // against the previous match's already-settled state.
   void matchupSideAEl.offsetWidth;
-  await sleep(120);
+
+  const reduced = prefersReducedMotion();
+  // Waits that exist only to let an animation play. Under reduced motion there
+  // is no animation to let play, so they collapse - the beats that carry
+  // INFORMATION (time to read who you are up against, and a second per
+  // countdown number) are deliberately not in here and are not shortened.
+  const motionBeat = (ms) => sleep(reduced ? 0 : ms);
+
+  await motionBeat(120);
   matchupIntroEl.classList.add("intro-lit");
 
   // Staggered, not simultaneous: your banner arrives, then theirs, which is
-  // what makes it read as being introduced to an opponent.
+  // what makes it read as being introduced to an opponent. Each card takes a
+  // short punch as it lands (the fly-in transition is 0.9s), scheduled rather
+  // than awaited so the second card is already on its way in while the first
+  // one lands.
+  const land = (el) => {
+    if (reduced) return;
+    setTimeout(() => replayAnimation(el, "impact"), 860);
+  };
   playWhoosh();
   matchupSideAEl.classList.add("fly-in");
-  await sleep(520);
+  land(matchupSideAEl);
+  await motionBeat(520);
   playWhoosh();
   matchupSideBEl.classList.add("fly-in");
+  land(matchupSideBEl);
 
-  // A beat after the second banner lands (the fly-in transition is 0.9s), the
-  // radial flash and shockwave sell the impact of the two sides meeting.
-  await sleep(950);
+  // A beat after the second banner lands, the radial flash and shockwave sell
+  // the impact of the two sides meeting.
+  await motionBeat(950);
   matchupSideAEl.classList.add("settle");
   matchupSideBEl.classList.add("settle");
   matchupVsEl.classList.add("vs-land");
@@ -2194,8 +2227,8 @@ async function playMatchupIntro(mySide, oppSide) {
 
   // Time to actually read who you're playing and what rank they are - the
   // whole reason this screen exists, and previously the part it gave the
-  // least room to.
-  await sleep(2100);
+  // least room to. NOT a motion beat: this one is reading time.
+  await sleep(1800);
 
   // The countdown and "VS" occupy the exact same dead-center spot by design -
   // fading VS out is what keeps them from rendering on top of each other
@@ -2214,7 +2247,7 @@ async function playMatchupIntro(mySide, oppSide) {
   matchupCountdownEl.textContent = "GO!";
   matchupCountdownEl.classList.add("go");
   playBuzzer();
-  await sleep(1100);
+  await motionBeat(850);
 }
 
 async function enterOnlineMatch(matchId) {
