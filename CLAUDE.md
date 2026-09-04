@@ -31,8 +31,14 @@ opening `index.html` from disk will not work.
   spirit as `js/sports/<id>/index.js`, which every sport implements and
   `scripts/verify-sport-contract.mjs` enforces. Build on that rather than
   introducing a parallel `/services` tree.
-- There is **no component library**. Shared UI is `js/ui.js`, one file of
-  render functions. "Never duplicate components" applies to it directly.
+- There is **no component library**. Shared UI is `js/ui.js` plus `js/ui/`,
+  and `js/ui.js` is now an INDEX rather than a file of code - 53 lines that
+  re-export ten modules. It reached 3,182 lines by being the obvious place to
+  put anything shared, so put new render functions in the module for the screen
+  they serve, and a genuinely shared helper in its own small module beside
+  `note.js` and `format.js`. A helper parked next to one of its callers is what
+  made the old file unsplittable. "Never duplicate components" applies to all
+  of it directly.
 - The **only backend** is Supabase: Postgres plus one Edge Function
   (`simulate-match`). "API layer" means that function and the Postgres RPCs.
 - **Two sports exist: NBA and NFL**, and both are live. NHL and Soccer were
@@ -154,8 +160,13 @@ that hasn't caught up yet.
 
 The frontend is one unified design system. Never duplicate UI components.
 
-Shared UI lives in `js/ui.js`. All spacing, typography, colors, shadows, and
-animations stay consistent. Per-sport identity is expressed through the four
+Shared UI lives in `js/ui/`, indexed by `js/ui.js` - five screen modules
+(`draft-board`, `game`, `profile`, `squads`, `strategy`) grouped by the moment a
+player sees them, and five primitives (`banner-art`, `entry-name`,
+`roster-slots`, `note`, `format`) each shared by two or more of those. Import
+from `js/ui.js` for anything it re-exports; import a primitive from its own
+module, because the index deliberately does not re-export those. All spacing,
+typography, colors, shadows, and animations stay consistent. Per-sport identity is expressed through the four
 theme custom properties each sport declares, not through separate stylesheets.
 
 ---

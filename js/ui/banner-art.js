@@ -11,7 +11,6 @@
 // tolerates and nobody should have to reason about.
 
 import { SPORTS } from "../sports/index.js";
-import { bannerById } from "../banners.js";
 
 /** The thumbnail beside a piece of banner art. tools/build-banner-tiles.mjs
  * writes assets/banners/tiles/<same-name>.jpg, so the path is derived rather

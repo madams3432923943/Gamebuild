@@ -10,10 +10,9 @@
 // visible; it is back where it belongs.
 
 import { MIN_SEARCH_CHARS } from "../constants.js";
-import { escapeHtml } from "../lib/escape-html.js";
 import { activeSport } from "../sports/index.js";
 import { eligibleOpenSlots, resolveTypedInput, normalizeName } from "../draft.js";
-import { defaultSlots, slotLabel, rosterSlots } from "./roster-slots.js";
+import { defaultSlots, slotLabel } from "./roster-slots.js";
 import { displayEntryName, shortPlayerName } from "./entry-name.js";
 import { renderNote } from "./note.js";
 

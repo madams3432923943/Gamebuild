@@ -11,7 +11,7 @@
 // squad screens need it too.
 
 import { escapeHtml } from "../lib/escape-html.js";
-import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID, activeSport } from "../sports/index.js";
+import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID } from "../sports/index.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "../badges.js";
 import {
   BANNER_THRESHOLD,
@@ -39,7 +39,6 @@ import {
   DEFAULT_ICON_ID,
 } from "../icons.js";
 import { emblemSvg } from "../emblems.js";
-import { squadTierForRep } from "../squads.js";
 import { bannerArt } from "./banner-art.js";
 import { renderNote } from "./note.js";
 import { roundStat } from "./format.js";

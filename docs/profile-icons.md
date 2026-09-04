@@ -22,7 +22,7 @@ you rank highest in, and everything else on the shelf is something you earned.
 | --- | --- |
 | `js/emblems.js` | The artwork. 49 original cartoon glyphs as SVG path data, the franchise → glyph mapping, the disc/rim/mark/accent palette resolution, and `emblemSvg()` — the only place in the app that builds SVG. |
 | `js/icons.js` | The catalogue: the default icon, the general ladders, one icon per franchise, and progress/unlock rules. Same shape as `js/banners.js`. |
-| `js/ui.js` | `renderPlayerIcon()` (home card and profile, one renderer) and `renderIcons()` (the Rewards and Customize grids). |
+| `js/ui/profile.js` | `renderPlayerIcon()` (home card and profile, one renderer) and `renderIcons()` (the Rewards and Customize grids). |
 | `js/profile.js` | `equippedIcon` / `grantedIcons` / `mvpTeams` on the normalized profile, and `setEquippedIcon()`. |
 
 `topSportId()` lives in `js/icons.js` rather than `js/profile.js` deliberately:

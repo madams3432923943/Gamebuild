@@ -15,7 +15,11 @@
 import { activeSport } from "../sports/index.js";
 
 export const defaultSlots = () => activeSport().slots.quickPlay;
-export const defaultStarters = () => activeSport().slots.starters;
+
+// defaultStarters used to sit here too and had no caller left in the UI - the
+// draft and online modules each keep their own private copy of the same
+// one-line lambda. Removed rather than exported into the void; if a third
+// caller ever wants it, those two duplicates are what it should replace.
 
 /** Display name for a roster slot. Derived rather than looked up in a fixed
  * map, because roster shape varies by mode: Quick Play uses bare positions,

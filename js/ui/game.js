@@ -8,8 +8,8 @@
 
 import { escapeHtml } from "../lib/escape-html.js";
 import { activeSport } from "../sports/index.js";
-import { defaultStarters, slotLabel, rosterSlots } from "./roster-slots.js";
-import { displayEntryName, shortPlayerName } from "./entry-name.js";
+import { slotLabel, rosterSlots } from "./roster-slots.js";
+import { displayEntryName } from "./entry-name.js";
 import { roundStat } from "./format.js";
 
 /**

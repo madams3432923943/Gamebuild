@@ -22,9 +22,9 @@ One card, one renderer, two places it appears.
 
 | | |
 | --- | --- |
-| `createPlayerBannerCard()` (`js/ui.js`) | Builds the card's DOM, matching `#player-banner` in `index.html` class for class. |
-| `renderPlayerBannerCard(refs, profile, rankInfo)` (`js/ui.js`) | Paints one card: banner background, icon, name, join plate, featured badges, rep/rank/rating. |
-| `renderMatchupSide(refs, { profile, rankInfo })` (`js/ui.js`) | Mounts a built card into one side of the intro. |
+| `createPlayerBannerCard()` (`js/ui/profile.js`) | Builds the card's DOM, matching `#player-banner` in `index.html` class for class. |
+| `renderPlayerBannerCard(refs, profile, rankInfo)` (`js/ui/profile.js`) | Paints one card: banner background, icon, name, join plate, featured badges, rep/rank/rating. |
+| `renderMatchupSide(refs, { profile, rankInfo })` (`js/ui/profile.js`) | Mounts a built card into one side of the intro. |
 
 The home screen passes the static markup's refs; the intro passes a built
 card's. Neither knows which it is. The rank on both is the **sport-neutral**

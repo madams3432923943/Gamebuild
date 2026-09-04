@@ -77,7 +77,19 @@ js/                 shared app code - never imports a sport directly
   shell.js        screens, nav and the one modal - app chrome, no basketball
   screens/        one module per screen (squads and friends so far)
   draft.js        draft mechanics, squad rolling, typed-name search, bot picks
-  ui.js           rendering helpers
+  ui.js           an index: re-exports js/ui/*, no code of its own
+  ui/             every screen's renderers, split by the moment you see them
+                    draft-board.js  the pool, the roster panel, the pick clock
+                    game.js         scoreboard, box score, play feed, MVP card
+                    profile.js      rank, banners, icons, badges, records
+                    squads.js       squad and friends screens
+                    strategy.js     rotation, matchups, gameplans
+                  ...and the primitives two or more of them share:
+                    banner-art.js   franchise banner artwork
+                    entry-name.js   what to call a drafted player or unit
+                    roster-slots.js what a slot is called, and which are filled
+                    note.js         the "nothing here" line
+                    format.js       roundStat
   online.js       Supabase-backed online play
   profile.js      profile/record persistence
   badges.js       tiered achievements
