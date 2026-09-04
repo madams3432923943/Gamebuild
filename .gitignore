@@ -47,3 +47,4 @@ docs/audits/*-mobile-baseline/*-partial.json
 # a scratch loop - change a rule, re-shoot, look - rather than anything anyone
 # else should inherit. The real, keepable browser tooling is scripts/selftest/.
 .shoot*.mjs
+.shoot-profile.json

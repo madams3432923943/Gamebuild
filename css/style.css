@@ -26,7 +26,14 @@
      left edge of the screen and got clipped. */
   --page-gutter: 1.25rem;
   --bg: #0d1117;
-  --panel: #161b23;
+  /* AN ALIAS, NOT A SECOND SCALE. --panel is what 28 rules in this file were
+     already written against, from long before the surface scale below existed.
+     Repointing it at --surface-2 puts every one of those on the scale in one
+     line, with a colour shift of two hex points that nothing can perceive -
+     rather than 28 edits, each one a chance to change something that was
+     fine. New rules should name the surface they mean; --panel stays because
+     rewriting a working rule to say the same thing differently is churn. */
+  --panel: var(--surface-2);
   --line: #2a323e;
   --accent: #d9741f;
   --accent-bright: #ff9d4d;
@@ -111,11 +118,39 @@
   box-sizing: border-box;
 }
 
+/* ---- The page's own depth -------------------------------------------------
+   Three layers over the flat --bg, all of them very low contrast, because the
+   brief for this is "subtle depth" and the failure mode is a neon esports
+   template.
+
+   1. A wide accent wash at the top, in the ACTIVE SPORT's colour. This is the
+      one place the whole page follows the sport rather than just its buttons -
+      basketball is faintly warm, football faintly cool - and at 7% it reads as
+      lighting rather than as a coloured background.
+   2. The cool blue-grey the page already had, kept, because it is what stops
+      the accent wash from tinting the whole screen.
+   3. A very fine noise texture, so large flat areas of --bg have something in
+      them at close range instead of banding. An inline SVG rather than a file:
+      it is 200 bytes, it costs no request, and the CSP forbids external images
+      anyway (see scripts/verify-csp.mjs).
+
+   fixed, so the lighting belongs to the SCREEN rather than to the document -
+   scrolling a long profile past a gradient anchored to the page drags the
+   light down with it, which reads as the background moving. */
 body {
   margin: 0;
   background:
+    radial-gradient(ellipse 90% 55% at 50% -8%, rgba(var(--accent-rgb), 0.07) 0%, transparent 70%),
     radial-gradient(ellipse at 50% -10%, #17253d 0%, transparent 55%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E"),
     var(--bg);
+  /* The two gradients are fixed so the lighting belongs to the SCREEN: sized
+     against a 2,400px profile page instead, a "90% x 55% at the top" ellipse
+     is enormous and washes half the document. The noise scrolls with the page,
+     which is both correct (it is a texture on the paper, not on the lamp) and
+     cheaper - a fixed tiled layer repaints the whole viewport on every scroll
+     frame, and this one has nothing to gain from it. */
+  background-attachment: fixed, fixed, scroll, scroll;
   color: var(--text);
   font-family: var(--font-body);
   /* dvh, not vh, with vh underneath for anything too old to know the unit.
@@ -227,7 +262,7 @@ button, input {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   padding: 0.45rem 0.9rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
@@ -266,7 +301,7 @@ button, input {
   background: var(--panel);
   border: 1px solid var(--line);
   color: var(--muted);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.4rem 0.85rem;
   font-size: var(--text-xs);
   font-weight: 700;
@@ -305,24 +340,58 @@ button, input {
 
 /* ---- Shared bits ---- */
 .card {
-  background: var(--panel);
+  background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   padding: 1.25rem;
   margin-bottom: 1rem;
+  /* Lit from above rather than cut out of the page. Every card in the app
+     picks this up, which is most of what made the screens read as five
+     different products: the profile's cards were flat 10px panels, the sport
+     cards 14px with a shadow, the badge tiles 12px with neither. */
+  box-shadow: var(--shadow-card);
 }
 
+/* ---- Typography ----------------------------------------------------------
+   Six voices, and they have to be distinguishable. Almost everything on these
+   screens was 0.85-1rem body text in either --text or --muted, so a page
+   title, a card title and a caption differed by two pixels and a colour.
+
+   page title    .section-heading   display, 1.15rem, accent rule under it
+   section title .card-head h3      display, 1.05rem
+   card title    .card h2 / h3      display, 1.25rem / 1.05rem
+   primary stat  mono, 1.2-1.6rem, --scoreboard or --text
+   secondary     body, 0.85-0.95rem, --text
+   metadata      --text-micro, uppercase, letter-spaced, --muted
+
+   The two mono/metadata rows are conventions the file already followed; what
+   is new is the display face and size on the headings, which previously used
+   the browser's default h2/h3 sizing. */
 .card h2, .card h3 {
   margin-top: 0;
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
 }
 
+.card h2 {
+  font-size: 1.25rem;
+}
+
+.card h3 {
+  font-size: 1.05rem;
+}
+
+/* The page's own title. It was --muted at 1rem, which is the same voice the
+   captions inside the cards below it speak in - so the loudest thing on the
+   Rewards screen was a subtab pill. */
 .section-heading {
   font-family: var(--font-display);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 1rem;
-  color: var(--muted);
-  margin: 0 0 0.75rem;
+  letter-spacing: 0.06em;
+  font-size: 1.15rem;
+  color: var(--text);
+  margin: 0 0 0.85rem;
   border-bottom: 2px solid var(--accent);
   padding-bottom: 0.5rem;
   display: inline-block;
@@ -1019,7 +1088,7 @@ input[type="text"]:focus-visible {
   text-transform: uppercase;
   color: var(--accent-bright);
   border: 1px solid rgba(var(--accent-rgb), 0.55);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.15rem 0.6rem;
   white-space: nowrap;
 }
@@ -1630,7 +1699,7 @@ button.position-btn {
    full-width backdrop - the banner around it already provides both. */
 .turn-banner {
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid var(--line);
   font-weight: 700;
@@ -3045,7 +3114,7 @@ table.box-table th {
   display: inline-block;
   background: var(--accent);
   color: var(--accent-contrast);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.3rem 0.9rem;
   font-weight: 800;
   font-family: var(--font-display);
@@ -3057,7 +3126,7 @@ table.box-table th {
 .progress-bar-track {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 8px;
   overflow: hidden;
   margin: 0.5rem 0;
@@ -3066,6 +3135,13 @@ table.box-table th {
 .progress-bar-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--scoreboard));
+  /* Rank progress MOVES. Every bar in the app is painted by setting
+     style.width on this element - the tier bar, the badge ladders, the banner
+     ladders, squad rep - so one transition here means a rank that changed
+     while you were away slides to its new place when the screen opens, rather
+     than being drawn already there. 600ms is slow enough to be seen as motion
+     and short enough that nothing waits on it. */
+  transition: width 600ms var(--ease-out);
 }
 
 /* A player's stats: a row of value/label pairs that WRAP BETWEEN PAIRS AND
@@ -3220,7 +3296,7 @@ table.box-table th {
   background: var(--accent);
   color: var(--accent-contrast);
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.5rem 1.15rem;
   font-family: var(--font-display);
   font-weight: 800;
@@ -3486,7 +3562,7 @@ table.box-table th {
   font-family: var(--font-mono);
   font-size: var(--text-micro);
   padding: 0.15rem 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -4624,7 +4700,7 @@ table.box-table th {
   font-weight: 700;
   line-height: 1.25;
   padding: 0.14rem 0.4rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -5040,14 +5116,31 @@ table.box-table th {
   letter-spacing: 0.04em;
 }
 
+/* THE ONE WAY OUT OF A DIALOG, and it measured 20x24 on a phone - well under
+   the 44px floor, and the only control in the app still under it at 360px
+   after this pass. Escape and a backdrop tap both close a modal too, but
+   neither is discoverable, and on a touchscreen there is no Escape at all.
+   Sized as a square target rather than by padding, so the glyph stays where it
+   was and only the box around it grows. */
 .modal-close {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.5rem -0.5rem -0.5rem 0;
   background: none;
   border: none;
+  border-radius: var(--radius-inner);
   color: var(--muted);
   font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0 0.25rem;
+  padding: 0;
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: -2px;
 }
 
 .modal-close:hover { color: var(--text); }
@@ -5275,7 +5368,7 @@ table.box-table th {
   color: var(--text);
   white-space: nowrap;
   padding: 0.28rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -6510,7 +6603,7 @@ html {
   letter-spacing: 0.1em;
   color: var(--bg);
   background: var(--accent-bright);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.1rem 0.45rem;
 }
 
@@ -6652,6 +6745,48 @@ html {
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
+/* ---- Lists that arrive ----------------------------------------------------
+   A short fade-and-rise, staggered down the list. These are the two places on
+   the profile where switching the sport tab replaces every row at once, and
+   with no motion at all the swap is indistinguishable from the screen having
+   glitched: the same shapes, different words, in one frame.
+
+   Pure CSS and keyed to nothing: the renderers rebuild these elements on every
+   paint, so the animation runs whenever the rows are new, which is exactly
+   when it should. The delay is capped at six rows - past that the last row
+   would arrive late enough to be noticed as waiting rather than as arriving.
+
+   `both` matters: without it row six is at full opacity for its 150ms of delay
+   and then fades in from nothing, which is a flicker rather than an entrance. */
+.match-row,
+.record-group {
+  animation: row-enter 260ms var(--ease-out) both;
+}
+
+.match-row:nth-child(2), .record-group:nth-child(2) { animation-delay: 30ms; }
+.match-row:nth-child(3), .record-group:nth-child(3) { animation-delay: 60ms; }
+.match-row:nth-child(4), .record-group:nth-child(4) { animation-delay: 90ms; }
+.match-row:nth-child(5), .record-group:nth-child(5) { animation-delay: 120ms; }
+.match-row:nth-child(n + 6), .record-group:nth-child(n + 6) { animation-delay: 150ms; }
+
+@keyframes row-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A badge going onto your banner should be seen to go. The button already
+   changes its label; this is the tile itself acknowledging it, on the one
+   interaction in the Rewards screen that changes something. */
+.badge-tile.featured {
+  animation: badge-featured 320ms var(--ease-out);
+}
+
+@keyframes badge-featured {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
 /* Nothing above may move for anyone who asked for less motion. The
    information is all still there - only the animation stops. */
 @media (prefers-reduced-motion: reduce) {
@@ -6662,8 +6797,17 @@ html {
   .matchup-intro.intro-lit::after,
   .matchup-side.settle,
   .matchup-side.impact .matchup-card-slot,
-  .matchup-vs.vs-land {
+  .matchup-vs.vs-land,
+  .match-row,
+  .record-group,
+  .badge-tile.featured {
     animation: none;
+  }
+
+  /* A bar that slides to its new value is still motion. The value it lands on
+     is identical; it just arrives there in one frame. */
+  .progress-bar-fill {
+    transition: none;
   }
 
   /* A transition, not an animation, so `animation: none` above does not reach
@@ -7076,7 +7220,7 @@ html {
   font-size: var(--text-xs);
   letter-spacing: 0.01em;
   padding: 0.08rem 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   white-space: nowrap;
 }
