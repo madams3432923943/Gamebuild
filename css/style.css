@@ -3665,21 +3665,78 @@ table.box-table th {
   }
 }
 
+/* --- Rarity ---------------------------------------------------------------
+   Every earned badge printed its tier in the same accent orange, so Bronze and
+   Hall of Fame looked identical apart from the word - which means the tab
+   could not be read at a glance at all, and the whole point of tiers is that
+   there is something to chase.
+   
+   --tier-ink is set from the tile's data-tier (written in renderBadgeCollection
+   from BADGE_TIERS) and drives the tier chip, the icon's rim and the progress
+   fill together. A fifth tier needs a colour here and nothing else.
+   
+   Violet for Hall of Fame rather than a brighter gold: it is the tier above
+   Gold, and "more gold" is not a reading anyone gets. Violet as the top rarity
+   is borrowed rather than invented - it is what the genre has taught people to
+   look for. */
 .badge-tile {
-  background: var(--panel);
+  --tier-ink: var(--muted);
+  background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-inner);
   padding: 0.9rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-base) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out);
+}
+
+.badge-tile[data-tier="Bronze"] { --tier-ink: #cd8b52; }
+.badge-tile[data-tier="Silver"] { --tier-ink: #cdd6e0; }
+.badge-tile[data-tier="Gold"] { --tier-ink: #f2c14e; }
+.badge-tile[data-tier="Hall of Fame"] { --tier-ink: #b39aff; }
+
+@media (hover: hover) {
+  .badge-tile:not(.locked):hover {
+    border-color: var(--tier-ink);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-2px);
+  }
 }
 
 /* Unearned badges stay legible rather than blanked out - you should be able
    to read what a badge tracks before you've earned it, otherwise the tab
-   can't tell you what to chase. */
+   can't tell you what to chase. FLAT as well as dim: an earned tile is lit
+   from above and an unearned one is a hole in the page, which is a reading
+   that survives being glanced at where six percent of opacity does not. */
 .badge-tile.locked {
   opacity: 0.62;
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+/* MAXED OUT. Nothing left to chase on this badge, and it should not look like
+   one that is halfway. A rim in its own tier colour, a lit floor, and the tier
+   chip goes solid - three quiet signals rather than one loud one, and none of
+   them changes the tile's height, which is what keeps the grid a grid. */
+.badge-tile.maxed {
+  border-color: var(--tier-ink);
+  box-shadow: 0 0 0 1px var(--tier-ink), 0 0 22px -6px var(--tier-ink), var(--shadow-card);
+  background:
+    radial-gradient(120% 90% at 50% 130%, color-mix(in srgb, var(--tier-ink) 16%, transparent), transparent 72%),
+    var(--surface-2);
+}
+
+/* One of the three on your banner. A dashed accent ring, so at a glance you
+   can see which badges you are already wearing without reading every button -
+   dashed rather than solid so it cannot be confused with the maxed rim above,
+   which is a property of the badge rather than of your choice. */
+.badge-tile.featured {
+  outline: 2px dashed rgba(var(--accent-rgb), 0.75);
+  outline-offset: -4px;
 }
 
 .badge-head {
@@ -3702,8 +3759,9 @@ table.box-table th {
 }
 
 .badge-tile:not(.locked) .badge-icon {
-  border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.25);
+  border-color: var(--tier-ink);
+  box-shadow: 0 0 12px -2px var(--tier-ink);
+  background: color-mix(in srgb, var(--tier-ink) 10%, var(--bg));
 }
 
 .badge-name {
@@ -3715,14 +3773,40 @@ table.box-table th {
 }
 
 .badge-tier {
-  font-size: var(--text-xs);
-  color: var(--accent-bright);
-  font-weight: 700;
+  display: inline-block;
+  font-size: var(--text-micro);
+  color: var(--tier-ink);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem;
+  margin-top: 0.1rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--tier-ink) 45%, transparent);
+  background: color-mix(in srgb, var(--tier-ink) 12%, transparent);
 }
 
+/* Solid at the top tier: the chip stops being a label on the badge and becomes
+   the badge's rank. */
+.badge-tile.maxed .badge-tier {
+  background: var(--tier-ink);
+  border-color: var(--tier-ink);
+  /* The four tier inks are all light, so dark ink is the readable one on every
+     one of them; checked at #cd8b52, the darkest, which comes out at 6.4:1. */
+  color: #16181d;
+}
+
+/* Not a chip when there is nothing to rank - "Not earned yet" is a state, not
+   a tier, and a pill around it would say it had been awarded one. */
 .badge-tile.locked .badge-tier {
   color: var(--muted);
   font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--text-xs);
 }
 
 .badge-blurb {
@@ -3734,6 +3818,29 @@ table.box-table th {
   font-size: var(--text-micro);
   color: var(--muted);
   font-family: var(--font-mono);
+}
+
+/* The one line on a maxed tile that says why it looks different. */
+.badge-tile.maxed .badge-progress {
+  color: var(--tier-ink);
+  font-weight: 700;
+}
+
+/* The bar takes the tier's colour too, so a full Bronze bar and a full Gold
+   bar are not the same picture. The track is stepped down onto the tile's own
+   surface rather than sitting on --panel, which is now the same colour as the
+   tile behind it and made the empty half of every bar invisible. */
+.badge-tile .progress-bar-track {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+
+.badge-tile[data-tier] .progress-bar-fill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--tier-ink) 65%, #000) 0%,
+    var(--tier-ink) 100%
+  );
 }
 
 /* Three across on a phone, the same as the icon grid.
@@ -4073,6 +4180,33 @@ table.box-table th {
   gap: 0.7rem;
 }
 
+/* Four across in the wardrobe's wider dialog rather than five, so a preview is
+   ~190px instead of 76 - and the name stops wrapping onto two lines, which is
+   what was making every tile taller than its own artwork. */
+.modal-wide .banner-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .modal-wide .banner-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.modal-wide .banner-tile {
+  padding: 0.55rem;
+  gap: 0.3rem;
+}
+
+/* An empty shelf's note is a sentence, not a tile: as a grid item it was
+   getting one column and wrapping into a 90px ribbon of italics. */
+.banner-grid > .empty-note,
+.badge-grid > .empty-note,
+.icon-grid > .empty-note {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 900px) {
   .banner-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -4129,6 +4263,110 @@ table.box-table th {
 .banner-tile.equipped {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgba(var(--accent-rgb), 0.3);
+}
+
+/* --- The wardrobe's picker tiles ------------------------------------------
+   The same tile, as a control. In the wardrobe there is no per-tile "Fly
+   this" - the tile IS the button, and the one primary action lives in the bar
+   under the grid - so the third of the tile that pill used to take goes back
+   to the artwork. */
+.banner-tile-pick {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-base) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .banner-tile-pick:hover {
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-2px);
+  }
+}
+
+.banner-tile-pick:active {
+  transform: translateY(0);
+}
+
+/* SELECTED IS NOT EQUIPPED. The equipped tile keeps its accent ring (it says
+   what you are wearing); selection is a heavier, brighter outline plus a lift,
+   because it is the thing the bar below is currently talking about. A tile can
+   be both, and then reads as both. */
+.banner-tile-pick.selected {
+  border-color: var(--accent-bright);
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+  box-shadow: 0 0 22px -4px rgba(var(--accent-rgb), 0.75), var(--shadow-lift);
+}
+
+.banner-tile-pick:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* --- The wardrobe's action bar --------------------------------------------
+   What you have selected, and the one button that puts it on. It replaces one
+   pill per tile - twenty-one identical "Fly this" buttons in a grid - with one
+   button that says what it will do to the thing you just clicked.
+
+   Sticky, so browsing a long shelf never scrolls the commit off the screen. */
+.locker-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-inner);
+  background: var(--surface-1);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.locker-bar-art {
+  width: 5.5rem;
+  flex: 0 0 auto;
+}
+
+.locker-bar-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.locker-bar-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.locker-bar-state {
+  font-size: var(--text-micro);
+  color: var(--muted);
+}
+
+.locker-bar-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  /* The button drops to its own full-width row rather than being squeezed to
+     a two-word ellipsis beside a preview and a name. */
+  .locker-bar {
+    flex-wrap: wrap;
+  }
+
+  .locker-bar-action {
+    flex: 1 0 100%;
+  }
 }
 
 /* Founder: the one banner nobody else can earn - a permanent gold glow
@@ -4768,6 +5006,7 @@ table.box-table th {
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--accent), 0 18px 50px rgba(0, 0, 0, 0.55);
   width: min(560px, 100%);
+  /* No transition on width: the variant is set before the dialog is shown. */
   /* 85vh measured against the address-bar-hidden viewport is taller than the
      screen while the address bar is showing, which put the confirm button of
      a tall modal - the season picker, the slot picker - below the fold with
@@ -4814,6 +5053,14 @@ table.box-table th {
 .modal-close:hover { color: var(--text); }
 
 /* Scrolls inside itself so long content never scrolls the page behind it. */
+/* A dialog whose CONTENT wants a wider frame - today only the wardrobe. Its
+   grid is banner ARTWORK, and five columns inside 560px gives each banner 76
+   pixels to be recognised in, which is not enough to tell Desert Wind from
+   Forest Pixel. Telling them apart is the entire task. */
+.modal.modal-wide {
+  width: min(920px, 100%);
+}
+
 .modal-body {
   padding: 1rem 1.1rem 1.2rem;
   overflow-y: auto;

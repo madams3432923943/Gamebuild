@@ -63,12 +63,24 @@ const modalBackdrop = document.getElementById("modal-backdrop");
 const modalTitleEl = document.getElementById("modal-title");
 const modalBodyEl = document.getElementById("modal-body");
 const modalCloseBtn = document.getElementById("modal-close");
+const modalEl = modalBackdrop.querySelector(".modal");
 let onModalDismiss = null;
+let modalVariant = null;
 
-export function openModal(title, bodyNode, onDismiss) {
+/**
+ * @param options.variant  a modifier class on the dialog itself, for a modal
+ *   whose CONTENT wants a different frame - today only "modal-wide", which the
+ *   wardrobe uses because a grid of banner artwork inside 560px gives each
+ *   banner 76 pixels to be recognised in. Removed again on close, so the next
+ *   modal to open does not inherit the last one's shape.
+ */
+export function openModal(title, bodyNode, onDismiss, options = {}) {
   modalTitleEl.textContent = title;
   modalBodyEl.innerHTML = "";
   modalBodyEl.appendChild(bodyNode);
+  if (modalVariant) modalEl.classList.remove(modalVariant);
+  modalVariant = options.variant || null;
+  if (modalVariant) modalEl.classList.add(modalVariant);
   onModalDismiss = onDismiss || null;
   modalBackdrop.classList.remove("hidden");
 }
@@ -76,6 +88,8 @@ export function openModal(title, bodyNode, onDismiss) {
 export function closeModal({ dismissed = false } = {}) {
   modalBackdrop.classList.add("hidden");
   modalBodyEl.innerHTML = "";
+  if (modalVariant) modalEl.classList.remove(modalVariant);
+  modalVariant = null;
   const cb = onModalDismiss;
   onModalDismiss = null;
   // A dismissal has to be distinguishable from a choice: abandoning the

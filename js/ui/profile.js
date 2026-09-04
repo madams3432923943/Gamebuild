@@ -587,8 +587,19 @@ export function renderBadgeCollection(
   for (const { badge, progress } of shown) {
     const earnedIt = progress.tierIndex >= 0;
 
+    const featured = earnedIt && (profile.featuredBadges || []).includes(badge.id);
+    // Maxed out: the top tier reached, nothing left to chase on this badge.
+    // `next` is null exactly then (see badgeProgress), so this asks the
+    // question the data already answers rather than comparing tier indexes.
+    const maxed = earnedIt && !progress.next;
+
     const tile = document.createElement("div");
-    tile.className = "badge-tile" + (earnedIt ? "" : " locked");
+    tile.className =
+      "badge-tile" + (earnedIt ? "" : " locked") + (maxed ? " maxed" : "") + (featured ? " featured" : "");
+    // The TIER, as data rather than as three more classes. Rarity colour, the
+    // icon's rim and the progress fill all key off this one attribute, and a
+    // fifth tier added to BADGE_TIERS needs a colour here and nothing else.
+    if (earnedIt) tile.dataset.tier = progress.tier.name;
 
     const head = document.createElement("div");
     head.className = "badge-head";
@@ -627,15 +638,14 @@ export function renderBadgeCollection(
 
     const caption = document.createElement("div");
     caption.className = "badge-progress";
-    caption.textContent = progress.next
-      ? `${roundStat(progress.value)} / ${progress.next.threshold} ${badge.unit} to ${progress.next.tier.name}`
-      : `${roundStat(progress.value)} ${badge.unit} — maxed out`;
+    caption.textContent = maxed
+      ? `${roundStat(progress.value)} ${badge.unit} — maxed out`
+      : `${roundStat(progress.value)} / ${progress.next.threshold} ${badge.unit} to ${progress.next.tier.name}`;
     tile.appendChild(caption);
 
     // Only earned badges can be shown off - featuring one you haven't earned
     // would say nothing about you.
     if (earnedIt && onToggleFeature) {
-      const featured = (profile.featuredBadges || []).includes(badge.id);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn-secondary badge-feature" + (featured ? " is-featured" : "");
@@ -735,7 +745,37 @@ export function renderMatchupSide(refs, { profile, rankInfo }) {
 /** A hardcoded, always-unlocked banner tile (Founder, 1st Player) - no
  * progress bar, just the art, name, equip state, and a distinct glow class
  * marking it as different in kind from an earnable team banner. */
-function specialBannerTile(banner, glowClass, profile, onEquip) {
+/**
+ * Turns a finished banner tile into whichever kind of control this shelf wants.
+ *
+ * TWO SHELVES, TWO JOBS. Rewards is a display case - every banner in the game,
+ * locked ones included, with how close you are - and its tiles carry their own
+ * "Fly this" button. The wardrobe is a PICKER, and there every unlocked tile
+ * carried the same button: twenty-one identical "Fly this" pills in a grid,
+ * each one taking a third of its tile's height away from the artwork it is
+ * meant to be choosing between.
+ *
+ * In picker mode the tile IS the control - click to select, one primary
+ * "Equip Banner" in the bar below the grid - so nothing repeats and the
+ * artwork gets the space back. `picker` absent means the display case, which
+ * is unchanged.
+ *
+ * A <button> rather than a div with a click handler, so it is tabbable,
+ * announced as a control and reachable by keyboard for free.
+ */
+function asPickerTile(tile, banner, picker, selectable) {
+  if (!picker || !selectable) return tile;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = tile.className + " banner-tile-pick";
+  if (picker.selectedId === banner.id) btn.classList.add("selected");
+  btn.setAttribute("aria-pressed", String(picker.selectedId === banner.id));
+  while (tile.firstChild) btn.appendChild(tile.firstChild);
+  btn.addEventListener("click", () => picker.onSelect(banner));
+  return btn;
+}
+
+function specialBannerTile(banner, glowClass, profile, onEquip, picker = null) {
   const equipped = profile.equippedBanner === banner.id;
   const tile = document.createElement("div");
   tile.className = `banner-tile ${glowClass}` + (equipped ? " equipped" : "");
@@ -751,20 +791,22 @@ function specialBannerTile(banner, glowClass, profile, onEquip) {
   caption.textContent = equipped ? "Flying now" : "Unlocked";
   tile.appendChild(caption);
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "btn btn-secondary banner-equip";
-  btn.textContent = equipped ? "Take down" : "Fly this";
-  btn.addEventListener("click", () => onEquip(equipped ? null : banner.id));
-  tile.appendChild(btn);
+  if (!picker) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-secondary banner-equip";
+    btn.textContent = equipped ? "Take down" : "Fly this";
+    btn.addEventListener("click", () => onEquip(equipped ? null : banner.id));
+    tile.appendChild(btn);
+  }
 
-  return tile;
+  return asPickerTile(tile, banner, picker, true);
 }
 
 /** A general banner tile: like a franchise tile, but its caption comes from
  * the banner's own requirement ("Win 500 online ranked games") rather than a
  * shared draft threshold, since each one is earned a different way. */
-function generalBannerTile(banner, progress, profile, onEquip) {
+function generalBannerTile(banner, progress, profile, onEquip, picker = null) {
   const equipped = profile.equippedBanner === banner.id;
   const tile = document.createElement("div");
   tile.className = "banner-tile" + (progress.unlocked ? "" : " locked") + (equipped ? " equipped" : "");
@@ -794,7 +836,7 @@ function generalBannerTile(banner, progress, profile, onEquip) {
 
   // The default banner has no "take down": clearing it just falls back to
   // itself (see normalize() in profile.js), so the button would do nothing.
-  if (progress.unlocked && !(equipped && banner.id === DEFAULT_BANNER_ID)) {
+  if (!picker && progress.unlocked && !(equipped && banner.id === DEFAULT_BANNER_ID)) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn btn-secondary banner-equip";
@@ -803,7 +845,7 @@ function generalBannerTile(banner, progress, profile, onEquip) {
     tile.appendChild(btn);
   }
 
-  return tile;
+  return asPickerTile(tile, banner, picker, progress.unlocked);
 }
 
 /** Sport subtabs for the banners screen - same pattern as
@@ -834,7 +876,9 @@ export function renderBannerSportTabs(container, activeId, onSelect) {
  * "customize" with a banner you haven't earned yet is just the Rewards tab
  * with extra steps. Rewards itself always passes false, since showing what's
  * still locked (and how close you are) is the whole point there. */
-export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false) {
+/** @param picker  {selectedId, onSelect} when this shelf is the wardrobe's
+ *   picker rather than the Rewards display case - see asPickerTile. */
+export function renderBanners(container, summaryEl, profile, onEquip, sport = "nba", onlyUnlocked = false, picker = null) {
   container.innerHTML = "";
 
   // Founder and 1st Player: not earned through any sport's play, so they
@@ -843,8 +887,8 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
   if (sport === "general") {
     const hasFounder = isFounder(profile);
     const hasFirstPlayer = isFirstPlayer(profile);
-    if (hasFounder) container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip));
-    if (hasFirstPlayer) container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip));
+    if (hasFounder) container.appendChild(specialBannerTile(FOUNDER_BANNER, "founder-tile", profile, onEquip, picker));
+    if (hasFirstPlayer) container.appendChild(specialBannerTile(FIRST_PLAYER_BANNER, "first-player-tile", profile, onEquip, picker));
 
     let unlockedCount = 0;
     let shownGeneral = 0;
@@ -853,7 +897,7 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
       if (progress.unlocked) unlockedCount += 1;
       if (onlyUnlocked && !progress.unlocked) continue;
       shownGeneral += 1;
-      container.appendChild(generalBannerTile(banner, progress, profile, onEquip));
+      container.appendChild(generalBannerTile(banner, progress, profile, onEquip, picker));
     }
 
     summaryEl.textContent = onlyUnlocked
@@ -904,7 +948,7 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
       : `${progress.drafted} / ${progress.required} in ranked wins`;
     tile.appendChild(caption);
 
-    if (progress.unlocked) {
+    if (!picker && progress.unlocked) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn btn-secondary banner-equip";
@@ -913,7 +957,7 @@ export function renderBanners(container, summaryEl, profile, onEquip, sport = "n
       tile.appendChild(btn);
     }
 
-    container.appendChild(tile);
+    container.appendChild(asPickerTile(tile, franchise, picker, progress.unlocked));
   }
 
   if (onlyUnlocked && shown === 0) {

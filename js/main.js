@@ -14,6 +14,11 @@ import { withSeededMathRandom } from "./lib/seeded-rng.js";
 import { newSimulationSeed, provenanceFor } from "./lib/provenance.js";
 import { initSquadsScreen, openSquadsScreen, cleanupSquadChatWatcher } from "./screens/squads.js";
 import { startPresence } from "./presence.js";
+// The wardrobe's action bar names and previews the selected banner, which
+// means main.js needs the catalogue and the artwork renderer it used to be
+// able to leave entirely to js/ui/profile.js.
+import { bannerById, DEFAULT_BANNER_ID } from "./banners.js";
+import { bannerArt } from "./ui/banner-art.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { adviceNote, isNote, noteText } from "./gradenotes.js";
 import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
@@ -4745,6 +4750,15 @@ document.getElementById("btn-rank-ladder").addEventListener("click", () => openR
  * tabs beside it, so re-opening lands where you left off. */
 let activeCustomizeTab = "banners";
 
+/** Which banner the wardrobe has SELECTED but not yet equipped.
+ *
+ * Selection is separate from what you are wearing, which is why it lives here
+ * rather than being read off the profile: the picker's whole shape is "look at
+ * these, choose one, then commit", and the bar at the foot of the modal is
+ * where the commit happens. Cleared whenever the modal is reopened onto a
+ * different shelf, so a selection cannot survive into a grid it is not in. */
+let selectedBannerId = null;
+
 /**
  * "Customize" - your wardrobe: banner, badges and icon in one place.
  *
@@ -4777,6 +4791,13 @@ function openCustomizeModal(kind = activeCustomizeTab) {
   const grid = document.createElement("div");
   wrap.append(kindTabs, tabs, summary, grid);
 
+  // The picker's one primary action, under the grid. Banners only: badges and
+  // icons are still per-tile, and moving all three at once would have been
+  // three redesigns in one commit.
+  const bar = document.createElement("div");
+  bar.className = "locker-bar";
+  if (kind === "banners") wrap.appendChild(bar);
+
   renderUnlockableTabs(kindTabs, activeCustomizeTab, (next) => openCustomizeModal(next));
 
   // Badges have no General shelf and their own sport tabs; banners and icons
@@ -4801,7 +4822,10 @@ function openCustomizeModal(kind = activeCustomizeTab) {
     });
   }
 
-  openModal("Customize", wrap);
+  // A wardrobe needs room. The default 560px dialog gave a five-column grid of
+  // banner ARTWORK 76 pixels per banner, which is not enough to tell Desert
+  // Wind from Forest Pixel - and telling them apart is the entire task.
+  openModal("Customize", wrap, undefined, { variant: "modal-wide" });
 
   // Friend count drives the friend ladders on both the banner and icon
   // shelves; it isn't on the profile row, so it's fetched alongside it rather
@@ -4813,13 +4837,68 @@ function openCustomizeModal(kind = activeCustomizeTab) {
       } else if (kind === "icons") {
         renderIcons(grid, summary, profile, onEquipIconFromProfile, activeIconSport, true);
       } else {
-        renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true);
+        // Opens on whatever you are already flying, so the bar says something
+        // true the moment the shelf appears rather than "nothing selected".
+        selectedBannerId = profile.equippedBanner || null;
+        const paint = () => {
+          renderBanners(grid, summary, profile, onEquipBannerFromProfile, activeBannerSport, true, {
+            selectedId: selectedBannerId,
+            onSelect: (banner) => {
+              selectedBannerId = banner.id;
+              paint();
+            },
+          });
+          renderLockerBar(bar, profile);
+        };
+        paint();
       }
     })
     .catch((e) => {
       console.error("Failed to load customization options:", e);
       summary.textContent = "Couldn't load your unlocks right now.";
     });
+}
+
+/** The wardrobe's action bar: what you have selected, and the one button that
+ * puts it on.
+ *
+ * Repainted rather than rebuilt on every selection, because it is three
+ * elements and the alternative is a second place that has to know the modal's
+ * structure. */
+function renderLockerBar(bar, profile) {
+  bar.innerHTML = "";
+  const banner = selectedBannerId ? bannerById(selectedBannerId) : null;
+  if (!banner) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  const equipped = profile.equippedBanner === banner.id;
+
+  const preview = bannerArt(banner);
+  preview.classList.add("locker-bar-art");
+
+  const text = document.createElement("div");
+  text.className = "locker-bar-text";
+  const name = document.createElement("div");
+  name.className = "locker-bar-name";
+  name.textContent = banner.name;
+  const state = document.createElement("div");
+  state.className = "locker-bar-state";
+  state.textContent = equipped ? "You are flying this" : "Selected";
+  text.append(name, state);
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-primary locker-bar-action";
+  // The default banner has no "take down": clearing it falls back to itself
+  // (see normalize() in js/profile.js), so the button would do nothing.
+  const canRemove = equipped && banner.id !== DEFAULT_BANNER_ID;
+  btn.textContent = canRemove ? "Take Down" : "Equip Banner";
+  btn.disabled = equipped && !canRemove;
+  btn.addEventListener("click", () => onEquipBannerFromProfile(canRemove ? null : banner.id));
+
+  bar.append(preview, text, btn);
 }
 
 /** What every equip from this modal has to do afterwards.
