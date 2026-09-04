@@ -277,27 +277,28 @@
       <div class="card start-card">
         <h2>Start a Draft Battle</h2>
         <p class="hint-text">Drafting as <span id="signed-in-as" class="signed-in-as"></span></p>
-        <div class="mode-toggle" id="mode-toggle" role="radiogroup" aria-label="Draft mode">
-          <button type="button" class="mode-btn active" data-mode="practice-easy" aria-checked="true" role="radio">
-            Quick Play - Learn Stats <small>(vs Bot &middot; all players &amp; stats shown)</small>
-          </button>
-          <button type="button" class="mode-btn" data-mode="practice-hard" aria-checked="false" role="radio">
-            Ranked Practice <small>(vs Bot &middot; ranked rules + rotation &amp; gamestyle)</small>
-          </button>
-          <button type="button" class="mode-btn" data-mode="online" aria-checked="false" role="radio">
-            Ranked <small>(online &middot; counts toward your record)</small>
-          </button>
-        </div>
-        <p class="hint-text" id="mode-hint"></p>
+        <!-- The three modes, rendered by renderModeCards() from MODE_CONFIG in
+             js/main.js rather than written out here. They used to be written
+             in both places: a short description in this markup and a longer
+             one in that config, and the screen printed both. A mode is
+             declared once now, and this is only where the group lives. -->
+        <h3 class="field-heading">Mode</h3>
+        <div class="mode-toggle" id="mode-toggle" role="radiogroup" aria-label="Draft mode"></div>
 
         <!-- Era bracket. Narrowing the pool turns the same draft into a
              different knowledge test, and each bracket ranks separately. -->
+        <h3 class="field-heading">Era</h3>
         <div class="era-picker" id="era-picker" role="radiogroup" aria-label="Era"></div>
         <p class="hint-text" id="era-hint"></p>
 
         <!-- Shown when the selected sport is previewable but not playable
              (js/sports/index.js's isSelectable vs isLive). -->
         <p class="hint-text sport-preview-note" id="sport-preview-note" hidden></p>
+        <!-- What the button below is about to launch. All three parts are
+             chosen elsewhere on this screen, two of them in pill rows where
+             the selected one is distinguished only by a border, and nothing
+             restated the combination before committing to it. -->
+        <div class="launch-summary" id="launch-summary"></div>
         <button id="btn-start-draft" class="btn btn-primary btn-block">Start Draft</button>
         <button id="btn-cancel-search" class="btn btn-secondary btn-block hidden">Cancel Search</button>
         <div id="search-status" class="search-status hidden"></div>

@@ -891,7 +891,7 @@ document.getElementById("nav-signout").addEventListener("click", async () => {
 
 // ---- Home screen ----
 
-const modeButtons = document.querySelectorAll(".mode-btn");
+const modeToggleEl = document.getElementById("mode-toggle");
 const btnStartDraft = document.getElementById("btn-start-draft");
 const btnCancelSearch = document.getElementById("btn-cancel-search");
 const searchStatusEl = document.getElementById("search-status");
@@ -901,37 +901,90 @@ const searchStatusEl = document.getElementById("search-status");
 // clock; "strict" is the ranked ruleset - type the name from memory, no
 // stats, pick timer running. Only online play touches your rank; bot games
 // are practice by definition.
+//
+// `label`, `icon` and `blurb` are what the mode CARD shows. They used to live
+// in index.html while `hint` - a second, longer description of the same three
+// modes - lived here, and the screen printed both: a card saying "Ranked
+// Practice (vs Bot - ranked rules + rotation & gamestyle)" above a paragraph
+// saying "Ranked Practice: type names from memory, no stats, pick clock
+// running, then set your rotation and pick a gamestyle". One mode, described
+// twice, in two files. One description, in one place, and the card renders it.
+//
+// `tag` is the badge on the card. Only Ranked carries one, because it is the
+// only mode where the outcome is kept.
 const MODE_CONFIG = {
   "practice-easy": {
     mode: "bot",
     ruleset: "easy",
-    hint: "Quick Play against the bot with every player and their stats on screen. Doesn't affect your rank.",
+    label: "Quick Play",
+    icon: "🎓",
+    blurb: "Against the bot, with every player and their stats on screen. Learn the pool. Doesn't affect your rank.",
   },
   "practice-hard": {
     mode: "bot",
     ruleset: "strict",
-    hint: "Ranked Practice: type names from memory, no stats, pick clock running, then set your rotation and pick a gamestyle - the same steps Online Ranked will ask for. Doesn't affect your rank.",
+    label: "Ranked Practice",
+    icon: "🎯",
+    blurb: "Ranked rules against the bot: type names from memory, no stats, pick clock running, then rotation and gamestyle. Doesn't affect your rank.",
   },
   online: {
     mode: "online",
     ruleset: "strict",
-    hint: "Ranked: a real opponent, no stats, pick clock on both sides. Wins and losses count toward your rank.",
+    label: "Ranked",
+    icon: "🏆",
+    tag: "Online",
+    blurb: "A real opponent, no stats, pick clock on both sides. Wins and losses count toward your rank.",
   },
 };
 
-const modeHintEl = document.getElementById("mode-hint");
+const launchSummaryEl = document.getElementById("launch-summary");
 
 let selectedMode = "practice-easy";
 
-for (const btn of modeButtons) {
-  btn.addEventListener("click", () => {
-    selectedMode = btn.dataset.mode;
-    for (const b of modeButtons) {
-      b.classList.toggle("active", b === btn);
-      b.setAttribute("aria-checked", String(b === btn));
+/** The three mode cards, drawn from MODE_CONFIG so a mode is declared once.
+ *
+ * Object key order is insertion order for string keys, which is what puts
+ * Quick Play first and Ranked last - the order they escalate in. Written out
+ * rather than left implicit because it is load-bearing.
+ *
+ * The radiogroup markup is unchanged in every way a test or a screen reader
+ * can see: still buttons inside #mode-toggle, still role="radio" carrying
+ * data-mode and aria-checked. */
+function renderModeCards() {
+  modeToggleEl.innerHTML = "";
+  for (const [id, cfg] of Object.entries(MODE_CONFIG)) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mode-btn" + (id === selectedMode ? " active" : "");
+    btn.dataset.mode = id;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(id === selectedMode));
+    btn.innerHTML =
+      `<span class="mode-icon" aria-hidden="true"></span>` +
+      `<span class="mode-text">` +
+      `<span class="mode-title"><span class="mode-label"></span></span>` +
+      `<span class="mode-blurb"></span>` +
+      `</span>` +
+      // The tick is aria-hidden: aria-checked on the button already says
+      // whether this mode is selected, and a screen reader announcing a check
+      // mark as well says it twice.
+      `<span class="mode-check" aria-hidden="true">✓</span>`;
+    btn.querySelector(".mode-icon").textContent = cfg.icon;
+    btn.querySelector(".mode-label").textContent = cfg.label;
+    btn.querySelector(".mode-blurb").textContent = cfg.blurb;
+    if (cfg.tag) {
+      const tag = document.createElement("span");
+      tag.className = "mode-tag";
+      tag.textContent = cfg.tag;
+      btn.querySelector(".mode-title").appendChild(tag);
     }
-    renderModeChoice();
-  });
+    btn.addEventListener("click", () => {
+      selectedMode = id;
+      renderModeCards();
+      renderModeChoice();
+    });
+    modeToggleEl.appendChild(btn);
+  }
 }
 
 function getMode() {
@@ -943,8 +996,21 @@ function currentModeConfig() {
 }
 
 function renderModeChoice() {
-  modeHintEl.textContent = currentModeConfig().hint;
+  renderLaunchSummary();
   renderPlayability();
+}
+
+/** What Start Draft is about to launch, in one line directly above it:
+ * mode, era bracket, sport.
+ *
+ * All three are chosen in different places on this screen - two of them in
+ * pill rows where the selected one is distinguished only by a border - and
+ * nothing restated the combination before committing to it. */
+function renderLaunchSummary() {
+  if (!launchSummaryEl) return;
+  const era = sport().eraById(getEra());
+  launchSummaryEl.textContent =
+    [currentModeConfig().label, era?.label, sport().name].filter(Boolean).join(" • ");
 }
 
 /** Start Draft is only live for a sport that can actually be played.
@@ -1118,6 +1184,9 @@ function renderEraChoice() {
     eraPickerEl.appendChild(btn);
   }
   eraHintEl.textContent = sport().eraById(selectedEra).blurb;
+  // The launch summary names the era, so it has to be repainted when the era
+  // changes - not only when the mode does.
+  renderLaunchSummary();
 }
 
 // The active sport is restored from storage, so a player who left in NFL
@@ -1125,6 +1194,7 @@ function renderEraChoice() {
 // stylesheet's default sport.
 applyTheme(sport());
 renderPlayHead();
+renderModeCards();
 renderEraChoice();
 warmDatasetStats();
 renderModeChoice();
