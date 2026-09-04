@@ -520,23 +520,63 @@ async function renderHomeSportCards(profile, population = null) {
     open.type = "button";
     open.className = "sport-card-open";
     open.disabled = !selectable;
+    // The card body is one button containing a header, a figures row and the
+    // call to action. NOT three separate controls: a click anywhere on a sport
+    // card should start that sport, and the two reference buttons are outside
+    // it precisely because they must not (nesting a button in a button is
+    // invalid, and "How to Play" walking you into the Play screen is the bug
+    // that shape would create).
     open.innerHTML =
+      `<span class="sport-card-head">` +
       `<span class="sport-card-icon" aria-hidden="true"></span>` +
       `<span class="sport-card-text">` +
       `<span class="sport-card-name"></span>` +
       `<span class="sport-card-rank"></span>` +
-      `</span>` +
-      `<span class="sport-card-go" aria-hidden="true">${selectable ? "▸" : "🔒"}</span>`;
+      `</span></span>` +
+      `<span class="sport-card-figures"></span>` +
+      `<span class="sport-card-cta"><span class="sport-card-cta-glyph" aria-hidden="true">${selectable ? "▶" : "🔒"}</span><span class="sport-card-cta-label"></span></span>`;
     open.querySelector(".sport-card-icon").textContent = s.icon;
     open.querySelector(".sport-card-name").textContent = s.name;
 
+    // The tier NAME leads the header - it is the word a player identifies
+    // with - and the numbers behind it go in the figures row below, where they
+    // line up with the other sport's.
     let rankText;
     if (!s.live) rankText = s.status || "Coming soon";
     else if (!info || info.provisional) {
       const need = info ? info.gamesNeeded : RANK_GAMES_FLOOR;
       rankText = `Unranked — ${need} more online ${need === 1 ? "game" : "games"}`;
-    } else rankText = `${info.tier.name} — ${info.rating}`;
+    } else rankText = info.tier.name;
     open.querySelector(".sport-card-rank").textContent = rankText;
+
+    // Rating, ranked record and games, read off the per-sport ELO the server
+    // writes (protect_sport_ratings). A sport that has never been played has
+    // none of these, and gets no figures row rather than a row of zeroes:
+    // "0-0" and "500" presented as standings are a record and a rating nobody
+    // earned.
+    const standing = profile.sportRatings?.[s.id];
+    const figures = open.querySelector(".sport-card-figures");
+    if (s.live && standing && (standing.games || 0) > 0) {
+      const cells = [
+        { label: "Rating", value: String(standing.rating ?? "—") },
+        { label: "Ranked", value: `${standing.wins || 0}-${standing.losses || 0}` },
+        { label: "Games", value: String(standing.games || 0) },
+      ];
+      for (const cell of cells) {
+        const el = document.createElement("span");
+        el.className = "sport-card-figure";
+        el.innerHTML = `<span class="sport-card-figure-value"></span><span class="sport-card-figure-label"></span>`;
+        el.querySelector(".sport-card-figure-value").textContent = cell.value;
+        el.querySelector(".sport-card-figure-label").textContent = cell.label;
+        figures.appendChild(el);
+      }
+    } else {
+      figures.remove();
+    }
+
+    open.querySelector(".sport-card-cta-label").textContent = selectable
+      ? `Play ${s.name}`
+      : s.status || "Coming soon";
 
     if (selectable) {
       open.addEventListener("click", () => {
