@@ -153,13 +153,27 @@ export const SCORING_LIFT = 1.0;
  *   against 28.9. It is 22.7 against 24.1 now - a 6% gap that is the roster
  *   shape itself rather than a rating-scale mismatch.
  *
- * MEASURED, NOT PICKED, and re-measured by tools/calibrate-nfl-variance.mjs on
- * every run - it prints these two numbers first, before it solves anything,
- * because everything after them is measured from here. Re-run it after any
- * change to the slot weights, to units.js, or to the dataset: all three move
+ * MEASURED, NOT PICKED. Re-measure after any change to the slot weights, to
+ * units.js, to the defensive axis weights, or to the dataset - all of them move
  * where average is.
+ *
+ * THE PREVIOUS VERSION OF THIS NOTE SAID tools/calibrate-nfl-variance.mjs
+ * re-measures these on every run, "prints these two numbers first, before it
+ * solves anything". IT DOES NOT, and never did - the string EDGE_BASELINE does
+ * not appear in that file. The claim was load-bearing in the worst way: it told
+ * the next person these numbers keep themselves current, so when the defensive
+ * rating scale changed underneath them nobody thought to look. Measure them
+ * with the engine's own `edge` inputs (offAdj - defAdj over drafted pairs of
+ * each shape under balanced plans), which is the only quantity that makes an
+ * average game come out at exactly 1.
+ *
+ * 0.111 -> 0.029 and -0.020 -> -0.198 is that re-measurement, after defensive
+ * units began to be rated on disruption RATE rather than counting volume and
+ * after each defensive axis started multiplying its own gameplan mod. Quick
+ * Play moves furthest because one drafted DEF unit answers all four axes there,
+ * so the axis term amplifies whatever that single pick is.
  */
-export const EDGE_BASELINE = { ranked: 0.111, quickPlay: -0.020 };
+export const EDGE_BASELINE = { ranked: 0.029, quickPlay: -0.198 };
 
 /** Points by scoring type. A touchdown is six; what comes after it is played
  * out rather than folded in - see the conversion constants below. */
@@ -320,34 +334,49 @@ export const MIN_RATED_GAMES = 6;
 
 /** How far talent separates a great offense from a poor one.
  *
- * SOLVED, by tools/calibrate-nfl-variance.mjs - and the solve's answer is that
- * 1.6 was right. The previous comment here said the value was arrived at by
- * hand and ended "It should still be solved". It has been, and it stayed.
+ * SOLVED, by tools/calibrate-nfl-variance.mjs, and it went DOWN - 1.6 to 1.29 -
+ * while the thing it exists to buy went up. That is the whole story of this
+ * constant's last revision and it is worth reading before touching it.
  *
- * That is a real result rather than a wasted run, because the reason is now
- * written down. The calibrator solves parity against a product target - a
- * roster whose combined offense-plus-defense rating beats its opponent's by
- * 0.10 or more, the top quartile of bot-drafted pairs, should win 75% of the
- * time, which is deliberately basketball's number because ranked runs ONE ELO
- * ladder across both sports. Football's engine does not reach it. Solved
- * without a bound the bisection returns about 2.5, and at 2.5 a bottom-tier
- * quarterback throws for 29 yards a game instead of 64: the engine has stopped
- * rating him and started erasing him. scripts/verify-nfl-realism.mjs now holds
- * a floor against exactly that, so the trade cannot be made silently again.
+ * The calibrator solves parity against a product target: a roster whose
+ * combined offense-plus-defense rating beats its opponent's by 0.10 or more -
+ * the top quartile of bot-drafted pairs - should win 75% of the time. That
+ * figure is deliberately basketball's, because ranked runs ONE ELO ladder
+ * across both sports, so the same rating point has to mean the same thing
+ * whichever tile you tapped.
  *
- * So this is a CEILING, not an optimum. At 1.6 the better roster wins about
+ * THE PREVIOUS VERSION OF THIS NOTE SAID FOOTBALL COULD NOT REACH IT. It read:
+ * "Football's engine does not reach it... At 1.6 the better roster wins about
  * 65% of the time at that gap rather than 75%, and the shortfall is a property
- * of the model: basketball turns talent into points almost linearly, while
- * football turns it into drive quality feeding a probability chart clamped at
- * both ends, so the last few points of win rate are bought out of the
- * believability of the box score. Closing the gap means changing how football
- * converts talent into drives. It does not mean turning this knob further, and
- * anyone tempted to should read the two paragraphs above first.
+ * of the model." The measurement was right - 66.3% +/- 0.8 over 12,000 games -
+ * and the diagnosis was wrong. The shortfall was not a property of how football
+ * converts talent into drives. It was that half the talent was not being
+ * measured: defensive units were rated on per-game COUNTING STATS, which track
+ * how many snaps a unit faced and how many men a team rotated through it rather
+ * than how well it defended (see the long note in js/sports/nfl/units.js). A
+ * defence the player had deliberately drafted rated ordinary, so the gap the
+ * engine saw was smaller than the gap the player had built, and no value of
+ * this constant could amplify a signal that had already been thrown away.
  *
- * What DID change underneath it: `edge` now subtracts EDGE_BASELINE, so this
+ * With defences rated on disruption RATE, and with each defensive axis
+ * multiplying its own gameplan mod (AXIS_SWING), the same measurement gives
+ * 72.8% +/- 0.8 at a LOWER parity. The old note's closing advice was exactly
+ * right and is worth keeping: "Closing the gap means changing how football
+ * converts talent into drives. It does not mean turning this knob further."
+ * That is what was done.
+ *
+ * The ceiling argument still stands and still binds. Solved without a bound the
+ * bisection runs away, and past about 1.6 a bottom-tier quarterback stops being
+ * rated and starts being erased - 29 yards a game instead of 64.
+ * scripts/verify-nfl-realism.mjs holds a floor against that, and
+ * scripts/verify-nfl-talent-response.mjs now holds the other end: a beaten
+ * roster is shut out in under 3% of drafted games. Between the two, this
+ * constant can no longer be raised into an unbelievable box score quietly.
+ *
+ * What changed underneath it earlier: `edge` subtracts EDGE_BASELINE, so this
  * number no longer moves the scoreboard as a side effect. It is the first
  * version of this constant that controls only what its name says. */
-export const TALENT_PARITY = 1.6;
+export const TALENT_PARITY = 1.29;
 
 /**
  * The floor under a drive-quality multiplier.
@@ -387,20 +416,105 @@ export const EDGE_FLOOR = 0.05;
  * named for a quarter; this is the first version where the engine agrees (see
  * quarterRoll in engine.js).
  *
- * ±54% IS A CAP RATHER THAN AN OPTIMUM, for the same reason TALENT_PARITY is.
- * With parity pinned at its ceiling, noise is the only lever left that can
- * widen margins toward football's, so an unbounded sweep keeps improving as
- * long as it is offered more range - it reaches ±86% and is still going. It
- * should not be followed there: a quarter multiplier of 0.14 is a team that
- * did not turn up for fifteen minutes. ±54% is the widest swing that still
- * reads as a football quarter.
+ * ±46%, AND IT IS NO LONGER PINNED TO THE EDGE OF THE SWEEP. The previous
+ * value was ±54%, and the note here said it was "a cap rather than an
+ * optimum": with parity at its ceiling, noise was the only lever left that
+ * could widen margins toward football's, so an unbounded sweep kept improving
+ * as long as it was offered more range - it reached ±86% and was still going.
+ * A solve that always wants more of a knob is a solve telling you the knob is
+ * standing in for something else.
  *
- * What that leaves, said plainly: Draft Nova's games finish slightly CLOSER
- * than real football's - a 51% one-score share against the league's 45%, and
- * 10.6 points of margin against 11.5 - and the last of that distance is not
- * available from this constant. */
-export const TEAM_QUARTER_VARIANCE_MIN = 0.46;
-export const TEAM_QUARTER_VARIANCE_MAX = 1.54;
+ * It was. Once defensive units were rated on disruption rate rather than
+ * counting volume, talent itself widened the margins and the sweep stopped
+ * running away: it now picks ±46% from the middle of the range offered, with
+ * ±54% scoring worse. Less noise and more talent, which is the direction this
+ * lever should always move if the engine underneath it is getting better.
+ *
+ * What that leaves, said plainly: the shape targets are met rather than
+ * approached. A 45.2% one-score share against the league's 45%, and 11.88
+ * points of mean margin against 11.5 - where the ±54% version reported 51% and
+ * 10.6 and could not close the rest. */
+export const TEAM_QUARTER_VARIANCE_MIN = 0.54;
+export const TEAM_QUARTER_VARIANCE_MAX = 1.46;
+
+/**
+ * HOW HARD A RATED UNIT PUSHES THE THING IT IS GOOD AT.
+ *
+ * The engine already models four sub-outcomes a defence can decide - a stop
+ * turning into a takeaway, a scoring drive held to three, a quarterback put on
+ * the floor, and a drive stalling short - and until now every one of them was
+ * driven by the GAMEPLAN alone. `theirs.passRush` was Blitz Pressure's 1.40 and
+ * nothing else: the men doing the rushing did not appear in it. So a drafted
+ * front and a drafted secondary were interchangeable, and the only thing a
+ * defensive pick could do was move the one flat number in `edge`.
+ *
+ * Each axis is now `plan x personnel`, and this is the personnel half: an axis
+ * rating of 0.5 - a league-average unit - multiplies by exactly 1, so an
+ * ordinary defence behaves precisely as it did before this existed and none of
+ * the solved gameplan numbers move underneath it. An elite unit at 0.95 pushes
+ * its own axis by +0.32, a replacement one at 0.10 by -0.26.
+ *
+ * CENTRED ON 1 IS THE WHOLE DESIGN. It is what lets a matchup model be added
+ * to a calibrated engine without re-deriving the calibration: the average game
+ * is unchanged by construction, and only the spread around it grows.
+ *
+ * 0.7 is a decision, not a solve. It is the widest swing at which the realism
+ * bands in scripts/verify-nfl-realism.mjs all still hold - past it an elite
+ * secondary starts erasing passing lines the way TALENT_PARITY above 1.6
+ * erases quarterbacks, which is the same trade and the same answer.
+ */
+export const AXIS_SWING = 0.7;
+
+/**
+ * WHERE THE BALL IS WHEN THE DRIVE STARTS, AND WHY IT USED TO BE WORTH
+ * NOTHING.
+ *
+ * `driveOutcome` took no field position at all. A drive starting on the
+ * opponent's 40 after a takeaway had exactly the same touchdown probability as
+ * one starting on its own 3, and the only thing a short field bought was a
+ * shorter distance to travel in `driveYards`. Two things followed:
+ *
+ *   A DEFENCE COULD NOT COMPOUND. Forcing a three-and-out pins the opponent
+ *   deep, and pinning them deep did nothing, so the reward for a dominant
+ *   defensive series was a single stop rather than a stop plus the bad field
+ *   position that a real defence turns it into. This is most of why sustained
+ *   defensive quality was invisible on the scoreboard.
+ *
+ *   A TAKEAWAY WAS UNDERPAID. The short field is the entire reason a turnover
+ *   swings a football game, and the model was throwing it away.
+ *
+ * So drive quality is scaled by how far there is to go, against the ordinary
+ * touchback start as the zero point. The multiplier at DRIVE_START_YARD is
+ * exactly 1, which - like AXIS_SWING - is what keeps every solved constant
+ * above meaning what it meant: an average drive from the usual place is
+ * untouched, and only drives that start somewhere unusual move.
+ *
+ * Bounded because the ends are where a linear term stops being football: a
+ * drive from the opponent's 45 is a good spot, not a guaranteed touchdown, and
+ * one from your own 2 is hard rather than hopeless.
+ */
+export const FIELD_POSITION_SWING = 0.9;
+export const FIELD_POSITION_MIN = 0.62;
+export const FIELD_POSITION_MAX = 1.55;
+
+/**
+ * How much of a quarterback reaches the things a quarterback decides.
+ *
+ * His rating carried OFFENSE_WEIGHTS.QB into the drive multiplier and stopped
+ * there. Everywhere else football actually separates passers - giving the ball
+ * away, taking a sack, finishing a drive with seven instead of three - was a
+ * gameplan number with no man attached, so an elite quarterback and a
+ * replacement one threw the same interceptions behind the same protection.
+ * The one place his rating did reach, `deadShare` in buildPlays, changes only
+ * how a drive's yardage is spelled out across downs: it cannot move a point.
+ *
+ * Same centring rule as AXIS_SWING: a 0.5 quarterback multiplies by 1.
+ *
+ * Deliberately smaller than AXIS_SWING because he is already the largest
+ * single weight in OFFENSE_WEIGHTS, and this is an addition to that rather
+ * than a replacement for it. Double-counting him is the failure mode here.
+ */
+export const QB_SWING = 0.45;
 
 /** What a forfeited pick costs. Football has no bench, so an unfilled slot is
  * a hole in the lineup rather than a worse player standing in - steeper than

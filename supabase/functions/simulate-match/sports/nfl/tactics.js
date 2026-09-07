@@ -129,22 +129,22 @@ export const DEFENSIVE_PLANS = [
   { id: "blitz-pressure", icon: "💥", name: "Blitz Pressure",
     blurb: "Send pressure, leave the corners on an island.",
     up: ["+2 Pass Rush", "+2 Sacks"], down: ["-2 Coverage", "-1 Big Play Prevention"],
-    mods: { def: 1.012, takeaway: 1.14, passRush: 1.40, coverage: 0.78, runDef: 0.94, explosivePrevention: 0.88 } },
+    mods: { def: 1.004, takeaway: 1.14, passRush: 1.40, coverage: 0.78, runDef: 0.94, explosivePrevention: 0.88 } },
 
   { id: "run-wall", icon: "🧱", name: "Run Wall",
     blurb: "Wall off the run. Nothing through the middle.",
     up: ["+2 Run Defense", "+1 Defense"], down: ["-1 Coverage", "-1 Takeaways"],
-    mods: { def: 0.982, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
+    mods: { def: 0.989, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
 
   { id: "ball-hawks", icon: "🦅", name: "Ball Hawks",
     blurb: "Chase the ball. Miss more tackles doing it.",
     up: ["+2 Interceptions", "+2 Forced Turnovers"], down: ["-2 Run Defense", "-1 Big Play Prevention"],
-    mods: { def: 1.025, takeaway: 1.42, passRush: 1.00, coverage: 1.08, runDef: 0.78, explosivePrevention: 0.94 } },
+    mods: { def: 1.027, takeaway: 1.42, passRush: 1.00, coverage: 1.08, runDef: 0.78, explosivePrevention: 0.94 } },
 
   { id: "keep-it-in-front", icon: "🚧", name: "Keep It in Front",
     blurb: "Give up the short stuff. Nothing goes over your head.",
     up: ["+2 Big Play Prevention", "+1 Coverage"], down: ["-2 Takeaways", "-1 Pass Rush"],
-    mods: { def: 1.017, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
+    mods: { def: 1.015, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
 ];
 
 /**
