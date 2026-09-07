@@ -310,24 +310,39 @@ for (const meta of SPORTS) {
         .filter((n) => !myNames.has(n));
 
       const graded = sport.gradeDraft(mine, ctx, { oppRoster: theirs, forfeits: [] });
-      // notesText, NOT join(" "). Notes are objects now and joining them gave
-      // "[object Object] [object Object]", so this check passed or failed on
-      // nothing at all. One flattener, in js/gradenotes.js, for exactly this
-      // reason - every reader of a note wanting its own way to stringify one
-      // is how two descriptions of the same note end up disagreeing.
-      const text = notesText(graded?.reasons);
-      // A SURNAME COUNTS. The card names people the way a person would -
-      // "Andrews", "Falcons OL" - because a clause built out of full names and
-      // full team names ran to 117 characters and wrapped to four lines. So
-      // this asks whether any WORD of an opponent's name appears, skipping the
-      // one-and-two-letter fragments that would match by accident.
-      const words = (name) => String(name).split(/\s+/).filter((w) => w.length > 2);
-      const named = theirNames.filter((n) => words(n).some((w) => text.includes(w)));
+
+      // THE OPPONENT IS READ. HOW MUCH OF THEM IS SHOWN IS THE SPORT'S CALL.
+      //
+      // This used to require the grade to NAME one of their players, on the
+      // reasoning that "the grade named one of theirs" is a property that
+      // always holds where "these two readings differ" is not. The reasoning
+      // was right about the fault it was written for - football accepted an
+      // opponent roster and dropped it on the floor - and wrong as a contract,
+      // because it made LEAKING the opponent mandatory. Football now shows an
+      // opponent's overall, offense and defense grades and deliberately
+      // nothing below that: their per-slot ratings decided a ranked gameplan
+      // before the player had chosen one. A check that fails a sport for
+      // withholding information it should withhold is worse than no check.
+      //
+      // So this asks the thing the original bug was actually about: does the
+      // reading RESPOND to who you are playing? Graded against two different
+      // opponents, the output has to differ somewhere. That is strictly
+      // stronger than the name test - a grade could name an opponent from a
+      // fixed template without reading them - and it constrains nothing about
+      // how much a sport chooses to reveal.
+      const other = build([...all].slice(Math.floor(all.length / 3)));
+      const againstOther = sport.gradeDraft(mine, ctx, { oppRoster: other, forfeits: [] });
+      const readable = (g) => JSON.stringify({
+        reasons: notesText(g?.reasons),
+        opponent: g?.opponent ?? null,
+      });
 
       if (theirNames.length === 0) {
         missing.push("could not build two distinct rosters to check the opponent read");
-      } else if (named.length === 0) {
-        missing.push("gradeDraft() with an oppRoster never names an opponent - the matchup read is missing");
+      } else if (readable(graded) === readable(againstOther)) {
+        missing.push(
+          "gradeDraft() reads the same against two different opponents - the matchup read is missing"
+        );
       }
       missing.push(...noteShapeFaults(graded?.reasons));
     } catch (e) {

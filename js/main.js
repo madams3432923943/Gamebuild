@@ -2061,6 +2061,8 @@ const draftGradeEl = document.getElementById("draft-grade");
 const draftGradeLetterEl = document.getElementById("draft-grade-letter");
 const draftGradeHeadlineEl = document.getElementById("draft-grade-headline");
 const draftGradeReasonsEl = document.getElementById("draft-grade-reasons");
+const draftGradeTeamsEl = document.getElementById("draft-grade-teams");
+const draftGradeScoutingEl = document.getElementById("draft-grade-scouting");
 
 function hideDraftGrade() {
   draftGradeEl.classList.add("hidden");
@@ -2131,6 +2133,74 @@ function gradeNoteRow(note) {
   return li;
 }
 
+/**
+ * THE TWO TEAMS' HEADLINE GRADES, and the asymmetry between them.
+ *
+ * Your card and theirs carry the same three numbers - overall, offense,
+ * defense - because that is what a team knows about its next opponent before
+ * kickoff. Everything BELOW this block (the per-slot grid, the scouting line)
+ * is yours alone: the sport builds no opponent detail at all, so there is
+ * nothing here to filter. See the opponent block in
+ * js/sports/nfl/draftgrade.js for why revealing their per-slot ratings decided
+ * a ranked gameplan before it was chosen.
+ *
+ * SPORT-AGNOSTIC BY OMISSION. A sport that does not return `opponent` simply
+ * does not get this block, and basketball's card renders exactly as it did.
+ * Nothing here knows what a slot or a unit is.
+ */
+function renderGradeTeams(grade) {
+  draftGradeTeamsEl.innerHTML = "";
+  const sides = [
+    { label: "Your team", grade },
+    ...(grade.opponent ? [{ label: "Opponent", grade: grade.opponent }] : []),
+  ];
+  // One side is not a comparison, so the block earns its space only when there
+  // is somebody to compare against.
+  if (!grade.opponent) {
+    draftGradeTeamsEl.classList.add("hidden");
+  } else {
+    for (const side of sides) {
+      const card = document.createElement("div");
+      card.className = "grade-team";
+      const name = document.createElement("div");
+      name.className = "grade-team-name";
+      name.textContent = side.label;
+      const row = document.createElement("div");
+      row.className = "grade-team-row";
+      const cells = [
+        { key: "Overall", value: side.grade.letter },
+        { key: "Offense", value: side.grade.offenseGrade },
+        { key: "Defense", value: side.grade.defenseGrade },
+      ];
+      for (const cell of cells) {
+        if (cell.value == null) continue;
+        const box = document.createElement("div");
+        box.className = "grade-team-cell";
+        const k = document.createElement("span");
+        k.className = "grade-team-key";
+        k.textContent = cell.key;
+        const v = document.createElement("span");
+        v.className = "grade-team-value";
+        v.textContent = cell.value;
+        box.append(k, v);
+        row.appendChild(box);
+      }
+      card.append(name, row);
+      draftGradeTeamsEl.appendChild(card);
+    }
+    draftGradeTeamsEl.classList.remove("hidden");
+  }
+
+  // One line, and only when the sport generated one from real unit grades.
+  if (grade.scouting) {
+    draftGradeScoutingEl.textContent = grade.scouting;
+    draftGradeScoutingEl.classList.remove("hidden");
+  } else {
+    draftGradeScoutingEl.textContent = "";
+    draftGradeScoutingEl.classList.add("hidden");
+  }
+}
+
 /** @param opts.oppRoster adds the counterplay read when the opponent's roster
  *   is already known - it always is by the time a draft finishes. */
 function showDraftGrade(roster, opts = {}) {
@@ -2148,6 +2218,7 @@ function showDraftGrade(roster, opts = {}) {
   draftGradeLetterEl.textContent = grade.letter;
   draftGradeHeadlineEl.textContent = grade.headline;
   draftGradeReasonsEl.innerHTML = "";
+  renderGradeTeams(grade);
 
   const reasons = [...grade.reasons];
   const hint = sport().rotationHint(roster);
