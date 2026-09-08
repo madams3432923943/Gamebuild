@@ -171,6 +171,14 @@ async function main() {
     const pickStart = Date.now();
     await page.locator('[data-sport="nfl"]').first().click();
     await page.locator('#mode-toggle [data-mode="practice"]').waitFor({ state: "visible", timeout: 30000 });
+    await page.locator('#mode-toggle [data-mode="practice"]').click();
+    // EASY, and it matters for what this measures. The board only paints cards
+    // in the one difficulty that shows the squad; every other mode hides it and
+    // asks for a typed name, so the "pool painted" check below would be false by
+    // design rather than because painting 9,456 football rows was slow. That is
+    // exactly what happened when Practice defaulted to Medium: the check
+    // reported a rendering failure for a board working as intended.
+    await page.locator('#difficulty-toggle [data-mode="easy"]').click();
     // READY means the data has landed, not that a toggle painted. The mode
     // toggle appears in ~70ms while 4.2MB is still in flight, so measuring
     // there timed the button rather than the load - and found no data fetched

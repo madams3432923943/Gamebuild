@@ -492,7 +492,10 @@ export async function runBrowserChecks(opts = {}) {
       // is the difficulty that also changes the draft interface (open board, no
       // clock); the default drives Medium, the bot every balance constant in
       // this app was calibrated against.
-      const modeBtn = mode === "online" ? '[data-mode="online"]' : '[data-mode="practice"]';
+      // "ranked" is the MODE's id; "online" is what this harness calls the leg
+      // it is driving. They were the same word until a friend match - online,
+      // unranked - made them two different facts. See js/modes.js.
+      const modeBtn = mode === "online" ? '[data-mode="ranked"]' : '[data-mode="practice"]';
       await page.locator(`#mode-toggle ${modeBtn}`).waitFor({ state: "visible", timeout: 15000 });
       await page.locator(`#mode-toggle ${modeBtn}`).click();
       if (mode !== "online") {

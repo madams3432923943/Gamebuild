@@ -5034,28 +5034,18 @@ table.box-table th {
 /* ---- Play-by-play feed ---- */
 /* THE FEED IS A FIXED WINDOW, NOT A GROWING LIST, AND THAT IS A SCROLL FIX.
  *
- * It used to be a plain flex column with `min-height: 3.2rem` holding up to
- * four cards of one or two lines each, which meant the PAGE's height was the
- * sum of whatever headlines the game had most recently produced. Every card
- * that entered or left changed it.
+ * It was a plain flex column holding up to four cards of one or two lines each,
+ * so the PAGE's height was the sum of whatever headlines the game had most
+ * recently produced. That is the whole of the mobile scroll bug: measured in
+ * Chromium at 360px, every upward jump in the viewer's scroll position lined up
+ * one-for-one with a REDUCTION in document height, because a reader at the
+ * bottom of the page is pinned to its maximum scroll. Three shrinks a game,
+ * 45px, toward the thing they had just scrolled away from.
  *
- * That is the whole of the mobile scroll bug. Nothing in this app calls
- * scrollIntoView, window.scrollTo or focus() during a game - measured, in
- * Chromium, at 360px: every upward jump in the viewer's scroll position lined
- * up one-for-one with a REDUCTION in document height. A reader sitting at the
- * bottom of the page with the box score in front of them is pinned to the
- * page's maximum scroll, so a page that gets shorter drags them up toward the
- * scoreboard. Three shrinks a game, 45px, in the direction of the thing they
- * had just scrolled away from.
- *
- * A fixed height ends it structurally: the feed occupies the same space with
- * one card as with four, so no headline can move anything below it. The cards
- * still stack newest-first and the newest is always the one on screen; older
- * ones scroll WITHIN this box, which is local and cannot reach the page.
- *
- * overflow-anchor: none because a card entering at the top is exactly the kind
- * of node the browser would otherwise pick as a scroll anchor, and re-anchoring
- * onto something that is about to be removed is its own source of drift. */
+ * A fixed height ends it structurally: the same space with one card as with
+ * four, older cards scrolling WITHIN this box. overflow-anchor: none because a
+ * card entering at the top is exactly what the browser would otherwise anchor
+ * to. Full account in docs/nba-presentation.md. */
 .play-feed {
   position: relative;
   padding: 0 1rem 1rem;
@@ -8460,23 +8450,14 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .grade-chip.grade-good .grade-chip-value { color: #06d6a0; }
 .grade-chip.grade-bad .grade-chip-value { color: var(--buzzer); }
 
-/* ===========================================================================
-   BASKETBALL'S COURT
-   ===========================================================================
-   The counterpart to .football-field above, and drawn by js/sports/nba/court.js
-   rather than by shared UI - a sport's presentation lives with that sport.
-
-   A court was here once and was removed: it was 510px of mostly-empty rectangle
-   carrying less than the scoreboard under it. The difference now is that things
-   land on it. Every marker comes from the shot ledger, so a shot's position on
-   this floor is the position the ledger gave it and the post-game chart puts
-   the same shot in the same place.
+/* --- Basketball's court ---------------------------------------------------
+   The counterpart to .football-field above, drawn by js/sports/nba/court.js.
+   Full account in docs/nba-presentation.md.
 
    NOTHING IN HERE MAY CHANGE THE PAGE'S HEIGHT WHILE A GAME IS PLAYING. The
-   court has a fixed aspect ratio, the big-play banner and the quarter card are
-   overlays, and the stat strip has a stable row count. A page that gets shorter
-   drags a reader at the bottom of it upward - see scripts/verify-live-scroll.mjs
-   for the measurement and the play feed above for the same rule applied there. */
+   court has a fixed aspect ratio, the banner and the quarter card are overlays,
+   and the stat strip has a stable row count. A page that gets shorter drags a
+   reader at the bottom of it upward - see scripts/verify-live-scroll.mjs. */
 
 .basketball-court {
   position: relative;
@@ -8486,11 +8467,9 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   padding: 0.5rem 0.75rem;
 }
 
-/* 0.75rem is TWELVE PIXELS, which is the floor the mobile audit enforces and
-   the floor a person can actually read at arm's length. --text-micro is 0.62rem
-   here and rendered these at 9.9px; the audit caught it, and the honest fix is
-   a bigger number rather than a quieter check. Same reasoning for the stat
-   labels below. */
+/* 0.75rem is TWELVE PIXELS - the floor the mobile audit enforces and the floor
+   a person can read at arm's length. --text-micro rendered these at 9.9px; the
+   audit caught it. Same for the stat labels below. */
 .bc-status {
   display: flex;
   align-items: center;
@@ -8527,12 +8506,10 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 /* THE FLOOR HOLDS ITS OWN SHAPE. aspect-ratio rather than a pixel height, so
    the court is the same court at 360px and at 1280px and the markers stay where
    the ledger put them. 50:47 is the real half-court. */
-/* SIZED BY HEIGHT, NOT WIDTH. A 50:47 court that fills the width of a phone is
-   330px tall, and with the scoreboard above it and the stat strip and feed
-   below, the board - the score, the quarter, the clock - is pushed off the top
-   of the screen during live play. The floor is capped by the viewport instead
-   and the width follows from the aspect ratio, so the whole broadcast fits in
-   one screen on a phone and the court simply gets bigger on a desktop. */
+/* SIZED BY HEIGHT, NOT WIDTH. A 50:47 court filling a phone's width is 330px
+   tall, which pushed the board - score, quarter, clock - off the top of the
+   screen during live play. Capped by the viewport instead, width following from
+   the aspect ratio, so the whole broadcast fits one screen on a phone. */
 .bc-court {
   position: relative;
   height: min(34vh, 300px);
@@ -8570,8 +8547,8 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .bc-rim { fill: none; stroke: var(--buzzer); stroke-width: 1.1; }
 
 /* A MADE SHOT IS A DISC AND A MISS IS A CROSS. Shape first, colour second: a
-   chart whose only distinction is hue is one that eight percent of men cannot
-   read, and this one is small and dense by design. */
+   chart distinguished only by hue is one many readers cannot read at all, and
+   this one is small and dense by design. */
 .bc-shot {
   transform-box: fill-box;
   transform-origin: center;
@@ -8588,10 +8565,10 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .bc-shot.miss.side-b { stroke: var(--team-b-ink, var(--scoreboard)); }
 
 /* THE FADE IS AN ANIMATION, NOT A TIMER. It ends on the faint accumulated
-   state, which is what turns the last few seconds of markers into "what just
-   happened" and everything older into the shot chart building underneath. Two
-   hundred setTimeouts a game would each have to be cancelled when a viewer
-   leaves mid-quarter; an animation cannot outlive its element. */
+   state, turning the last few seconds into "what just happened" and everything
+   older into the shot chart building underneath. Two hundred setTimeouts a game
+   would each need cancelling when a viewer leaves; an animation cannot outlive
+   its element. */
 .bc-shot.fresh { animation: bc-shot-in 2.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
 .bc-shot.fresh.made.strong { animation-name: bc-shot-in-strong; }
 .bc-shot.miss.fresh { animation-name: bc-shot-miss; }
@@ -8641,8 +8618,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   100% { opacity: 0; transform: translateY(-7px); }
 }
 
-/* THE BIG-PLAY BANNER IS AN OVERLAY. Absolutely positioned so it can appear and
-   go without moving a pixel of anything else on the page. */
+/* An overlay, so it can appear and go without moving anything else. */
 .bc-call {
   position: absolute;
   left: 50%;
@@ -8731,10 +8707,9 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .bc-break-row { display: flex; justify-content: space-between; gap: 0.6rem; }
 .bc-break-row b { color: var(--text); font-family: var(--font-mono); }
 
-/* THE LIVE STRIP: five numbers a side, and no more. The full box score is
-   further down the page and is where a whole line belongs; this is what a
-   broadcast keeps on screen. Grid rather than flex so the two teams' columns
-   line up with each other, which is the only reason to show them together. */
+/* THE LIVE STRIP: five numbers a side. The full box score is further down the
+   page; this is what a broadcast keeps on screen. Grid rather than flex so the
+   two teams' columns line up, which is the only reason to show them together. */
 .bc-stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -8825,10 +8800,9 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   .bc-stat i { letter-spacing: 0; }
 }
 
-/* Someone who asked for less motion gets the court, the markers and the
-   numbers, and none of the movement. The markers must still END somewhere
-   visible - an animation turned off mid-keyframe would leave every shot at
-   opacity 0, which is not "less motion", it is an empty chart. */
+/* Less motion means the court, the markers and the numbers without the
+   movement. The markers must still END somewhere visible: an animation turned
+   off mid-keyframe leaves every shot at opacity 0, which is an empty chart. */
 @media (prefers-reduced-motion: reduce) {
   .bc-shot.fresh,
   .bc-shot.fresh.made.strong,

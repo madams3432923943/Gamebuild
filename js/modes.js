@@ -1,30 +1,19 @@
-// What game you are about to play, declared once.
-//
-// WHY THIS IS ITS OWN MODULE
+// What game you are about to play, declared once. Full account in
+// docs/game-modes.md.
 //
 // Mode used to be two independent axes scattered across js/main.js: `game.mode`
 // ("bot" / "online") and `game.ruleset` ("easy" / "strict"). Nothing named the
-// combinations, so every screen that cared re-derived them from one axis or the
-// other - `ruleset !== "easy"` meant "run a pick clock", `ruleset === "easy"`
-// meant "show the stats", `ruleset !== "strict"` meant "skip the rotation
-// phase", and `mode === "online"` meant "this counts". Four different questions
-// answered from two overloaded strings, in four different files.
-//
-// That is how Quick Play came to be the mode that also decided roster shape,
-// and why removing it touched the engine's calibration, the draft board, the
-// pick timer, the strategy phases and the provenance stamp at once. A mode is
-// now a RECORD of the answers, and the screens ask it rather than inferring.
-//
-// THE THREE THINGS A PLAYER CAN PLAY
+// combinations, so four unrelated questions - is there a clock, is the board
+// open, which roster shape, does this count - were each re-derived from one
+// overloaded string in a different file. That is how Quick Play came to be the
+// mode that also decided roster shape. A mode is a RECORD of the answers now,
+// and the screens ask it rather than inferring.
 //
 //   ONLINE RANKED - a real opponent, matchmaking, rank on the line.
 //   PRACTICE      - offline against the bot, at one of three difficulties.
 //   FRIEND MATCH  - a real opponent you already know, unranked. NOT offered
-//                   here: it is reached from the Friends tab by challenging a
-//                   specific person, which is the whole point of it.
-//
-// Difficulty is a property of PRACTICE and of nothing else, and it changes
-// exactly one thing about the simulation: nothing. See DIFFICULTIES below.
+//                   here: it is reached by challenging a specific person from
+//                   the Friends tab, which is the whole point of it.
 
 /** The two modes the Play screen offers, in the order they escalate.
  *
@@ -174,23 +163,14 @@ export function modeLabel(config) {
 // ---------------------------------------------------------------------------
 // Reading history written by older versions of this app
 // ---------------------------------------------------------------------------
-// History rows are years deep and were written by four different vocabularies:
+// Rows are years deep and were written by four vocabularies: "online" (Ranked),
+// "friendly" (Friend Match), "local" (pass-and-play, removed long ago) and
+// "offline" (any bot game). Quick Play and Ranked Practice were never stored as
+// distinct modes - both wrote "offline" and differed only inside `rulesVersion`
+// - so there is nothing to migrate: they are already, and correctly, practice
+// games. Rows written from now on also carry `gameMode` and `difficulty`.
 //
-//   mode: "online"    a ranked online game            -> Ranked
-//   mode: "friendly"  a friend challenge              -> Friend Match
-//   mode: "local"     pass-and-play, removed long ago -> Local
-//   mode: "offline"   ANY bot game, all eras of them  -> Practice
-//
-// Quick Play and Ranked Practice were never stored as distinct modes: both
-// wrote mode "offline" and differed only inside `rulesVersion`, which reads
-// "practice-easy-rules-…" or "practice-strict-rules-…". So the legacy modes
-// need no migration and no rewrite - they are already, and correctly, practice
-// games. Rows written from now on additionally carry `gameMode` and
-// `difficulty`, which is what lets a new row say "Practice (Hard)" while an old
-// one honestly says only "Practice".
-//
-// NOTHING HERE REWRITES STORED DATA. A label is computed at read time; the row
-// is left exactly as whichever version of the app wrote it.
+// NOTHING HERE REWRITES STORED DATA. The label is computed at read time.
 
 const LEGACY_MODE_LABELS = {
   online: "Ranked",

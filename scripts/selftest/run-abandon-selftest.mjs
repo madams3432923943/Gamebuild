@@ -51,8 +51,11 @@ for(const a of accts){
 for(const {p} of pages){
   const sportRow = p.locator('[data-sport="nba"]').first();
   if(await sportRow.count()) await sportRow.click();
-  await p.locator('#mode-toggle [data-mode="online"]').waitFor({state:"visible",timeout:15000});
-  await p.locator('#mode-toggle [data-mode="online"]').click();
+  // "ranked", not "online". The mode's id names the MODE - a friend match is
+  // online too, and is not ranked - which is why it changed when the Play
+  // screen went from three cards to two. See js/modes.js.
+  await p.locator('#mode-toggle [data-mode="ranked"]').waitFor({state:"visible",timeout:15000});
+  await p.locator('#mode-toggle [data-mode="ranked"]').click();
 }
 await Promise.all(pages.map(({p})=>p.locator("#btn-start-draft").click()));
 await Promise.all(pages.map(({p})=>p.locator("#screen-draft:not(.hidden)").waitFor({timeout:60000})));

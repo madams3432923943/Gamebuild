@@ -1,37 +1,21 @@
 // Basketball's stage: the court, the shots that land on it, and the strip of
-// numbers underneath.
+// numbers underneath. Full account in docs/nba-presentation.md.
 //
-// WHY THIS EXISTS, AND WHY IT IS NOT IN js/ui.js
+// A sport's presentation lives with that sport - js/sports/nfl/field.js is the
+// counterpart - and js/main.js reaches it through the registry rather than by
+// importing basketball. That rule is why an NFL draft once dealt PG/SG/SF/PF/C,
+// and it is not being relaxed for a court.
 //
-// Basketball's playback was a scoreboard counting upward. Football has a field,
-// a ball that moves, down and distance, and a drive you can watch develop -
-// which is why an NFL game reads as a game being played and an NBA game read as
-// a number going up. A court had been here once, was 510px of mostly-empty
-// rectangle carrying less than the board under it, and was removed. The problem
-// with it was not that it was a court; it was that nothing was drawn on it.
+// EVERYTHING DRAWN HERE COMES FROM THE LEDGER. js/sports/nba/playback.js
+// decomposes the engine's per-quarter stat lines into an ordered ledger, and
+// every marker, caption, percentage and run is read off it. Nothing here
+// simulates or invents: the score is decided before the first marker is drawn,
+// and scripts/verify-nba-court.mjs asserts that the two agree.
 //
-// So: the same split football uses. A sport's presentation lives with that
-// sport (js/sports/nfl/field.js is the counterpart), and js/main.js reaches it
-// through the registry - presentation.renderCourt / showEvent / showQuarterBreak
-// - so shared code never imports basketball. That rule is why an NFL draft once
-// dealt PG/SG/SF/PF/C, and it is not being relaxed for a court.
-//
-// EVERYTHING DRAWN HERE COMES FROM THE LEDGER
-//
-// js/sports/nba/playback.js decomposes the engine's per-quarter stat lines into
-// an ordered ledger, and every marker, caption, percentage and run on this
-// screen is read off that. Nothing here simulates, re-rolls or invents: the
-// final score is decided before the first marker is drawn, and this module
-// could be deleted without changing a single result. scripts/verify-nba-court.mjs
-// asserts exactly that.
-//
-// THE COORDINATE SYSTEM
-//
-// The SVG is 100 x 94 units - a 50ft x 47ft half-court at two units to the
-// foot - and the ledger's normalised x/y map onto it directly. The one
-// conversion is the y axis: SVG counts down from the top and the ledger counts
-// out from the baseline, so the basket sits at the BOTTOM of the picture, which
-// is where a shot chart puts it and where a viewer expects to find it.
+// The SVG is 100 x 94 units - a 50ft x 47ft half-court at two units to the foot
+// - and the ledger's normalised x/y map onto it directly. The y axis is the one
+// conversion: SVG counts down from the top and the ledger counts out from the
+// baseline, so the basket sits at the BOTTOM, where a shot chart puts it.
 
 import { escapeHtml } from "../../lib/escape-html.js";
 import { describeEvent, formatClock } from "./playback.js";
@@ -118,10 +102,10 @@ function statColumn(side, label) {
 /**
  * Draws the court a basketball game is watched on.
  *
- * Returns refs the way renderField does: playback moves things through these
- * rather than re-rendering, so a game never rebuilds the DOM mid-quarter. That
- * is not a micro-optimisation - see scripts/verify-live-scroll.mjs for what
- * rebuilding above the viewport did to a reader on a phone.
+ * Returns refs the way renderField does: playback writes through these rather
+ * than re-rendering, so a game never rebuilds the DOM mid-quarter. Not a
+ * micro-optimisation - see scripts/verify-live-scroll.mjs for what rebuilding
+ * above the viewport did to a reader on a phone.
  */
 export function renderCourt(container, labelA, labelB) {
   container.innerHTML = "";
@@ -174,14 +158,13 @@ export function renderCourt(container, labelA, labelB) {
 }
 
 /**
- * What the scoreboard's centre cell reads during basketball playback -
- * "Q3 · 7:41", or "OT1 · 2:16" past regulation.
+ * What the scoreboard's centre cell reads - "Q3 · 7:41", or "OT1 · 2:16".
  *
  * Basketball answers this, shared code asks it, exactly as football does. The
- * clock is the ledger's derived one and is honest about being derived (see
- * playback.js): the engine has no clock, so this is the period's real length
- * laid over the period's own event order. It counts down, it restarts each
- * quarter, and it is not a claim about when a shot went up.
+ * clock is derived and playback.js is blunt about it: the engine has no clock,
+ * so this is the period's real length laid over the period's own event order.
+ * It counts down and restarts each quarter; it is not a claim about when a shot
+ * went up.
  */
 export function liveStatusLabel(event) {
   if (!event || typeof event.clockSeconds !== "number") return null;
@@ -195,16 +178,13 @@ export function liveStatusLabel(event) {
 /**
  * The loudest true thing about this event, or null for an ordinary one.
  *
- * WHAT IS NOT HERE. There is no DUNK and no AND-1: the engine models neither a
- * dunk nor a foul, so a banner claiming one would be a fabricated statistic
- * with a font. A rim finish gets the loudest shot treatment there is, captioned
- * as what it actually is. `endOfPeriod` is likewise "the last thing that
- * happened in the quarter", which is true and earns the beat, rather than a
- * buzzer-beater the ledger cannot know about.
+ * WHAT IS NOT HERE: no DUNK and no AND-1. The engine models neither a dunk nor
+ * a foul, so a banner claiming one is a fabricated statistic with a font. A rim
+ * finish gets the loudest treatment there is, captioned as what it actually is.
  *
- * Ordered by what a commentator would actually raise their voice for, and only
- * ONE fires - a lead change on a corner three is a lead change, and stacking
- * three banners on one event is how a broadcast turns into a slot machine.
+ * Ordered by what a commentator would raise their voice for, and only ONE
+ * fires - stacking three banners on one event is how a broadcast turns into a
+ * slot machine.
  */
 function bigPlay(event, labelA, labelB) {
   const team = (side) => (side === "a" ? labelA : labelB);
@@ -233,10 +213,10 @@ function pct(makes, attempts) {
 /**
  * Renders one ledger event onto the court.
  *
- * `stats` is the folded line for both teams up to and including this event -
- * passed in rather than recomputed here, because folding the whole ledger per
- * event is O(n²) over a few hundred events and this app has frozen a browser
- * once already by rebuilding a derived index per row.
+ * `stats` is the folded line for both teams up to and including this event,
+ * passed in rather than recomputed: folding the whole ledger per event is
+ * O(n squared), and this app has frozen a browser once by rebuilding a derived
+ * index per row.
  */
 export function showEvent(refs, event, stats) {
   if (!refs || !event) return;
@@ -342,12 +322,10 @@ export function showEvent(refs, event, stats) {
   if (stats) paintStats(refs, stats);
 }
 
-/** The strip under the floor: FG%, 3P%, REB, AST, TO for both sides.
- *
- * Written cell by cell into elements that already exist. The strip sits above
- * the box score on a phone, so rebuilding it would move the box score under a
- * reader's finger every time somebody scored - which is the bug this whole
- * screen was rebuilt around. */
+/** The strip under the floor, written cell by cell into elements that already
+ * exist. It sits above the box score on a phone, so rebuilding it would move
+ * the box score under a reader's finger every time somebody scored - which is
+ * the bug this whole screen was rebuilt around. */
 function paintStats(refs, stats) {
   for (const side of ["a", "b"]) {
     const line = stats[side];
@@ -365,12 +343,9 @@ function paintStats(refs, stats) {
 }
 
 /**
- * The card between quarters: what the period was, and the two or three numbers
- * that describe it.
- *
- * Every number on it is read off the ledger and the engine's own box score, so
- * it cannot disagree with the scoreboard it is covering. Brief on purpose - it
- * is a beat between quarters, not a screen.
+ * The card between quarters. Every number on it is read off the ledger and the
+ * engine's own box score, so it cannot disagree with the scoreboard it covers.
+ * Brief on purpose: a beat between quarters, not a screen.
  */
 export function showQuarterBreak(refs, { label, scoreA, scoreB, leader, stats }) {
   if (!refs || !refs.breakCard) return;
@@ -408,16 +383,13 @@ export function hideQuarterBreak(refs) {
 }
 
 /**
- * The finished game's shot chart.
+ * The finished game's shot chart, from THE SAME PLACEMENT as the live one -
+ * both call toSvg on the same ledger coordinates, so a shot the viewer watched
+ * drop in the third quarter is in exactly that spot here. A chart that re-rolled
+ * its positions would be a different game's wearing this game's score.
  *
- * THE SAME PLACEMENT AS THE LIVE ONE - both call toSvg on the same ledger
- * coordinates, so a shot the viewer watched drop in the third quarter is in
- * exactly the same spot here. A post-game chart that re-rolled its positions
- * would be a different game's chart wearing this game's score.
- *
- * `side` filters: "a", "b", or null for both. Structured so a per-player filter
- * is a change to this predicate and nothing else - every marker already carries
- * the player who took it.
+ * `side` filters: "a", "b", or null for both. A per-player filter is a change
+ * to this predicate and nothing else - every marker carries its player.
  */
 export function renderShotChart(container, events, { labelA, labelB, side = null } = {}) {
   container.innerHTML = courtMarkup();

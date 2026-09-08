@@ -80,35 +80,31 @@ const THREE_ZONES = Object.keys(ZONES).filter((z) => ZONES[z].points === 3);
 
 /**
  * Where each zone sits on a half-court, as a distance and an angle FROM THE
- * BASKET - which is how a shot chart actually works, and the reason this is
- * polar rather than a set of rectangles.
+ * BASKET - which is how a shot chart works, and why this is polar rather than a
+ * set of rectangles.
  *
- * THE COORDINATE SYSTEM. x runs 0 (left sideline) to 1 (right sideline) across
- * a 50-foot half-court, and y runs 0 (baseline) to 0.94 (half-court line) on
- * the SAME scale - both axes are feet divided by 50, so a distance measured
- * across this square is a real distance and the three-point arc is a circle
- * rather than an ellipse. Normalising each axis by its own length is the
- * obvious thing to do and it makes 23 feet along the baseline a different
- * number from 23 feet up the floor, which is how a corner three ends up drawn
- * at the top of the key. The basket is at (0.5, 0.105) - 5.25 feet off the
- * baseline, where it is.
+ * THE COORDINATE SYSTEM. Both axes are feet divided by 50 - x runs 0 to 1
+ * across a 50-foot half-court, y runs 0 (baseline) to 0.94 (half-court) on the
+ * SAME scale - so a distance measured across this square is a real distance and
+ * the arc is a circle rather than an ellipse. Normalising each axis by its own
+ * length instead makes 23 feet along the baseline a different number from 23
+ * feet up the floor, which is how a corner three ends up at the top of the key.
+ * The basket is at (0.5, 0.105), 5.25 feet off the baseline.
  *
- * `r` is the distance band in the same units: 0.02 is a foot. `spread` is the
- * angle, in degrees either side of straight-on, so a zone is an ARC around the
- * rim and twenty shots from it are a fan rather than a stack.
+ * `r` is the distance band in the same units (0.02 is a foot); `spread` is the
+ * angle in degrees either side of straight-on, so a zone is an ARC and twenty
+ * shots from it are a fan rather than a stack.
  *
  * WHY THIS CANNOT DRAW A THREE INSIDE THE ARC. The zone decides the points
- * before the position is rolled, and each zone's radius band is the real
- * distance that zone is: rim finishes inside four feet, the arc at 23.75, the
- * corner at 22 because the corner three genuinely IS the shorter shot. So the
- * geometry is not checked after the fact and corrected - there is no position
- * a zone can produce that contradicts it. scripts/verify-nba-shot-ledger.mjs
- * measures that on every shot of a hundred and twenty games.
+ * before the position is rolled, and each band is the real distance that zone
+ * is: the rim inside four feet, the arc at 23.75, the corner at 22 because the
+ * corner three genuinely IS the shorter shot. There is no position a zone can
+ * produce that contradicts it - not a correction applied afterward.
+ * scripts/verify-nba-shot-ledger.mjs measures it on every shot of 120 games.
  *
- * These lived here before as rectangles, were deleted when the court was
- * removed as "nothing reads them", and came back wrong: a mid-range two with
- * the old spread landed 0.33 from the rim on an anisotropic square, which is
- * outside the arc. The test caught it. That is why they are polar now.
+ * These were rectangles once, on a square whose axes were normalised by
+ * different lengths, which put mid-range twos 0.33 from the rim - outside the
+ * arc. The test caught it. That is why they are polar.
  */
 const RIM = { x: 0.5, y: 0.105 };
 
