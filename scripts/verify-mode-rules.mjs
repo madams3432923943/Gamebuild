@@ -152,9 +152,46 @@ check(
 );
 
 check(
-  "Medium is the calibrated bot, unchanged",
+  "Medium's SHARED default is still the calibrated bot",
   difficultyWindow("medium") === null,
   "medium keeps the legacy ban-and-pool path every balance constant was solved against"
+);
+
+// A sport may answer the difficulty question itself (botDraftPlan) instead of
+// taking the shared window - football does, because its Medium is a decent
+// offense in front of a weak defense and one ranked board cannot say that.
+// Basketball must NOT have quietly acquired one: every balance constant in
+// that sport was solved against the bot the window produces, and the last time
+// a per-sport hook was added for football it changed basketball silently.
+setActiveSport("nba");
+const nbaPlans = DIFFICULTY_IDS.map((id) => activeSport().botDraftPlan(id));
+check(
+  "NBA still drafts through the shared window at every difficulty",
+  nbaPlans.every((plan) => plan === null),
+  "botDraftPlan returns null for easy, medium and hard"
+);
+
+// And football's plan is a set of TARGET RATINGS and nothing else - the same
+// rule the ALLOWED-keys check above enforces on the difficulties themselves.
+// A plan that grew a field the engine could read would be a hidden bonus
+// wearing a drafting hook's clothes.
+await ensureSportData("nfl");
+setActiveSport("nfl");
+const PLAN_TARGET_KEYS = new Set(["rating", "below", "above"]);
+const planFaults = [];
+for (const id of DIFFICULTY_IDS) {
+  const plan = activeSport().botDraftPlan(id);
+  if (!plan) { planFaults.push(`${id}: no plan`); continue; }
+  for (const [position, t] of Object.entries(plan.targets)) {
+    const extra = Object.keys(t).filter((k) => !PLAN_TARGET_KEYS.has(k));
+    if (extra.length) planFaults.push(`${id}.${position}: ${extra.join(", ")}`);
+    if (!(t.rating >= 0 && t.rating <= 1)) planFaults.push(`${id}.${position}: rating ${t.rating}`);
+  }
+}
+check(
+  "NFL's difficulty plan is target ratings and nothing else",
+  planFaults.length === 0,
+  planFaults.length ? planFaults.join("; ") : "every target is { rating, below, above } inside 0-1"
 );
 
 // ---------------------------------------------------------------------------

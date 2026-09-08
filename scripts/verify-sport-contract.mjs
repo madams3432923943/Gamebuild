@@ -41,6 +41,14 @@ const REQUIRED_FUNCTIONS = [
   "players", "playersInEra", "eraById",
   "buildRecap", "buildGameScript", "gradeDraft",
   "defaultMinutes", "botMinutes", "defaultMatchups",
+  // What a practice difficulty means to this sport. Football answers with a
+  // target rating per position group (js/sports/nfl/botdraft.js) because its
+  // offense and its defense are two separate difficulty questions; basketball
+  // answers null and keeps the shared difficulty window. Required rather than
+  // optional for the reason this whole file exists: js/draft.js calls it on
+  // whichever sport is active, and a sport that had not declared it would take
+  // the offline draft down on the bot's first pick.
+  "botDraftPlan",
   // Both live sports fetch their dataset on selection, so shared code has to be
   // able to ask whether the pool is here yet WITHOUT triggering the download -
   // js/main.js warmDatasetStats() would otherwise pull 2.3MB at boot to warm a

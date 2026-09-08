@@ -1,7 +1,10 @@
 // Draft mechanics: shared/mirrored category pool, open-position drafting,
 // bot auto-pick. See build spec #4.
 
-import { BOT_POOL_SIZE, BOT_TOP_PICK_BAN_SHARE, BOT_MIN_CHOICES, MIN_SEARCH_CHARS } from "./constants.js";
+import {
+  BOT_POOL_SIZE, BOT_TOP_PICK_BAN_SHARE, BOT_MIN_CHOICES, MIN_SEARCH_CHARS,
+  QUALITY_WEIGHT_FLOOR,
+} from "./constants.js";
 import { difficultyById } from "./modes.js";
 // Slot lists are default parameter values (see ui.js). The helpers below are
 // per-pick calls and go through the active sport.
@@ -314,6 +317,9 @@ function eraWeight(squadCount) {
   return Math.sqrt(squadCount);
 }
 
+/** One entry, drawn in proportion to its weight. Shared by the era rotation
+ * above and by the quality-targeted bot pick below - two unrelated questions
+ * with the same shape of answer. */
 function pickWeighted(entries, weightOf) {
   const total = entries.reduce((sum, e) => sum + weightOf(e), 0);
   let roll = Math.random() * total;
@@ -481,11 +487,20 @@ export class DraftState {
    * BOT_MIN_CHOICES. `banTop` is an override for the calibration harnesses,
    * which draft both sides with the bot and need full-strength rosters.
    *
-   * DIFFICULTY. Practice names one of three difficulties, and it selects a
-   * WINDOW over the same ranking rather than a different rule: Hard drafts from
-   * the top of the board, Medium from under the ban (the bot above, unchanged),
-   * Easy from the bottom third. Every difficulty fills every slot legally, and
-   * none of them reaches anything the simulation reads - see js/modes.js. */
+   * DIFFICULTY, IN TWO SHAPES. Practice names one of three difficulties, and
+   * the sport decides what that means to it.
+   *
+   *   A WINDOW over the one ranking, which is the shared default and what
+   *   basketball uses: Hard drafts from the top of the board, Medium from
+   *   under the ban (the bot above, unchanged), Easy from the bottom third.
+   *
+   *   A PLAN of target ratings per position group, when the sport returns one
+   *   from botDraftPlan - football does, because "how good is this bot" is two
+   *   questions there (its offense and its defense) and one ranked list cannot
+   *   ask them separately. See js/sports/nfl/botdraft.js.
+   *
+   * Every difficulty under either shape fills every slot legally, and none of
+   * them reaches anything the simulation reads - see js/modes.js. */
   botAutoPick(side = "B", { banTop = null, difficulty = null } = {}) {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
@@ -493,13 +508,18 @@ export class DraftState {
     // An explicit banTop is a calibration harness asking for a specific bot and
     // always wins - a difficulty quietly overriding it would re-solve every
     // balance constant against a different opponent than the one named.
-    const window = banTop === null || banTop === undefined ? difficultyWindow(difficulty) : null;
-    const pool = window ? windowedPool(combos, window) : legacyPool(combos, banTop);
-    const choice = pool[Math.floor(Math.random() * pool.length)];
+    const named = banTop === null || banTop === undefined ? difficulty : null;
+    const plan = difficultyPlan(named);
+    const window = plan ? null : difficultyWindow(named);
+    const choice = plan
+      ? pickByQualityTarget(combos, plan)
+      : uniformPick(window ? windowedPool(combos, window) : legacyPool(combos, banTop));
     this.makePick(side, choice.player, choice.slot);
     return choice;
   }
 }
+
+const uniformPick = (pool) => pool[Math.floor(Math.random() * pool.length)];
 
 /** The window a difficulty drafts from, or null for the legacy pool.
  *
@@ -509,6 +529,52 @@ export class DraftState {
  * same ranking, so neither of them can move a number the engine reads. */
 export function difficultyWindow(difficulty) {
   return difficulty ? difficultyById(difficulty).window : null;
+}
+
+/** The ACTIVE SPORT's per-position quality plan for this difficulty, or null
+ * when it has no opinion and the shared window above should decide.
+ *
+ * Asked of the sport rather than branched on here for the usual reason: shared
+ * code that knows what football is is how a change made for one sport reaches
+ * the other. Basketball answers null and keeps exactly the bot it had. */
+export function difficultyPlan(difficulty) {
+  return difficulty ? activeSport().botDraftPlan(difficulty) : null;
+}
+
+/** How much a pick rated `score` is wanted by a group whose target is `t`.
+ *
+ * A one-sided Gaussian on the distance from the target, so quality is a
+ * PREFERENCE and never a cutoff. Three properties matter and all three are
+ * deliberate:
+ *
+ *   IT NEVER RETURNS ZERO. A floor keeps every legal pick reachable, so a
+ *   squad holding nothing near the target still gets drafted from - the
+ *   closest rows simply dominate the draw. An opponent that forfeits a slot is
+ *   not a harder or an easier opponent, it is a broken roster, which is the
+ *   same rule BOT_MIN_CHOICES enforces on the legacy path.
+ *
+ *   IT IS ASYMMETRIC. Overshooting a target and undershooting it are different
+ *   mistakes - see DEFAULT_SPREAD in js/sports/nfl/botdraft.js.
+ *
+ *   IT LEAVES VARIANCE ALONE. Anything within about a standard deviation of
+ *   the target is drawn at a comparable rate, so two drafts at one difficulty
+ *   are two different rosters rather than the same script twice. */
+function qualityWeight(score, t) {
+  const delta = score - t.rating;
+  const sigma = Math.max(1e-6, delta >= 0 ? t.above : t.below);
+  return Math.exp(-0.5 * (delta / sigma) ** 2) + QUALITY_WEIGHT_FLOOR;
+}
+
+/** One pick, drawn from every legal combo in proportion to how well it meets
+ * its position group's target. Combos are weighted individually rather than
+ * collapsed by name on purpose: the same defensive unit appears once per
+ * season in an era, those seasons span most of the rating scale, and WHICH
+ * SEASON is most of the quality lever football has at a defensive slot. */
+function pickByQualityTarget(combos, plan) {
+  const basePosition = activeSport().basePosition;
+  return pickWeighted(combos, (c) =>
+    qualityWeight(c.score, plan.targets[basePosition(c.slot)] || plan.fallback)
+  );
 }
 
 /** The board's best BOT_POOL_SIZE combos once the top share of players is
