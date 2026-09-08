@@ -8614,7 +8614,11 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .bc-arc { stroke: rgba(255, 255, 255, 0.32); stroke-width: 0.9; }
 .bc-midline { stroke: rgba(255, 255, 255, 0.26); stroke-width: 0.8; }
 .bc-backboard { stroke: rgba(255, 255, 255, 0.5); stroke-width: 1.2; }
-.bc-rim { fill: none; stroke: var(--buzzer); stroke-width: 1.1; }
+/* THE RIM IS NOT A MARKER. It was drawn in --buzzer, which is red - so every
+   basket on this floor was a red circle, on a court where red means a miss and
+   a circle means a make. Neutral, one step brighter than the lines so a basket
+   is still findable, and red on this court now means exactly one thing. */
+.bc-rim { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.1; }
 
 /* GREEN IS IN AND RED IS OUT - the only thing a marker's colour says. Which
    team took it is which HALF it is on, so the two questions never share a
@@ -8739,10 +8743,12 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   font-size: 5px;
   font-weight: 800;
   text-anchor: middle;
-  fill: var(--team-a-ink, var(--accent-bright));
+  /* Green, because it only ever fires on a make - it is the marker's own value
+     said out loud, not a team colour. Which team scored is which half it is
+     on, the same as everything else on this floor. */
+  fill: var(--shot-make);
   animation: bc-pop 900ms ease-out forwards;
 }
-.bc-pop.side-b { fill: var(--team-b-ink, var(--scoreboard)); }
 
 @keyframes bc-pop {
   0% { opacity: 0; transform: translateY(2px); }

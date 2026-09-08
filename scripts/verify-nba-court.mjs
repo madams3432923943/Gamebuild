@@ -409,6 +409,59 @@ async function main() {
       `makes filled ${last.madeFills.join("/")}, misses stroked ${last.missStrokes.join("/")}`
     );
 
+    // ---- and NOTHING ELSE is drawn on the floor ---------------------------
+    //
+    // The chart's whole legibility rests on two symbols meaning two things, so
+    // this enumerates every element in the marker layer and every colour on the
+    // court furniture rather than checking the ones it expects to find. The rim
+    // was drawn in --buzzer, which is red: every basket was a red circle on a
+    // court where red means a miss and a circle means a make.
+    const vocabulary = await page.evaluate(() => {
+      // RED BY HUE AND BY ALPHA, not by "the red channel is high". The sport's
+      // accent is orange - hue 28 - and it tints the key at 8% and the floor's
+      // border at 30%. Neither is a red icon and neither is what this is
+      // looking for; a first pass at this flagged both.
+      const looksRed = (colour) => {
+        const m = /^rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?/.exec(colour);
+        if (!m) return false;
+        const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
+        const alpha = m[4] === undefined ? 1 : Number(m[4]);
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        if (alpha < 0.5 || max === min || max !== r) return false;
+        let hue = (60 * ((g - b) / (max - min)) + 360) % 360;
+        return hue < 15 || hue > 345;
+      };
+      const symbols = new Set();
+      for (const el of document.querySelectorAll("#basketball-court .bc-markers > *")) {
+        const s = getComputedStyle(el);
+        symbols.add(`${el.tagName}:${s.fill}:${s.stroke}`);
+      }
+      const furniture = [];
+      for (const el of document.querySelectorAll(
+        "#basketball-court .bc-svg :not(.bc-markers):not(.bc-flash):not(.bc-shot)"
+      )) {
+        const s = getComputedStyle(el);
+        if (looksRed(s.stroke) || looksRed(s.fill)) {
+          furniture.push(`${el.getAttribute("class")} stroke ${s.stroke} fill ${s.fill}`);
+        }
+      }
+      return { symbols: [...symbols], redFurniture: furniture };
+    });
+    check(
+      "The floor speaks two symbols and no others: green circle in, red cross out",
+      vocabulary.symbols.length === 2 &&
+        vocabulary.symbols.some((v) => /^circle:rgb\(61, 220, 132\):none$/.test(v)) &&
+        vocabulary.symbols.some((v) => /^path:none:rgb\(255, 95, 95\)$/.test(v)),
+      vocabulary.symbols.join(" | ") || "nothing was drawn in the marker layer"
+    );
+    check(
+      "Nothing on the court but a miss is red",
+      vocabulary.redFurniture.length === 0,
+      vocabulary.redFurniture.join(" | ") ||
+        "rims, lines and the paint carry no visible red - the only red on the floor is a miss"
+    );
+
     // ---- the half labels say whose end is whose ---------------------------
     const labels = await page.evaluate(() =>
       [...document.querySelectorAll("#basketball-court .bc-halflabel")].map((el) => ({
