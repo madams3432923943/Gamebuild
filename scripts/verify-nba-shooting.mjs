@@ -48,7 +48,14 @@ import { renderCheck, renderSection, renderTable, summarize, PASS, FAIL, WARN } 
 import { loadDataset } from "../data/load.mjs";
 
 const PLAYERS = await loadDataset("nba-players");
-const GAMES = Number(process.env.SHOOTING_GAMES || 1400);
+// 400 GAMES PER ARCHETYPE, not the 1,400 this started at. Five archetypes plus
+// the free-throw sample is 2,400 full Ranked simulations, and at 1,400 it was
+// 7,400 - long enough to dominate the whole verify chain. Every ordering this
+// file asserts is decided by a mile at 400 (a shooting roster takes ~32 threes
+// against an interior roster's ~1), and the tightest measurement in it, the
+// zero-3PA rate on a shooting roster, reads 0.000% either way. Raise it with
+// SHOOTING_GAMES when investigating a tail.
+const GAMES = Number(process.env.SHOOTING_GAMES || 400);
 
 function mulberry(seed) {
   let s = seed >>> 0;
