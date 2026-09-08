@@ -12,78 +12,85 @@
 // simulates or invents: the score is decided before the first marker is drawn,
 // and scripts/verify-nba-court.mjs asserts that the two agree.
 //
-// The SVG is 100 x 94 units - a 50ft x 47ft half-court at two units to the foot
-// - and the ledger's normalised x/y map onto it directly. The y axis is the one
-// conversion: SVG counts down from the top and the ledger counts out from the
-// baseline, so the basket sits at the BOTTOM, where a shot chart puts it.
+// THE FLOOR IS A FULL COURT, HORIZONTAL, AND EACH TEAM OWNS ONE END. Geometry
+// and the ledger-to-court mapping live in ./court-geometry.js so a plain Node
+// test can measure them; this file draws, animates and counts. Team identity is
+// WHICH HALF a marker is on. Colour says only whether it went in - green disc
+// for a make, red cross for a miss - so the two questions never compete for the
+// same channel.
 
 import { escapeHtml } from "../../lib/escape-html.js";
 import { describeEvent, formatClock } from "./playback.js";
+import { courtMarkup, shotToCourt } from "./court-geometry.js";
 
 /** How many periods before overtime. Basketball's own, because a sport with a
  * different number would answer differently and shared code never asks. */
 const REGULATION_PERIODS = 4;
 
-/** Two units to the foot, so every measurement below is the real one. */
-const FT = 2;
-const COURT_W = 50 * FT; // 100
-const COURT_H = 47 * FT; // 94
+/** Marker sizes, in court units - one unit is half a foot, so a made shot is a
+ * two-foot disc on a 94-foot floor. They SHRINK as the chart fills: a quiet
+ * first quarter and a two-hundred-shot final chart are the same picture at
+ * different densities, and one size cannot serve both. The floor of 0.72 is
+ * where a marker stops being a marker. */
+const MADE_R = 2;
+const MISS_ARM = 1.9;
+const MIN_SCALE = 0.72;
+const DENSITY_SPAN = 220; // attempts over which a marker shrinks to MIN_SCALE
 
-/** The real court, in feet, measured from the baseline. */
-const RIM_Y = 5.25 * FT;
-const RIM_R = 0.75 * FT;
-const BACKBOARD_Y = 4 * FT;
-const BACKBOARD_HALF = 3 * FT;
-const PAINT_HALF = 8 * FT;
-const PAINT_DEPTH = 19 * FT;
-const FT_CIRCLE_R = 6 * FT;
-const RESTRICTED_R = 4 * FT;
-const ARC_R = 23.75 * FT;
-const CORNER_X = 3 * FT;
-
-/** Where the three-point arc meets the straight corner segment. Solved rather
- * than typed in, so the two never come apart if a measurement is corrected. */
-const CORNER_Y = RIM_Y + Math.sqrt(ARC_R * ARC_R - (COURT_W / 2 - CORNER_X) ** 2);
-
-/** Ledger space (x 0..1 across the floor, y 0..0.94 out from the baseline) to
- * SVG space (y counting down from the top). One function, so a marker in the
- * live chart and the same marker in the post-game chart cannot land in two
- * different places. */
-function toSvg(point) {
-  return { x: point.x * COURT_W, y: COURT_H - point.y * COURT_W };
+function densityScale(drawn) {
+  return Math.max(MIN_SCALE, 1 - (drawn / DENSITY_SPAN) * (1 - MIN_SCALE));
 }
 
-/** The court furniture: everything that does not move.
- *
- * Emitted as one SVG string rather than element by element because it is drawn
- * once per game and never touched again - the markers go into their own group,
- * which is the only thing playback ever appends to. */
-function courtMarkup() {
-  const midY = COURT_H - RIM_Y;
-  const arcStartX = CORNER_X;
-  const arcEndX = COURT_W - CORNER_X;
-  const arcY = COURT_H - CORNER_Y;
-  return `
-    <svg class="bc-svg" viewBox="0 0 ${COURT_W} ${COURT_H}" preserveAspectRatio="xMidYMid meet"
-         role="img" aria-label="Basketball half court">
-      <rect class="bc-floor" x="0" y="0" width="${COURT_W}" height="${COURT_H}" rx="2" />
-      <rect class="bc-line bc-paint" x="${COURT_W / 2 - PAINT_HALF}" y="${COURT_H - PAINT_DEPTH}"
-            width="${PAINT_HALF * 2}" height="${PAINT_DEPTH}" />
-      <circle class="bc-line" cx="${COURT_W / 2}" cy="${COURT_H - PAINT_DEPTH}" r="${FT_CIRCLE_R}" />
-      <path class="bc-line" d="M ${COURT_W / 2 - RESTRICTED_R} ${midY}
-            A ${RESTRICTED_R} ${RESTRICTED_R} 0 0 0 ${COURT_W / 2 + RESTRICTED_R} ${midY}" />
-      <path class="bc-line bc-arc"
-            d="M ${arcStartX} ${COURT_H} L ${arcStartX} ${arcY}
-               A ${ARC_R} ${ARC_R} 0 0 0 ${arcEndX} ${arcY} L ${arcEndX} ${COURT_H}" />
-      <line class="bc-line bc-backboard" x1="${COURT_W / 2 - BACKBOARD_HALF}" y1="${COURT_H - BACKBOARD_Y}"
-            x2="${COURT_W / 2 + BACKBOARD_HALF}" y2="${COURT_H - BACKBOARD_Y}" />
-      <circle class="bc-rim" cx="${COURT_W / 2}" cy="${midY}" r="${RIM_R}" />
-      <g class="bc-markers"></g>
-      <g class="bc-flash"></g>
-    </svg>`;
+/** One shot, as an SVG element. The ONE place a marker is built, so the live
+ * court and the post-game chart cannot draw the same shot two ways - they did,
+ * and the live one grew a size rule the final one never got. */
+function shotMarker(event, { drawn = 0, final = false } = {}) {
+  const at = shotToCourt(event);
+  const scale = densityScale(drawn);
+  const svg = (name) => document.createElementNS("http://www.w3.org/2000/svg", name);
+  let marker;
+  if (event.made) {
+    marker = svg("circle");
+    marker.setAttribute("cx", at.x.toFixed(2));
+    marker.setAttribute("cy", at.y.toFixed(2));
+    marker.setAttribute("r", (MADE_R * scale).toFixed(2));
+  } else {
+    // A cross, not a hollow circle. Made and missed have to be separable
+    // without colour - a chart where the only difference is hue is a chart
+    // eight percent of men cannot read.
+    marker = svg("path");
+    const s = MISS_ARM * scale;
+    marker.setAttribute(
+      "d",
+      `M ${(at.x - s).toFixed(2)} ${(at.y - s).toFixed(2)} L ${(at.x + s).toFixed(2)} ${(at.y + s).toFixed(2)} ` +
+        `M ${(at.x + s).toFixed(2)} ${(at.y - s).toFixed(2)} L ${(at.x - s).toFixed(2)} ${(at.y + s).toFixed(2)}`
+    );
+  }
+  marker.setAttribute(
+    "class",
+    `bc-shot ${event.made ? "made" : "miss"} side-${event.side}` +
+      (final ? " final" : "") +
+      (event.strong && event.made ? " strong" : "")
+  );
+  return { marker, at };
 }
 
-/** One team's cell in the live stat strip. */
+/** The two half labels, sitting over their own end of the floor. HTML rather
+ * than SVG text: a label sized in viewBox units is eight pixels on a phone, and
+ * the 12px floor the mobile audit enforces is not negotiable for the one thing
+ * on screen that says whose shots these are. */
+function halfLabels(labelA, labelB) {
+  return (
+    `<div class="bc-halflabels" aria-hidden="true">` +
+    `<span class="bc-halflabel side-a">${escapeHtml(labelA)}</span>` +
+    `<span class="bc-halflabel side-b">${escapeHtml(labelB)}</span>` +
+    `</div>`
+  );
+}
+
+/** One team's cell in the live stat strip. Column order matches the halves -
+ * A under the left end, B under the right - so the numbers sit beneath the
+ * shots they came from. */
 function statColumn(side, label) {
   return (
     `<div class="bc-stat-team bc-stat-${side}">` +
@@ -105,7 +112,8 @@ function statColumn(side, label) {
  * Returns refs the way renderField does: playback writes through these rather
  * than re-rendering, so a game never rebuilds the DOM mid-quarter. Not a
  * micro-optimisation - see scripts/verify-live-scroll.mjs for what rebuilding
- * above the viewport did to a reader on a phone.
+ * above the viewport did to a reader on a phone. Nothing here scrolls, focuses
+ * or replaces a container once the floor is up; a shot appends one node.
  */
 export function renderCourt(container, labelA, labelB) {
   container.innerHTML = "";
@@ -123,7 +131,12 @@ export function renderCourt(container, labelA, labelB) {
 
   const court = document.createElement("div");
   court.className = "bc-court";
-  court.innerHTML = courtMarkup();
+  // ESCAPED BEFORE IT REACHES THE ATTRIBUTE. The labels are usernames, and the
+  // aria-label is written into markup - the one thing every user-supplied
+  // string in this app has to pass through on its way to innerHTML.
+  court.innerHTML =
+    courtMarkup({ label: `Full court, ${escapeHtml(labelA)} shots left, ${escapeHtml(labelB)} shots right` }) +
+    halfLabels(labelA, labelB);
 
   // The big-play banner, over the floor. Positioned rather than inserted, so it
   // appearing and going never changes the height of anything.
@@ -152,6 +165,7 @@ export function renderCourt(container, labelA, labelB) {
     stats,
     possession: status.querySelector(".bc-possession"),
     run: status.querySelector(".bc-run"),
+    drawn: 0,
     labelA,
     labelB,
   };
@@ -280,27 +294,11 @@ export function showEvent(refs, event, stats) {
   // coordinate for a rebound or a steal, and putting one somewhere plausible
   // would be inventing a position the ledger does not have.
   if (event.type === "shot" && typeof event.x === "number") {
-    const at = toSvg(event);
-    const marker = document.createElementNS("http://www.w3.org/2000/svg", event.made ? "circle" : "path");
-    if (event.made) {
-      marker.setAttribute("cx", at.x.toFixed(2));
-      marker.setAttribute("cy", at.y.toFixed(2));
-      marker.setAttribute("r", event.shotType === "three" ? "2.2" : "2");
-    } else {
-      // A cross, not a hollow circle. Made and missed have to be separable
-      // without colour - a chart where the only difference is hue is a chart
-      // eight percent of men cannot read.
-      const s = 1.8;
-      marker.setAttribute(
-        "d",
-        `M ${(at.x - s).toFixed(2)} ${(at.y - s).toFixed(2)} L ${(at.x + s).toFixed(2)} ${(at.y + s).toFixed(2)} ` +
-          `M ${(at.x + s).toFixed(2)} ${(at.y - s).toFixed(2)} L ${(at.x - s).toFixed(2)} ${(at.y + s).toFixed(2)}`
-      );
-    }
-    marker.setAttribute(
-      "class",
-      `bc-shot ${event.made ? "made" : "miss"} side-${event.side}` + (event.strong && event.made ? " strong" : "")
-    );
+    const { marker, at } = shotMarker(event, { drawn: refs.drawn });
+    refs.drawn += 1;
+    // APPENDED, so the newest shot is on top of the ones under it. That is the
+    // whole clutter strategy at the rim: the fresh marker is the readable one
+    // and the pile beneath it is the chart it is becoming.
     refs.markers.appendChild(marker);
     // THE FADE IS CSS, NOT A TIMER. A setTimeout per shot is two hundred timers
     // a game, every one of which has to be cancelled if the viewer leaves; an
@@ -310,9 +308,22 @@ export function showEvent(refs, event, stats) {
     marker.classList.add("fresh");
 
     if (event.made) {
+      // The expanding ring, on the newest make only. Its own element in the
+      // flash layer rather than a second animation on the marker, because the
+      // marker has to survive it - the ring is a beat, the disc is the record.
+      const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      ring.setAttribute("cx", at.x.toFixed(2));
+      ring.setAttribute("cy", at.y.toFixed(2));
+      ring.setAttribute("r", "2");
+      ring.setAttribute("class", "bc-ring");
+      refs.flash.appendChild(ring);
+      ring.addEventListener("animationend", () => ring.remove(), { once: true });
+
       const pop = document.createElementNS("http://www.w3.org/2000/svg", "text");
       pop.setAttribute("x", at.x.toFixed(2));
-      pop.setAttribute("y", (at.y - 4).toFixed(2));
+      // Clamped off the sideline: a marker two units from the edge would put
+      // its own "+3" outside the floor.
+      pop.setAttribute("y", Math.max(6, at.y - 4).toFixed(2));
       pop.setAttribute("class", `bc-pop side-${event.side}`);
       pop.textContent = `+${event.points}`;
       refs.flash.appendChild(pop);
@@ -344,7 +355,12 @@ export function showEvent(refs, event, stats) {
 /** The strip under the floor, written cell by cell into elements that already
  * exist. It sits above the box score on a phone, so rebuilding it would move
  * the box score under a reader's finger every time somebody scored - which is
- * the bug this whole screen was rebuilt around. */
+ * the bug this whole screen was rebuilt around.
+ *
+ * THE NUMBERS ARE THE SIMULATION'S, folded forward from the ledger by
+ * foldLiveStats. Nothing here counts markers: the chart is a picture of the
+ * game, not the source of it, and a percentage derived from what happens to be
+ * on screen would drift from the box score the moment one differed. */
 function paintStats(refs, stats) {
   for (const side of ["a", "b"]) {
     const line = stats[side];
@@ -402,37 +418,31 @@ export function hideQuarterBreak(refs) {
 }
 
 /**
- * The finished game's shot chart, from THE SAME PLACEMENT as the live one -
- * both call toSvg on the same ledger coordinates, so a shot the viewer watched
- * drop in the third quarter is in exactly that spot here. A chart that re-rolled
- * its positions would be a different game's wearing this game's score.
+ * The finished game's shot chart - THE SAME COURT and THE SAME PLACEMENT as the
+ * live one. Both call shotToCourt on the same ledger coordinates through the
+ * same shotMarker, so a shot the viewer watched drop in the third quarter is in
+ * exactly that spot here. A chart that re-rolled its positions would be a
+ * different game's wearing this game's score.
  *
- * `side` filters: "a", "b", or null for both. A per-player filter is a change
- * to this predicate and nothing else - every marker carries its player.
+ * `side` filters: "a", "b", or null for both. Filtering never moves anything -
+ * a team's shots are on that team's half whether the other half is drawn or
+ * not - so the two views are the same picture with one end blank. A per-player
+ * filter is a change to this predicate and nothing else; every marker carries
+ * its player.
  */
 export function renderShotChart(container, events, { labelA, labelB, side = null } = {}) {
-  container.innerHTML = courtMarkup();
+  container.innerHTML =
+    courtMarkup({ label: `Shot chart, ${escapeHtml(labelA)} left, ${escapeHtml(labelB)} right` }) +
+    halfLabels(labelA, labelB);
+  container.classList.toggle("bc-only-a", side === "a");
+  container.classList.toggle("bc-only-b", side === "b");
   const markers = container.querySelector(".bc-markers");
   const shots = (events || []).filter(
     (e) => e.type === "shot" && typeof e.x === "number" && (!side || e.side === side)
   );
 
-  for (const event of shots) {
-    const at = toSvg(event);
-    const marker = document.createElementNS("http://www.w3.org/2000/svg", event.made ? "circle" : "path");
-    if (event.made) {
-      marker.setAttribute("cx", at.x.toFixed(2));
-      marker.setAttribute("cy", at.y.toFixed(2));
-      marker.setAttribute("r", "2");
-    } else {
-      const s = 1.8;
-      marker.setAttribute(
-        "d",
-        `M ${(at.x - s).toFixed(2)} ${(at.y - s).toFixed(2)} L ${(at.x + s).toFixed(2)} ${(at.y + s).toFixed(2)} ` +
-          `M ${(at.x + s).toFixed(2)} ${(at.y - s).toFixed(2)} L ${(at.x - s).toFixed(2)} ${(at.y + s).toFixed(2)}`
-      );
-    }
-    marker.setAttribute("class", `bc-shot final ${event.made ? "made" : "miss"} side-${event.side}`);
+  shots.forEach((event, index) => {
+    const { marker } = shotMarker(event, { drawn: index, final: true });
     // The whole line, for anyone hovering or reading with a screen reader. The
     // chart is a picture of the ledger; this is the ledger saying it in words.
     const said = describeEvent(event);
@@ -442,7 +452,7 @@ export function renderShotChart(container, events, { labelA, labelB, side = null
       `(${event.side === "a" ? labelA : labelB}, ${periodLabel(event)})`;
     marker.appendChild(title);
     markers.appendChild(marker);
-  }
+  });
 
   return {
     shots: shots.length,

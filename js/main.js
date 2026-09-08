@@ -4090,7 +4090,7 @@ function showShotChart(events, labelA, labelB) {
   const paint = () => {
     const summary = render(court, events, { labelA, labelB, side });
     legend.textContent =
-      `${summary.made} of ${summary.shots} — discs are makes, crosses are misses`;
+      `${summary.made} of ${summary.shots} — green circles are makes, red crosses are misses`;
     for (const btn of filters.querySelectorAll("button")) {
       const mine = btn.dataset.side || null;
       const active = mine === side;

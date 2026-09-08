@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=045cab4" />
+  <link rel="stylesheet" href="css/style.css?v=1d81527" />
 </head>
 <body>
   <header class="top-nav">
@@ -511,7 +511,16 @@
         <!-- Basketball's playback, drawn by js/sports/nba/court.js from the shot
              ledger. A court used to be here, was removed as 510px of
              mostly-empty rectangle, and is back because things land on it now:
-             every shot the ledger produced, where the ledger put it. -->
+             every shot the ledger produced, where the ledger put it.
+
+             A FULL COURT, HORIZONTAL, at every width. Your shots are on the
+             left half and the opponent's on the right, fixed for the whole
+             game, so which team took a shot is where it is and colour is left
+             to say only whether it fell. The geometry is in
+             js/sports/nba/court-geometry.js, measured by
+             scripts/verify-nba-court-geometry.mjs - the previous court's
+             three-point line was drawn with the wrong SVG arc sweep flag and
+             nothing was checking the shape. -->
         <div id="basketball-court" class="basketball-court hidden" data-stage="court"></div>
         <!-- Football's playback, drawn by js/sports/nfl/field.js from the
              engine's `drives` array. -->
@@ -550,9 +559,11 @@
       </div>
 
       <!-- The finished game's shot chart. Basketball only - populated by
-           renderShotChart() in js/sports/nba/court.js from the same ledger the
-           live court drew, so a shot is in the same place here as it was when
-           you watched it drop. Hidden for any sport that draws no chart. -->
+           renderShotChart() in js/sports/nba/court.js on THE SAME COURT and the
+           same placement the live one used, so a shot is in the same place here
+           as it was when you watched it drop. Filters to both teams, yours or
+           the opponent's; a per-player filter is a change to one predicate.
+           Hidden for any sport that draws no chart. -->
       <div id="shot-chart" class="shot-chart hidden">
         <div class="shot-chart-head">
           <span class="shot-chart-title">Shot chart</span>
@@ -875,6 +886,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=045cab4"></script>
+  <script type="module" src="js/main.js?v=1d81527"></script>
 </body>
 </html>

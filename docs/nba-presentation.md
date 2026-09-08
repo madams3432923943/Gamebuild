@@ -59,14 +59,74 @@ position a zone can produce that contradicts it. Not a rule applied afterward:
 no dunk from thirty feet and no corner three at the rim, structurally.
 
 The coordinate system is feet divided by 50 on **both** axes — x runs 0..1
-across a 50ft half-court, y runs 0..0.94 out from the baseline — so a distance
-measured across it is a real distance and the arc is a circle.
+across a 50ft half-court, y runs 0..0.94 out from the baseline it is attacking —
+so a distance measured across it is a real distance and the arc is a circle.
+
+The ledger is **half-court and basket-relative**, and knows nothing about which
+end of the floor anybody is shooting at. That is the court's job (below), and it
+is what lets the same coordinate be your corner three at one end and the
+opponent's at the other.
 
 The first attempt at this was rectangles on a square whose axes were normalised
 by different lengths, which put mid-range twos 0.35 from the rim: outside the
 arc. The ledger test caught it on 2,289 shots of a 120-game sample. It measures
 the real geometry now, written out independently of the placement it checks — a
 test that imports the placement only proves it agrees with itself.
+
+The corner three is the zone that keeps catching this out, because it is the one
+three that is *closer* to the rim than the arc. What it has to clear is a
+straight line 22 feet from the middle of the floor, so what matters is its
+**sideways** distance — `r · sin(angle)` — not its radius: a 22-foot shot at 72
+degrees is 20.9 feet across, which is a corner three drawn inside the corner
+three line. The band is `r 0.452–0.485` over `78–89°` for that reason, and the
+ledger test's corner boundary is the real 22 feet rather than the 20 it read
+while that was slipping through.
+
+## The court
+
+**A full court, horizontal, 94 by 50 feet on a `0 0 188 100` viewBox** — two
+units to the foot, so every constant in `js/sports/nba/court-geometry.js` is the
+real measurement. Team identity is **which half a marker is on**: side A attacks
+the left basket and side B the right, fixed for the whole game, never mirrored
+per possession.
+
+One half is drawn, once, into `<defs>`; the other end is that same group
+`<use>`d with `translate(188 0) scale(-1 1)`. There is no second copy of the
+geometry to keep in step, which is why correcting the three-point line was a
+one-line change rather than two.
+
+### The malformed three-point line
+
+The previous court's arc was drawn with **the wrong SVG sweep flag**. An arc
+command names its endpoints, a radius and two flags — not a centre — and the
+flags choose between four curves that all connect those endpoints. `0 0 0` chose
+the one that curves around a centre 36 units from the basket and bows *toward*
+the baseline. The corner segments still met it at exactly the right two points,
+so the line was joined, symmetric, and wrong. The restricted-area arc had the
+same flag and the same problem.
+
+Nothing measured it. The browser test checked that markers land where their
+shots say, which a malformed line does not affect, and the ledger test checked
+the ledger, which was correct.
+
+`scripts/verify-nba-court-geometry.mjs` now solves each arc's real centre out of
+its endpoints and flags the way a renderer does, and asserts the curve is 23.75
+feet from the rim at every sampled point along it. Flipping the flag back fails
+it by 17.8 feet.
+
+### Placing a shot
+
+`shotToCourt` is the only conversion, and both charts call it:
+
+```
+across = x · 100                      // sideline to sideline
+out    = y · 100                      // from the baseline being attacked
+side a → ( out,       across )        // attacking the left basket
+side b → ( 188 - out, across )        // the same shot, mirrored
+```
+
+So an identical ledger coordinate is the same shot at either end, and the two
+teams can never occupy the same pixel.
 
 ## The clock
 
@@ -109,7 +169,11 @@ shooting percentage for shots that have not been taken yet.
 
 ### Nothing here may change the page's height while a game is playing
 
-The court has a fixed aspect ratio and is sized by the viewport. The big-play
+The court has a fixed aspect ratio (188:100) and its width is capped by the
+viewport's height as well as its width, so a landscape phone shrinks the court
+rather than pushing the scoreboard off the top. It stays horizontal at every
+width: a court that turns vertical on a phone is a different picture, and its
+halves stop meaning "your end" and "theirs". The big-play
 banner and the quarter card are absolutely-positioned overlays. The stat strip
 has a stable row count. The play feed is a fixed-height window.
 
@@ -126,16 +190,51 @@ element.
 
 ### Made and missed
 
-A make is a disc and a miss is a cross. Shape first, colour second: a chart
-whose only distinction is hue is one that roughly eight percent of men cannot
-read, and this one is small and dense by design.
+**Green circle in, red cross out** — the only thing a marker's colour says.
+Which team took it is which half it is on, so the two questions never share a
+channel and no marker has to be read twice.
+
+Shape carries it as well as colour: a chart whose only distinction is hue is one
+that roughly eight percent of men cannot read, and this one is small and dense
+by design.
+
+### Clutter at the rim
+
+Four things, none of which moves a shot far enough to make its position a lie:
+
+1. Markers **shrink as the chart fills** — 2 units down to 0.72 of that over
+   220 attempts, because a quiet first quarter and a 200-shot final chart are
+   the same picture at two densities and one size cannot serve both.
+2. Newest on **top**: markers are appended, so the fresh one is the readable one
+   and the pile beneath it is the chart it is becoming.
+3. **Deterministic jitter inside the zone**, which the polar placement already
+   provides — twenty shots from the same zone are a fan, not a stack.
+4. Settled markers hold at **0.58–0.78 opacity**, not 0.2. The emphasis on the
+   newest shot is the first third of a second of its entrance, not the erasure
+   of everything before it.
+
+### The newest shot
+
+A make gets an expanding ring and a `+2`/`+3`, both in the flash layer as their
+own elements so the disc underneath keeps its place in the chart. A miss draws
+its cross and settles. Under a second, then it is one more marker.
+
+### The live percentages
+
+`FG% · 3P% · REB · AST · TO` per side, under that side's half. Folded forward
+from the ledger by `foldLiveStats` — **the simulation's numbers**, never counted
+off the markers on screen. A percentage derived from what happens to be drawn
+would drift from the box score the moment one of them differed.
 
 ## The post-game chart
 
-The same `toSvg` on the same ledger coordinates, so a three you watched drop in
-the third quarter is exactly where you watched it drop. Filters to Both / your
-team / the opponent; every marker carries a `<title>` with the play it was,
-which is also what a screen reader reads off the chart.
+The same court, the same `shotToCourt`, the same marker builder — so a three you
+watched drop in the third quarter is exactly where you watched it drop. Filters
+to Both / your team / the opponent, and filtering never moves anything: a team's
+shots are on that team's half whether the other half is drawn or not, so the
+three views are one picture with one end blanked. A per-player filter is a
+change to that one predicate; every marker already carries a `<title>` with the
+play it was, which is also what a screen reader reads off the chart.
 
 It is post-game only, which is not a restriction that needed adding — it runs
 from `finish()`. A ranked draft's hidden information is hidden during the
@@ -179,7 +278,8 @@ in a seventeen-second game.
 ## Verifying
 
 ```
-npm run verify:nba-shot-ledger   # the ledger against the engine, 120 games
-npm run verify:nba-court         # the court in Chromium, one real game
+npm run verify:nba-shot-ledger    # the ledger against the engine, 120 games
+npm run verify:nba-court-geometry # the shape of the court, no browser needed
+npm run verify:nba-court          # the court in Chromium, one real game
 npm run verify:live-scroll       # both sports, five viewports
 ```
