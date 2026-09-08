@@ -1130,7 +1130,12 @@ async function setSport(id) {
   sportDataLoading = true;
   renderPlayability();
   try {
-    await ensureSportData(id);
+    // The dataset and the game-screen modules travel together: both are this
+    // sport's, both are only needed once you are playing it, and both must be
+    // in memory before any screen reads them synchronously. Loading the
+    // presentation here rather than at the whistle means the court is never
+    // the thing a player waits for.
+    await Promise.all([ensureSportData(id), sport().presentation.load?.()]);
   } catch (error) {
     // Never silent: the button stays disabled and says so, and the reason is
     // on the console for anyone debugging it.
@@ -2517,6 +2522,11 @@ async function enterOnlineMatch(matchId) {
     applyTheme(sport());
     await ensureSportData(match.sport);
   }
+  // Whatever sport this match is, its stage has to be loaded before the game
+  // screen draws one. Outside the branch above because a match in the sport
+  // already selected still needs it - setSport() is the only other loader, and
+  // a deep link into a challenge never goes through it.
+  await sport().presentation.load?.();
   // The bracket is the match's too, for the same reason - the draft board reads
   // it off game.era, and an era id is only unique within one sport.
   game.era = match.era || sport().defaultEra;

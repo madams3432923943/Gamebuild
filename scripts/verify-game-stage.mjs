@@ -136,6 +136,11 @@ async function runInPage(page) {
     const declared = {};
     for (const id of ["nba", "nfl"]) {
       setActiveSport(id);
+      // A stage's renderers arrive with presentation.load(), which is what
+      // js/main.js awaits when a sport is chosen - they are 87KB that only a
+      // game screen needs and are no longer in the boot payload. Asking for
+      // them before loading would be asserting that the app is not lazy.
+      await activeSport().presentation?.load?.();
       declared[id] = activeSport().presentation?.stage;
       const resolves = !!stage.querySelector(`[data-stage="${declared[id]}"]`);
       if (resolves) {

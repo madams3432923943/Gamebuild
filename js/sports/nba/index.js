@@ -65,10 +65,9 @@ import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./re
 import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
-import { buildShotLedger, describeEvent, foldLiveStats, formatClock, ZONES } from "./playback.js";
-import {
-  renderCourt, showEvent, liveStatusLabel, showQuarterBreak, hideQuarterBreak, renderShotChart,
-} from "./court.js";
+/* playback.js and court.js are NOT imported here. See presentation.load below:
+ * they are 45KB that only a game screen needs, and this app has no build step,
+ * so a static import puts them in the payload of anyone who opens the app. */
 import {
   SLOTS as NBA_SLOTS,
   basePosition,
@@ -186,25 +185,22 @@ export const NBA = {
   // index.html that the game screen reveals for this sport, the same way
   // football names its field - see showStage() in js/main.js.
   //
-  // Everything the court needs travels through here rather than being imported
-  // by shared code: the ledger it draws, how it draws one event, how one event
-  // reads in the feed, the running team lines, the clock format, and the
-  // post-game chart. Shared UI never imports basketball - it asks
-  // activeSport() - so a sport that draws no court simply declares none of this
-  // and keeps the plain board.
+  // LOADED ON DEMAND, LIKE THE DATASET. Everything that draws a game - the
+  // ledger, the floor, the markers, the feed's wording, the running team lines,
+  // the post-game chart - is 45KB that only matters once a game starts, and it
+  // used to be a static import. There is no build step here, so that put all of
+  // it in the payload of anyone who opened the app to look at their profile.
+  //
+  // `load()` resolves the modules ONTO this object, so every consumer keeps
+  // reading sport().presentation.showEvent exactly as before - the only code
+  // that knows this is lazy is whoever calls load(), which is the same place
+  // that already awaits ensureSportData (see setSport in js/main.js).
+  //
+  // Idempotent and cached: called on every sport switch and every match entry,
+  // and the import itself is only paid once.
   presentation: {
     stage: "court",
-    buildShotLedger,
-    renderCourt,
-    showEvent,
-    liveStatusLabel,
-    showQuarterBreak,
-    hideQuarterBreak,
-    renderShotChart,
-    describeEvent,
-    foldLiveStats,
-    formatClock,
-    zones: ZONES,
+    load: loadPresentation,
   },
 
   // ---- Roster shape -------------------------------------------------------
@@ -375,5 +371,37 @@ export const NBA = {
   tacticById,
   randomTacticChoices,
 };
+
+/**
+ * Pulls basketball's game-screen modules in and hangs them off the registry.
+ *
+ * The assignment onto NBA.presentation is the whole trick: it means nothing
+ * downstream had to change when these became lazy. A stage's hooks are
+ * guaranteed present only AFTER this resolves, which is what
+ * scripts/verify-sport-contract.mjs now awaits before checking them.
+ */
+let presentationReady = null;
+
+function loadPresentation() {
+  presentationReady ||= Promise.all([import("./playback.js"), import("./court.js")]).then(
+    ([playback, court]) => {
+      Object.assign(NBA.presentation, {
+        buildShotLedger: playback.buildShotLedger,
+        describeEvent: playback.describeEvent,
+        foldLiveStats: playback.foldLiveStats,
+        formatClock: playback.formatClock,
+        zones: playback.ZONES,
+        renderCourt: court.renderCourt,
+        showEvent: court.showEvent,
+        liveStatusLabel: court.liveStatusLabel,
+        showQuarterBreak: court.showQuarterBreak,
+        hideQuarterBreak: court.hideQuarterBreak,
+        renderShotChart: court.renderShotChart,
+      });
+      return NBA.presentation;
+    }
+  );
+  return presentationReady;
+}
 
 export default NBA;

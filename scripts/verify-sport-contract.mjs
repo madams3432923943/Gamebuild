@@ -17,12 +17,21 @@
 import { SPORTS, ensureSportData } from "../js/sports/index.js";
 import { isNote, notesText } from "../js/gradenotes.js";
 
-// A sport may load its dataset on demand rather than on boot - football does,
-// because its data is larger than the rest of the app combined. The contract
-// is about the sport's SURFACE, so every live sport is loaded up front here
-// and then checked exactly as before.
+// A sport loads its dataset AND its game-screen modules on demand rather than
+// on boot - the data because football's is larger than the rest of the app
+// combined, the presentation because a court and a field are 87KB that only a
+// game screen needs and this app has no build step to split them out.
+//
+// The contract is about the sport's SURFACE, so every live sport is fully
+// loaded up front here and then checked exactly as before. That is the same
+// thing js/main.js does when a sport is chosen: `presentation.load()` resolves
+// the modules onto the registry, and only after it has can a stage's hooks be
+// asked for. A sport that declares a stage and no loader still has to bring
+// the hooks statically, which is what the optional call below allows.
 for (const meta of SPORTS) {
-  if (meta.live) await ensureSportData(meta.id);
+  if (!meta.live) continue;
+  const sport = (await import(`../js/sports/${meta.id}/index.js`)).default;
+  await Promise.all([ensureSportData(meta.id), sport.presentation?.load?.()]);
 }
 
 /** Called by shared code on whatever sport is active. */

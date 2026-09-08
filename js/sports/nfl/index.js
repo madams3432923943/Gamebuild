@@ -87,8 +87,9 @@ import {
   planFor, normalizeStrategy, plansFor, randomStrategy, formatStrategy,
   serializeStrategy, parseStrategy,
 } from "./tactics.js";
-import { renderField, showEvent, liveStatusLabel } from "./field.js";
-import { buildTimeline, createLiveState, applyEvent, liveBox, liveScore } from "./playback.js";
+/* field.js and playback.js are NOT imported here - see presentation.load
+ * below. They are 42KB that only a game screen needs, and with no build step a
+ * static import bills every visitor for them. */
 
 /** The order a football roster is READ in, which is not the order it is
  * drafted in. Offense before defense, and inside offense the skill positions
@@ -224,15 +225,13 @@ export const NFL = {
   // draws it through the registry instead of importing football. They live in
   // ./field.js - a sport's presentation belongs with the sport, the same as its
   // engine and its gamestyles.
+  // LOADED ON DEMAND, LIKE THE DATASET - see the same note on basketball's
+  // registry. The field, the timeline and the live ledger are 42KB that only
+  // matter once a game starts; load() resolves them onto this object so every
+  // consumer keeps reading sport().presentation.showEvent unchanged.
   presentation: {
     stage: "field",
-    renderField,
-    showEvent,
-    // The scoreboard's centre cell during playback. Football has a play clock
-    // to put there; basketball does not implement this and keeps the board's
-    // plain period text.
-    liveStatusLabel,
-    buildTimeline, createLiveState, applyEvent, liveBox, liveScore,
+    load: loadPresentation,
   },
 
   // Seven individuals and five units. The provisional lineup this replaces
@@ -683,5 +682,32 @@ export const NFL = {
   // and that is written where it is true, in tactics.js next to the numbers it
   // is about.
 };
+
+/** Pulls football's game-screen modules in and hangs them off the registry.
+ * See the counterpart in js/sports/nba/index.js for why this is lazy and why
+ * assigning onto presentation is what kept every consumer unchanged. */
+let presentationReady = null;
+
+function loadPresentation() {
+  presentationReady ||= Promise.all([import("./field.js"), import("./playback.js")]).then(
+    ([field, playback]) => {
+      Object.assign(NFL.presentation, {
+        renderField: field.renderField,
+        showEvent: field.showEvent,
+        // The scoreboard's centre cell during playback. Football has a play
+        // clock to put there; a sport without one returns null and keeps the
+        // board's plain period text.
+        liveStatusLabel: field.liveStatusLabel,
+        buildTimeline: playback.buildTimeline,
+        createLiveState: playback.createLiveState,
+        applyEvent: playback.applyEvent,
+        liveBox: playback.liveBox,
+        liveScore: playback.liveScore,
+      });
+      return NFL.presentation;
+    }
+  );
+  return presentationReady;
+}
 
 export default NFL;
