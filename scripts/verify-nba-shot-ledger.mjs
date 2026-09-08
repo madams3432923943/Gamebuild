@@ -20,7 +20,7 @@
 // rounding drift is a tail event and one game proves nothing.
 
 import { simulateGame, computeDatasetStats } from "../js/sports/nba/engine.js";
-import { buildShotLedger } from "../js/sports/nba/playback.js";
+import { buildShotLedger, ZONES, describeEvent, foldLiveStats } from "../js/sports/nba/playback.js";
 import NBA from "../js/sports/nba/index.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 import { loadDataset } from "../data/load.mjs";
@@ -68,6 +68,19 @@ let countingMismatch = 0;
 let countingExample = "";
 let sampledEvents = 0;
 let sampledShots = 0;
+// THE COURT'S OWN INPUTS. Every one of these is new with the court, and every
+// one of them is a way to draw a basketball game wrong that a reader notices
+// instantly - a three inside the arc, a corner three at the top of the key, a
+// clock that runs backwards.
+let unplacedShots = 0;
+let offCourt = 0;
+let contradictedZone = 0;
+let contradictedExample = "";
+let clockFaults = 0;
+let clockExample = "";
+let describeFaults = 0;
+let liveStatFaults = 0;
+let liveStatExample = "";
 
 for (let g = 0; g < GAMES; g++) {
   const rosterA = randomRoster(rand);
@@ -135,10 +148,95 @@ for (let g = 0; g < GAMES; g++) {
     }
   });
 
-  // ---- steals, blocks and turnovers appear exactly as credited ------------
+  // ---- every shot has a place on the floor, and it matches the shot --------
+  //
+  // The zone decides the points, so the coordinate can only ever be checked
+  // AGAINST the zone: a three must be outside the arc and a two inside it. This
+  // is measured on the unit half-court the ledger emits (see ZONE_ANCHORS),
+  // taking the arc as the radius from the rim that separates the two classes.
+  // The real numbers, on the ledger's own scale (feet / 50 on both axes): the
+  // basket 5.25 feet off the baseline, the arc at 23.75 feet, the corner three
+  // at 22 - which is why the corner is checked on how far out to the sideline
+  // it is rather than on distance. Written out here independently of
+  // ZONE_ANCHORS: a test that imports the placement it is checking only proves
+  // the placement agrees with itself.
+  const RIM = { x: 0.5, y: 5.25 / 50 };
+  const ARC = 23.75 / 50;
+  const CORNER_X = 20 / 50;
+  for (const e of events) {
+    if (e.type !== "shot" || e.shotType === "free-throw") continue;
+    if (typeof e.x !== "number" || typeof e.y !== "number") {
+      unplacedShots += 1;
+      continue;
+    }
+    if (e.x < 0 || e.x > 1 || e.y < 0 || e.y > 1) offCourt += 1;
+    const distance = Math.hypot(e.x - RIM.x, e.y - RIM.y);
+    const isThree = e.shotType === "three";
+    // A corner three is genuinely CLOSER to the rim than a wing three, so one
+    // radius cannot separate the classes on its own - the corner is checked on
+    // how far out toward the sideline it is instead, which is what makes it a
+    // corner. Both are the real geometry rather than a fudge factor.
+    // A three is outside the arc, OR far enough out toward a sideline to be a
+    // corner three - the shot that is legitimately shorter than the arc.
+    const inCorner = Math.abs(e.x - 0.5) > CORNER_X && e.y < 0.32;
+    const outside = distance > ARC || inCorner;
+    // A two must be inside the arc AND not standing in a corner, or the chart
+    // is claiming two points for a shot taken from behind the line.
+    const inside = distance < ARC && !inCorner;
+    if ((isThree && !outside) || (!isThree && !inside)) {
+      contradictedZone += 1;
+      if (!contradictedExample) {
+        contradictedExample = `${e.zone} ${e.shotType} at (${e.x.toFixed(2)}, ${e.y.toFixed(2)})`;
+      }
+    }
+  }
+
+  // ---- the derived clock counts down, and restarts each period -------------
+  let previousPeriod = null;
+  let previousClock = Infinity;
+  for (const e of events) {
+    if (e.period !== previousPeriod) {
+      previousPeriod = e.period;
+      previousClock = Infinity;
+    }
+    if (typeof e.clockSeconds !== "number" || e.clockSeconds < 0 || e.clockSeconds > previousClock) {
+      clockFaults += 1;
+      if (!clockExample) clockExample = `Q${e.period}: ${e.clockSeconds} after ${previousClock}`;
+    }
+    previousClock = e.clockSeconds;
+  }
+
+  // ---- every event can be said out loud ------------------------------------
+  for (const e of events) {
+    const line = describeEvent(e);
+    if (!line || !line.player || !line.detail) describeFaults += 1;
+  }
+
+  // ---- the live strip agrees with the ledger it is folded from -------------
+  //
+  // Folded to the END of the game, where the answer is knowable independently:
+  // the made field goals in the strip must equal the made field goals in the
+  // ledger, and the rebounds the rebounds. A strip that drifts is worse than no
+  // strip, because it sits directly under a scoreboard that is right.
+  const live = foldLiveStats(events, events.length - 1);
+  for (const side of ["a", "b"]) {
+    const madeFg = events.filter(
+      (e) => e.type === "shot" && e.side === side && e.made && e.shotType !== "free-throw"
+    ).length;
+    const rebounds = events.filter((e) => e.type === "rebound" && e.side === side).length;
+    if (live[side].fgm !== madeFg || live[side].reb !== rebounds) {
+      liveStatFaults += 1;
+      if (!liveStatExample) {
+        liveStatExample = `${side}: strip ${live[side].fgm}fgm/${live[side].reb}reb vs ledger ${madeFg}/${rebounds}`;
+      }
+    }
+  }
+
+  // ---- rebounds, steals, blocks and turnovers appear exactly as credited ---
+
   result.quarterBoxScores.forEach((period, i) => {
     for (const side of ["a", "b"]) {
-      for (const [stat, type] of [["stl", "steal"], ["blk", "block"], ["tov", "turnover"]]) {
+      for (const [stat, type] of [["reb", "rebound"], ["stl", "steal"], ["blk", "block"], ["tov", "turnover"]]) {
         const engine = Object.values(period[side] || {}).reduce((s, l) => s + (Number(l[stat]) || 0), 0);
         const ledger = events.filter((e) => e.type === type && e.period === i + 1 && e.side === side).length;
         if (engine !== ledger) {
@@ -182,9 +280,44 @@ add(
 );
 add("Nobody assists his own basket", selfAssists === 0, selfAssists === 0 ? "clean" : `${selfAssists} self-assists`);
 add(
-  "Steals, blocks and turnovers appear exactly as credited",
+  "Rebounds, steals, blocks and turnovers appear exactly as credited",
   countingMismatch === 0,
   countingMismatch === 0 ? "counts match in every period" : `${countingMismatch} mismatches — ${countingExample}`
+);
+add(
+  "Every field goal has a place on the floor",
+  unplacedShots === 0 && offCourt === 0,
+  unplacedShots === 0 && offCourt === 0
+    ? `${sampledShots} shots, all inside the unit half-court`
+    : `${unplacedShots} unplaced, ${offCourt} off the court`
+);
+add(
+  "No shot is drawn somewhere that contradicts what it was",
+  contradictedZone === 0,
+  contradictedZone === 0
+    ? "every three outside the arc, every two inside it, every corner in a corner"
+    : `${contradictedZone} contradictions - ${contradictedExample}`
+);
+add(
+  "The derived clock counts down and restarts each period",
+  clockFaults === 0,
+  clockFaults === 0 ? "monotonic within every period of every game" : `${clockFaults} faults - ${clockExample}`
+);
+add(
+  "Every event can be said out loud in the feed",
+  describeFaults === 0,
+  describeFaults === 0 ? `${sampledEvents} events, all describable` : `${describeFaults} events with no caption`
+);
+add(
+  "The live stat strip agrees with the ledger under it",
+  liveStatFaults === 0,
+  liveStatFaults === 0 ? "field goals and rebounds reconcile on both sides" : liveStatExample
+);
+add(
+  "Zones are ordered and labelled, inside out",
+  Object.keys(ZONES).every((z) => ZONES[z].label) &&
+    Object.values(ZONES).filter((z) => z.points === 3).length === 3,
+  `${Object.keys(ZONES).length} zones, 3 of them behind the arc, all labelled`
 );
 add(
   "The same seed replays the same ledger",

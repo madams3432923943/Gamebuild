@@ -65,7 +65,7 @@ import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./re
 import { gradeDraft, rotationHint } from "./draftgrade.js";
 import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
-import { buildShotLedger } from "./playback.js";
+import { buildShotLedger, describeEvent, foldLiveStats, formatClock, ZONES } from "./playback.js";
 import {
   SLOTS as NBA_SLOTS,
   basePosition,
@@ -179,7 +179,22 @@ export const NBA = {
   // a final score into a sequence - who scored, from where, on what run - and
   // that drives the play-by-play, the sounds and the run/lead moments. Only
   // the drawing of it went away.
-  presentation: { stage: "board", buildShotLedger },
+  // Everything basketball's presentation offers, travelling through the
+  // registry rather than being imported by shared code: the ledger it draws,
+  // how one event reads in the feed, the running team lines, and the clock
+  // format. Shared UI never imports basketball - it asks activeSport().
+  //
+  // `stage` is still "board" here; the court that reads all of this is built in
+  // the next commit, and a stage naming an element the page does not have yet
+  // is a blank screen (which is what scripts/verify-sport-contract.mjs refuses).
+  presentation: {
+    stage: "board",
+    buildShotLedger,
+    describeEvent,
+    foldLiveStats,
+    formatClock,
+    zones: ZONES,
+  },
 
   // ---- Roster shape -------------------------------------------------------
   slots: {
