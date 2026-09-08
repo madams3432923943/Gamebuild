@@ -64,7 +64,23 @@ class Query {
   }
   select() { return this; }
   insert() { return this; }
-  update() { return this; }
+  /**
+   * A no-op that RECORDS. Nothing here persists - a stub that stored rows would
+   * be a database, and every read below is a fixture - but a write is the only
+   * evidence a harness has that the app did something it was supposed to do.
+   *
+   * This exists for one check in particular: abandoning a game mid-quarter must
+   * still record the result. The write is the whole of "recorded", and it was
+   * silently lost when the playback's timers - which are also what eventually
+   * reaches finish() - started being cancelled on a tab change.
+   */
+  update(patch) {
+    if (typeof window !== "undefined") {
+      window.__bkWrites = window.__bkWrites || [];
+      window.__bkWrites.push({ table: this.table, keys: Object.keys(patch || {}) });
+    }
+    return this;
+  }
   upsert() { return this; }
   delete() { return this; }
   eq() { return this; }

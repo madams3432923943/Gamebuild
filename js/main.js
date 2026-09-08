@@ -1365,10 +1365,12 @@ btnStartDraft.addEventListener("click", async () => {
  * off-screen. */
 function goToTab(tab, onArrive) {
   cleanupOnlineWatcher();
-  // A game left mid-quarter must stop playing. Without this the score ticker,
+  // A game left mid-quarter must stop playing - without this the score ticker,
   // the shot ledger and the field kept animating a screen nobody was on, and
-  // starting a second game put two playbacks on one scoreboard.
-  cleanupPlayback();
+  // starting a second game put two playbacks on one scoreboard. It must ALSO
+  // still be recorded: the timers being cancelled are the same ones that
+  // eventually reach finish(), where the result is written.
+  cleanupPlayback({ settle: true });
   cleanupPickTimer();
   cleanupTacticTimer();
   cleanupRotationTimer();
@@ -2433,6 +2435,30 @@ async function enterOnlineMatch(matchId) {
   // hidden board, ranked roster, authoritative server - with `ranked: false`,
   // which is the single fact that keeps it off the ladder.
   game.modeConfig = match.is_friendly ? { ...FRIEND_MODE, difficulty: null } : resolveMode("ranked");
+
+  // THE MATCH DECIDES THE SPORT, not whatever this client last had selected.
+  //
+  // Matchmaking scopes on sport, so a queued game is always the sport you
+  // queued in and this was previously a no-op. A CHALLENGE is not: the dialog
+  // on the Friends tab asks which sport, and the person accepting may have NBA
+  // open while the invitation is for NFL. Without this the online draft board
+  // renders sport().slots.ranked and sport().players() for the wrong sport
+  // entirely - basketball slots dealt off a football match - which is the exact
+  // failure the per-sport registry exists to prevent.
+  //
+  // Awaited, because a sport's dataset loads on selection and every screen
+  // below reads the player pool synchronously. A match whose sport this client
+  // cannot load is reported rather than drafted blind.
+  if (match.sport && match.sport !== getSport()) {
+    setActiveSport(match.sport);
+    applyTheme(sport());
+    await ensureSportData(match.sport);
+  }
+  // The bracket is the match's too, for the same reason - the draft board reads
+  // it off game.era, and an era id is only unique within one sport.
+  game.era = match.era || sport().defaultEra;
+  game.sport = match.sport || getSport();
+
   const mySide = match.player_a === session.user.id ? "A" : "B";
   const oppUserId = mySide === "A" ? match.player_b : match.player_a;
 
@@ -3363,19 +3389,38 @@ function showStage(stage) {
  * started it, and threading a handle through goToTab would put the playback in
  * the signature of every screen change in the app.
  */
-const playbackTimers = { intervals: [], timeouts: [] };
+const playbackTimers = { intervals: [], timeouts: [], settle: null };
 
-/** Stops whatever is still animating a game. Safe to call when nothing is. */
-function cleanupPlayback() {
+/**
+ * Stops whatever is still animating a game. Safe to call when nothing is.
+ *
+ * SETTLING IS NOT OPTIONAL WHEN A GAME IS ABANDONED. The playback's timers are
+ * also the thing that eventually calls finish(), and finish() is where the
+ * result is recorded - history, rank, badges, personal bests, drafted picks.
+ * Cancelling them and walking away therefore throws the whole game out, which
+ * is worse than the off-screen animation this registry was added to stop: a
+ * player who taps Profile in the third quarter did play that game.
+ *
+ * So `settle` finishes the game instantly instead of dropping it. The score
+ * lands on its real final, the result is written, and none of the celebration
+ * fires - see the `silent` argument to finish(). Callers that are NOT
+ * abandoning a game in progress (a new game starting, the exit buttons on a
+ * game that already finished) pass nothing and get the plain cancel.
+ */
+function cleanupPlayback({ settle = false } = {}) {
   for (const t of playbackTimers.intervals) clearInterval(t);
   for (const t of playbackTimers.timeouts) clearTimeout(t);
   playbackTimers.intervals.length = 0;
   playbackTimers.timeouts.length = 0;
+  const finishNow = playbackTimers.settle;
+  playbackTimers.settle = null;
+  if (settle && finishNow) finishNow();
 }
 
 function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, matchups, tactic, analysis, onComplete }) {
-  // A new game never inherits the last one's timers - see cleanupPlayback.
-  cleanupPlayback();
+  // A new game never inherits the last one's timers, and an unfinished game is
+  // recorded rather than dropped on the way out - see cleanupPlayback.
+  cleanupPlayback({ settle: true });
   resetGameScreen();
   showScreen("game");
   // THE ONE DELIBERATE SCROLL IN A GAME, and it happens before the game starts.
@@ -4013,7 +4058,23 @@ function showShotChart(events, labelA, labelB) {
     return el;
   }
 
-  function finish() {
+  /**
+   * The final whistle: the board, the banner, the recap, and the result.
+   *
+   * `silent` is the abandoned-game path - the viewer left mid-quarter and this
+   * is being run to land the result rather than to show it. Everything is still
+   * written to the screen (it costs nothing and the screen is hidden), but the
+   * horn, the confetti and the fanfare are not: a celebration playing over the
+   * Profile tab is a bug, not a payoff.
+   *
+   * Guarded, because it can now be reached twice - once by the playback's own
+   * timer and once by cleanupPlayback settling - and running the post-game
+   * routine twice would record the result twice.
+   */
+  let finished = false;
+  function finish(silent = false) {
+    if (finished) return;
+    finished = true;
     // Everything still waiting to draw on a game that is over: the score
     // ticker, the field's plays, and the shot ledger's play lines. One of those
     // firing after the whistle lands on the next game's feed, or on a screen
@@ -4117,7 +4178,12 @@ function showShotChart(events, labelA, labelB) {
 
     // The payoff. A win gets the horn, the confetti and the fanfare; a loss
     // gets the horn and a flat two-note fall, because losing shouldn't be
-    // louder than winning.
+    // louder than winning. None of it on the abandoned path: the viewer is on
+    // another screen and a fanfare there is a bug.
+    if (silent) {
+      onComplete();
+      return;
+    }
     playBuzzer();
     if (result.winner === "A") {
       // How loud a win is depends on what was at stake. Quick Play got the
@@ -4142,10 +4208,14 @@ function showShotChart(events, labelA, labelB) {
       };
       const party = CELEBRATION[stakes];
       confetti({ count: party.count, durationMs: party.durationMs });
-      if (party.fanfare) window.setTimeout(playFanfare, 320);
+      // REGISTERED, like every other timer a game owns. These are the last two
+      // and they were the ones left out: the exit buttons call cleanupPlayback
+      // and could not cancel a fanfare, so tapping Play Again inside 320ms
+      // played the previous game's celebration over the home screen.
+      if (party.fanfare) playbackTimers.timeouts.push(window.setTimeout(playFanfare, 320));
       if (party.flare) replayAnimation(finalBanner, "win-flare");
     } else {
-      window.setTimeout(playDefeat, 320);
+      playbackTimers.timeouts.push(window.setTimeout(playDefeat, 320));
     }
 
     onComplete();
@@ -4331,6 +4401,11 @@ function showShotChart(events, labelA, labelB) {
     sport().presentation.applyEvent &&
     timeline.events.length
   );
+  // HOW AN ABANDONED GAME STILL COUNTS. Armed here, where the playback starts,
+  // because `finished` is a let inside finish()'s scope and is in its temporal
+  // dead zone until this point in the function body. cleanupPlayback({settle})
+  // calls this to land the result without the celebration; see both.
+  playbackTimers.settle = () => finish(true);
   playbackTimers.timeouts.push(setTimeout(hasLiveLedger ? playEventDriven : step, QUARTER_REVEAL_DELAY_MS));
 }
 

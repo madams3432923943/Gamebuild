@@ -168,11 +168,19 @@ export function renderCourt(container, labelA, labelB) {
  */
 export function liveStatusLabel(event) {
   if (!event || typeof event.clockSeconds !== "number") return null;
-  // `period` is one-based across every period including overtime, so the first
-  // overtime is period 5 and reads OT1. Basketball's own regulation count, not
-  // shared code's: a sport with three periods would answer differently.
-  const period = event.overtime ? `OT${event.period - REGULATION_PERIODS}` : `Q${event.period}`;
-  return `${period} · ${formatClock(event.clockSeconds)}`;
+  return `${periodLabel(event)} · ${formatClock(event.clockSeconds)}`;
+}
+
+/** "Q3", or "OT1" past regulation. `period` is one-based across every period
+ * including overtime, so the first overtime is period 5.
+ *
+ * One function, used by the live board and by the post-game chart's marker
+ * titles. The chart had its own `Q${event.period}` and called overtime shots
+ * "Q5" while the board beside it said "OT1" - the same off-by-a-period that
+ * periodLabel() in js/main.js was extracted to end. Basketball's own regulation
+ * count, not shared code's: a sport with three periods answers differently. */
+function periodLabel(event) {
+  return event.overtime ? `OT${event.period - REGULATION_PERIODS}` : `Q${event.period}`;
 }
 
 /**
@@ -249,10 +257,26 @@ export function showEvent(refs, event, stats) {
   // A run, when the ledger says there is one. runPoints is only set past the
   // threshold a broadcast would bother mentioning, and it is read off the
   // running score - so it can never disagree with the scoreboard beside it.
+  //
+  // IT STAYS UP UNTIL THE RUN IS OVER, which is not the same as "until the next
+  // event". runPoints is set on the SCORING event alone, and the ledger
+  // interleaves rebounds, steals and turnovers between baskets - so clearing on
+  // anything without runPoints put "8-0 RUN" on screen for one event, about
+  // thirty milliseconds, which is not a caption anybody read. A run is broken
+  // by the OTHER team scoring, exactly as annotateMoments defines it, so that
+  // is what takes the chip down.
   if (event.runPoints) {
+    refs.runSide = event.runSide;
     refs.run.textContent = `${event.runPoints}-0 RUN — ${event.runSide === "a" ? refs.labelA : refs.labelB}`;
     refs.run.className = `bc-run live ${event.runSide === "a" ? "side-a" : "side-b"}`;
-  } else {
+  } else if (
+    refs.runSide &&
+    event.type === "shot" &&
+    event.made &&
+    event.points > 0 &&
+    event.side !== refs.runSide
+  ) {
+    refs.runSide = null;
     refs.run.textContent = "";
     refs.run.className = "bc-run";
   }
@@ -420,7 +444,7 @@ export function renderShotChart(container, events, { labelA, labelB, side = null
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
     title.textContent =
       `${event.player} — ${said.detail} — ${event.made ? "made" : "missed"} ` +
-      `(${event.side === "a" ? labelA : labelB}, Q${event.period})`;
+      `(${event.side === "a" ? labelA : labelB}, ${periodLabel(event)})`;
     marker.appendChild(title);
     markers.appendChild(marker);
   }

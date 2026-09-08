@@ -15,7 +15,14 @@
 //                   here: it is reached by challenging a specific person from
 //                   the Friends tab, which is the whole point of it.
 
-/** The two modes the Play screen offers, in the order they escalate.
+/** The two modes the Play screen offers, ranked first.
+ *
+ * The order here is the order the cards are drawn in, and it is the headline
+ * mode first rather than the escalation order - Online Ranked is what the app
+ * is for, and burying it under the practice mode reads as the practice mode
+ * being the point. The SELECTED card is Practice (see DEFAULT_DIFFICULTY's
+ * neighbour, `selectedMode`, in js/main.js), because that is the one a player
+ * with no rank yet should land on.
  *
  * `ranked` is the only mode whose result moves a rank, and `historyMode` is
  * what a finished game writes into profile history - matching the strings the

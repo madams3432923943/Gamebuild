@@ -432,6 +432,57 @@ async function main() {
 
     await context.close();
 
+    // ---- A GAME YOU WALK OUT OF IS STILL A GAME YOU PLAYED ----------------
+    //
+    // The playback's timers are also the chain that eventually reaches
+    // finish(), which is where the result is written - history, rank, badges,
+    // personal bests, drafted picks. Cancelling them on a tab change therefore
+    // threw the whole game away, silently, and every check in this file passed
+    // while it did: they all watch a game that is watched to the end.
+    //
+    // The evidence is the WRITE. The stub records profile updates for exactly
+    // this (see scripts/selftest/supabase-stub.js); nothing else a harness can
+    // see distinguishes "recorded" from "quietly dropped".
+    const abandonContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await abandonContext.route("**/esm.sh/**", (route) =>
+      route.fulfill({ status: 200, body: stub, contentType: "text/javascript; charset=utf-8" })
+    );
+    const abandonPage = await abandonContext.newPage();
+    abandonPage.on("pageerror", (e) => pageErrors.push(`abandon: ${e}`));
+    await signIn(abandonPage, baseUrl, "NbaAbandonTest");
+    await playToGameScreen(abandonPage, "nba");
+
+    // Mid-quarter, before anything could have finished on its own.
+    await abandonPage.evaluate(() => {
+      window.__bkWrites = [];
+    });
+    await sleep(2500);
+    const stillPlaying = await abandonPage.evaluate(
+      () => !!document.querySelector("#live-scoreboard .scoreboard-score.pulse")
+    );
+    await abandonPage.locator("#nav-profile").click();
+    await sleep(1200);
+
+    const wrote = await abandonPage.evaluate(() =>
+      (window.__bkWrites || []).filter((w) => w.table === "profiles")
+    );
+    const recorded = wrote.some((w) => w.keys.includes("history"));
+    check(
+      "Leaving a game mid-quarter still records the result",
+      stillPlaying && recorded,
+      stillPlaying
+        ? `${wrote.length} profile writes after walking out, history ${recorded ? "written" : "NOT WRITTEN"}`
+        : "the game had already finished - this check watched nothing"
+    );
+    check(
+      "Walking out does not leave the game playing",
+      !(await abandonPage.evaluate(
+        () => !!document.querySelector("#live-scoreboard .scoreboard-score.pulse")
+      )),
+      "the board stops pulsing once the game is settled"
+    );
+    await abandonContext.close();
+
     // ---- and none of it ever appears in football -------------------------
     const nflContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await nflContext.route("**/esm.sh/**", (route) =>
