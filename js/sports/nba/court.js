@@ -36,6 +36,10 @@
 import { escapeHtml } from "../../lib/escape-html.js";
 import { describeEvent, formatClock } from "./playback.js";
 
+/** How many periods before overtime. Basketball's own, because a sport with a
+ * different number would answer differently and shared code never asks. */
+const REGULATION_PERIODS = 4;
+
 /** Two units to the foot, so every measurement below is the real one. */
 const FT = 2;
 const COURT_W = 50 * FT; // 100
@@ -181,7 +185,10 @@ export function renderCourt(container, labelA, labelB) {
  */
 export function liveStatusLabel(event) {
   if (!event || typeof event.clockSeconds !== "number") return null;
-  const period = event.overtime ? `OT${event.period - 4}` : `Q${event.period}`;
+  // `period` is one-based across every period including overtime, so the first
+  // overtime is period 5 and reads OT1. Basketball's own regulation count, not
+  // shared code's: a sport with three periods would answer differently.
+  const period = event.overtime ? `OT${event.period - REGULATION_PERIODS}` : `Q${event.period}`;
   return `${period} · ${formatClock(event.clockSeconds)}`;
 }
 
@@ -238,12 +245,22 @@ export function showEvent(refs, event, stats) {
   // to "am I attacking or defending" - the state goes on the container so the
   // floor, the chip and the strip can all respond to one class.
   //
-  // A shot, a rebound or a turnover is the possessing team's; a steal or a
-  // block is the OTHER team's doing, and saying "MADAMS ball" on their block is
-  // backwards. Read off the event's own type rather than tracked, so a missed
-  // frame cannot leave the arrow pointing the wrong way for the rest of a game.
-  const defensive = event.type === "steal" || event.type === "block";
-  const withBall = defensive ? (event.side === "a" ? "b" : "a") : event.side;
+  // WHO ENDS THE EVENT WITH THE BALL, which is not the same as whose event it
+  // is, and the two go opposite ways depending on the stat:
+  //
+  //   shot     the shooter's team had it
+  //   rebound  the rebounder's team has it now
+  //   steal    credited to the STEALER, so his team has it now
+  //   turnover credited to the player who LOST it, so the other team has it
+  //   block    the shot belonged to the other team, so it was theirs
+  //
+  // Read off the event's own type rather than tracked across events, so a
+  // missed frame cannot leave the arrow pointing the wrong way for a whole
+  // quarter. This had steals and turnovers the wrong way round, which is the
+  // most visible half of it: a steal is the one moment in a basketball game
+  // where everybody in the building knows who has the ball.
+  const lostIt = event.type === "turnover" || event.type === "block";
+  const withBall = lostIt ? (event.side === "a" ? "b" : "a") : event.side;
   refs.container.classList.toggle("bc-user-offense", withBall === "a");
   refs.container.classList.toggle("bc-user-defense", withBall === "b");
   refs.possession.textContent =

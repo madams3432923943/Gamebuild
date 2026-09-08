@@ -3851,7 +3851,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const fromA = runningA;
     const fromB = runningB;
     const isOt = result.quarterBoxScores[i].overtime;
-    const label = isOt ? `OT${i - REGULATION_PERIODS}` : `Q${i + 1}`;
+    // `i` is a zero-based period index, so the first overtime is index 4 and is
+    // OT1 - the +1 was missing and the scoreboard's first overtime column read
+    // "OT0". Harmless-looking until basketball's clock arrived on the same
+    // board reading "OT1 · 4:12" beside it; buildGameScript below has had the
+    // +1 all along, so the recap and the board disagreed too.
+    const label = isOt ? `OT${i - REGULATION_PERIODS + 1}` : `Q${i + 1}`;
     periodsSoFar.push({ label, a: deltaA[i], b: deltaB[i] });
     runningA += deltaA[i];
     runningB += deltaB[i];

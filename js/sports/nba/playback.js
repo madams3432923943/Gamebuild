@@ -484,7 +484,12 @@ export function describeEvent(event) {
       if (event.shotType === FREE_THROW) {
         return { player: event.player, detail: "Free throw", verdict: event.made ? "MADE" : "MISS", made: event.made };
       }
-      const kind = event.shotType === "three" ? "Three" : zone?.strong ? "Finish" : "Jumper";
+      // "Finish" only when it actually finished. The zone's `strong` flag is a
+      // property of the RIM - it is true whether the shot fell or not - so a
+      // missed layup read "Finish at the rim - MISS", which is a sentence that
+      // argues with itself.
+      const kind =
+        event.shotType === "three" ? "Three" : !zone?.strong ? "Jumper" : event.made ? "Finish" : "Shot";
       return {
         player: event.player,
         detail: zone ? `${kind} ${zone.label}` : kind,
