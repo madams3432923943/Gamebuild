@@ -20,7 +20,7 @@
 // rounding drift is a tail event and one game proves nothing.
 
 import { simulateGame, computeDatasetStats } from "../js/sports/nba/engine.js";
-import { buildShotLedger, ZONES, describeEvent, foldLiveStats } from "../js/sports/nba/playback.js";
+import { buildShotLedger, ZONES, describeEvent, foldLiveStats, foldPlayerShotLines } from "../js/sports/nba/playback.js";
 import NBA from "../js/sports/nba/index.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 import { loadDataset } from "../data/load.mjs";
@@ -81,6 +81,12 @@ let clockExample = "";
 let describeFaults = 0;
 let liveStatFaults = 0;
 let liveStatExample = "";
+// THE BOX SCORE AND THE CHART ARE ONE DERIVATION. They were two: the box score
+// rolled its own unseeded split over the whole-game total while the ledger
+// rolled a seeded one per quarter, and they disagreed about how the points were
+// scored in 37 of 40 games. Anything that can drift again drifts here first.
+let playerLineFaults = 0;
+let playerLineExample = "";
 
 for (let g = 0; g < GAMES; g++) {
   const rosterA = randomRoster(rand);
@@ -194,6 +200,38 @@ for (let g = 0; g < GAMES; g++) {
     }
   }
 
+  // ---- the folded player lines are the same shots the chart draws ---------
+  //
+  // Checked from BOTH ends: every player's line adds up within itself, and the
+  // lines summed across a team equal the team fold the live strip is written
+  // from. A box score that agrees with one and not the other is the bug this
+  // replaced.
+  {
+    const perPlayer = foldPlayerShotLines(events);
+    const perTeam = foldLiveStats(events, events.length - 1);
+    for (const side of ["a", "b"]) {
+      const lines = perPlayer[side];
+      for (const key of ["fgm", "fga", "tpm", "tpa", "ftm", "fta"]) {
+        const summed = Object.values(lines).reduce((sum, line) => sum + line[key], 0);
+        if (summed !== perTeam[side][key]) {
+          playerLineFaults += 1;
+          if (!playerLineExample) {
+            playerLineExample =
+              `game ${g} side ${side}: players sum to ${summed} ${key}, team fold says ${perTeam[side][key]}`;
+          }
+        }
+      }
+      // A three is a field goal too - a line where it is not counted twice is
+      // one that will disagree with the FG column it sits beside.
+      for (const [slot, line] of Object.entries(lines)) {
+        if (line.tpa > line.fga || line.tpm > line.fgm || line.fgm > line.fga || line.ftm > line.fta) {
+          playerLineFaults += 1;
+          if (!playerLineExample) playerLineExample = `game ${g} ${side}/${slot}: ${JSON.stringify(line)}`;
+        }
+      }
+    }
+  }
+
   // ---- the derived clock counts down, and restarts each period -------------
   let previousPeriod = null;
   let previousClock = Infinity;
@@ -300,6 +338,13 @@ add(
   contradictedZone === 0
     ? "every three outside the arc, every two inside it, every corner in a corner"
     : `${contradictedZone} contradictions - ${contradictedExample}`
+);
+add(
+  "The box score's shooting lines are the ledger's own, per player and per team",
+  playerLineFaults === 0,
+  playerLineFaults === 0
+    ? `${sampledShots} shots folded per player over ${GAMES} games, every total reconciling with the team fold`
+    : `${playerLineFaults} disagreements, e.g. ${playerLineExample}`
 );
 add(
   "The derived clock counts down and restarts each period",

@@ -125,7 +125,7 @@ const REQUIRED_PRESENTATION = {
   // source of everything drawn on it; foldLiveStats is the strip underneath;
   // renderShotChart is the same picture after the whistle.
   court: [
-    "renderCourt", "showEvent", "buildShotLedger", "foldLiveStats",
+    "renderCourt", "showEvent", "buildShotLedger", "foldLiveStats", "foldPlayerShotLines",
     "describeEvent", "showQuarterBreak", "hideQuarterBreak", "renderShotChart",
   ],
   board: [],

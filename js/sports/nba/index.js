@@ -389,6 +389,10 @@ function loadPresentation() {
         buildShotLedger: playback.buildShotLedger,
         describeEvent: playback.describeEvent,
         foldLiveStats: playback.foldLiveStats,
+        // The box score's shooting splits, from the same events the chart
+        // draws - see foldPlayerShotLines for the two derivations this
+        // replaced and what they disagreed about.
+        foldPlayerShotLines: playback.foldPlayerShotLines,
         formatClock: playback.formatClock,
         zones: playback.ZONES,
         renderCourt: court.renderCourt,

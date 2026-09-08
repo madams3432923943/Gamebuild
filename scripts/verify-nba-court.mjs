@@ -256,6 +256,36 @@ async function main() {
     // only be observed from somewhere other than the top of the page.
     await page.evaluate(() => window.scrollTo(0, 160));
     await sleep(200);
+
+    // MEASURED WHILE THE GAME IS PLAYING. The live floor comes down at the
+    // whistle, and everything below about its size, its labels and the strip
+    // under it is a question about the court a person watches a game on - asked
+    // after the game, it measures a hidden element and reads 0 by 0.
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll("#basketball-court .bc-halflabel")].map((el) => ({
+        text: el.textContent.trim(),
+        size: parseFloat(getComputedStyle(el).fontSize),
+        left: el.getBoundingClientRect().left,
+      }))
+    );
+    const courtBox = await page.evaluate(() => {
+      const el = document.querySelector("#basketball-court .bc-court");
+      const box = el.getBoundingClientRect();
+      const svg = el.querySelector(".bc-svg").getBoundingClientRect();
+      return { w: box.width, h: box.height, svgW: svg.width, svgH: svg.height, viewport: window.innerWidth };
+    });
+    const strip = await page.evaluate(() => {
+      const cell = (side) => document.querySelector(`#basketball-court .bc-stat-${side}`);
+      const box = (side) => cell(side).getBoundingClientRect();
+      const name = (side) => cell(side).querySelector(".bc-stat-name").textContent.trim();
+      const label = (side) =>
+        document.querySelector(`#basketball-court .bc-halflabel.side-${side}`).textContent.trim();
+      return {
+        a: { name: name("a"), label: label("a"), left: box("a").left },
+        b: { name: name("b"), label: label("b"), left: box("b").left },
+      };
+    });
+
     const samples = [];
     const deadline = Date.now() + 90000;
     while (Date.now() < deadline) {
@@ -269,8 +299,13 @@ async function main() {
     // ---- the floor is there, and football's is not -----------------------
     check(
       "The court is the visible stage for basketball",
-      samples.every((s) => s.courtVisible) && samples.every((s) => !s.fieldVisible),
-      `${samples.length} samples, court visible throughout, football's field never`
+      // WHILE THE GAME IS PLAYING. The last sample is taken after the whistle,
+      // and the whistle is when the live floor comes down and the post-game
+      // chart takes its place under the recap - so asserting it over every
+      // sample would be asserting the duplicate court back into existence.
+      samples.filter((sample) => !sample.finalShown).every((sample) => sample.courtVisible) &&
+        samples.every((sample) => !sample.fieldVisible),
+      `${samples.length} samples, court visible for every one before the whistle, football's field never`
     );
 
     // ---- markers land, and keep landing ----------------------------------
@@ -463,13 +498,6 @@ async function main() {
     );
 
     // ---- the half labels say whose end is whose ---------------------------
-    const labels = await page.evaluate(() =>
-      [...document.querySelectorAll("#basketball-court .bc-halflabel")].map((el) => ({
-        text: el.textContent.trim(),
-        size: parseFloat(getComputedStyle(el).fontSize),
-        left: el.getBoundingClientRect().left,
-      }))
-    );
     check(
       "Each half is labelled with the team shooting at it, readably",
       labels.length === 2 &&
@@ -490,12 +518,6 @@ async function main() {
       `worst horizontal overflow across ${samples.length} samples: ` +
         `${Math.max(...samples.map((sample) => sample.pageOverflow))}px`
     );
-    const courtBox = await page.evaluate(() => {
-      const el = document.querySelector("#basketball-court .bc-court");
-      const box = el.getBoundingClientRect();
-      const svg = el.querySelector(".bc-svg").getBoundingClientRect();
-      return { w: box.width, h: box.height, svgW: svg.width, svgH: svg.height, viewport: window.innerWidth };
-    });
     check(
       "The court stays horizontal and in proportion at 390px",
       courtBox.w <= courtBox.viewport &&
@@ -529,17 +551,6 @@ async function main() {
       "the strip is folded forward from the ledger, never recomputed backwards"
     );
 
-    const strip = await page.evaluate(() => {
-      const cell = (side) => document.querySelector(`#basketball-court .bc-stat-${side}`);
-      const box = (side) => cell(side).getBoundingClientRect();
-      const name = (side) => cell(side).querySelector(".bc-stat-name").textContent.trim();
-      const label = (side) =>
-        document.querySelector(`#basketball-court .bc-halflabel.side-${side}`).textContent.trim();
-      return {
-        a: { name: name("a"), label: label("a"), left: box("a").left },
-        b: { name: name("b"), label: label("b"), left: box("b").left },
-      };
-    });
     check(
       "Each team's numbers sit under that team's half, and neither ever swaps sides",
       strip.a.name === strip.a.label &&
@@ -642,6 +653,68 @@ async function main() {
       "Every marker says its own line, for a reader who is not looking at colours",
       chart.titled === chart.markers,
       `${chart.titled} of ${chart.markers} markers carry the play they were`
+    );
+
+    // ---- THE CHART AND THE BOX SCORE ARE THE SAME GAME --------------------
+    //
+    // This is the check the split derivations got past. The box score used to
+    // roll its own shooting split - unseeded, over the whole-game total - while
+    // the chart drew the ledger's seeded per-quarter one. Both reconciled the
+    // POINTS, so nothing on the scoreboard ever looked wrong, and a viewer who
+    // counted six made threes in the box score found two on the court.
+    //
+    // Counted the way a viewer counts: filter the chart to one team, count the
+    // green circles, and hold it against that team's FG line in the box score.
+    // A made field goal is a green circle and every attempt is a marker - free
+    // throws are not drawn, and are not field goals either.
+    const agreementByTeam = [];
+    for (const [index, side] of [[1, "a"], [2, "b"]]) {
+      await page.locator("#shot-chart-filters button").nth(index).click();
+      await sleep(200);
+      const drawn = await page.evaluate(() => ({
+        made: document.querySelectorAll("#shot-chart-court .bc-shot.made").length,
+        total: document.querySelectorAll("#shot-chart-court .bc-shot").length,
+      }));
+      const booked = await page.evaluate((team) => {
+        const row = document.querySelectorAll("#full-box-score .box-totals")[team];
+        // The split cell carries the percentage in a span of its own, so
+        // textContent reads "37/7549.3%" - the direct text node is the split.
+        const split = (td) =>
+          [...td.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join("").trim();
+        const cell = [...row.querySelectorAll("td")].find((td) => /^\d+\/\d+$/.test(split(td)));
+        const m = cell && /^(\d+)\/(\d+)$/.exec(split(cell));
+        return m ? { fgm: Number(m[1]), fga: Number(m[2]) } : null;
+      }, side === "a" ? 0 : 1);
+      agreementByTeam.push({ side, drawn, booked });
+    }
+    check(
+      "Every field goal in the box score is on the court, and nothing else is",
+      agreementByTeam.every(
+        (t) => t.booked && t.drawn.made === t.booked.fgm && t.drawn.total === t.booked.fga
+      ),
+      agreementByTeam
+        .map((t) =>
+          `${t.side}: ${t.drawn.made}/${t.drawn.total} drawn against ${t.booked?.fgm}/${t.booked?.fga} booked`
+        )
+        .join(", ")
+    );
+
+    // ---- and there is only ONE court on the screen ------------------------
+    const courts = await page.evaluate(() => ({
+      live: !document.querySelector("#basketball-court").classList.contains("hidden"),
+      chart: !document.querySelector("#shot-chart").classList.contains("hidden"),
+      // The chart belongs under the recap, where a reader arrives at it after
+      // being told why the game went that way.
+      chartAfterWhy:
+        document.querySelector("#why-breakdown").compareDocumentPosition(
+          document.querySelector("#shot-chart")
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    }));
+    check(
+      "A finished game shows the court once, under the recap",
+      !courts.live && courts.chart && !!courts.chartAfterWhy,
+      `live floor ${courts.live ? "STILL UP" : "taken down"}, chart ${courts.chart ? "shown" : "MISSING"} ` +
+        `${courts.chartAfterWhy ? "after" : "BEFORE"} the why-it-went-that-way card`
     );
 
     // Filtering to one side must actually reduce the picture - a filter that

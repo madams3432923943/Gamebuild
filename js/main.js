@@ -4071,6 +4071,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
  * Structured so a per-player filter is a change to one predicate. Every marker
  * already carries the player who took it and says so in its title, which is
  * also what a screen reader reads off the chart.
+ *
+ * @returns whether a chart was drawn, so the caller knows whether the live
+ *   court has been replaced or is still the only one on the screen.
  */
 function showShotChart(events, labelA, labelB) {
   const chart = document.getElementById("shot-chart");
@@ -4083,7 +4086,7 @@ function showShotChart(events, labelA, labelB) {
   // than an empty floor claiming nobody took a shot.
   if (!render || !chart || !shots.length) {
     if (chart) chart.classList.add("hidden");
-    return;
+    return false;
   }
 
   let side = null;
@@ -4116,6 +4119,7 @@ function showShotChart(events, labelA, labelB) {
 
   paint();
   chart.classList.remove("hidden");
+  return true;
 }
 
 /** One line of the final banner. Text only, never markup - see finish(). */
@@ -4183,8 +4187,25 @@ function showShotChart(events, labelA, labelB) {
 
     // Shot splits are computed once here and shared by the box score and the
     // recap, so both describe the same night.
-    const shotsA = buildShotLines(rosterA, result.boxA);
-    const shotsB = buildShotLines(rosterB, result.boxB);
+    //
+    // FROM THE LEDGER WHEN THERE IS ONE, which for basketball there always is.
+    // buildShotLines rolls its own split - one unseeded call over the whole
+    // game - while the ledger the court draws rolls a seeded one per quarter.
+    // Both reconcile the POINTS with the engine, so the scoreboard was never in
+    // danger, but they disagreed about how those points were scored: over 40
+    // games the box score's team three-point makes differed from the threes
+    // drawn on the chart in 37 of them, by up to six. That is one fact with two
+    // derivations, and a viewer counting the green markers against the box
+    // score was reading both. The ledger wins because it is also the one the
+    // live strip counts and the only one that is the same on two machines
+    // watching the same online game.
+    //
+    // Football keeps buildShotLines, which returns nothing for it anyway - its
+    // shotLine hook is () => null.
+    const foldLines = sport().presentation.foldPlayerShotLines;
+    const ledgerLines = foldLines && ledger.events.length ? foldLines(ledger.events) : null;
+    const shotsA = ledgerLines ? ledgerLines.a : buildShotLines(rosterA, result.boxA);
+    const shotsB = ledgerLines ? ledgerLines.b : buildShotLines(rosterB, result.boxB);
 
     // Why it went that way, not just what the score was.
     const recap = sport().buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, shotsB);
@@ -4235,7 +4256,15 @@ function showShotChart(events, labelA, labelB) {
     // THE SAME SHOTS, IN THE SAME PLACES, after the whistle. Drawn from the
     // ledger the live court was drawing from, so a three you watched drop in
     // the third quarter is exactly where you watched it drop.
-    showShotChart(ledger.events, labelA, labelB);
+    // ONE COURT ON THE SCREEN, NOT TWO. The live floor is the stage a game is
+    // watched on; once it is over, the same picture belongs below the recap,
+    // where the chart is - and leaving both up showed the identical court
+    // twice with the box score between them. Taken down only when the chart
+    // actually replaced it: a sport that draws no chart, or a game with no
+    // placed shots, keeps the floor it played on rather than showing nothing.
+    if (showShotChart(ledger.events, labelA, labelB)) {
+      basketballCourtEl.classList.add("hidden");
+    }
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
     btnGameHome.classList.remove("hidden");

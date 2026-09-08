@@ -191,13 +191,33 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
       advice.push("Those starters play all 48 and tire late.");
     }
 
-    reasons.push(statNote(
-      "Bench spread",
-      metrics.versatility >= 0.6 ? "versatile" : metrics.versatility <= 0.25 ? "specialists" : "mixed",
-      metrics.versatility >= 0.6 ? "good" : metrics.versatility <= 0.25 ? "bad" : "neutral"
-    ));
-    if (metrics.versatility <= 0.25) {
-      advice.push("Your bench all covers the same spot.");
+    // ONLY WHEN THE DATA CAN ANSWER IT. Versatility is the share of the bench
+    // listed at more than one position, and the shipped dataset lists exactly
+    // one position for 10,289 of its 10,290 rows - so the metric was 0 for
+    // essentially every roster ever drafted, and the card told every player
+    // their bench was "specialists" and that it "all covers the same spot".
+    // Neither was a reading of their draft; both were a reading of the
+    // dataset's shape, which is not something a drafter can do anything about.
+    //
+    // The predicate is the ROSTER's own players rather than a dataset-wide
+    // flag, because that is what makes the row come back on its own the day a
+    // dataset carries real multi-position listings: if nobody here is listed
+    // anywhere but one spot, a bench of one-position players is not a fact
+    // about the bench. This does NOT touch the metric or the grade - the
+    // letter is a percentile against rosters scored the same way, so a term
+    // that is 0 for every roster cancels out of it entirely.
+    const positionsAreRecorded = orderedRosterSlots(roster).some(
+      (slot) => (roster[slot]?.pos || []).length > 1
+    );
+    if (positionsAreRecorded) {
+      reasons.push(statNote(
+        "Bench spread",
+        metrics.versatility >= 0.6 ? "versatile" : metrics.versatility <= 0.25 ? "specialists" : "mixed",
+        metrics.versatility >= 0.6 ? "good" : metrics.versatility <= 0.25 ? "bad" : "neutral"
+      ));
+      if (metrics.versatility <= 0.25) {
+        advice.push("Your bench all covers the same spot.");
+      }
     }
   }
 
