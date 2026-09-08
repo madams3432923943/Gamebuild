@@ -112,6 +112,14 @@ const SAMPLE = () => {
     })(),
     possessionText: document.querySelector("#football-field .ff-possession")?.textContent?.trim() || "",
     driveSummaries: document.querySelectorAll("#play-feed .play-card.drive-summary").length,
+    // The post-game feed. While the game runs this is empty and the drive
+    // summaries above are what the feed is made of; at the whistle the two
+    // swap, which is the thing being checked.
+    scoreLines: [...document.querySelectorAll("#play-feed .play-card.score-line")].map((c) => ({
+      when: c.querySelector(".sl-when")?.textContent?.trim() || "",
+      what: c.querySelector(".sl-what")?.textContent?.trim() || "",
+      score: c.querySelector(".sl-score")?.textContent?.trim() || "",
+    })),
     canLeave: !document.querySelector("#btn-play-again")?.classList.contains("hidden"),
     mvpShown: !document.querySelector("#mvp-callout")?.classList.contains("hidden"),
     mvpText: text("#mvp-callout"),
@@ -510,8 +518,33 @@ async function main() {
         detail: `${possessionFlips} changes across ${[...possessionStates].join("/")}` },
       { title: "Possession is not carried by colour alone", ok: sawPossessionText,
         detail: sawPossessionText ? `e.g. "${possessionTextSample}"` : "no possession chip text" },
-      { title: "Every drive gets a summary, not just the scoring ones", ok: (last?.driveSummaries || 0) > 0 && sawManyDriveSummaries,
-        detail: `${maxDriveSummaries} drive summaries seen in the feed` },
+      { title: "Every drive gets a summary, not just the scoring ones", ok: sawManyDriveSummaries,
+        detail: `${maxDriveSummaries} drive summaries seen in the feed while the game ran` },
+      // AND THE FEED BECOMES A SCORING SUMMARY AT THE WHISTLE. The running
+      // feed holds four cards, so what it shows at full time is whichever four
+      // moments happened to be last - which for a one-score game is usually
+      // three punts. Every row must carry the three things a summary is for:
+      // when it happened, who scored and how, and what it made the score. The
+      // last row must also agree with the scoreboard, or the summary is
+      // describing a different game from the one just watched.
+      ...(() => {
+        const rows = last?.scoreLines || [];
+        const shaped = rows.filter(
+          (r) => /^(Q[1-4]|OT\d+) \d+:\d{2}$/.test(r.when) && /\S/.test(r.what) && /^\d+-\d+$/.test(r.score)
+        );
+        const finalRow = rows[rows.length - 1];
+        const agrees = !!finalRow && finalRow.score === `${last?.scoreA}-${last?.scoreB}`;
+        return [
+          { title: "The post-game feed is a scoring summary, not the tail of the play-by-play",
+            ok: rows.length > 0 && rows.length === shaped.length && (last?.driveSummaries || 0) === 0,
+            detail: rows.length
+              ? `${rows.length} scores, e.g. "${rows[0].when} ${rows[0].what} ${rows[0].score}"` +
+                ` (${last?.driveSummaries || 0} drive summaries left over)`
+              : "no scoring rows in the feed at full time" },
+          { title: "The summary's last score is the final score", ok: agrees,
+            detail: finalRow ? `summary ends ${finalRow.score}, board says ${last?.scoreA}-${last?.scoreB}` : "no rows" },
+        ];
+      })(),
       { title: "The post-game screen offers a way out", ok: !!last?.canLeave,
         detail: last?.canLeave ? "Play Again is reachable" : "no post-game controls - the routine threw before unhiding them" },
       { title: "A football MVP is named in football statistics", ok: !!last?.mvpShown && /\d/.test(last?.mvpText || ""),

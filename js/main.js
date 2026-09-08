@@ -112,6 +112,7 @@ import {
   renderMatchupPicker,
   pushPlayHeadline,
   clearPlayFeed,
+  renderScoringSummary,
   buildShotLines,
   renderSquadEmojiPalette,
   renderSquadBrowseList,
@@ -4292,7 +4293,22 @@ function showShotChart(events, labelA, labelB) {
     flashClass(gameStageEl, "final-flash");
     // The broadcast's closing line: not why the winner won (the recap below
     // covers that), just the shape the game itself took.
-    pushPlayHeadline(playFeedEl, sport().buildGameScript(periodsSoFar, labelA, labelB), "final");
+    const headline = sport().buildGameScript(periodsSoFar, labelA, labelB);
+    // AND, FOR A SPORT THAT KEEPS ONE, THE SCORING SUMMARY IN PLACE OF THE
+    // FEED. The running feed is written to be watched: it holds four cards, so
+    // at the whistle it shows whichever four moments happened to be last -
+    // three punts and a lead change, for a game that finished 25-23. A scoring
+    // summary is what actually answers "how did it end up that", and it is the
+    // sport's to write, because who scored and how is football's vocabulary,
+    // not shared code's.
+    //
+    // Called optionally on purpose: a sport without a summary keeps exactly the
+    // feed it always had. Football's is required by
+    // scripts/verify-sport-contract.mjs for the stage it declares, so it cannot
+    // go missing quietly.
+    const summary = sport().presentation.scoringSummary?.(timeline.events, { labelA, labelB });
+    if (summary?.length) renderScoringSummary(playFeedEl, headline, summary);
+    else pushPlayHeadline(playFeedEl, headline, "final");
 
     const winnerName = result.winner === "A" ? labelA : labelB;
     const otNote = result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : "";

@@ -5199,6 +5199,46 @@ table.box-table th {
   font-size: 0.82rem;
 }
 
+/* THE POST-GAME SCORING SUMMARY. Three parts to a row - when, what, and the
+   score it made - laid out as a line a reader can scan down rather than three
+   sentences to read.
+
+   Wraps rather than shrinks on a narrow phone: the clock and the score are the
+   two things that must stay whole, so the description is what takes the second
+   line. The 2-line clamp on .play-card above still holds the row's height, so
+   the feed's fixed window keeps holding a predictable number of them. */
+.play-card.score-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  /* The clamp above is what stops a long row growing the card; a wrapped row
+     is two lines by design, so it needs the allowance the clamp gives it. */
+  -webkit-line-clamp: 2;
+}
+
+.score-line .sl-when {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Takes the slack, so the score below is pushed to the end of the row and the
+   column of scores lines up down the summary. */
+.score-line .sl-what {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.score-line .sl-score {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 
 .play-card.hot {
   border-left-color: var(--buzzer);

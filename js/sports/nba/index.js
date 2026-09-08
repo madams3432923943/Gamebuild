@@ -410,6 +410,17 @@ export const NBA = {
   basePosition,
   isBenchSlot,
 
+  /** Basketball has no per-position difficulty plan: null means the practice
+   * bot keeps the shared difficulty WINDOW over one ranked board (see
+   * difficultyWindow in js/draft.js), which is the bot every balance constant
+   * in this sport was solved against.
+   *
+   * Declared rather than left undefined for the reason every hook in this file
+   * is declared - shared code must be able to ask both sports the same
+   * question, and a missing hook is how football's work last blanked
+   * basketball's draft board (scripts/verify-sport-contract.mjs). */
+  botDraftPlan: () => null,
+
   /** Basketball drafts people, never units - there is no such thing as a
    * drafted five. Declared rather than left undefined so shared UI can ask
    * every sport the same question instead of testing whether the hook

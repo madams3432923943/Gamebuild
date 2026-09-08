@@ -24,7 +24,9 @@
 import { setActiveSport } from "../js/sports/index.js";
 import { NFL } from "../js/sports/nfl/index.js";
 import { DraftState } from "../js/draft.js";
-import { buildTimeline, TARGET_MIN_MS, TARGET_MAX_MS, EVENT_WEIGHTS, DEFAULT_SPEED } from "../js/sports/nfl/playback.js";
+import {
+  buildTimeline, scoringSummary, TARGET_MIN_MS, TARGET_MAX_MS, EVENT_WEIGHTS, DEFAULT_SPEED,
+} from "../js/sports/nfl/playback.js";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
@@ -84,7 +86,16 @@ const fail = {
   clockAtWhistle: 0,
   clockStalled: 0,
   clockLeftover: 0,
+  // The post-game scoring summary, which replaces the play feed at the whistle
+  // (renderScoringSummary in js/ui/game.js). It is read as a record of what
+  // happened, so every row of it is held to the game it came from.
+  summaryCount: 0,
+  summaryShape: 0,
+  summaryScore: 0,
+  summaryKick: 0,
+  summaryPlaceholder: 0,
 };
+let summaryRows = 0;
 let games = 0;
 let minMs = Infinity;
 let maxMs = 0;
@@ -114,6 +125,49 @@ for (let n = 0; n < GAMES; n++) {
 
   const { totalMs, events: list } = buildTimeline(result.drives);
   events += list.length;
+
+  // ---- THE SCORING SUMMARY IS THE GAME, NOT A RETELLING OF IT -------------
+  //
+  // One row per score, in order, each carrying when it happened, who scored
+  // and what it made the score. Checked against the DRIVES rather than against
+  // the rows' own internal consistency: a summary that agrees with itself and
+  // not with the game is the failure worth catching.
+  const scoringDrives = result.drives.filter((d) => d.points > 0);
+  const summary = scoringSummary(list, { labelA: "Home", labelB: "Away" });
+  summaryRows += summary.length;
+  if (summary.length !== scoringDrives.length) fail.summaryCount++;
+  let runningA = 0;
+  let runningB = 0;
+  for (const [i, row] of summary.entries()) {
+    const drive = scoringDrives[i];
+    if (!/^(Q[1-4]|OT\d+) \d+:\d{2}$/.test(row.when) || !row.text || !row.team) fail.summaryShape++;
+    // A placeholder reaching a summary reads as a real fact to whoever is
+    // looking at it, which is the whole reason a missing value must never
+    // print as one.
+    if (/undefined|NaN|null/.test(`${row.when} ${row.team} ${row.text} ${row.score}`)) fail.summaryPlaceholder++;
+    if (!drive) continue;
+    if (drive.team === "A") runningA += drive.points; else runningB += drive.points;
+    if (row.score !== `${runningA}-${runningB}`) fail.summaryScore++;
+    // A KICK'S LENGTH IS ONLY PRINTED WHEN THE DRIVE GIVES A REAL SPOT TO KICK
+    // FROM. The engine's reach model puts about a quarter of kicking drives at
+    // or past the goal line, where there is no yard line to measure from - so
+    // those rows say "field goal" and quote nothing. Any row that DOES quote a
+    // distance must be exactly the spot plus the end zone plus the snap.
+    if (drive.outcome === "fieldGoal") {
+      const quoted = /(\d+) yd field goal/.exec(row.text);
+      const spot = Math.round(drive.endYard);
+      if (spot >= 100 && quoted) fail.summaryKick++;
+      if (spot < 100 && Number(quoted?.[1]) !== 117 - spot) fail.summaryKick++;
+    }
+    // A touchdown quotes the scoring play, and names the man when the drive
+    // knew who he was.
+    if (drive.outcome === "touchdown") {
+      const last = drive.plays[drive.plays.length - 1];
+      const yards = Math.max(1, Math.min(99, Math.round(last?.gain ?? 0)));
+      if (!row.text.includes(`${yards} yd`)) fail.summaryShape++;
+      if (drive.scorer && !row.text.startsWith(drive.scorer)) fail.summaryShape++;
+    }
+  }
 
   // ---- THE CLOCK HAS TO FIT ITS QUARTER ----
   //
@@ -295,6 +349,26 @@ const checks = [
     title: "The game clock reads m:ss and never runs backwards in a quarter",
     ok: fail.badClock === 0 && fail.clockRose === 0,
     detail: `${fail.badClock} malformed, ${fail.clockRose} moving backwards`,
+  },
+  {
+    title: "The scoring summary has one row per score, and no others",
+    ok: fail.summaryCount === 0,
+    detail: `${fail.summaryCount} games whose summary miscounted, over ${summaryRows} scores in ${games} games`,
+  },
+  {
+    title: "Every summary row says when, who and how - with nothing missing printed as a word",
+    ok: fail.summaryShape === 0 && fail.summaryPlaceholder === 0,
+    detail: `${fail.summaryShape} malformed rows, ${fail.summaryPlaceholder} printing undefined/NaN/null`,
+  },
+  {
+    title: "The summary's running score is the game's, row by row",
+    ok: fail.summaryScore === 0,
+    detail: `${fail.summaryScore} rows disagreeing with the drives they describe`,
+  },
+  {
+    title: "A field goal's length is quoted only when the drive gives a spot to kick from",
+    ok: fail.summaryKick === 0,
+    detail: `${fail.summaryKick} kicks quoting a distance the drive cannot support`,
   },
   {
     title: "The timeline's running score arrives at the real final score",
