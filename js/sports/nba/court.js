@@ -174,11 +174,8 @@ export function liveStatusLabel(event) {
 /** "Q3", or "OT1" past regulation. `period` is one-based across every period
  * including overtime, so the first overtime is period 5.
  *
- * One function, used by the live board and by the post-game chart's marker
- * titles. The chart had its own `Q${event.period}` and called overtime shots
- * "Q5" while the board beside it said "OT1" - the same off-by-a-period that
- * periodLabel() in js/main.js was extracted to end. Basketball's own regulation
- * count, not shared code's: a sport with three periods answers differently. */
+ * One function for the live board and the chart's marker titles: the chart had
+ * its own and called overtime shots "Q5" while the board said "OT1". */
 function periodLabel(event) {
   return event.overtime ? `OT${event.period - REGULATION_PERIODS}` : `Q${event.period}`;
 }
@@ -258,13 +255,11 @@ export function showEvent(refs, event, stats) {
   // threshold a broadcast would bother mentioning, and it is read off the
   // running score - so it can never disagree with the scoreboard beside it.
   //
-  // IT STAYS UP UNTIL THE RUN IS OVER, which is not the same as "until the next
-  // event". runPoints is set on the SCORING event alone, and the ledger
-  // interleaves rebounds, steals and turnovers between baskets - so clearing on
-  // anything without runPoints put "8-0 RUN" on screen for one event, about
-  // thirty milliseconds, which is not a caption anybody read. A run is broken
-  // by the OTHER team scoring, exactly as annotateMoments defines it, so that
-  // is what takes the chip down.
+  // IT STAYS UP UNTIL THE RUN IS OVER, not until the next event. runPoints is
+  // set on the SCORING event alone and the ledger interleaves rebounds and
+  // takeaways between baskets, so clearing on anything without it put "8-0 RUN"
+  // on screen for about thirty milliseconds. A run is broken by the OTHER team
+  // scoring, exactly as annotateMoments defines it.
   if (event.runPoints) {
     refs.runSide = event.runSide;
     refs.run.textContent = `${event.runPoints}-0 RUN — ${event.runSide === "a" ? refs.labelA : refs.labelB}`;
