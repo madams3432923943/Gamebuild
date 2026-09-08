@@ -113,12 +113,23 @@ export function computeDatasetStats(players) {
   const byPosTs = {};
   for (const pos of STARTER_SLOTS) byPosTs[pos] = { sum: 0, count: 0 };
 
+  // WHAT A REAL TEAM SCORES, measured off the pool itself rather than inferred
+  // from it. Summing a team-season's players' ppg IS that team's points per
+  // game, so this is a fact the dataset already contains - see the note on
+  // `teamPpg` below for why the engine needs it and what using the wrong number
+  // did to the scoreboard.
+  const teamSeasons = new Map();
+
   for (const p of players) {
     for (const k of STAT_KEYS) overall[k] += p[k];
     const ts = trueShooting(p);
     if (ts != null) {
       tsSum += ts;
       tsCount += 1;
+    }
+    if (p.team && p.season) {
+      const key = `${p.team}|${p.season}`;
+      teamSeasons.set(key, (teamSeasons.get(key) || 0) + (Number(p.ppg) || 0));
     }
     for (const pos of p.pos) {
       if (!byPos[pos]) continue;
@@ -134,6 +145,38 @@ export function computeDatasetStats(players) {
   const n = players.length || 1;
   for (const k of STAT_KEYS) overall[k] /= n;
   overall.ts = tsCount > 0 ? tsSum / tsCount : null;
+
+  /**
+   * WHAT AN NBA TEAM SCORES IN A GAME. The parity anchor, and the single number
+   * that decides this simulation's whole scoring level.
+   *
+   * THE MEDIAN, not the mean: a team-season's roster includes everyone who
+   * appeared for it, so a season with mid-year trades sums more players' ppg
+   * than the team had on the floor. The median shrugs that off; the mean does
+   * not.
+   *
+   * WHY IT IS HERE. applyTalentParity pulls every team toward "a league-average
+   * roster's output in the same minutes", and that anchor used to be
+   * `overall.ppg * minutesTotal` - the mean ppg of every player-SEASON in the
+   * pool, multiplied by a minutes count. That product is not a basketball
+   * quantity at all: the pool's mean ppg is dragged down by every deep reserve
+   * in it, and no team is made of league-average players in league-average
+   * minutes. It came to 87.6, and because parity pulls 60% of the way to the
+   * anchor, simulated teams averaged 87.1 points against a real NBA team's
+   * ~105. Every scoreboard in the game was six or seven points a quarter light.
+   *
+   * The number is DERIVED, not chosen: sum a team-season's ppg and you have
+   * what that team scored per game, which the pool has 1,292 of. It moves with
+   * the dataset, which is the point - a pool of only 1990s seasons should
+   * anchor to what 1990s teams scored.
+   *
+   * Falls back to the old product when the pool carries no team/season columns,
+   * so a dataset that predates them still simulates rather than scoring zero.
+   */
+  const teamTotals = [...teamSeasons.values()].sort((a, b) => a - b);
+  overall.teamPpg = teamTotals.length
+    ? teamTotals[teamTotals.length >> 1]
+    : overall.ppg * (ROTATION_BUDGET / STARTER_MINUTES);
 
   for (const pos of STARTER_SLOTS) {
     const bucket = byPos[pos];
@@ -927,8 +970,25 @@ function applyTalentParity(lines, roster, minutesMap, datasetStats, parity) {
   const actual = Object.keys(lines).reduce((sum, slot) => sum + lines[slot].pts, 0);
   if (actual <= 0) return;
 
+  // A LEAGUE-AVERAGE TEAM'S OUTPUT IN THESE MINUTES. `teamPpg` is what an NBA
+  // team actually scores in a full game (see computeDatasetStats), scaled by how
+  // much of a full rotation this side is playing - normally exactly 1, and less
+  // only when a draft left somebody a slot short. Then divided into quarters.
+  //
+  // This was `overall.ppg * minutesTotal`, the mean ppg of every player-season
+  // in the pool times a minutes count, which is not a quantity that means
+  // anything: it came to 87.6 and pinned every simulated team to it.
   const minutesTotal = activeSlots(roster).reduce((sum, slot) => sum + minutesScaleFor(slot, minutesMap), 0);
-  const anchor = (datasetStats.overall.ppg * minutesTotal) / QUARTERS_PER_GAME;
+  const rotationShare = minutesTotal / (ROTATION_BUDGET / STARTER_MINUTES);
+  // A rating context that predates teamPpg - a baked server file from before
+  // this change, most likely, since the Edge Function deploys separately from
+  // the site - falls back to the old product rather than multiplying by
+  // undefined and scoring every player NaN. The result is the OLD scoring level
+  // for that game, which is wrong but playable; a NaN box score is neither.
+  const teamPpg = Number.isFinite(datasetStats.overall.teamPpg)
+    ? datasetStats.overall.teamPpg
+    : datasetStats.overall.ppg * (ROTATION_BUDGET / STARTER_MINUTES);
+  const anchor = (teamPpg * rotationShare) / QUARTERS_PER_GAME;
   const target = anchor + (actual - anchor) * parity;
 
   const factor = target / actual;

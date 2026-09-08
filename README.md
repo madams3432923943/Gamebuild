@@ -172,6 +172,41 @@ effect. Re-measured over 2,000 games:
 Every number above is tunable in `js/sports/nba/constants.js` and re-measurable from
 `tools/calibrate-variance.mjs`.
 
+### What a team scores
+
+`applyTalentParity` pulls each team toward a league-average roster's output, and
+that anchor is what sets the scoring level for the whole game. It used to be
+`overall.ppg * minutesTotal` — the mean points per game of every player-*season*
+in the pool, times a minutes count. That product is not a basketball quantity:
+the pool's mean ppg is dragged down by every deep reserve in it, and no team is
+made of league-average players in league-average minutes. It came to **87.6**.
+
+The anchor is `overall.teamPpg` now: the median of what this dataset's own 1,292
+team-seasons actually scored, which is **102.1**. Derived, not chosen — sum a
+team-season's players' ppg and you have that team's points per game — and it
+moves with the dataset, so a pool of only 1990s seasons anchors to what 1990s
+teams scored.
+
+Measured over drafted rosters, which is what a real game plays:
+
+| | before | after | real NBA |
+| --- | --- | --- | --- |
+| Mean team score | 105.7 | 110.9 | ~105–115 |
+| p05 / p95 | 84 / 128 | 92 / 139 | — |
+| Low / high | 69 / 147 | 82 / 150 | — |
+
+Nothing is pinned to a league average: roster construction, era, strategy and
+matchup are all still supposed to move it, and the tails above are what that
+freedom looks like. `scripts/verify-nba-scoring-level.mjs` asserts the shape
+rather than the number, and recomputes the anchor independently so a literal
+cannot be quietly substituted for the measurement.
+
+`TALENT_PARITY` and the quarter-variance range were re-solved after this and came
+back **unchanged** — the anchor sets the level a team is pulled toward, parity
+sets what fraction of its deviation survives, and moving one does not move the
+other. The gamestyle `pts` mods did have to be re-solved, because a style that
+buys defence with points is charged against that level.
+
 ### Why `TALENT_PARITY` was not re-solved
 
 `tools/calibrate-variance.mjs` now wants to drop parity from 0.84 to about
