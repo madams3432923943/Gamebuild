@@ -220,7 +220,12 @@ function shotsForQuarter(player, points, rand) {
     // No shooting profile - the player still scored, so the points are emitted
     // as unplaced scoring rather than dropped. Better a play line missing its
     // detail than a scoreboard missing points.
-    if (points > 0) shots.push({ made: true, points, shotType: FREE_THROW, zone: null });
+    // UNPLACED, and marked as such. It is not a free throw - it can be worth
+    // two or three - it is the player's points with no shot to attribute them
+    // to, kept so the scoreboard stays exact. Anything that folds the ledger
+    // into a shooting line has to leave it out, or a player with no profile
+    // would be credited with a three-point free throw.
+    if (points > 0) shots.push({ made: true, points, shotType: FREE_THROW, zone: null, unplaced: true });
     return shots;
   }
 
@@ -487,7 +492,15 @@ export function describeEvent(event) {
   switch (event.type) {
     case "shot": {
       if (event.shotType === FREE_THROW) {
-        return { player: event.player, detail: "Free throw", verdict: event.made ? "MADE" : "MISS", made: event.made };
+        // An unplaced bucket is worth what the engine said, which may be two or
+        // three - calling that a free throw is the same fabrication as counting
+        // it as one.
+        return {
+          player: event.player,
+          detail: event.unplaced ? "Scored" : "Free throw",
+          verdict: event.made ? "MADE" : "MISS",
+          made: event.made,
+        };
       }
       // "Finish" only when it actually finished. The zone's `strong` flag is a
       // property of the RIM - it is true whether the shot fell or not - so a
@@ -560,6 +573,50 @@ export function foldLiveStats(events, upTo) {
     else if (e.type === "turnover") team.tov += 1;
   }
   return totals;
+}
+
+/**
+ * Every player's shooting line, folded from the ledger.
+ *
+ * WHY THIS EXISTS. The box score used to roll its own split: one unseeded call
+ * to shotLine() over the player's whole-game total, while the ledger rolled a
+ * seeded one per quarter. Both reconciled the POINTS with the engine, so the
+ * scoreboard was safe - but they disagreed about how those points were scored.
+ * Measured over 40 games, the box score's team three-point makes differed from
+ * the threes actually drawn on the chart in 37 of them, by up to six. A viewer
+ * counting six made threes in the box score and finding two on the court was
+ * reading two different derivations of the same fact.
+ *
+ * There is one now, and it is this one - the same events the chart draws and
+ * the live strip counts. It is also the only one that is REPRODUCIBLE: the
+ * ledger is seeded because an online game is simulated once and played back on
+ * two machines, and an unseeded box score gave those two players different
+ * shooting lines for the same game.
+ *
+ * Keyed by side, then by roster slot, matching what the box score asks for.
+ * The rules are foldLiveStats's, per player instead of per team.
+ */
+export function foldPlayerShotLines(events) {
+  const lines = { a: {}, b: {} };
+  for (const event of events || []) {
+    if (event.type !== "shot" || event.unplaced) continue;
+    const side = lines[event.side];
+    if (!side) continue;
+    const line = (side[event.slot] ||= { fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, points: 0 });
+    if (event.shotType === FREE_THROW) {
+      line.fta += 1;
+      if (event.made) line.ftm += 1;
+    } else {
+      line.fga += 1;
+      if (event.shotType === "three") line.tpa += 1;
+      if (event.made) {
+        line.fgm += 1;
+        if (event.shotType === "three") line.tpm += 1;
+      }
+    }
+    if (event.made) line.points += event.points;
+  }
+  return lines;
 }
 
 export function scoreAfter(events, upTo) {

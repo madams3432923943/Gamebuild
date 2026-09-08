@@ -226,6 +226,39 @@ from the ledger by `foldLiveStats` — **the simulation's numbers**, never count
 off the markers on screen. A percentage derived from what happens to be drawn
 would drift from the box score the moment one of them differed.
 
+## One derivation of the shooting split
+
+The box score used to roll its own: a single unseeded `shotLine()` over each
+player's whole-game total, while the ledger rolled a seeded one per quarter.
+Both reconciled the **points** with the engine, so the scoreboard was never in
+danger — but they disagreed about how those points were scored. Measured over 40
+games, the box score's team three-point makes differed from the threes actually
+drawn on the chart in **37 of them**, by up to six. Counting six made threes in
+the box score and finding two on the court was reading two derivations of one
+fact.
+
+`foldPlayerShotLines(events)` is the only one now. The box score's FG / 3PT / FT
+columns are folded from the same events the chart draws and the live strip
+counts, by the same rules as `foldLiveStats`, keyed by side and roster slot.
+
+It is also the only derivation that is **reproducible**: the ledger is seeded
+because an online game is simulated once and played back on two machines, and an
+unseeded box score handed those two players different shooting lines for the same
+game.
+
+`scripts/verify-nba-court.mjs` counts the green circles on a filtered chart
+against that team's FG line in the box score — a made field goal is a circle,
+every attempt is a marker, and free throws are neither drawn nor field goals.
+
+### Unplaced scoring
+
+A player with no shooting profile still scores, and those points enter the ledger
+as an event with no position rather than being dropped. It is marked `unplaced`,
+because it is **not a free throw** — it can be worth two or three — so anything
+folding the ledger into a shooting line leaves it out, and the feed calls it
+"Scored" rather than crediting a three-point free throw. The shipped dataset
+gives every row a shooting profile, so this branch does not fire today.
+
 ## The post-game chart
 
 The same court, the same `shotToCourt`, the same marker builder — so a three you
@@ -235,6 +268,14 @@ shots are on that team's half whether the other half is drawn or not, so the
 three views are one picture with one end blanked. A per-player filter is a
 change to that one predicate; every marker already carries a `<title>` with the
 play it was, which is also what a screen reader reads off the chart.
+
+**And it is the only court on the screen by then.** The live floor is the stage
+a game is watched on; at the whistle it comes down and the same picture appears
+below the recap, where a reader arrives at it after being told why the game went
+that way. Both were up for a while, which showed the identical court twice with
+the box score between them. The floor is only taken down when the chart actually
+replaced it — a sport that draws no chart, or a game with no placed shots, keeps
+the court it played on rather than being left with nothing.
 
 It is post-game only, which is not a restriction that needed adding — it runs
 from `finish()`. A ranked draft's hidden information is hidden during the
