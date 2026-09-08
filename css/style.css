@@ -6606,6 +6606,73 @@ html {
   color: var(--muted);
 }
 
+/* THE TWO TEAMS' HEADLINE GRADES.
+   Two cards on a row, wrapping to one column on a phone rather than
+   compressing three numbers into an unreadable strip. `minmax(0, 1fr)` rather
+   than `1fr` because a grid track's default min-width is auto, which lets a
+   long value push the track wider than the card and reintroduce the horizontal
+   page scroll CLAUDE.md forbids. */
+.draft-grade-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+}
+
+.grade-team {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  min-width: 0;
+}
+
+.grade-team-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.grade-team-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.grade-team-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.grade-team-key {
+  font-size: var(--text-micro);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.grade-team-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--text);
+}
+
+/* One sentence, built from the roster's own unit grades - see scoutingLine in
+   js/sports/nfl/draftgrade.js. It sits between the headline grades and the
+   per-slot rows because it is the reading of those rows: a player who stops
+   here has still been told what they built. */
+.draft-grade-scouting {
+  margin: 0 0 0.6rem;
+  font-size: var(--text-small, 0.85rem);
+  line-height: 1.4;
+  color: var(--text);
+}
+
 .draft-grade-headline {
   font-weight: 700;
   font-size: 1rem;
