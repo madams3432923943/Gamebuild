@@ -121,11 +121,17 @@ const REQUIRED_PRESENTATION = {
   field: ["renderField", "showEvent", "buildTimeline", "createLiveState", "applyEvent", "liveBox", "liveScore"],
   // Basketball's court. Every one of these is called by js/main.js the moment a
   // basketball game reaches the game screen, so a sport declaring this stage
-  // without them is a blank floor, not a degraded one. buildShotLedger is the
-  // source of everything drawn on it; foldLiveStats is the strip underneath;
-  // renderShotChart is the same picture after the whistle.
+  // without them is a blank floor, not a degraded one.
+  //
+  // buildShotLedger is NOT here any more, and its absence is the point: the
+  // ledger is built by the SIMULATION now and arrives on the result, so a
+  // client that could build its own is a client that can disagree with the
+  // server about a game both are watching. What the stage needs instead is
+  // hydrateLedger (names onto slots), unpackLedger (a stored online result back
+  // into events) and buildPlaybackTimeline (how long each event holds).
   court: [
-    "renderCourt", "showEvent", "buildShotLedger", "foldLiveStats", "foldPlayerShotLines",
+    "renderCourt", "showEvent", "hydrateLedger", "unpackLedger", "buildPlaybackTimeline",
+    "foldLiveStats", "foldPlayerShotLines",
     "describeEvent", "showQuarterBreak", "hideQuarterBreak", "renderShotChart",
   ],
   board: [],

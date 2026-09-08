@@ -278,15 +278,40 @@ export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, bo
     boxTable(rosterB, boxB, labelB, shotsB, minutesB, final, mvpB);
 }
 
-/** Shot splits for a finished roster, computed once so the same line is
- * reused everywhere it's shown - calling shotLine twice would reroll the
- * night's variance and contradict itself. */
+/**
+ * Shot splits for a finished roster.
+ *
+ * READS THE BOX SCORE FIRST, and that is now the ordinary path: basketball's
+ * simulation records fga/fgm/tpa/tpm/fta/ftm per player as part of the result
+ * (see attachShooting in js/sports/nba/engine.js), so there is a real answer
+ * sitting in front of this function rather than a number to re-derive.
+ *
+ * WHY RE-DERIVING WAS WRONG. Calling the sport's shotLine here rolls a fresh
+ * split off the player's points - unseeded, and once per caller. In an online
+ * game each client rolled its own, so two players looking at one stored result
+ * saw two different shooting lines under the same final score. Even offline it
+ * contradicted the shot chart, which was decomposed separately.
+ *
+ * The derivation is kept only for a result that carries no shooting columns -
+ * a match finished before they existed, or a sport whose engine does not record
+ * them - because a box score with empty FG/3PT/FT cells is worse than an
+ * approximate one, and there is nothing authoritative left to prefer.
+ */
 export function buildShotLines(roster, box) {
   const out = {};
   for (const slot of rosterSlots(roster)) {
     const player = roster[slot];
-    if (!box[slot]) continue;
-    out[slot] = activeSport().shotLine(player, box[slot].pts);
+    const line = box[slot];
+    if (!line) continue;
+    if (typeof line.fga === "number") {
+      out[slot] = {
+        fgm: line.fgm || 0, fga: line.fga || 0,
+        tpm: line.tpm || 0, tpa: line.tpa || 0,
+        ftm: line.ftm || 0, fta: line.fta || 0,
+      };
+      continue;
+    }
+    out[slot] = activeSport().shotLine(player, line.pts);
   }
   return out;
 }
@@ -467,10 +492,31 @@ export function pushPlayHeadline(container, text, tone = "") {
   card.textContent = text;
   container.prepend(card);
   while (container.children.length > 4) container.removeChild(container.lastChild);
+
+  // THE FEED MAY GROW. IT MAY NOT SHRINK.
+  //
+  // Four cards are kept and the oldest is dropped, so a two-line play falling
+  // off the bottom while a one-line play arrives at the top makes the feed - and
+  // therefore the whole page - about fifteen pixels SHORTER. The feed sits above
+  // the box score a viewer scrolls down to read during a game, so a page that
+  // gets shorter underneath them clamps a bottom-pinned reader upward. That is
+  // the bug scripts/verify-live-scroll.mjs exists for, arriving by a route the
+  // original fix did not cover: not a subtree being rebuilt, just one that
+  // legitimately changes size.
+  //
+  // The floor only ever rises, and is reset when the feed is cleared for a new
+  // game. One offsetHeight read per play - four a second at the busiest - is a
+  // forced layout the browser was doing anyway to paint the card.
+  const height = container.offsetHeight;
+  if (height > (parseFloat(container.style.minHeight) || 0)) {
+    container.style.minHeight = `${height}px`;
+  }
 }
 
 export function clearPlayFeed(container) {
   container.innerHTML = "";
+  // A new game starts from nothing, including the height the last one reached.
+  container.style.minHeight = "";
 }
 
 

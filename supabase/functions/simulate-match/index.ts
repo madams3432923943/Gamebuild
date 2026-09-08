@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { engineFor } from "./sports/index.ts";
+import { packLedger } from "./sports/nba/ledger.js";
 import { applyRatingExchange } from "./rating.js";
 import { normalizeSeed, withSeededMathRandom } from "./seeded-rng.ts";
 
@@ -504,6 +505,20 @@ Deno.serve(async (req: Request) => {
     teamStatsB: result.teamStatsB ?? null,
     coinToss: result.coinToss ?? null,
     analysis: result.analysis ?? null,
+    // BASKETBALL'S PLAY-BY-PLAY, STORED RATHER THAN REBUILT.
+    //
+    // Both clients used to decompose the stored box score into shots
+    // themselves, on a client-local random stream and each in its own
+    // "A = me" frame, which is why one final score arrived with two different
+    // box scores and two different shot charts. It is simulated once, here,
+    // and stored - so both clients render the same events.
+    //
+    // Packed (see packLedger) because a game is 350-450 events and everything
+    // the client can recompute without a random draw - order, running score,
+    // runs, lead changes, the derived clock - is left out. About 12KB rather
+    // than 60. `null` for a sport that produces no ledger, so football's
+    // payload is unchanged.
+    shotEvents: Array.isArray(result.shotEvents) ? packLedger(result.shotEvents) : null,
   };
   const engineVersion = `${sportId}-engine-2026-08-11.1`;
   const rulesVersion = `${match.game_mode || "ranked"}-rules-2026-08-11.1`;

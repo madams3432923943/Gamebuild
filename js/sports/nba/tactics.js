@@ -104,6 +104,7 @@ export const TACTICS = [
     icon: "🎯",
     blurb: "+2 3PT Shooting, +1 Spacing (flavor only). Costs offensive rebounding and interior scoring.",
     mods: { pts: 1.0065, reb: 0.8, ast: 1.02, stl: 1, blk: 0.95, tov: 1 },
+    shotMods: { three: 1.35, ft: 0.9 },
   },
   {
     id: "lockdown-defense",
@@ -118,6 +119,7 @@ export const TACTICS = [
     icon: "💪",
     blurb: "+2 Offensive Rebounding, +2 Defensive Rebounding. Weak in transition D, worse from three.",
     mods: { pts: 1.011, reb: 1.4, ast: 0.85, stl: 0.88, blk: 1.05, tov: 0.95 },
+    shotMods: { three: 0.78, ft: 1.08 },
   },
   {
     id: "paint-dominance",
@@ -125,6 +127,7 @@ export const TACTICS = [
     icon: "🏀",
     blurb: "+2 Interior Scoring, +2 Free Throw Rate. Trades away three-point shooting and pace.",
     mods: { pts: 1.0117, reb: 1.15, ast: 0.85, stl: 0.9, blk: 1.05, tov: 0.92 },
+    shotMods: { three: 0.7, ft: 1.25 },
   },
   {
     id: "ball-movement",
@@ -229,6 +232,30 @@ export function tacticClutchMods(id) {
  * all about the team holding the ball. Boosting a zone's own blk raises its
  * block count and barely moves where the other team scores from, which is the
  * thing the style actually promises. */
+/**
+ * How a gamestyle changes a team's SHOT PROFILE - not how many points it
+ * scores, which is solved separately and must not move.
+ *
+ * WHY THIS EXISTS. Three styles have always PROMISED a shot-selection change
+ * in their blurb - "+2 3PT Shooting", "worse from three", "Trades away
+ * three-point shooting", "+2 Free Throw Rate" - and nothing implemented one.
+ * The blurb was the whole feature. These are the multipliers that make it real:
+ * `three` scales a player's 3PA-per-FGA rate and `ft` his FTA-per-FGA rate,
+ * both applied inside js/sports/nba/shooting.js.
+ *
+ * THEY MOVE ATTEMPTS, NEVER POINTS. The `pts` values above are the output of
+ * tools/calibrate-gamestyles.mjs and represent a solved balance across the
+ * whole 15-style field; a shot-profile mod that also changed scoring would
+ * invalidate that solve. A style makes you shoot more threes; whether they go
+ * in is still the players' business and the score is still the engine's.
+ *
+ * A style with no shot identity returns neutral rather than undefined, so the
+ * caller never has to ask which styles have one.
+ */
+export function tacticShotMods(id) {
+  return tacticById(id).shotMods ?? { three: 1, ft: 1 };
+}
+
 export function tacticOpponentPaint(id) {
   return tacticById(id).opponentPaint ?? 1;
 }

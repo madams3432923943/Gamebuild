@@ -3136,6 +3136,10 @@ function showBannerMessage(text) {
 const mvpCallout = document.getElementById("mvp-callout");
 const gameRecapEl = document.getElementById("game-recap");
 const playFeedEl = document.getElementById("play-feed");
+const playbackControlsEl = document.getElementById("playback-controls");
+const btnSpeed1 = document.getElementById("btn-speed-1");
+const btnSpeed2 = document.getElementById("btn-speed-2");
+const btnSkipPlayback = document.getElementById("btn-skip-playback");
 const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
@@ -3465,6 +3469,188 @@ function showStage(stage) {
 const playbackTimers = { intervals: [], timeouts: [], settle: null };
 
 /**
+ * The one clock a game is revealed on.
+ *
+ * WHY A CLOCK RATHER THAN A PILE OF setTimeouts. Playback used to be a few
+ * hundred independent timers fired at fixed real-world delays, which makes two
+ * things impossible: changing the speed of a game already running, and jumping
+ * to the end without either losing the result or replaying it. Both are things
+ * this screen now offers.
+ *
+ * Everything is scheduled against a VIRTUAL time that advances at `rate` times
+ * real time, and exactly one setTimeout is ever outstanding - the one waiting
+ * for whichever event is next. Changing the rate re-anchors the virtual clock
+ * and re-times what has not happened yet; nothing already shown is disturbed,
+ * and nothing pending is dropped.
+ *
+ * SPEED IS NOT A SIMULATION INPUT. Every number in the game - the box score,
+ * the shot chart, the MVP, the events themselves - was decided by the engine
+ * before this clock started. This only decides when each one appears, which is
+ * why 1x, 2x and Skip cannot produce three different games.
+ */
+function createPlaybackClock() {
+  let items = [];
+  let rate = 1;
+  let virtual = 0;
+  let anchor = null;
+  let timer = null;
+
+  const nowVirtual = () => (anchor === null ? virtual : virtual + (Date.now() - anchor) * rate);
+
+  function clearTimer() {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  }
+
+  function schedule() {
+    clearTimer();
+    if (!items.length) return;
+    let next = Infinity;
+    for (const item of items) if (item.at < next) next = item.at;
+    timer = setTimeout(pump, Math.max(0, (next - nowVirtual()) / rate));
+  }
+
+  function pump() {
+    timer = null;
+    const due = nowVirtual() + 1;
+    // Sorted each pump rather than kept sorted: a game schedules a few hundred
+    // items once, and the ordering has to survive `after()` inserting into the
+    // middle of a period from inside another event's handler.
+    items.sort((a, b) => a.at - b.at);
+    while (items.length && items[0].at <= due) {
+      const item = items.shift();
+      try {
+        item.fn();
+      } catch (e) {
+        // One bad event must not take the rest of the game down with it - the
+        // result is already recorded, and a silent stall would look like a
+        // frozen game rather than the handled failure it is.
+        console.error("A playback event threw; the game continues:", e);
+      }
+    }
+    schedule();
+  }
+
+  const clock = {
+    /** Show `fn` at this many virtual milliseconds from the opening tip. */
+    at(atMs, fn) {
+      if (anchor === null) {
+        virtual = 0;
+        anchor = Date.now();
+      }
+      items.push({ at: atMs, fn });
+      schedule();
+    },
+    /** ...or this many from now, for the period-reveal loop, which decides its
+     * next wait as it goes. */
+    after(delayMs, fn) {
+      clock.at(nowVirtual() + delayMs, fn);
+    },
+    setRate(next) {
+      if (!(next > 0) || next === rate) return;
+      virtual = nowVirtual();
+      anchor = Date.now();
+      rate = next;
+      schedule();
+    },
+    rate: () => rate,
+    /** SKIP. Runs everything still pending, in order, right now - so the game
+     * finishes exactly as it would have, including the finish() at the end of
+     * it, rather than being abandoned. */
+    finishNow() {
+      const pending = items.slice().sort((a, b) => a.at - b.at);
+      items = [];
+      clearTimer();
+      for (const item of pending) {
+        try {
+          item.fn();
+        } catch (e) {
+          console.error("A playback event threw while skipping to the end:", e);
+        }
+      }
+    },
+    stop() {
+      items = [];
+      clearTimer();
+      anchor = null;
+      virtual = 0;
+      rate = 1;
+    },
+    pending: () => items.length,
+  };
+  return clock;
+}
+
+const playbackClock = createPlaybackClock();
+
+/** The speed the viewer last chose, remembered across games.
+ *
+ * A preference, not game state - which is why it is in localStorage and not in
+ * the result. Reading it can throw in a browser with site data blocked, so it
+ * degrades to the normal speed rather than taking the game screen down. */
+const PLAYBACK_SPEED_KEY = "draftnova.playbackSpeed";
+
+function storedPlaybackSpeed() {
+  try {
+    const raw = Number(localStorage.getItem(PLAYBACK_SPEED_KEY));
+    return raw === 2 ? 2 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function rememberPlaybackSpeed(speed) {
+  try {
+    localStorage.setItem(PLAYBACK_SPEED_KEY, String(speed));
+  } catch {
+    // A remembered preference is a convenience; losing it costs one tap.
+  }
+}
+
+/** Paints which speed is active. aria-pressed rather than a class alone: this
+ * is a toggle group, and a screen reader has to be able to say which one is on. */
+function paintPlaybackSpeed(speed) {
+  for (const [button, value] of [[btnSpeed1, 1], [btnSpeed2, 2]]) {
+    if (!button) continue;
+    const on = speed === value;
+    button.classList.toggle("speed-on", on);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+
+function setPlaybackSpeed(speed) {
+  playbackClock.setRate(speed);
+  rememberPlaybackSpeed(speed);
+  paintPlaybackSpeed(speed);
+}
+
+btnSpeed1?.addEventListener("click", () => setPlaybackSpeed(1));
+btnSpeed2?.addEventListener("click", () => setPlaybackSpeed(2));
+// SKIP IS NOT AN ABANDON. It runs everything still queued, in order, right now
+// - including the finish() at the end of it - so the game is recorded exactly
+// as it would have been. Walking away mid-game settles it the same way; see
+// cleanupPlayback.
+btnSkipPlayback?.addEventListener("click", () => {
+  hidePlaybackControls();
+  playbackClock.finishNow();
+});
+
+/** The controls come and go, THE ROW DOES NOT. `.playback-idle` hides the
+ * buttons without taking their 54px out of the stage: the stage sits above the
+ * box score a viewer scrolls down to read while a game plays, so a row that
+ * disappeared at the final buzzer would shorten the page underneath them. See
+ * scripts/verify-live-scroll.mjs, which caught exactly that. */
+function showPlaybackControls(speed) {
+  if (!playbackControlsEl) return;
+  paintPlaybackSpeed(speed);
+  playbackControlsEl.classList.remove("playback-idle");
+}
+
+function hidePlaybackControls() {
+  playbackControlsEl?.classList.add("playback-idle");
+}
+
+/**
  * Stops whatever is still animating a game. Safe to call when nothing is.
  *
  * SETTLING IS NOT OPTIONAL WHEN A GAME IS ABANDONED. These timers are also the
@@ -3476,6 +3662,7 @@ const playbackTimers = { intervals: [], timeouts: [], settle: null };
  * progress pass nothing and get the plain cancel.
  */
 function cleanupPlayback({ settle = false } = {}) {
+  playbackClock.stop();
   for (const t of playbackTimers.intervals) clearInterval(t);
   for (const t of playbackTimers.timeouts) clearTimeout(t);
   playbackTimers.intervals.length = 0;
@@ -3549,7 +3736,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   let fieldRefs = null;
   // The whole game's playback, built as data before a single timer starts.
   let timeline = { events: [], totalMs: 0 };
-  const fieldTimers = playbackTimers.timeouts;
   // The board's centre cell has TWO writers: the per-play loop below, and
   // tickScoreTo's 60ms score animation, which re-renders the whole board for
   // QUARTER_TICK_MS at the start of every period. Without one value they both
@@ -3572,110 +3758,55 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     courtRefs = sport().presentation.renderCourt(basketballCourtEl, labelA, labelB);
   }
 
-  // Basketball's equivalent: a ledger of shots decomposed from the same result
-  // the box score is built from, narrated in the feed as the game reveals.
+  // Basketball's play-by-play. IT COMES WITH THE RESULT NOW.
   //
-  // The seed has to be the SAME on both machines watching an online game, so
-  // it is derived from the result itself rather than drawn fresh - the stored
-  // simulation seed when the server recorded one, and the final score when it
-  // did not, which is stable for a finished game and differs between games.
-  // How long the between-quarters card is on screen, and therefore how much of
-  // the period's hold is NOT spent playing events. Matches the .bc-break
-  // animation in style.css: the card fades itself out, and the next period
-  // taking it down is only a safety net for a period that ran short.
-  const QUARTER_CARD_MS = 1400;
+  // This used to be built here, on the client, by decomposing the box score
+  // into shots - and that is the whole of the online desync. An online match is
+  // simulated once on the server, but the shooting numbers and every event on
+  // the chart were rebuilt on EACH client from the points, off a client-local
+  // random stream, and in that client's own "A = me" frame - so the two
+  // machines fed their two rosters into the draws in opposite orders. Same
+  // score, two different box scores, which is exactly what two players saw.
+  //
+  // The simulation produces the ledger now (see js/sports/nba/ledger.js), the
+  // Edge Function stores it, and this only attaches player NAMES to it - which
+  // is a pure lookup, not a derivation. Offline games get the same ledger from
+  // the same engine.
+  const hydrate = sport().presentation.hydrateLedger;
+  const ledgerEvents = Array.isArray(result.shotEvents) ? result.shotEvents : [];
+  let ledger = { events: hydrate ? hydrate(ledgerEvents, rosterA, rosterB) : ledgerEvents };
 
-  let ledger = { events: [] };
-  // Shares the registry with the field: both are setTimeout handles, and the
-  // only thing that ever distinguished them was which array they were pushed
-  // into. Everything that clears one clears the other anyway.
-  const shotTimers = playbackTimers.timeouts;
-  if (sport().presentation.buildShotLedger && Array.isArray(result.quarterBoxScores)) {
-    const seed = Number(result.simulationSeed) ||
-      (result.teamScoreA * 1000 + result.teamScoreB) * 7919 + result.quarterBoxScores.length;
-    ledger = sport().presentation.buildShotLedger(result.quarterBoxScores, rosterA, rosterB, seed);
-  }
+  // How long each of those events is on screen. Built once, at 1x; the speed
+  // control changes the CLOCK's rate rather than rebuilding this, so switching
+  // to 2x mid-game cannot re-time an event that has already been shown.
+  const buildTimeline = sport().presentation.buildPlaybackTimeline;
+  const shotTimeline = buildTimeline && ledger.events.length ? buildTimeline(ledger.events) : null;
+  const QUARTER_CARD_MS = sport().presentation.quarterCardMs ?? 1400;
+  // Every event's index, once. indexOf inside the per-event handler is O(n) over
+  // a few hundred events on every one of them, which is the shape of the bug
+  // that froze this app on a single click.
+  const indexOfEvent = new Map(ledger.events.map((event, i) => [event, i]));
 
-  /**
-   * Spreads one period's shots across the hold that period is given.
-   *
-   * The ledger carries an ORDER, not a clock - the engine models no game
-   * clock, and inventing one would put a second source of truth next to the
-   * score. So the events of a period are laid evenly across however long that
-   * period is on screen, which keeps them in step with the scoreboard ticking
-   * up beside them without pretending to a precision the simulation never had.
-   */
-  /**
-   * How much of a period's screen time one event deserves.
-   *
-   * Evenly spreading a quarter's shots is arithmetically fair and dramatically
-   * flat: a garbage-time miss got exactly as long as the shot that swung the
-   * game. Real games are not evenly paced, and a playback that is reads as a
-   * progress bar with basketballs on it.
-   *
-   * So time is spent where the ledger says something happened. Every weight
-   * here is a fact the ledger already carries - a lead change, a run past
-   * eight, the last shot of the quarter, a make rather than a miss - so the
-   * pacing follows the game rather than a script laid over it.
-   */
-  function dramaWeight(event) {
-    // A rebound is the beat between two things happening and gets the shortest
-    // hold of anything; a takeaway is a moment and gets a real one. Both are
-    // stated rather than falling out of `event.made` being undefined, which is
-    // what they used to do back when only shots reached this function.
-    if (event.type === "rebound") return 0.6;
-    if (event.type === "steal" || event.type === "block") return 1.3;
-    if (event.type === "turnover") return 0.9;
-    let weight = event.made ? 1.15 : 0.85;
-    if (event.shotType === "three" && event.made) weight += 0.35;
-    if (event.strong) weight += 0.2;
-    if (event.runPoints) weight += 0.5;
-    if (event.leadChange) weight += 1.2;
-    // The last shot of a quarter gets the longest hold in the period. There is
-    // no clock in this engine, so it is not literally a buzzer-beater - but it
-    // is literally the last thing that happened, and a beat there is what makes
-    // a quarter feel like it ENDED rather than just stopped.
-    if (event.endOfPeriod) weight += 1.6;
-    return weight;
-  }
-
-  /**
-   * Plays one period's events across the hold that period is given.
-   *
-   * EVERY event, not only the shots with a place on the floor. Rebounds,
-   * steals, blocks and turnovers are most of what happens between baskets, and
-   * a feed that only ever names shooters reads as a scoring summary rather than
-   * as a game. The court knows what to draw for each; see showEvent there.
-   */
-  function playQuarterShots(period, holdMs) {
-    if (!courtRefs) return;
-    const ofPeriod = ledger.events.filter((e) => e.period === period);
+  function playQuarterShots(period) {
+    if (!courtRefs || !shotTimeline) return;
+    const ofPeriod = shotTimeline.events.filter((e) => e.event.period === period);
     if (!ofPeriod.length) return;
 
-    // Weighted cumulative offsets rather than an even division. The period
-    // still finishes inside its own hold - the weights decide how the time is
-    // divided, never how much there is.
-    //
-    // The quarter card's time is taken off the END of the hold. Without that
-    // the card was scheduled 420ms before the next period started and hidden
-    // when it did, so a 1.4-second summary was on screen for four hundred
-    // milliseconds - long enough for a test to catch it and not long enough
-    // for a person to read it.
-    const spread = Math.max(0, holdMs - QUARTER_CARD_MS - 200);
-    const weights = ofPeriod.map(dramaWeight);
-    const total = weights.reduce((sum, w) => sum + w, 0) || 1;
-    let elapsed = 0;
+    // THE TIMELINE DECIDES THE PACE, and the period reveal waits for it - the
+    // same contract football's field playback has had. This used to divide a
+    // fixed 4.2-second hold among the quarter's ninety-odd events, which gave
+    // an ordinary shot about 25 milliseconds and finished a whole NBA game in
+    // seventeen seconds. See js/sports/nba/playback.js for what replaced it.
+    const base = ofPeriod[0].atMs;
 
-    ofPeriod.forEach((event, i) => {
-      const at = (elapsed / total) * spread;
-      elapsed += weights[i];
+    ofPeriod.forEach(({ event, atMs }) => {
       // THE INDEX INTO THE WHOLE LEDGER, not into this period. The live strip
       // is folded from the start of the game up to the event on screen, so it
       // needs to know where this event sits in the game rather than in the
       // quarter - folding from the quarter would reset every number to zero
       // four times.
-      const index = ledger.events.indexOf(event);
-      shotTimers.push(setTimeout(() => {
+      const index = indexOfEvent.get(event) ?? 0;
+      playbackClock.after(atMs - base, () => {
         // The clock belongs on the board, where a broadcast puts it and where
         // the eye already is. Basketball's is derived (the engine has no clock)
         // and the ledger is blunt about that; what it gives is a reading that
@@ -3730,7 +3861,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           const who = event.runSide === "a" ? labelA : labelB;
           pushPlayHeadline(playFeedEl, `${who} ON A ${event.runPoints}-0 RUN`, "run");
         }
-      }, at));
+      });
     });
   }
 
@@ -3771,8 +3902,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     if (!ofPeriod.length) return;
     const base = ofPeriod[0].atMs;
     for (const event of ofPeriod) {
-      fieldTimers.push(
-        setTimeout(() => {
+      playbackClock.after(event.atMs - base, () => {
           sport().presentation.showEvent(fieldRefs, event);
           // The clock belongs on the board, where a broadcast puts it and
           // where the eye already is. Sports without a play clock leave this
@@ -3785,8 +3915,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
           if (event.scoring > 0 || event.turnover) {
             pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
           }
-        }, event.atMs - base)
-      );
+      });
     }
   }
 
@@ -3795,6 +3924,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
    * keeps basketball's fixed hold. */
   function holdFor(period, isOtPeriod) {
     const fixed = isOtPeriod ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS;
+    // Basketball's own timeline, which includes the between-quarters card at
+    // the end of the period it summarises.
+    const shotSpan = shotTimeline ? sport().presentation.periodSpan?.(shotTimeline, period) ?? 0 : 0;
+    if (shotSpan > 0) return Math.max(fixed, shotSpan);
     const span = timelineSpanFor(period);
     return span > 0 ? Math.max(fixed, span + 250) : fixed;
   }
@@ -3961,11 +4094,9 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // under the last quarter's heading.
     const scoreA = runningA;
     const scoreB = runningB;
-    playbackTimers.timeouts.push(
-      setTimeout(() => {
-        sport().presentation.showQuarterBreak(courtRefs, { label, scoreA, scoreB, leader, stats });
-      }, Math.max(0, holdMs - QUARTER_CARD_MS))
-    );
+    playbackClock.after(Math.max(0, holdMs - QUARTER_CARD_MS), () => {
+      sport().presentation.showQuarterBreak(courtRefs, { label, scoreA, scoreB, leader, stats });
+    });
   }
 
   function step() {
@@ -4030,10 +4161,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // the whole game rather than sliced out of each quarter's hold - see
     // js/sports/nfl/playback.js for why that distinction matters.
     playQuarterEvents(i + 1);
-    playQuarterShots(i + 1, holdFor(i + 1, isOt));
+    playQuarterShots(i + 1);
     // The quarter card, at the END of the period whose events were just
     // scheduled - so it lands on the beat the last shot of the quarter earns
-    // (see dramaWeight's endOfPeriod). Every number on it is read off the
+    // (the timeline gives the last event of a quarter the longest hold in it).
+    // Every number on it is read off the
     // ledger and the engine's own box score, so it cannot disagree with the
     // scoreboard it is covering.
     scheduleQuarterBreak(i, label, holdFor(i + 1, isOt));
@@ -4057,7 +4189,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // REGISTERED, because this is the timer that schedules the NEXT quarter:
     // leaving mid-game without cancelling it means the game keeps revealing
     // itself, quarter by quarter, onto a screen the player has left.
-    playbackTimers.timeouts.push(setTimeout(step, wait));
+    // ON THE PLAYBACK CLOCK, not a bare timer: the period reveal has to speed
+    // up and slow down with the events inside it, and Skip has to be able to
+    // run the rest of the game from here.
+    playbackClock.after(wait, step);
   }
 
 /** The shot chart under a finished basketball game.
@@ -4148,6 +4283,7 @@ function showShotChart(events, labelA, labelB) {
     // firing after the whistle lands on the next game's feed, or on a screen
     // that has moved on.
     cleanupPlayback();
+    hidePlaybackControls();
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
     flashClass(gameStageEl, "final-flash");
     // The broadcast's closing line: not why the winner won (the recap below
@@ -4188,24 +4324,24 @@ function showShotChart(events, labelA, labelB) {
     // Shot splits are computed once here and shared by the box score and the
     // recap, so both describe the same night.
     //
-    // FROM THE LEDGER WHEN THERE IS ONE, which for basketball there always is.
-    // buildShotLines rolls its own split - one unseeded call over the whole
-    // game - while the ledger the court draws rolls a seeded one per quarter.
-    // Both reconcile the POINTS with the engine, so the scoreboard was never in
-    // danger, but they disagreed about how those points were scored: over 40
-    // games the box score's team three-point makes differed from the threes
-    // drawn on the chart in 37 of them, by up to six. That is one fact with two
-    // derivations, and a viewer counting the green markers against the box
-    // score was reading both. The ledger wins because it is also the one the
-    // live strip counts and the only one that is the same on two machines
-    // watching the same online game.
+    // THEY COME OFF THE RESULT NOW, not off a client-side derivation. The
+    // simulation records fga/fgm/tpa/tpm/fta/ftm per player as part of the box
+    // score (see attachShooting in js/sports/nba/engine.js), so an online game's
+    // shooting line is the SERVER'S line on both machines - which is the fix for
+    // two players seeing one final score under two different box scores.
     //
-    // Football keeps buildShotLines, which returns nothing for it anyway - its
-    // shotLine hook is () => null.
+    // The ledger fold is kept as the fallback for a result that predates those
+    // columns; it agrees with them by construction, because the ledger is an
+    // expansion of exactly these numbers. buildShotLines - a second, unseeded
+    // derivation over whole-game totals - is gone from this path entirely.
     const foldLines = sport().presentation.foldPlayerShotLines;
     const ledgerLines = foldLines && ledger.events.length ? foldLines(ledger.events) : null;
-    const shotsA = ledgerLines ? ledgerLines.a : buildShotLines(rosterA, result.boxA);
-    const shotsB = ledgerLines ? ledgerLines.b : buildShotLines(rosterB, result.boxB);
+    // buildShotLines reads the result's own shooting columns when they are
+    // there, which for basketball they now always are, and only re-derives for
+    // a result that predates them. The ledger fold is the middle case: an old
+    // online result that stored events but no columns.
+    const shotsA = buildShotLines(rosterA, result.boxA) || (ledgerLines && ledgerLines.a);
+    const shotsB = buildShotLines(rosterB, result.boxB) || (ledgerLines && ledgerLines.b);
 
     // Why it went that way, not just what the score was.
     const recap = sport().buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, shotsB);
@@ -4417,8 +4553,7 @@ function showShotChart(events, labelA, labelB) {
     };
 
     for (const event of timeline.events) {
-      fieldTimers.push(
-        setTimeout(() => {
+      playbackClock.at(event.atMs, () => {
           presentation.applyEvent(live, event);
           const score = presentation.liveScore(live);
           const scoreMoved = score.A !== runningA || score.B !== runningB;
@@ -4475,14 +4610,13 @@ function showShotChart(events, labelA, labelB) {
             const ticking = sport().presentation.liveStatusLabel?.(event);
             paint(ticking || (named ? `${named.label} in progress` : openingLabel()), !!ticking);
           }
-        }, event.atMs)
-      );
+      });
     }
 
     // The whistle goes after the last event has had its time on screen, not
     // at the moment it appears.
     const last = timeline.events[timeline.events.length - 1];
-    fieldTimers.push(setTimeout(finish, last.atMs + last.durationMs + 250));
+    playbackClock.after(last.atMs + last.durationMs + 250, finish);
   }
 
   // A sport that declares a live ledger is played back event by event;
@@ -4495,7 +4629,13 @@ function showShotChart(events, labelA, labelB) {
   // HOW AN ABANDONED GAME STILL COUNTS. Armed here rather than earlier because
   // `finished` is a let and is in its temporal dead zone until this line runs.
   playbackTimers.settle = () => finish(true);
-  playbackTimers.timeouts.push(setTimeout(hasLiveLedger ? playEventDriven : step, QUARTER_REVEAL_DELAY_MS));
+  // The viewer's own pace, applied before the first event is scheduled. Both
+  // stages get the controls: football's timeline already took a speed divisor
+  // and never had a way to ask for one.
+  const startSpeed = storedPlaybackSpeed();
+  playbackClock.setRate(startSpeed);
+  showPlaybackControls(startSpeed);
+  playbackClock.after(QUARTER_REVEAL_DELAY_MS, hasLiveLedger ? playEventDriven : step);
 }
 
 function runLocalSimulation() {
@@ -4664,6 +4804,30 @@ function normalizeServerResult(dbResult, iAmA, serverWinner) {
   };
   const winnerSide = serverWinner || (dbResult.score_a > dbResult.score_b ? "A" : "B");
   const gameData = dbResult.game_data || {};
+  // BASKETBALL'S STORED PLAY-BY-PLAY, in the DB's A/B frame, remapped into this
+  // client's. `side` is lower-cased in the ledger, so it is remapped on its own
+  // terms rather than through remapSide() - and the remap is the ONLY thing
+  // done to it. Nothing here re-rolls a shot, a zone or a position: the whole
+  // point of storing the ledger is that both clients render the same one.
+  //
+  // An older result has no ledger. It gets an empty one rather than a rebuilt
+  // one: a locally regenerated play-by-play would be a different game from the
+  // one the opponent is looking at, which is the bug this replaced.
+  const unpack = sport().presentation.unpackLedger;
+  const storedEvents = Array.isArray(gameData.shotEvents) && unpack ? unpack(gameData.shotEvents) : [];
+  const shotEvents = iAmA
+    ? storedEvents
+    : storedEvents.map((event) => ({ ...event, side: event.side === "a" ? "b" : "a" }));
+  // The running score annotation is keyed by side too, so it is flipped with
+  // them - recomputing it instead would be a second derivation of a fact the
+  // ledger already carries.
+  if (!iAmA) {
+    for (const event of shotEvents) {
+      if (event.scoreAfter) event.scoreAfter = { a: event.scoreAfter.b, b: event.scoreAfter.a };
+      if (event.runSide) event.runSide = event.runSide === "a" ? "b" : "a";
+    }
+  }
+
   const drives = Array.isArray(gameData.drives)
     ? gameData.drives.map((drive) => ({ ...drive, team: remapSide(drive.team) }))
     : [];
@@ -4703,6 +4867,7 @@ function normalizeServerResult(dbResult, iAmA, serverWinner) {
     teamStatsB: iAmA ? gameData.teamStatsB : gameData.teamStatsA,
     coinToss,
     analysis: gameData.analysis || null,
+    shotEvents,
   };
 }
 

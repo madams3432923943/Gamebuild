@@ -131,7 +131,7 @@ async function runInPage(page) {
     // asserting the smaller one.
     const STAGE_RENDERERS = {
       field: ["renderField", "showEvent"],
-      court: ["renderCourt", "showEvent", "buildShotLedger", "renderShotChart"],
+      court: ["renderCourt", "showEvent", "unpackLedger", "buildPlaybackTimeline", "renderShotChart"],
     };
     const declared = {};
     for (const id of ["nba", "nfl"]) {

@@ -286,15 +286,59 @@ async function main() {
       };
     });
 
+    // ---- WATCHING A GAME THAT IS NOW MEANT TO TAKE MINUTES ----------------
+    //
+    // Basketball's playback used to finish in about seventeen seconds, so this
+    // test could simply watch the whole thing inside a 90-second window. It is
+    // now paced to be followed - roughly three and a half minutes at 1x - which
+    // is the point of the change and would make this test time out.
+    //
+    // So it does what a viewer in a hurry does, using the controls the viewer
+    // has: switch to 2x, watch long enough to see real live behaviour (a full
+    // quarter, its break card, the chart filling in, the feed, the scroll
+    // position holding), then Skip to the end. Nothing is stubbed and no timing
+    // is monkey-patched - if the speed control or Skip stops working, this test
+    // stops finishing.
+    const speedButton = page.locator("#btn-speed-2");
+    const speedControlsShown = await page.locator("#playback-controls:not(.playback-idle)").isVisible().catch(() => false);
+    await speedButton.click({ timeout: 5000 }).catch(() => {});
+    const fastEngaged = await speedButton.getAttribute("aria-pressed").catch(() => null);
+
     const samples = [];
-    const deadline = Date.now() + 90000;
+    const LIVE_WINDOW_MS = 75000;
+    const startedWatching = Date.now();
+    let skipped = false;
+    const deadline = Date.now() + 150000;
     while (Date.now() < deadline) {
       const sample = await page.evaluate(SAMPLE);
       samples.push(sample);
       if (sample.finalShown) break;
+      // Enough watched. Skip runs the rest of the queue in order, so the game
+      // still FINISHES rather than being abandoned - which is what makes the
+      // final-screen checks below meaningful.
+      if (!skipped && Date.now() - startedWatching > LIVE_WINDOW_MS) {
+        skipped = true;
+        await page.locator("#btn-skip-playback").click({ timeout: 5000 }).catch(() => {});
+      }
       await sleep(140);
     }
     const last = samples[samples.length - 1];
+
+    check(
+      "The playback speed controls are on the stage while a game plays",
+      speedControlsShown,
+      speedControlsShown ? "1x / 2x / Skip, inside the stage rather than under it" : "no controls found"
+    );
+    check(
+      "Choosing 2x is reflected back to the viewer",
+      fastEngaged === "true",
+      `aria-pressed=${fastEngaged} on the 2x button`
+    );
+    check(
+      "Skip lands on a finished game rather than abandoning one",
+      !!last.finalShown,
+      skipped ? "skipped after the live window and the final banner appeared" : "the game finished on its own"
+    );
 
     // ---- the floor is there, and football's is not -----------------------
     check(

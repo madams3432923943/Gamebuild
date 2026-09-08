@@ -6,24 +6,29 @@ this draws.
 ## The split
 
 `js/sports/nba/engine.js` does not simulate possessions. It produces per-player,
-per-quarter **stat lines** — points, rebounds, assists, steals, blocks,
-turnovers — through matchups, tactics and variance. There is no shot in there to
-draw and there is no clock.
+per-quarter **stat lines** through matchups, tactics and variance, and there is
+no clock in it.
 
-So nothing here asks the engine for events it does not have, and nothing here
-runs a second simulation to get them. `js/sports/nba/playback.js` **decomposes**
-what the engine already decided:
+It does, since the 2026-09 cleanup, produce the **shooting split and the event
+ledger** as part of that result — `attachShooting()` and
+`js/sports/nba/ledger.js`, both vendored into the Edge Function. That is a
+change of ownership, not of technique: the same decomposition, moved out of the
+browser and into the simulation, because a decomposition that runs on the client
+runs *twice* for an online match and the two answers differed. See "One
+derivation of the shooting split" below.
 
 | | source | guarantee |
 | --- | --- | --- |
-| points, rebounds, assists, steals, blocks, turnovers | the engine | reproduced exactly, per player per quarter |
-| how points split into twos, threes and free throws | `shooting.js`, from the player's real shot profile | Shaquille O'Neal cannot attempt a three, in any game, ever |
-| the order events fall in within a quarter | this module | seeded, so both players in an online game see the same one |
-| where on the floor a shot was taken | this module | never contradicts the shot — see below |
-| the clock | this module | derived, monotonic, honest about it |
+| points, rebounds, assists, steals, blocks, turnovers | the engine | the result, unaltered |
+| FG / 3PT / FT, per player per quarter | the engine, via `shooting.js` | attempts come from the player's real 3PA rate and minutes; Shaquille O'Neal cannot attempt a three, in any game, ever |
+| the order events fall in within a quarter | the engine, via `ledger.js` | drawn from the simulation's own seeded stream, so an online game has one ledger rather than one per client |
+| where on the floor a shot was taken | `ledger.js` | never contradicts the shot — see below |
+| the clock | `annotateLedger` | derived, monotonic, honest about it |
+| how long each event is on screen | `playback.js` | presentation only; changing it cannot change a number |
 
 `scripts/verify-nba-shot-ledger.mjs` fails on a single point of drift between
-the ledger and the engine.
+the ledger and the engine; `scripts/verify-nba-online-sync.mjs` fails if two
+clients reading one stored result disagree about any of it.
 
 ## The event
 
@@ -228,23 +233,44 @@ would drift from the box score the moment one of them differed.
 
 ## One derivation of the shooting split
 
-The box score used to roll its own: a single unseeded `shotLine()` over each
-player's whole-game total, while the ledger rolled a seeded one per quarter.
-Both reconciled the **points** with the engine, so the scoreboard was never in
-danger — but they disagreed about how those points were scored. Measured over 40
-games, the box score's team three-point makes differed from the threes actually
-drawn on the chart in **37 of them**, by up to six. Counting six made threes in
-the box score and finding two on the court was reading two derivations of one
-fact.
+This has been fixed twice, and the second fix is the one that mattered.
 
-`foldPlayerShotLines(events)` is the only one now. The box score's FG / 3PT / FT
-columns are folded from the same events the chart draws and the live strip
-counts, by the same rules as `foldLiveStats`, keyed by side and roster slot.
+**First**, the box score and the chart were two derivations of one fact: an
+unseeded `shotLine()` over each player's whole-game total, against a seeded one
+rolled per quarter for the ledger. Over 40 games the box score's team
+three-point makes differed from the threes drawn on the chart in **37 of them**.
+Folding both from one event list fixed that.
 
-It is also the only derivation that is **reproducible**: the ledger is seeded
-because an online game is simulated once and played back on two machines, and an
-unseeded box score handed those two players different shooting lines for the same
-game.
+**Second — and this is the online desync players actually reported** — folding
+them from one event list was not enough, because *the event list itself was
+built on the client*. An online match is simulated once on the server, but the
+server stored only points, rebounds, assists, steals, blocks and turnovers.
+Every shooting number and every marker on the chart was rebuilt on each machine:
+
+- **in that machine's own frame.** The rebuild ran over `rosterA`/`rosterB` in
+  the "A = me" frame, which is a different frame on each client. One fed its own
+  roster into the first draws of the stream and the opponent's into the second;
+  the other did the reverse. Same seed, opposite order, different box score.
+- **off a seed that was never the server's.** It fell back to a function of the
+  final score whenever the simulation seed had not reached the client — and it
+  never had, because `normalizeServerResult` did not copy it.
+
+So two players saw one final score and two different box scores. Neither client
+was wrong; there were simply two derivations of a fact that must have one.
+
+The fix is structural. `shooting.js` and `ledger.js` moved into the engine's
+directory and into `tools/vendor-engines.mjs`, so the Edge Function runs exactly
+the code the browser does. `simulateGame()` returns `shotEvents` alongside the
+box score, the Edge Function packs them into `match_results.game_data.shotEvents`
+(about 16KB a match), and both clients unpack, remap the sides and render. There
+is **no gameplay randomness left on the client at all** — `verify-nba-online-sync`
+runs the whole read-hydrate-fold-and-time path with `Math.random` replaced by a
+function that throws.
+
+`foldPlayerShotLines(events)` still exists and still agrees, because the ledger
+is an expansion of the box score's own shooting columns. It is what the LIVE
+table uses mid-game, when the final columns describe a game that has not
+finished yet.
 
 `scripts/verify-nba-court.mjs` counts the green circles on a filtered chart
 against that team's FG line in the box score — a made field goal is a circle,
@@ -316,11 +342,54 @@ their position never travels up and the document never gets shorter. It samples
 passed against the un-fixed app, because the shrinks are three discrete events
 in a seventeen-second game.
 
+It reports **which element shrank**, which is how three more were found during
+the 2026-09 cleanup — none of them findable by reading the CSS, all three
+obvious the moment the failure named the box:
+
+- a play-feed card falling off the bottom while a shorter one arrived at the top
+  (the feed's height floor only rises now, and resets with the feed);
+- the field's status strip wrapping onto a second line when a username was long
+  (it does not wrap, and an over-long username ellipsises instead of the down
+  and distance);
+- an **empty** possession chip collapsing to its padding on a kickoff (its height
+  is reserved rather than conditional).
+
+The playback speed controls sit inside the stage for the same reason, and are
+hidden with `visibility` rather than `display` — a control row that vanished at
+the final buzzer would take 54px out from under a reader.
+
+## Playback pacing
+
+A quarter used to be revealed inside `QUARTER_REVEAL_DELAY_MS` — 4.2 seconds, of
+which the between-quarters card took 1.6. About ninety events shared the
+remaining 2.6, so an ordinary shot was on screen for roughly **25 milliseconds**
+and a whole game finished in seventeen seconds.
+
+`buildPlaybackTimeline()` replaces that with football's shape in basketball's
+units: every event gets a duration in proportion to how much there is to take
+in (`EVENT_MS`, plus `EMPHASIS_MS` for a run, a lead change or the last event of
+a quarter), and the whole game is scaled to land near **195 seconds**. Measured
+over 60 games: 202–206s total whatever the event count, a median event of 590ms,
+an ordinary missed field goal at ~600ms, a made three at ~1.1s, and a
+lead-changing three that ends a quarter at 2.9s. The period reveal now *waits*
+for its events rather than squeezing them into a fixed hold.
+
+Everything is scheduled on one **virtual clock** (`createPlaybackClock` in
+`js/main.js`), which is what makes 1x / 2x / Skip possible: changing the rate
+re-times what has not happened yet, and Skip runs the remaining queue in order —
+so a skipped game still *finishes*, and is recorded, rather than being
+abandoned. Speed is a presentation input and reaches nothing else; the result,
+the box score, the chart and the MVP are all decided before the first timer
+starts.
+
 ## Verifying
 
 ```
 npm run verify:nba-shot-ledger    # the ledger against the engine, 120 games
+npm run verify:nba-shooting       # 3PA by roster and era, FT realism, Monte Carlo
+npm run verify:nba-online-sync    # two clients, one stored result, field for field
+npm run verify:nba-playback-pace  # event timing, 2x, and that speed changes nothing else
 npm run verify:nba-court-geometry # the shape of the court, no browser needed
 npm run verify:nba-court          # the court in Chromium, one real game
-npm run verify:live-scroll       # both sports, five viewports
+npm run verify:live-scroll        # both sports, five viewports
 ```

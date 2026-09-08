@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=27df7da" />
+  <link rel="stylesheet" href="css/style.css?v=fafdbe7" />
 </head>
 <body>
   <header class="top-nav">
@@ -526,6 +526,21 @@
              engine's `drives` array. -->
         <div id="football-field" class="football-field hidden" data-stage="field"></div>
         <div id="play-feed" class="play-feed"></div>
+        <!-- PLAYBACK SPEED. Timing only: the result, the box score, the shot
+             chart and the MVP are all decided by the simulation before a single
+             one of these buttons can be pressed, so none of them can change a
+             number. Skip runs the rest of the game instantly and lands on the
+             same final screen a viewer who watched it all would reach.
+
+             Inside the stage rather than under it, because everything below the
+             stage is what a viewer scrolls DOWN to read while the game plays -
+             putting a control there would move under them as the feed grows.
+             See scripts/verify-live-scroll.mjs. -->
+        <div id="playback-controls" class="playback-controls playback-idle" role="group" aria-label="Playback speed">
+          <button id="btn-speed-1" class="speed-btn" type="button" aria-pressed="true">1&times;</button>
+          <button id="btn-speed-2" class="speed-btn" type="button" aria-pressed="false">2&times;</button>
+          <button id="btn-skip-playback" class="speed-btn speed-skip" type="button">Skip</button>
+        </div>
       </div>
       <div id="final-banner" class="final-banner hidden"></div>
       <div id="game-recap" class="game-recap hidden">
@@ -886,6 +901,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=27df7da"></script>
+  <script type="module" src="js/main.js?v=fafdbe7"></script>
 </body>
 </html>

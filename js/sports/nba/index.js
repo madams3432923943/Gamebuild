@@ -41,11 +41,96 @@ function loadedPlayers() {
   return PLAYERS;
 }
 
+/**
+ * The simulation, loaded with the data it runs on.
+ *
+ * WHY THIS IS LAZY. Basketball's engine, its shot model, its event ledger, its
+ * recap voice and its draft grader are about 110KB, and every byte of it is
+ * useless until a game is actually played. They were static imports, which in a
+ * no-build-step app means they were downloaded by anyone who opened the site -
+ * including someone who came for football, or to look at their profile.
+ * scripts/verify-startup-performance.mjs asserts a 1.5MB boot budget precisely
+ * so this cannot creep back, and it is what caught them: adding the shot model
+ * and the ledger to the engine put the boot payload 68KB over.
+ *
+ * SAME PATTERN AS THE DATASET, ONE STEP UP. `preload()` already existed for the
+ * 2.3MB player pool, every caller already awaits it (see ensureSportData in
+ * js/sports/index.js, and setSport in js/main.js), and the simulation is needed
+ * in exactly the same places at exactly the same times. So it rides along rather
+ * than inventing a second lifecycle.
+ *
+ * The hooks are ASSIGNED ONTO the registry object, so nothing downstream
+ * changed: every consumer still reads sport().simulate and sport().gradeDraft
+ * exactly as before.
+ */
+let simulationReady = null;
+
+function loadSimulation() {
+  simulationReady ||= Promise.all([
+    import("./engine.js"),
+    import("./recap.js"),
+    import("./draftgrade.js"),
+    import("./shooting.js"),
+  ])
+    .then(([engine, recap, draftgrade, shooting]) => {
+      Object.assign(NBA, {
+        computeDatasetStats: (players) => {
+          const pool = players ?? loadedPlayers();
+          const ctx = engine.computeDatasetStats(pool);
+          // For the grade curve to sample real rosters - see js/gradecurve.js.
+          ctx.__allEntries = pool;
+          return ctx;
+        },
+        simulate: engine.simulateGame,
+        defaultMinutes: engine.defaultMinutes,
+        botMinutes: engine.botMinutes,
+        defaultMatchups: engine.defaultMatchups,
+        draftAnalysis: engine.draftAnalysis,
+        rate: engine.impact,
+        buildRecap: recap.buildRecap,
+        buildGameScript: recap.buildGameScript,
+        buildWhyBreakdown: recap.buildWhyBreakdown,
+        highlights: recap.HIGHLIGHTS,
+        gradeDraft: draftgrade.gradeDraft,
+        rotationHint: draftgrade.rotationHint,
+        shotLine: shooting.shotLine,
+        formatShotLine: shooting.formatShotLine,
+      });
+      return NBA;
+    })
+    .catch((error) => {
+      // A failed load must not leave a permanently poisoned promise.
+      simulationReady = null;
+      throw error;
+    });
+  return simulationReady;
+}
+
+/**
+ * Calling a simulation hook before preload() is a PROGRAMMING ERROR, and says
+ * so rather than returning undefined.
+ *
+ * A registry whose `simulate` is quietly undefined until a promise resolves is
+ * the silent failure CLAUDE.md forbids: the caller gets "is not a function" from
+ * somewhere three frames away, or - worse, for the ones that are read rather
+ * than called, like `rate` - a plausible-looking nothing. Every hook below is
+ * replaced wholesale by loadSimulation(); until then it throws with the fix in
+ * the message. Same treatment as loadedPlayers() above, for the same reason.
+ */
+function notLoaded(hook) {
+  return () => {
+    throw new Error(
+      `NBA.${hook}() was called before basketball's simulation was loaded. ` +
+        `Await NBA.preload() (or ensureSportData("nba")) first.`
+    );
+  };
+}
+
 async function preload() {
-  if (PLAYERS) return;
+  if (PLAYERS && simulationReady) return;
   if (!loading) {
-    loading = fetchDataset("nba-players")
-      .then((rows) => {
+    loading = Promise.all([fetchDataset("nba-players"), loadSimulation()])
+      .then(([rows]) => {
         PLAYERS = rows;
       })
       .catch((error) => {
@@ -57,14 +142,13 @@ async function preload() {
   }
   return loading;
 }
-import { computeDatasetStats, simulateGame, defaultMinutes, botMinutes, defaultMatchups } from "./engine.js";
 import { fetchDataset } from "../../lib/dataset.js";
 import { datasetVersion } from "../../lib/dataset-version.js";
 import { TACTICS, DEFAULT_TACTIC, tacticById, randomTacticChoices } from "./tactics.js";
-import { buildRecap, buildGameScript, buildWhyBreakdown, HIGHLIGHTS } from "./recap.js";
-import { gradeDraft, rotationHint } from "./draftgrade.js";
-import { draftAnalysis, impact } from "./engine.js";
-import { shotLine, formatShotLine } from "./shooting.js";
+/* engine.js, recap.js, draftgrade.js, shooting.js and ledger.js are NOT
+ * imported here. See loadSimulation() below - they are 110KB that only a game
+ * needs, and this app has no build step, so a static import puts every byte of
+ * them in the payload of anyone who opens the app to look at their profile. */
 /* playback.js and court.js are NOT imported here. See presentation.load below:
  * they are 45KB that only a game screen needs, and this app has no build step,
  * so a static import puts them in the payload of anyone who opens the app. */
@@ -261,27 +345,24 @@ export const NBA = {
   ],
 
   // ---- Simulation ---------------------------------------------------------
-  computeDatasetStats: (players) => {
-    const pool = players ?? loadedPlayers();
-    const ctx = computeDatasetStats(pool);
-    // For the grade curve to sample real rosters - see js/gradecurve.js.
-    ctx.__allEntries = pool;
-    return ctx;
-  },
-  simulate: simulateGame,
-  defaultMinutes,
-  botMinutes,
+  // Every one of these is replaced by loadSimulation() when the sport's data is
+  // preloaded; the stubs exist so that calling one early fails loudly instead of
+  // being undefined. See notLoaded above.
+  computeDatasetStats: notLoaded("computeDatasetStats"),
+  simulate: notLoaded("simulate"),
+  defaultMinutes: notLoaded("defaultMinutes"),
+  botMinutes: notLoaded("botMinutes"),
   // Basketball assigns defenders to attackers; football does not.
-  highlights: HIGHLIGHTS,
+  highlights: [],
   usesMatchups: true,
-  defaultMatchups,
+  defaultMatchups: notLoaded("defaultMatchups"),
 
   // ---- Draft mechanics ----------------------------------------------------
   // How the draft board groups squads and scores a bot pick. Basketball rolls
   // a team-and-decade; football's eras don't fall on decade boundaries, so the
   // key is the sport's to choose rather than js/draft.js's to assume.
   groupKey: "decade",
-  rate: impact,
+  rate: notLoaded("rate"),
   /** The one-line stat summary under a name on the draft board. Per sport
    * because a quarterback has no rebounds - this was hardcoded in js/ui.js and
    * printed "undefined pts" for every footballer. */
@@ -346,18 +427,18 @@ export const NBA = {
   // The post-game voice and the draft grade. Both are entirely basketball -
   // "out-rebounded by 14" means nothing in football - so they belong to the
   // sport, and main.js asks for them here instead of importing them.
-  buildRecap,
-  buildGameScript,
-  buildWhyBreakdown,
-  gradeDraft,
-  rotationHint,
-  draftAnalysis,
+  buildRecap: notLoaded("buildRecap"),
+  buildGameScript: notLoaded("buildGameScript"),
+  buildWhyBreakdown: notLoaded("buildWhyBreakdown"),
+  gradeDraft: notLoaded("gradeDraft"),
+  rotationHint: notLoaded("rotationHint"),
+  draftAnalysis: notLoaded("draftAnalysis"),
 
   // How a simulated point total is broken into a believable shooting line.
   // Football's equivalent splits drive yards across a QB and his receivers;
   // same role, completely different maths.
-  shotLine,
-  formatShotLine,
+  shotLine: notLoaded("shotLine"),
+  formatShotLine: notLoaded("formatShotLine"),
 
   // ---- Progression and explanation ----------------------------------------
   // The rank ladder traces a basketball career, so it belongs to basketball.
@@ -386,7 +467,20 @@ function loadPresentation() {
   presentationReady ||= Promise.all([import("./playback.js"), import("./court.js")]).then(
     ([playback, court]) => {
       Object.assign(NBA.presentation, {
-        buildShotLedger: playback.buildShotLedger,
+        // NOT buildShotLedger. The ledger is part of the RESULT now (see
+        // js/sports/nba/ledger.js and attachShooting in engine.js), because a
+        // client that builds its own is a client that can disagree with the
+        // server about the game it is watching - which is exactly what two
+        // players saw when one final score came with two different box scores.
+        // What the stage gets instead is the three functions that RENDER a
+        // ledger it was given.
+        hydrateLedger: playback.hydrateLedger,
+        unpackLedger: playback.unpackLedger,
+        packLedger: playback.packLedger,
+        buildPlaybackTimeline: playback.buildPlaybackTimeline,
+        periodSpan: playback.periodSpan,
+        speeds: playback.SPEEDS,
+        quarterCardMs: playback.QUARTER_CARD_MS,
         describeEvent: playback.describeEvent,
         foldLiveStats: playback.foldLiveStats,
         // The box score's shooting splits, from the same events the chart

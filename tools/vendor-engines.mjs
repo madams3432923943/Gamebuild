@@ -50,6 +50,14 @@ export const VENDORED = [
   ["js/sports/nba/engine.js", "supabase/functions/simulate-match/sports/nba/engine.js"],
   ["js/sports/nba/constants.js", "supabase/functions/simulate-match/sports/nba/constants.js"],
   ["js/sports/nba/tactics.js", "supabase/functions/simulate-match/sports/nba/tactics.js"],
+  // The shot model and the event ledger are ENGINE now, not presentation: the
+  // simulation produces a box score with shooting splits in it and a
+  // play-by-play beside them, so the server has to run exactly the same two
+  // files the browser does. When they lived in the browser only, each client
+  // rebuilt them from the stored points - which is how one online final score
+  // arrived with two different box scores.
+  ["js/sports/nba/shooting.js", "supabase/functions/simulate-match/sports/nba/shooting.js"],
+  ["js/sports/nba/ledger.js", "supabase/functions/simulate-match/sports/nba/ledger.js"],
   ["js/sports/nfl/engine.js", "supabase/functions/simulate-match/sports/nfl/engine.js"],
   ["js/sports/nfl/constants.js", "supabase/functions/simulate-match/sports/nfl/constants.js"],
   ["js/sports/nfl/tactics.js", "supabase/functions/simulate-match/sports/nfl/tactics.js"],
