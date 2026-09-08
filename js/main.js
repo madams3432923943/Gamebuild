@@ -952,7 +952,10 @@ function renderChoiceCards(container, entries, selectedId, onSelect) {
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", String(entry.id === selectedId));
     btn.innerHTML =
-      `<span class="mode-icon" aria-hidden="true"></span>` +
+      // Only when there is one. An empty icon span still costs the card's flex
+      // gap, so the difficulty cards - which carry no icon - would sit indented
+      // from an icon that is not there.
+      (entry.icon ? `<span class="mode-icon" aria-hidden="true"></span>` : "") +
       `<span class="mode-text">` +
       `<span class="mode-title"><span class="mode-label"></span></span>` +
       `<span class="mode-blurb"></span>` +
@@ -960,7 +963,7 @@ function renderChoiceCards(container, entries, selectedId, onSelect) {
       // aria-hidden: aria-checked on the button already says whether this is
       // selected, and a screen reader announcing a tick as well says it twice.
       `<span class="mode-check" aria-hidden="true">\u2713</span>`;
-    btn.querySelector(".mode-icon").textContent = entry.icon || "";
+    if (entry.icon) btn.querySelector(".mode-icon").textContent = entry.icon;
     btn.querySelector(".mode-label").textContent = entry.label;
     btn.querySelector(".mode-blurb").textContent = entry.blurb;
     if (entry.tag) {
@@ -3451,6 +3454,12 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // it is derived from the result itself rather than drawn fresh - the stored
   // simulation seed when the server recorded one, and the final score when it
   // did not, which is stable for a finished game and differs between games.
+  // How long the between-quarters card is on screen, and therefore how much of
+  // the period's hold is NOT spent playing events. Matches the .bc-break
+  // animation in style.css: the card fades itself out, and the next period
+  // taking it down is only a safety net for a period that ran short.
+  const QUARTER_CARD_MS = 1400;
+
   let ledger = { events: [] };
   // Shares the registry with the field: both are setTimeout handles, and the
   // only thing that ever distinguished them was which array they were pushed
@@ -3521,7 +3530,13 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     // Weighted cumulative offsets rather than an even division. The period
     // still finishes inside its own hold - the weights decide how the time is
     // divided, never how much there is.
-    const spread = Math.max(0, holdMs - 500);
+    //
+    // The quarter card's time is taken off the END of the hold. Without that
+    // the card was scheduled 420ms before the next period started and hidden
+    // when it did, so a 1.4-second summary was on screen for four hundred
+    // milliseconds - long enough for a test to catch it and not long enough
+    // for a person to read it.
+    const spread = Math.max(0, holdMs - QUARTER_CARD_MS - 200);
     const weights = ofPeriod.map(dramaWeight);
     const total = weights.reduce((sum, w) => sum + w, 0) || 1;
     let elapsed = 0;
@@ -3824,7 +3839,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     playbackTimers.timeouts.push(
       setTimeout(() => {
         sport().presentation.showQuarterBreak(courtRefs, { label, scoreA, scoreB, leader, stats });
-      }, Math.max(0, holdMs - 420))
+      }, Math.max(0, holdMs - QUARTER_CARD_MS))
     );
   }
 

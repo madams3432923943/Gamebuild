@@ -8486,13 +8486,18 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   padding: 0.5rem 0.75rem;
 }
 
+/* 0.75rem is TWELVE PIXELS, which is the floor the mobile audit enforces and
+   the floor a person can actually read at arm's length. --text-micro is 0.62rem
+   here and rendered these at 9.9px; the audit caught it, and the honest fix is
+   a bigger number rather than a quieter check. Same reasoning for the stat
+   labels below. */
 .bc-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   min-height: 1.5rem;
-  font-size: var(--text-micro);
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 700;
@@ -8694,12 +8699,15 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   padding: 0.6rem;
 }
 
-.bc-break.show { animation: bc-break 2200ms ease forwards; }
+/* 1400ms, matching QUARTER_CARD_MS in js/main.js - the card is given that
+   much of the quarter's hold, and taking longer than it was given means being
+   cut off by the next period. */
+.bc-break.show { animation: bc-break 1400ms ease forwards; }
 
 @keyframes bc-break {
   0% { opacity: 0; transform: scale(0.97); }
-  10% { opacity: 1; transform: scale(1); }
-  82% { opacity: 1; }
+  8% { opacity: 1; transform: scale(1); }
+  86% { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -8731,7 +8739,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
-  font-size: var(--text-micro);
+  font-size: 0.75rem;
 }
 
 .bc-stat-team {
@@ -8760,7 +8768,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 
 .bc-stat { display: flex; flex-direction: column; align-items: center; }
 .bc-stat b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text); }
-.bc-stat i { font-style: normal; color: var(--muted); font-size: 0.62rem; letter-spacing: 0.03em; }
+.bc-stat i { font-style: normal; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.02em; }
 
 /* The post-game chart and its filter. */
 .shot-chart { margin: 0 0 1rem; }
@@ -8807,10 +8815,14 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   color: var(--muted);
 }
 
+/* A phone has less width for five columns a side, and none of it may come out
+   of the type - the 12px floor holds at every width. The padding and the gaps
+   are what give instead. */
 @media (max-width: 480px) {
-  .basketball-court { padding: 0.4rem 0.5rem; }
-  .bc-stat i { font-size: 0.58rem; }
-  .bc-status { font-size: 0.62rem; }
+  .basketball-court { padding: 0.4rem 0.4rem; }
+  .bc-stat-team { padding: 0.35rem 0.25rem; gap: 0.1rem; }
+  .bc-stats { gap: 0.3rem; }
+  .bc-stat i { letter-spacing: 0; }
 }
 
 /* Someone who asked for less motion gets the court, the markers and the
@@ -8831,7 +8843,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
      visible to gone keeps the beat and removes the motion, which is what was
      actually asked for. */
   .bc-call.show { animation: bc-call-static 1500ms steps(1, end) forwards; }
-  .bc-break.show { animation: bc-break-static 2200ms steps(1, end) forwards; }
+  .bc-break.show { animation: bc-break-static 1400ms steps(1, end) forwards; }
   .bc-run.live { animation: none; }
 }
 

@@ -109,7 +109,19 @@ export const PAINT_METRICS = `
 export const LAYOUT_AUDIT = `
 (() => {
   const vw = document.documentElement.clientWidth;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
   const isFlow = (el) => {
+    // NOTHING INSIDE AN SVG IS IN FLOW. The whole premise of the overlap check
+    // below - that two flow siblings cannot legally occupy the same box - is
+    // false in a drawing: SVG children are painted in document order and
+    // overlapping each other is the point. Basketball's court is a floor, a
+    // paint, an arc and a rim stacked on the same coordinates, and every pair
+    // of them read as a 141x167 layout break.
+    //
+    // It also reported them as "rect.[object", because an SVG element's
+    // className is an SVGAnimatedString rather than a string - which is a
+    // second sign that this audit was never meant to descend into one.
+    if (el.namespaceURI === SVG_NS) return false;
     const cs = getComputedStyle(el);
     if (cs.position === 'absolute' || cs.position === 'fixed' || cs.position === 'sticky') return false;
     if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return false;

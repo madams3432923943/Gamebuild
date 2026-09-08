@@ -303,6 +303,12 @@ export function showEvent(refs, event, stats) {
       // Removed when its own animation ends, so the layer does not accumulate
       // two hundred invisible text nodes over a game.
       pop.addEventListener("animationend", () => pop.remove(), { once: true });
+      // AND CAPPED, because animationend is not guaranteed to fire. Under
+      // prefers-reduced-motion the pop has no animation at all (see the
+      // reduced-motion block in style.css), so nothing would ever remove one
+      // and a game would end with two hundred invisible text nodes stacked on
+      // the floor. A hard cap needs no event and no timer.
+      while (refs.flash.childNodes.length > 8) refs.flash.firstChild.remove();
     }
   }
 
