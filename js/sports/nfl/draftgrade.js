@@ -83,6 +83,71 @@ function curveFor(ctx, slots) {
   return ctx.__gradeCurve;
 }
 
+/**
+ * WHY THE OFFENSE AND DEFENSE GRADES ARE NUMBERS AND THE OVERALL ONE IS A
+ * LETTER, WHICH IS A DELIBERATE INCONSISTENCY.
+ *
+ * The obvious thing is a letter for each half, against a curve built the way
+ * the overall one is. It was written that way first and it does not work, for
+ * a reason worth recording so nobody writes it again.
+ *
+ * js/gradecurve.js samples a curve by drawing UNIFORMLY from every eligible
+ * entry in the dataset - its header says it "samples rosters the way a draft
+ * actually produces them", and that is the one thing it does not do. Measured
+ * over 80 bot drafts against the shipped data:
+ *
+ *   drafted offense   0.496     a uniformly sampled offense   ~0.49
+ *   drafted defense   0.691     a uniformly sampled defense   ~0.50
+ *
+ * Offensive picks land near the random baseline and defensive picks land far
+ * above it, and the asymmetry is structural rather than a fault in either
+ * rating: a rolled squad offers about ten candidates at a defensive slot (one
+ * unit per season) against fifty at receiver, and the top-of-board ban that
+ * shapes a bot draft therefore bites the offense much harder. So a half-curve
+ * graded 68% of every defense ever drafted as A+ while the same rosters' offense
+ * spread from D+ to A. Both letters were technically correct percentiles and
+ * neither told a player anything.
+ *
+ * Fixing that properly means curving against what OTHER DRAFTS produce rather
+ * than against random assemblies, which needs the draft engine - and
+ * js/draft.js imports the sport registry, so importing it from a sport module
+ * would close an import cycle for a cosmetic gain. It is recorded as follow-up
+ * work rather than done badly here.
+ *
+ * So the two halves are reported as 0-100, the same scale the per-slot chips
+ * already use, which is directly comparable between the two teams and needs no
+ * curve to be honest. The overall grade keeps the letter it has always had.
+ */
+const gradeOutOf100 = (value) => Math.round(100 * value);
+
+/**
+ * WHAT A DRAFTED OFFENSE RATES MINUS WHAT A DRAFTED DEFENSE RATES.
+ *
+ * The zero point for every "is this roster offense-heavy or defense-first"
+ * judgement below, and it is not zero. The two halves are weighted means of
+ * ratings from different pools reached through a different draft: measured over
+ * 80 bot drafts against the shipped dataset, offense comes out at 0.496 and
+ * defense at 0.691. A rolled squad offers about ten candidates at a defensive
+ * slot (one unit per season) against fifty at receiver, and the top-of-board
+ * ban therefore takes far more off the offense - so a defensive pick lands
+ * nearer the top of what was available than an offensive one does.
+ *
+ * Comparing the two raw numbers therefore says "defense-first" about every
+ * roster ever drafted, which is what the headline and the identity advice did
+ * before this existed: five of five sampled drafts were told they were built to
+ * win ugly, including ones whose defense was the weaker half of the pair.
+ *
+ * MEASURED, NOT PICKED, and the same species of constant as EDGE_BASELINE in
+ * constants.js - re-measure it after any change to the ratings, the slot
+ * weights or the dataset. It only ever decides wording; nothing about the
+ * simulation reads it.
+ */
+const DRAFTED_SIDE_BASELINE = -0.195;
+
+/** How far this roster leans, once the systematic gap above is taken out.
+ * Positive is genuinely offense-heavy, negative genuinely defense-first. */
+const sideLean = (offense, defense) => offense - defense - DRAFTED_SIDE_BASELINE;
+
 /** The entry that actually answers for a slot.
  *
  * Resolve a Quick Play roster the same way the engine's sideRating does, or the
@@ -197,6 +262,119 @@ function defensiveBreakdown(roster, ctx) {
   return groups;
 }
 
+/**
+ * THE SCOUTING LINE: one strength, one weakness, in football's own words.
+ *
+ * Built from the unit grades this same function already computed, never from a
+ * list of canned sentences - a grade that praised a passing attack the roster
+ * does not have is worse than no grade, because it is confidently wrong and a
+ * player will draft against it next time.
+ *
+ * WHY GROUPS RATHER THAN SLOTS. "Your WR2 is your weakness" is not a scouting
+ * report, it is a row from the grid directly above it. What a coach would say
+ * names a UNIT OF THE TEAM - the receiving corps, the pass rush, the secondary
+ * - so the slots are collapsed into the groups a football conversation
+ * actually uses, and each group is scored by the same weights the simulation
+ * consumes. A group is only reported when every slot behind it was drafted, so
+ * an unfilled roster cannot produce a verdict about a unit that does not exist.
+ *
+ * DON'T CALL EVERYTHING ELITE. The adjective comes from the group's absolute
+ * rating, not from its rank on this roster: the best group on a poor team is
+ * not elite, it is merely the least of its problems, and saying otherwise is
+ * the flattery that makes a grade worthless. The same rule runs the other way
+ * - the weakest group on a strong roster is described as a relative soft spot
+ * rather than as a hole.
+ */
+const SCOUTING_GROUPS = [
+  // Offense.
+  { key: "passing attack", side: "offense", slots: { QB: 0.62, WR1: 0.16, WR2: 0.12, TE: 0.10 } },
+  { key: "receiving corps", side: "offense", slots: { WR1: 0.38, WR2: 0.27, WR3: 0.20, TE: 0.15 } },
+  { key: "rushing attack", side: "offense", slots: { RB: 0.62, OL: 0.38 } },
+  { key: "offensive line", side: "offense", slots: { OL: 1 } },
+  // Defense.
+  { key: "pass rush", side: "defense", slots: { DL: 0.68, LB: 0.32 } },
+  { key: "run defense", side: "defense", slots: { DL: 0.45, LB: 0.55 } },
+  { key: "linebackers", side: "defense", slots: { LB: 1 } },
+  { key: "secondary", side: "defense", slots: { CB: 0.58, S: 0.42 } },
+  // Special teams earns a mention only when it is genuinely the story, which
+  // the caller enforces by requiring a wider margin of it - see scoutingLine.
+  { key: "kicking game", side: "special", slots: { ST: 1 } },
+];
+
+/** How a rating is described out loud. Absolute, so the words keep meaning the
+ * same thing across every roster ever graded. */
+function scoutingAdjective(rating) {
+  if (rating >= 0.86) return "elite";
+  if (rating >= 0.72) return "strong";
+  if (rating >= 0.58) return "solid";
+  if (rating >= 0.42) return "average";
+  if (rating >= 0.28) return "thin";
+  return "poor";
+}
+
+function scoutingGroups(roster, ctx) {
+  const scored = [];
+  for (const group of SCOUTING_GROUPS) {
+    let total = 0;
+    let weight = 0;
+    let complete = true;
+    for (const [slot, w] of Object.entries(group.slots)) {
+      const entry = entryForSlot(roster, slot);
+      // A slot nobody drafted makes the whole group unreportable. Scoring it
+      // from the slots that ARE filled would describe a unit that is not on the
+      // field, which is the silent-failure pattern CLAUDE.md names.
+      if (!entry) { complete = false; break; }
+      total += w * rateEntry(entry, ctx);
+      weight += w;
+    }
+    if (complete && weight > 0) scored.push({ ...group, rating: total / weight });
+  }
+  return scored;
+}
+
+/**
+ * One sentence: the best thing about this roster and the worst.
+ *
+ * Special teams has to CLEAR the nearest real unit by a margin before it is
+ * named, because a kicker is not what a football team is built around - it is
+ * mentioned only when it is materially the story, which is the rule the brief
+ * for this asked for.
+ */
+const SPECIAL_TEAMS_MARGIN = 0.12;
+
+export function scoutingLine(roster, ctx) {
+  const groups = scoutingGroups(roster, ctx);
+  if (groups.length < 2) return null;
+
+  const ranked = [...groups].sort((a, b) => b.rating - a.rating);
+  const pickEnd = (list) => {
+    const first = list[0];
+    if (first.side !== "special") return first;
+    // Special teams leads: only let it speak if it clears the next unit by the
+    // margin. Otherwise it is a kicker being louder than a football team.
+    const next = list.find((g) => g.side !== "special");
+    if (!next) return first;
+    return Math.abs(first.rating - next.rating) >= SPECIAL_TEAMS_MARGIN ? first : next;
+  };
+
+  const best = pickEnd(ranked);
+  const worst = pickEnd([...ranked].reverse());
+  // A roster whose best and worst resolve to the same group is one flat team;
+  // one clause is the honest report rather than a contrived contrast.
+  if (best.key === worst.key) {
+    return `A ${scoutingAdjective(best.rating)} ${best.key} with no clear weak spot.`;
+  }
+  // ADJECTIVES ONLY, NEVER A VERB. Half these group names are plural
+  // ("linebackers", "special teams") and half are singular ("pass rush",
+  // "secondary"), so any sentence that conjugates against one gets the other
+  // wrong - "linebackers is thin" was printed for real. Attributive phrasing
+  // sidesteps agreement entirely and is how a scout would say it anyway.
+  const weakness = worst.rating >= 0.42
+    ? `${worst.key}, the relative soft spot`
+    : `${scoutingAdjective(worst.rating)} ${worst.key}`;
+  return `Strength: ${scoutingAdjective(best.rating)} ${best.key}. Weakness: ${weakness}.`;
+}
+
 /** The forfeited slots, whatever shape the caller uses.
  *
  * Shared code calls `gradeDraft(roster, stats, opts)` with an OPTIONS OBJECT -
@@ -231,6 +409,13 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const score = Math.max(0, raw - penalty);
   const slots = Object.keys(OFFENSE_WEIGHTS).concat(Object.keys(DEFENSE_WEIGHTS));
   const letter = curveLetter(score, curveFor(ctx, slots));
+  const offenseGrade = gradeOutOf100(offense);
+  const defenseGrade = gradeOutOf100(defense);
+  // Declared here rather than beside its first use: the grid tones below read
+  // it, and a `const` used above its declaration is a crash rather than a
+  // hoisted undefined.
+  const lean = sideLean(offense, defense);
+  const scouting = scoutingLine(roster, ctx);
 
   // ONE ROW PER FACT, SHORTEST FIRST. This used to be a sentence per fact and
   // one of them - the per-unit defensive dump - ran to 50 characters, four
@@ -308,11 +493,11 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const defenseGrid = gridFor(DEFENSE_WEIGHTS);
   if (offenseGrid.length) {
     notes.push(gridNote("Offense", offenseGrid, pct(offense),
-      offense >= defense ? "good" : "neutral"));
+      lean >= 0 ? "good" : "neutral"));
   }
   if (defenseGrid.length) {
     notes.push(gridNote("Defense", defenseGrid, pct(defense),
-      defense > offense ? "good" : "neutral"));
+      lean < 0 ? "good" : "neutral"));
   }
 
   if (forfeits.length) {
@@ -322,8 +507,8 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // The identity read, as advice rather than as an observation: a drafter can
   // act on "you have to win this low-scoring" before kickoff, by picking the
   // gameplan that suits it.
-  if (offense - defense > 0.15) advice.push("Offense-heavy - your defense will give it back.");
-  else if (defense - offense > 0.15) advice.push("Defense-first - you need this game low-scoring.");
+  if (lean > 0.15) advice.push("Offense-heavy - your defense will give it back.");
+  else if (lean < -0.15) advice.push("Defense-first - you need this game low-scoring.");
   if (forfeits.length) advice.push("Empty slots rate zero - never let the clock draft.");
 
   // Football's counterplay read, and until now it did not exist. NFL.draftAnalysis
@@ -334,38 +519,72 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // Units and individuals compare the same way here because rateEntry() already
   // returns one number for both: a secondary and a quarterback are not alike,
   // but "how good is this at its job" is the same question asked of each.
+  /**
+   * THE OPPONENT, AS THREE LETTERS AND NOTHING ELSE.
+   *
+   * This used to print the opponent's roster slot by slot: `decidingRead`
+   * named the pick that beat you WITH BOTH RATINGS ("Worst pick: QB 45-92"),
+   * and `matchupNotes` named their individual units and players ("Falcons OL
+   * has the edge on your pass rush"). Read together those two are a scouting
+   * report on a roster the player is about to play against and, in ranked,
+   * has no business seeing: knowing their quarterback rates 92 and their
+   * secondary 40 decides the gameplan before kickoff, and a gameplan chosen
+   * against revealed information is not the choice the game is offering.
+   *
+   * So the opponent is summarised at exactly the altitude the player is
+   * entitled to - how good they are overall and on each side of the ball,
+   * which is what a team knows about its next opponent - and no lower. Their
+   * per-slot grid, their worst pick and their individual matchups are all
+   * gone. Ours are all still here: the asymmetry IS the feature.
+   *
+   * Nothing about the simulation changes; this is only what the card shows.
+   */
+  let opponent = null;
   if (oppRoster) {
-    // Which half decided it comes FIRST. matchupNotes below is
-    // slot-against-slot colour; this is the one row that answers "why did I
-    // lose", and burying it under matchup rows is how it gets missed.
-    for (const note of decidingRead(roster, oppRoster, ctx)) {
-      if (note.kind === "advice") keyAdvice.push(note.text);
-      else notes.push(note);
-    }
-    for (const note of matchupNotes(roster, oppRoster, {
-      rate: (entry) => rateEntry(entry, ctx),
-      pairings: MATCHUPS,
-      // WHAT IDENTIFIES A UNIT IS ITS TEAM. A unit has no surname, and the
-      // group alone is worse than useless in a clause about the line of
-      // scrimmage - "Offensive Line has the edge on your pass rush" could be
-      // any of 32 of them. The team's last word plus the group is what a fan
-      // would say: "Falcons OL".
-      shorten: (entry) => {
-        if (!isUnit(entry)) return null;
-        const town = String(entry.team || "").split(/\s+/).pop();
-        return town ? `${town} ${entry.group}` : unitLabel(entry);
-      },
-    })) {
-      if (note.kind === "advice") keyAdvice.push(note.text);
-      else notes.push(note);
+    const oppForfeits = forfeitList(forfeitsOrOpts?.oppForfeits);
+    const oppOffense = sideScore(oppRoster, OFFENSE_WEIGHTS, ctx);
+    const oppDefense = sideScore(oppRoster, DEFENSE_WEIGHTS, ctx);
+    const oppScore = Math.max(0, (oppOffense + oppDefense) / 2 - oppForfeits.length * 0.05);
+    opponent = {
+      score: oppScore,
+      offense: oppOffense,
+      defense: oppDefense,
+      letter: curveLetter(oppScore, curveFor(ctx, slots)),
+      offenseGrade: gradeOutOf100(oppOffense),
+      defenseGrade: gradeOutOf100(oppDefense),
+    };
+    // The one comparative clause that survives, because it is built from the
+    // aggregates above rather than from any pick of theirs: which side of the
+    // ball you are behind on. That is a thing a team knows about its opponent.
+    //
+    // THE TWO EDGES ARE COMPARED WITH EACH OTHER, NOT WITH ZERO. An offense
+    // rating and a defense rating are not on one scale - measured over bot
+    // drafts, a drafted offense rates 0.50 and a drafted defense 0.69 - so
+    // `offense - oppDefense < 0` is true of very nearly every roster ever
+    // built, and the first version of this clause duly fired on all of them.
+    // The DIFFERENCE between the two edges is scale-free, because the same
+    // offset sits in both.
+    // LIKE FOR LIKE. Your offense against THEIR OFFENSE, your defense against
+    // theirs - both same-scale comparisons, so no baseline is needed and no
+    // clause can fire on every roster the way the first version did.
+    const offEdge = offense - oppOffense;
+    const defEdge = defense - oppDefense;
+    if (offEdge < -0.05 && offEdge < defEdge) {
+      keyAdvice.push("They out-draft you on offense - your defense has to carry this.");
+    } else if (defEdge < -0.05 && defEdge < offEdge) {
+      keyAdvice.push("They out-draft you on defense - you will have to score to win.");
     }
   }
 
   return {
     letter,
-    headline: offense - defense > 0.15
+    offenseGrade,
+    defenseGrade,
+    scouting,
+    opponent,
+    headline: lean > 0.15
       ? "Built to outscore people."
-      : defense - offense > 0.15
+      : lean < -0.15
         ? "Built to win ugly."
         : "Balanced on both sides of the ball.",
     // Numbers, then the clauses about them. Capped: six rows and two pieces of

@@ -442,6 +442,13 @@
         <div class="draft-grade-body">
           <div class="draft-grade-title">Draft Grade</div>
           <p class="draft-grade-headline" id="draft-grade-headline"></p>
+          <!-- The two teams' headline grades, side by side. Only YOUR card
+               ever carries per-slot detail below; the opponent's three numbers
+               are deliberately the whole of what is shown about them. See the
+               opponent block in js/sports/nfl/draftgrade.js for why. Hidden
+               unless the sport fills it in, so basketball's card is unchanged. -->
+          <div class="draft-grade-teams hidden" id="draft-grade-teams"></div>
+          <p class="draft-grade-scouting hidden" id="draft-grade-scouting"></p>
           <ul class="draft-grade-reasons" id="draft-grade-reasons"></ul>
         </div>
       </div>

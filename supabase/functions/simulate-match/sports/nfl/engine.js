@@ -98,8 +98,11 @@ import {
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
+  AXIS_SWING, QB_SWING, FIELD_POSITION_SWING, FIELD_POSITION_MIN, FIELD_POSITION_MAX,
 } from "./constants.js";
-import { buildRatingContext, rateEntry, isUnit } from "./units.js";
+import {
+  buildRatingContext, rateEntry, isUnit, defensiveAxisStrength, DEFENSIVE_AXES,
+} from "./units.js";
 import { composedModsFor, affinityRevealFor } from "./tactics.js";
 
 export function computeDatasetStats(players, units) {
@@ -154,6 +157,48 @@ export function rosterRatings(roster, ctx, forfeits) {
     off: sideRating(roster, OFFENSE_WEIGHTS, forfeits, ctx),
     def: sideRating(roster, DEFENSE_WEIGHTS, forfeits, ctx),
   };
+}
+
+/**
+ * A rated unit turned into a MULTIPLIER centred on league average.
+ *
+ * 0.5 - an ordinary unit - returns exactly 1, so every gameplan number solved
+ * before this existed keeps meaning what it meant and an average game is
+ * untouched by construction. See AXIS_SWING in constants.js for why that
+ * centring is the whole design rather than a convenience.
+ */
+function swing(rating, amount) {
+  return 1 + amount * ((Number(rating) || 0.5) - 0.5);
+}
+
+/**
+ * The four things this defence does, as multipliers the drive model can apply
+ * one at a time.
+ *
+ * Computed ONCE per simulation, not per drive: it reads only the roster and
+ * the rating context, and rebuilding it 22 times a game would be 22 identical
+ * answers. The same reasoning as usageWeights.
+ */
+function defensiveMatchup(roster, ctx, forfeits) {
+  const axes = {};
+  for (const axis of DEFENSIVE_AXES) {
+    axes[axis] = defensiveAxisStrength(roster, axis, ctx, forfeits);
+  }
+  return axes;
+}
+
+/**
+ * How far there is to go, as a multiplier on drive quality.
+ *
+ * Centred so that a drive from DRIVE_START_YARD - the touchback spot, where
+ * most drives really begin - is exactly 1. See FIELD_POSITION_SWING.
+ */
+function fieldPositionFactor(startYard) {
+  const advantage = (Number(startYard) || DRIVE_START_YARD) - DRIVE_START_YARD;
+  return Math.max(
+    FIELD_POSITION_MIN,
+    Math.min(FIELD_POSITION_MAX, 1 + FIELD_POSITION_SWING * (advantage / 100))
+  );
 }
 
 /**
@@ -253,6 +298,10 @@ function resolveTuning(opts) {
 
 /** The shipped levers, for a call site that has no opts to read. */
 const DEFAULT_TUNING = resolveTuning({});
+
+/** An average defence on every axis, so a caller that passes none gets exactly
+ * the behaviour that existed before axes did - every swing() lands on 1. */
+const NEUTRAL_AXES = Object.fromEntries(DEFENSIVE_AXES.map((axis) => [axis, 0.5]));
 
 /** Picks a drive's ending from the league-average chart, tilted by the edge.
  * Scoring outcomes scale up with a good offense and punts/turnovers take the
@@ -586,13 +635,28 @@ function describeConversion(conversion) {
  * @param margin this team's score minus the opponent's, entering the drive.
  *   Only the conversion decision reads it; a drive itself does not care.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5) {
   // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
   // the defense you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
+  //
+  // EACH DEFENSIVE AXIS IS NOW `PLAN x PERSONNEL`. It used to be the plan
+  // alone: `theirs.passRush` was whatever Blitz Pressure declares and nothing
+  // about the men rushing. So a drafted front and a drafted secondary were
+  // interchangeable - the only thing either could do was move the single flat
+  // number below. `axes` is the personnel half, centred so an average unit
+  // multiplies by 1 (see AXIS_SWING).
+  const rush = theirs.passRush * swing(axes.passRush, AXIS_SWING);
+  const cover = theirs.coverage * swing(axes.coverage, AXIS_SWING);
+  const stop = theirs.runDef * swing(axes.runStop, AXIS_SWING);
   const offAdj = off * mine.off;
-  const defAdj = def * theirs.def * ((theirs.passRush + theirs.coverage + theirs.runDef) / 3);
-  const mult = edge(offAdj, defAdj, baseline, tuning.parity) * quarterRoll;
+  const defAdj = def * theirs.def * ((rush + cover + stop) / 3);
+  // Field position is part of drive QUALITY, not just of how far there is to
+  // run. Without it a takeaway bought nothing but a shorter field to cover and
+  // a defence that pinned you deep got no credit for it - see
+  // FIELD_POSITION_SWING.
+  const mult = edge(offAdj, defAdj, baseline, tuning.parity)
+    * quarterRoll * fieldPositionFactor(startYard);
   // No next possession AND three points do not get you level: the only thing
   // worth playing for is the touchdown. `margin` is this team's score minus
   // theirs entering the drive, so -3 can still be tied by a kick and -4 cannot.
@@ -608,7 +672,14 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   // ball control resists them. Applied as a re-roll of a stop rather than as
   // free points, so a takeaway style wins the ball rather than the game.
   if (outcome === "punt") {
-    const steal = (theirs.takeaway - 1) * 0.5 + (1 - mine.security) * 0.5;
+    // A BALL-HAWKING DEFENCE AND A CARELESS QUARTERBACK, not two gameplans.
+    // Both halves used to be plan-only, so the 2013 Seahawks secondary took the
+    // ball away exactly as often as a replacement one and an elite passer gave
+    // it up exactly as often as a backup. Interceptions are the outcome a
+    // quarterback most obviously decides, and he had no say in them at all.
+    const hawks = (theirs.takeaway * swing(axes.takeaways, AXIS_SWING)) - 1;
+    const careless = 1 - mine.security * swing(qbRating, QB_SWING);
+    const steal = hawks * 0.5 + careless * 0.5;
     if (steal > 0 && rand() < steal) outcome = "turnover";
   }
   // Explosive styles convert their scoring drives into touchdowns rather than
@@ -617,7 +688,13 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   // go for the touchdown is your explosiveness and your red-zone intent
   // together; how well they hold you to three is theirs. A defense that keeps
   // everything in front of it really does turn touchdowns into field goals.
-  const finish = (mine.explosive * mine.redZone) / (theirs.explosivePrevention || 1);
+  // Finishing is the quarterback and the coverage he is throwing into, on top
+  // of the two plans. A drive held to three by an elite secondary is the most
+  // recognisable thing a good defence does, and `explosivePrevention` alone
+  // could not say which secondary was doing it.
+  const finish =
+    (mine.explosive * mine.redZone * swing(qbRating, QB_SWING)) /
+    ((theirs.explosivePrevention * swing(axes.coverage, AXIS_SWING)) || 1);
   if (outcome === "fieldGoal" && finish > 1 && rand() < (finish - 1)) {
     outcome = "touchdown";
   } else if (outcome === "touchdown" && finish < 1 && rand() < (1 - finish) * 0.6) {
@@ -739,10 +816,20 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   const to = Math.round(endYard);
   const plays = buildPlays(from, to, outcome, kind, scorerSlot, roster, rand, {
     runShare: mine.runShare,
-    sackRate: (theirs.passRush || 1) / (mine.protection || 1),
+    // A SACK IS A MATCHUP: their front against your line, and a quarterback who
+    // gets rid of it. All three were missing - this read the two gameplans and
+    // nothing else, so drafting Dallas's 2016 line bought no protection and
+    // drafting an elite front produced no extra sacks.
+    sackRate:
+      ((theirs.passRush || 1) * swing(axes.passRush, AXIS_SWING)) /
+      (((mine.protection || 1) * swing(rateEntry(roster.OL, ctx), AXIS_SWING)
+        * swing(qbRating, QB_SWING)) || 1),
     // The man actually throwing it. 0..1 from his OWN per-game production -
     // nothing invented, just the rating the rest of the engine already trusts.
-    qbRating: roster.QB ? rateEntry(roster.QB, ctx) : 0.5,
+    // Passed in rather than re-rated here: the same number now decides his
+    // interceptions, his sacks and how he finishes drives, and three call sites
+    // computing it separately is three chances for them to disagree.
+    qbRating,
   });
   // Credited AFTER the snaps exist, next to where a takeaway is credited,
   // rather than inside buildPlays - that function reconstructs one offense's
@@ -1097,8 +1184,22 @@ const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sa
 const DEAD_PLAY_SHARE_POOR = 0.40;
 const DEAD_PLAY_SHARE_ELITE = 0.14;
 
-/** ...and how many of those are sacks rather than incompletions. */
-const SACK_SHARE_OF_DEAD = 0.13;
+/** ...and how many of those are sacks rather than incompletions.
+ *
+ * 0.22, RE-SOLVED, up from the 0.13 that stood while a sack was a contest
+ * between two gameplans and nobody else. It is now a matchup - their front
+ * against your line against your quarterback - and every one of those three
+ * terms is above average on a drafted roster, so the same 0.13 produced 3.7%
+ * of dropbacks against real football's ~6.5% and fell out of the 4-9% band in
+ * scripts/verify-nfl-realism.mjs.
+ *
+ * This is the documented response to exactly that symptom rather than a
+ * thumb on the scale: the constant sets the LEVEL of a realised rate, the
+ * matchup sets its SPREAD, and adding the spread moved the level. Measured
+ * over the realism harness's 400 games: 0.19 gives 5.3%, 0.22 gives 6.1%,
+ * 0.25 gives 6.7%. RUN_YARD_WEIGHT was re-solved for the same reason when the
+ * offense weights moved; this follows that precedent. */
+const SACK_SHARE_OF_DEAD = 0.22;
 
 /** The snaps a drive spends before any ground is counted, by how it ended.
  *
@@ -1337,7 +1438,23 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
   const sacks = Math.floor(sackFloat) + (rand() < sackFloat % 1 ? 1 : 0);
   let sackLoss = 0;
   const deadPlays = [];
-  for (let i = 0; i < dead; i++) {
+  // A SACK IS AN EXTRA DROPBACK, NOT A CONVERTED INCOMPLETION.
+  //
+  // Sacks used to be carved out of `dead` alongside the incompletions, so the
+  // two shared one fixed budget and every sack deleted a pass ATTEMPT. That
+  // made the two most football-shaped numbers in this file zero-sum against
+  // each other: measured over the realism harness's 400 games, a sack share
+  // that put pressure at real football's rate (6.1% of dropbacks) pulled median
+  // attempts to 27, and a share that kept attempts at 28 left the quarterback
+  // sacked on 3.7% - barely half the real rate. One band could pass at a time.
+  //
+  // Football does not make that trade, because a sack is not a throw that
+  // missed - it is a dropback that never became a throw. So the incompletions
+  // keep their count and the sacks are ADDED beside them. The drive's yardage
+  // is untouched (sack loss is already added back into the pool the productive
+  // plays share), and the extra snaps are what football actually runs: about
+  // two a game, inside the 56-70 play band and the 54-66 minute one.
+  for (let i = 0; i < dead + sacks; i++) {
     const isSack = i < sacks;
     const loss = isSack ? -(3 + Math.floor(rand() * 7)) : 0;
     sackLoss += loss;
@@ -1899,9 +2016,17 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // and why it pairs with a lead rather than a deficit.
   const possessions = Math.max(6, Math.round(DRIVES_PER_TEAM * ((modsA.pace + modsB.pace) / 2)));
 
+  // Computed ONCE. Both read only the roster and the rating context, so
+  // rebuilding them per drive would be 22 identical answers a game - the same
+  // reasoning usageWeights already carries, and the reason a rating index
+  // rebuilt per row froze the browser once before.
   const cfg = {
-    A: { off: offA, def: defA, roster: rosterA, mods: modsA },
-    B: { off: offB, def: defB, roster: rosterB, mods: modsB },
+    A: { off: offA, def: defA, roster: rosterA, mods: modsA,
+         axes: defensiveMatchup(rosterA, ctx, opts.forfeitsA),
+         qb: rosterA.QB ? rateEntry(rosterA.QB, ctx) : 0.5 },
+    B: { off: offB, def: defB, roster: rosterB, mods: modsB,
+         axes: defensiveMatchup(rosterB, ctx, opts.forfeitsB),
+         qb: rosterB.QB ? rateEntry(rosterB.QB, ctx) : 0.5 },
   };
   const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
 
@@ -1925,7 +2050,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          late && live[side] < live[foe],
                          live[side] - live[foe],
                          i === possessions - 1 && live[side] < live[foe], tuning,
-                         quarterRoll(side, quarter), baseline);
+                         quarterRoll(side, quarter), baseline,
+                         cfg[foe].axes, cfg[side].qb);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -1981,7 +2107,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, trailing, margin, trailing, tuning,
-                         quarterRoll(side, quarter), baseline);
+                         quarterRoll(side, quarter), baseline,
+                         cfg[foe].axes, cfg[side].qb);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;
