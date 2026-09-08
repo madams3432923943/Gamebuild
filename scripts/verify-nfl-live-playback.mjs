@@ -166,11 +166,19 @@ async function main() {
       await home.waitFor({ state: "visible", timeout: 30000 });
     }
 
-    // ---- football, quick play -------------------------------------------
+    // ---- football, easy practice ----------------------------------------
     await page.locator('[data-sport="nfl"]').first().click();
     const mode = page.locator('#mode-toggle [data-mode="practice"]');
     await mode.waitFor({ state: "visible", timeout: 15000 });
     await mode.click();
+    // EASY, because this harness drafts by taking whatever card is on offer and
+    // Easy is the difficulty that puts cards on offer. Every other mode hides
+    // the board and asks for a typed name, which is the point of them - see
+    // js/modes.js. Nothing about football's playback depends on which
+    // difficulty drafted the roster; the ledger is built from the result.
+    const easy = page.locator('#difficulty-toggle [data-mode="easy"]');
+    await easy.waitFor({ state: "visible", timeout: 15000 });
+    await easy.click();
     // Football's data loads on selection, and the button says so while it
     // does. Waiting for it to become enabled is exactly what a user does.
     await page.locator("#btn-start-draft:not([disabled])").waitFor({ state: "visible", timeout: 60000 });

@@ -299,31 +299,54 @@ export function buildShotLines(roster, box) {
  *   as "-" placeholder columns, e.g. 4 at tip-off, 0 once Q4 is in)
  */
 export function renderScoreboard(container, labelA, labelB, periods, periodsRemaining, totalA, totalB, statusLabel, isLive) {
+  // BUILT ONCE PER SHAPE, PATCHED EVERY FRAME AFTER THAT.
+  //
+  // This function used to open with `container.innerHTML = ""` and rebuild the
+  // team rows and the whole period table from scratch. tickScoreTo calls it
+  // every 60ms for the first 1.5 seconds of every quarter, so the board above
+  // the reader was destroyed and recreated about sixteen times a second while
+  // they were trying to read the box score below it. Two costs, and the second
+  // is the one that reached the player: parsing a table to change a number, and
+  // handing the browser's scroll anchoring a subtree with nothing stable in it
+  // to anchor to. Football had it worse still - it repaints on every play, so
+  // roughly 190 rebuilds a game.
+  //
+  // The SHAPE is the team names, the published period labels and how many are
+  // still to come: everything whose change actually needs new elements. It
+  // changes four or five times a game (once per period), and between those the
+  // board is updated by writing text into elements that stay put.
+  const shape = JSON.stringify([labelA, labelB, periods.map((p) => p.label), periodsRemaining]);
+  if (container.dataset.scoreboardShape !== shape) {
+    buildScoreboard(container, labelA, labelB, periods, periodsRemaining);
+    container.dataset.scoreboardShape = shape;
+  }
+  patchScoreboard(container, periods, totalA, totalB, statusLabel, isLive);
+}
+
+/** The board's structure: two named sides, a centre cell, and the period grid.
+ * Every cell that ever changes carries a data attribute so patchScoreboard can
+ * find it without re-querying by position. */
+function buildScoreboard(container, labelA, labelB, periods, periodsRemaining) {
   container.innerHTML = "";
 
   const teams = document.createElement("div");
   teams.className = "scoreboard-teams";
-  // The pulse glow while live is the scoreboard's own "still playing" tell,
-  // the same job .scoreboard-period.live's blink does for the status line -
-  // together they read as a broadcast that's actually in progress, not a
-  // static final score sitting on screen early.
-  // Split by side so each score can wear its own team's kit colour. Both
-  // digits were one class and therefore one colour, which is why the board
-  // carried no team identity at all - the thing the kits were built for.
+  // Split by side so each score can wear its own team's kit colour. Both digits
+  // were one class and therefore one colour, which is why the board carried no
+  // team identity at all - the thing the kits were built for.
   // Each name sits directly above ITS OWN score. They used to be laid out
   // name / score / score / name across one row, which put both numbers in the
   // middle and both names at the far edges - so a glance had to travel to the
   // rim of the board to find out whose 80 that was.
-  const scoreClass = "scoreboard-score" + (isLive ? " pulse" : "");
   teams.innerHTML = `
     <div class="scoreboard-side scoreboard-side-a">
       <span class="scoreboard-team-name">${escapeHtml(labelA)}</span>
-      <span class="${scoreClass} scoreboard-score-a">${Math.round(totalA)}</span>
+      <span class="scoreboard-score scoreboard-score-a">0</span>
     </div>
     <div class="scoreboard-middle"></div>
     <div class="scoreboard-side scoreboard-side-b">
       <span class="scoreboard-team-name">${escapeHtml(labelB)}</span>
-      <span class="${scoreClass} scoreboard-score-b">${Math.round(totalB)}</span>
+      <span class="scoreboard-score scoreboard-score-b">0</span>
     </div>
   `;
   container.appendChild(teams);
@@ -332,27 +355,72 @@ export function renderScoreboard(container, labelA, labelB, periods, periodsRema
   // and where the eye already is. It used to sit on its own line underneath,
   // which left the middle of the board holding nothing but a dash.
   const period = document.createElement("div");
-  period.className = "scoreboard-period" + (isLive ? " live" : "");
-  period.textContent = statusLabel;
+  period.className = "scoreboard-period";
   teams.querySelector(".scoreboard-middle").appendChild(period);
 
-  const headerCells = periods.map((p, i) => `<th${i === periods.length - 1 && isLive ? ' class="period-current"' : ""}>${p.label}</th>`).join("");
-  const pendingCells = Array.from({ length: periodsRemaining }, () => `<th>–</th>`).join("");
-
+  const headerCells = periods.map((p) => `<th>${escapeHtml(p.label)}</th>`).join("");
+  const pendingCells = Array.from({ length: periodsRemaining }, () => `<th>\u2013</th>`).join("");
   const rowCells = (key) =>
-    periods.map((p) => `<td>${Math.round(p[key])}</td>`).join("") +
-    Array.from({ length: periodsRemaining }, () => `<td class="period-pending">–</td>`).join("");
+    periods.map((_, i) => `<td data-cell="${key}${i}">0</td>`).join("") +
+    Array.from({ length: periodsRemaining }, () => `<td class="period-pending">\u2013</td>`).join("");
 
   const grid = document.createElement("table");
   grid.className = "scoreboard-grid";
   grid.innerHTML = `
     <thead><tr><th class="team-col"></th>${headerCells}${pendingCells}<th>T</th></tr></thead>
     <tbody>
-      <tr><td class="team-col">${escapeHtml(labelA)}</td>${rowCells("a")}<td class="grid-total">${Math.round(totalA)}</td></tr>
-      <tr><td class="team-col">${escapeHtml(labelB)}</td>${rowCells("b")}<td class="grid-total">${Math.round(totalB)}</td></tr>
+      <tr><td class="team-col">${escapeHtml(labelA)}</td>${rowCells("a")}<td class="grid-total" data-cell="totalA">0</td></tr>
+      <tr><td class="team-col">${escapeHtml(labelB)}</td>${rowCells("b")}<td class="grid-total" data-cell="totalB">0</td></tr>
     </tbody>
   `;
   container.appendChild(grid);
+}
+
+/** Everything about the board that changes without changing its shape: the two
+ * scores, the period cells, the totals, the centre cell, and whether the board
+ * is announcing itself as live. Writes only where the value actually differs,
+ * so a frame in which nothing moved costs no layout at all. */
+function patchScoreboard(container, periods, totalA, totalB, statusLabel, isLive) {
+  const write = (el, text) => {
+    if (el && el.textContent !== text) el.textContent = text;
+  };
+  const scoreA = container.querySelector(".scoreboard-score-a");
+  const scoreB = container.querySelector(".scoreboard-score-b");
+  write(scoreA, String(Math.round(totalA)));
+  write(scoreB, String(Math.round(totalB)));
+  // The pulse glow while live is the scoreboard's own "still playing" tell, the
+  // same job .scoreboard-period.live's blink does for the status line. Toggled
+  // rather than baked into the class string, because rebuilding the element to
+  // change it is what restarted the animation from frame zero twice a second.
+  scoreA?.classList.toggle("pulse", !!isLive);
+  scoreB?.classList.toggle("pulse", !!isLive);
+
+  periods.forEach((p, i) => {
+    write(container.querySelector(`[data-cell="a${i}"]`), String(Math.round(p.a)));
+    write(container.querySelector(`[data-cell="b${i}"]`), String(Math.round(p.b)));
+  });
+  write(container.querySelector('[data-cell="totalA"]'), String(Math.round(totalA)));
+  write(container.querySelector('[data-cell="totalB"]'), String(Math.round(totalB)));
+
+  // The period being played is marked in the header. Cleared first, because the
+  // header is no longer rebuilt between frames and last quarter's mark would
+  // otherwise stay lit for the rest of the game.
+  const heads = [...container.querySelectorAll(".scoreboard-grid thead th")];
+  for (const th of heads) th.classList.remove("period-current");
+  if (isLive && periods.length) heads[periods.length]?.classList.add("period-current");
+
+  const period = container.querySelector(".scoreboard-period");
+  if (period) {
+    write(period, statusLabel == null ? "" : String(statusLabel));
+    period.classList.toggle("live", !!isLive);
+    // A full board paint is never a clock - the clock arrives through
+    // setScoreboardStatus, which sets this back on. Clearing it here preserves
+    // exactly what the old rebuild did by accident: "End of Q1" blinks, a
+    // running clock does not. Without it the ticking suppression would latch on
+    // at the first clock reading and stay for the rest of the game, so the
+    // period labels would stop announcing themselves as live.
+    period.classList.remove("ticking");
+  }
 }
 
 /**

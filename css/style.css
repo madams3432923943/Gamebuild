@@ -5032,13 +5032,61 @@ table.box-table th {
 }
 
 /* ---- Play-by-play feed ---- */
+/* THE FEED IS A FIXED WINDOW, NOT A GROWING LIST, AND THAT IS A SCROLL FIX.
+ *
+ * It used to be a plain flex column with `min-height: 3.2rem` holding up to
+ * four cards of one or two lines each, which meant the PAGE's height was the
+ * sum of whatever headlines the game had most recently produced. Every card
+ * that entered or left changed it.
+ *
+ * That is the whole of the mobile scroll bug. Nothing in this app calls
+ * scrollIntoView, window.scrollTo or focus() during a game - measured, in
+ * Chromium, at 360px: every upward jump in the viewer's scroll position lined
+ * up one-for-one with a REDUCTION in document height. A reader sitting at the
+ * bottom of the page with the box score in front of them is pinned to the
+ * page's maximum scroll, so a page that gets shorter drags them up toward the
+ * scoreboard. Three shrinks a game, 45px, in the direction of the thing they
+ * had just scrolled away from.
+ *
+ * A fixed height ends it structurally: the feed occupies the same space with
+ * one card as with four, so no headline can move anything below it. The cards
+ * still stack newest-first and the newest is always the one on screen; older
+ * ones scroll WITHIN this box, which is local and cannot reach the page.
+ *
+ * overflow-anchor: none because a card entering at the top is exactly the kind
+ * of node the browser would otherwise pick as a scroll anchor, and re-anchoring
+ * onto something that is about to be removed is its own source of drift. */
 .play-feed {
   position: relative;
   padding: 0 1rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-height: 3.2rem;
+  height: var(--play-feed-height, 9.5rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  /* The feed is not a control and must never take the page's scroll with it. */
+  scrollbar-width: thin;
+}
+
+/* A phone has less height to spend and the same four cards to hold, so the
+   window is shorter there rather than the cards being smaller - three short
+   headlines visible, the fourth a short scroll away inside the box. */
+@media (max-width: 480px) {
+  .play-feed { --play-feed-height: 7.5rem; }
+}
+
+/* A card can never be taller than the two lines it is allowed, so the window
+   above holds a predictable number of them. Without this a single long
+   headline could fill the box on its own. */
+.play-card {
+  flex: 0 0 auto;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Football's box score is three tables; each needs to say which one it is. */

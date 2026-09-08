@@ -1358,9 +1358,14 @@ btnStartDraft.addEventListener("click", async () => {
 });
 
 /** Every tab leaves whatever was running behind (a live match poller, a pick
- * clock) before switching, so no screen keeps ticking off-screen. */
+ * clock, a game being played out) before switching, so no screen keeps ticking
+ * off-screen. */
 function goToTab(tab, onArrive) {
   cleanupOnlineWatcher();
+  // A game left mid-quarter must stop playing. Without this the score ticker,
+  // the shot ledger and the field kept animating a screen nobody was on, and
+  // starting a second game put two playbacks on one scoreboard.
+  cleanupPlayback();
   cleanupPickTimer();
   cleanupTacticTimer();
   cleanupRotationTimer();
@@ -3321,7 +3326,35 @@ function showStage(stage) {
   }
 }
 
+/**
+ * Every timer a playback has running, so leaving mid-game can stop all of them.
+ *
+ * They used to be three local arrays inside playOutResult, cleared only by
+ * finish() - which is the one path a game reaches when it is WATCHED to the
+ * end. Tapping a nav tab during a quarter left the interval ticking, the shot
+ * ledger firing play lines, and the football field animating, all of it writing
+ * into a screen nobody was looking at, until the game finished on its own.
+ * Starting another game before that happened put two playbacks on one
+ * scoreboard.
+ *
+ * A module-level registry rather than a returned handle because the callers
+ * that need to stop a playback - the nav tabs - are nowhere near the one that
+ * started it, and threading a handle through goToTab would put the playback in
+ * the signature of every screen change in the app.
+ */
+const playbackTimers = { intervals: [], timeouts: [] };
+
+/** Stops whatever is still animating a game. Safe to call when nothing is. */
+function cleanupPlayback() {
+  for (const t of playbackTimers.intervals) clearInterval(t);
+  for (const t of playbackTimers.timeouts) clearTimeout(t);
+  playbackTimers.intervals.length = 0;
+  playbackTimers.timeouts.length = 0;
+}
+
 function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, minutesB, matchups, tactic, analysis, onComplete }) {
+  // A new game never inherits the last one's timers - see cleanupPlayback.
+  cleanupPlayback();
   resetGameScreen();
   showScreen("game");
 
@@ -3335,7 +3368,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
 
   // Cumulative per-slot totals, grown as each period is revealed, so the live
   // box score builds through the game instead of appearing finished.
-  const scoreTickIntervals = [];
+  const scoreTickIntervals = playbackTimers.intervals;
   // Seeded from the SPORT's own line keys. These were basketball's six
   // literals, so a football game opened on a live table of PTS/REB/AST that
   // had nowhere to put a completion - the football columns existed in the
@@ -3369,7 +3402,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   let fieldRefs = null;
   // The whole game's playback, built as data before a single timer starts.
   let timeline = { events: [], totalMs: 0 };
-  const fieldTimers = [];
+  const fieldTimers = playbackTimers.timeouts;
   // The board's centre cell has TWO writers: the per-play loop below, and
   // tickScoreTo's 60ms score animation, which re-renders the whole board for
   // QUARTER_TICK_MS at the start of every period. Without one value they both
@@ -3391,7 +3424,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // simulation seed when the server recorded one, and the final score when it
   // did not, which is stable for a finished game and differs between games.
   let ledger = { events: [] };
-  const shotTimers = [];
+  // Shares the registry with the field: both are setTimeout handles, and the
+  // only thing that ever distinguished them was which array they were pushed
+  // into. Everything that clears one clears the other anyway.
+  const shotTimers = playbackTimers.timeouts;
   if (sport().presentation.buildShotLedger && Array.isArray(result.quarterBoxScores)) {
     const seed = Number(result.simulationSeed) ||
       (result.teamScoreA * 1000 + result.teamScoreB) * 7919 + result.quarterBoxScores.length;
@@ -3746,7 +3782,10 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     i += 1;
     // Overtime holds longer - see OT_REVEAL_DELAY_MS. isOt is this period, so
     // the pause after it is the one that lets the decisive score land.
-    setTimeout(step, wait);
+    // REGISTERED, because this is the timer that schedules the NEXT quarter:
+    // leaving mid-game without cancelling it means the game keeps revealing
+    // itself, quarter by quarter, onto a screen the player has left.
+    playbackTimers.timeouts.push(setTimeout(step, wait));
   }
 
 /** One line of the final banner. Text only, never markup - see finish(). */
@@ -3758,12 +3797,11 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   }
 
   function finish() {
-    for (const t of scoreTickIntervals) clearInterval(t);
-    // Nothing should still be waiting to draw on a field the game has left.
-    for (const t of fieldTimers) clearTimeout(t);
-    // Same for the shot ledger: a pending play line firing after the game ends
-    // would land on the next game's feed, or on a screen that has moved on.
-    for (const t of shotTimers) clearTimeout(t);
+    // Everything still waiting to draw on a game that is over: the score
+    // ticker, the field's plays, and the shot ledger's play lines. One of those
+    // firing after the whistle lands on the next game's feed, or on a screen
+    // that has moved on.
+    cleanupPlayback();
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
     flashClass(gameStageEl, "final-flash");
     // The broadcast's closing line: not why the winner won (the recap below
@@ -4072,7 +4110,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     sport().presentation.applyEvent &&
     timeline.events.length
   );
-  setTimeout(hasLiveLedger ? playEventDriven : step, QUARTER_REVEAL_DELAY_MS);
+  playbackTimers.timeouts.push(setTimeout(hasLiveLedger ? playEventDriven : step, QUARTER_REVEAL_DELAY_MS));
 }
 
 function runLocalSimulation() {
@@ -4473,18 +4511,24 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
   });
 }
 
+// The three ways out of a finished game. All of them stop the playback as well
+// as the match watcher: these buttons are revealed at the final whistle, but
+// the post-game reveal has its own timers and a fast tap can leave one pending.
 btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
+  cleanupPlayback();
   setActiveNav("play");
   showScreen("home");
 });
 btnToProfile.addEventListener("click", () => {
   cleanupOnlineWatcher();
+  cleanupPlayback();
   setActiveNav("profile");
   openProfileScreen();
 });
 btnGameHome.addEventListener("click", () => {
   cleanupOnlineWatcher();
+  cleanupPlayback();
   setActiveNav("play");
   showScreen("home");
   refreshHome();
