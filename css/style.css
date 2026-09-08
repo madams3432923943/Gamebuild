@@ -8459,3 +8459,388 @@ table.box-table tfoot .box-totals td:nth-child(2) {
    which reads as decoration rather than as a verdict. */
 .grade-chip.grade-good .grade-chip-value { color: #06d6a0; }
 .grade-chip.grade-bad .grade-chip-value { color: var(--buzzer); }
+
+/* ===========================================================================
+   BASKETBALL'S COURT
+   ===========================================================================
+   The counterpart to .football-field above, and drawn by js/sports/nba/court.js
+   rather than by shared UI - a sport's presentation lives with that sport.
+
+   A court was here once and was removed: it was 510px of mostly-empty rectangle
+   carrying less than the scoreboard under it. The difference now is that things
+   land on it. Every marker comes from the shot ledger, so a shot's position on
+   this floor is the position the ledger gave it and the post-game chart puts
+   the same shot in the same place.
+
+   NOTHING IN HERE MAY CHANGE THE PAGE'S HEIGHT WHILE A GAME IS PLAYING. The
+   court has a fixed aspect ratio, the big-play banner and the quarter card are
+   overlays, and the stat strip has a stable row count. A page that gets shorter
+   drags a reader at the bottom of it upward - see scripts/verify-live-scroll.mjs
+   for the measurement and the play feed above for the same rule applied there. */
+
+.basketball-court {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.bc-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.5rem;
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Whose ball it is, in that team's colour and leaning toward that team's side -
+   readable at a glance without parsing the words. */
+.bc-possession { color: var(--muted); }
+.bc-user-offense .bc-possession { color: var(--team-a-ink, var(--accent-bright)); }
+.bc-user-defense .bc-possession { color: var(--team-b-ink, var(--muted)); }
+
+.bc-run {
+  color: transparent;
+  transition: color var(--motion-fast, 150ms) ease;
+}
+.bc-run.live {
+  color: var(--scoreboard);
+  animation: bc-run-in 320ms ease;
+}
+.bc-run.live.side-b { color: var(--buzzer); }
+
+@keyframes bc-run-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* THE FLOOR HOLDS ITS OWN SHAPE. aspect-ratio rather than a pixel height, so
+   the court is the same court at 360px and at 1280px and the markers stay where
+   the ledger put them. 50:47 is the real half-court. */
+/* SIZED BY HEIGHT, NOT WIDTH. A 50:47 court that fills the width of a phone is
+   330px tall, and with the scoreboard above it and the stat strip and feed
+   below, the board - the score, the quarter, the clock - is pushed off the top
+   of the screen during live play. The floor is capped by the viewport instead
+   and the width follows from the aspect ratio, so the whole broadcast fits in
+   one screen on a phone and the court simply gets bigger on a desktop. */
+.bc-court {
+  position: relative;
+  height: min(34vh, 300px);
+  aspect-ratio: 50 / 47;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+@media (min-width: 700px) {
+  .bc-court { height: min(46vh, 420px); }
+}
+
+.bc-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bc-floor {
+  fill: rgba(8, 11, 16, 0.72);
+  stroke: rgba(var(--accent-rgb), 0.3);
+  stroke-width: 0.6;
+}
+
+.bc-line {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 0.7;
+}
+
+.bc-paint { fill: rgba(var(--accent-rgb), 0.09); }
+.bc-arc { stroke: rgba(255, 255, 255, 0.34); stroke-width: 0.9; }
+.bc-backboard { stroke: rgba(255, 255, 255, 0.5); stroke-width: 1.2; }
+.bc-rim { fill: none; stroke: var(--buzzer); stroke-width: 1.1; }
+
+/* A MADE SHOT IS A DISC AND A MISS IS A CROSS. Shape first, colour second: a
+   chart whose only distinction is hue is one that eight percent of men cannot
+   read, and this one is small and dense by design. */
+.bc-shot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.bc-shot.made { fill: var(--team-a-ink, var(--accent-bright)); stroke: none; }
+.bc-shot.made.side-b { fill: var(--team-b-ink, var(--scoreboard)); }
+.bc-shot.miss {
+  fill: none;
+  stroke: var(--team-a-ink, var(--accent-bright));
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.bc-shot.miss.side-b { stroke: var(--team-b-ink, var(--scoreboard)); }
+
+/* THE FADE IS AN ANIMATION, NOT A TIMER. It ends on the faint accumulated
+   state, which is what turns the last few seconds of markers into "what just
+   happened" and everything older into the shot chart building underneath. Two
+   hundred setTimeouts a game would each have to be cancelled when a viewer
+   leaves mid-quarter; an animation cannot outlive its element. */
+.bc-shot.fresh { animation: bc-shot-in 2.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+.bc-shot.fresh.made.strong { animation-name: bc-shot-in-strong; }
+.bc-shot.miss.fresh { animation-name: bc-shot-miss; }
+/* The final chart is not a playback - every marker is equally present. */
+.bc-shot.final { opacity: 0.82; }
+
+@keyframes bc-shot-in {
+  0% { opacity: 0; transform: scale(0.2); }
+  18% { opacity: 1; transform: scale(1.5); }
+  32% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.34; transform: scale(0.78); }
+}
+
+/* A finish at the rim is the loudest shot the ledger can honestly describe -
+   there are no dunks in this engine - so it gets the biggest pop. */
+@keyframes bc-shot-in-strong {
+  0% { opacity: 0; transform: scale(0.2); }
+  16% { opacity: 1; transform: scale(2.1); }
+  36% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0.4; transform: scale(0.82); }
+}
+
+/* A miss is deliberately quieter. The score already says whether it fell, and
+   naming every brick is noise. */
+@keyframes bc-shot-miss {
+  0% { opacity: 0; transform: scale(0.5); }
+  20% { opacity: 0.85; transform: scale(1.15); }
+  100% { opacity: 0.2; transform: scale(0.85); }
+}
+
+.bc-pop {
+  font-family: var(--font-display);
+  /* In viewBox units, so 5 is five percent of the court's width whatever the
+     screen is. Started at 7, which read as a shout over the marker it belonged
+     to rather than as a note beside it. */
+  font-size: 5px;
+  font-weight: 800;
+  text-anchor: middle;
+  fill: var(--team-a-ink, var(--accent-bright));
+  animation: bc-pop 900ms ease-out forwards;
+}
+.bc-pop.side-b { fill: var(--team-b-ink, var(--scoreboard)); }
+
+@keyframes bc-pop {
+  0% { opacity: 0; transform: translateY(2px); }
+  25% { opacity: 1; transform: translateY(-1px); }
+  100% { opacity: 0; transform: translateY(-7px); }
+}
+
+/* THE BIG-PLAY BANNER IS AN OVERLAY. Absolutely positioned so it can appear and
+   go without moving a pixel of anything else on the page. */
+.bc-call {
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  transform: translateX(-50%);
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--radius-pill, 999px);
+  font-family: var(--font-display);
+  font-size: var(--text-micro);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid transparent;
+  color: var(--text);
+}
+
+.bc-call.show { animation: bc-call 1500ms ease forwards; }
+.bc-call.lead { border-color: var(--scoreboard); color: var(--scoreboard); }
+.bc-call.buzzer { border-color: var(--buzzer); color: var(--buzzer); }
+.bc-call.three { border-color: var(--accent-bright); color: var(--accent-bright); }
+.bc-call.rim { border-color: var(--accent); color: var(--accent-bright); }
+.bc-call.deny { border-color: #7ee0c0; color: #7ee0c0; }
+.bc-call.loose { border-color: var(--muted); color: var(--muted); }
+
+@keyframes bc-call {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.94); }
+  14% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  76% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* The quarter card, also an overlay, also for the height. */
+.bc-break {
+  position: absolute;
+  inset: 8% 6%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 12px;
+  background: rgba(6, 8, 12, 0.93);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  padding: 0.6rem;
+}
+
+.bc-break.show { animation: bc-break 2200ms ease forwards; }
+
+@keyframes bc-break {
+  0% { opacity: 0; transform: scale(0.97); }
+  10% { opacity: 1; transform: scale(1); }
+  82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.bc-break-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--scoreboard);
+  font-size: var(--text-micro);
+}
+
+.bc-break-score { display: flex; gap: 1.4rem; }
+.bc-break-side { display: flex; flex-direction: column; }
+.bc-break-side i { font-style: normal; font-size: var(--text-micro); color: var(--muted); text-transform: uppercase; }
+.bc-break-side b { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 800; }
+.bc-break-leader { font-size: var(--text-xs); color: var(--muted); line-height: 1.4; }
+.bc-break-leader b { color: var(--text); }
+.bc-break-shooting { font-size: var(--text-micro); color: var(--muted); width: 100%; max-width: 220px; }
+.bc-break-label { text-transform: uppercase; letter-spacing: 0.06em; }
+.bc-break-row { display: flex; justify-content: space-between; gap: 0.6rem; }
+.bc-break-row b { color: var(--text); font-family: var(--font-mono); }
+
+/* THE LIVE STRIP: five numbers a side, and no more. The full box score is
+   further down the page and is where a whole line belongs; this is what a
+   broadcast keeps on screen. Grid rather than flex so the two teams' columns
+   line up with each other, which is the only reason to show them together. */
+.bc-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  font-size: var(--text-micro);
+}
+
+.bc-stat-team {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.15rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+}
+
+.bc-stat-name {
+  grid-column: 1 / -1;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-stat-a .bc-stat-name { color: var(--team-a-ink, var(--accent-bright)); }
+.bc-stat-b .bc-stat-name { color: var(--team-b-ink, var(--scoreboard)); }
+
+.bc-stat { display: flex; flex-direction: column; align-items: center; }
+.bc-stat b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text); }
+.bc-stat i { font-style: normal; color: var(--muted); font-size: 0.62rem; letter-spacing: 0.03em; }
+
+/* The post-game chart and its filter. */
+.shot-chart { margin: 0 0 1rem; }
+/* The title above the filters on a narrow screen rather than beside them: the
+   three team chips need the full width, and squeezing them next to a heading
+   truncated the opponent's name to a letter. */
+.shot-chart-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (min-width: 560px) {
+  .shot-chart-head {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+.shot-chart-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  font-size: var(--text-micro);
+  color: var(--muted);
+}
+.shot-chart-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.shot-chart-court {
+  position: relative;
+  height: min(52vh, 420px);
+  aspect-ratio: 50 / 47;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.shot-chart-legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+  font-size: var(--text-micro);
+  color: var(--muted);
+}
+
+@media (max-width: 480px) {
+  .basketball-court { padding: 0.4rem 0.5rem; }
+  .bc-stat i { font-size: 0.58rem; }
+  .bc-status { font-size: 0.62rem; }
+}
+
+/* Someone who asked for less motion gets the court, the markers and the
+   numbers, and none of the movement. The markers must still END somewhere
+   visible - an animation turned off mid-keyframe would leave every shot at
+   opacity 0, which is not "less motion", it is an empty chart. */
+@media (prefers-reduced-motion: reduce) {
+  .bc-shot.fresh,
+  .bc-shot.fresh.made.strong,
+  .bc-shot.miss.fresh {
+    animation: none;
+    opacity: 0.6;
+  }
+  .bc-pop { animation: none; opacity: 0; }
+  /* Still TIMED, just not moved. `animation: none` here would leave the banner
+     and the quarter card on screen permanently - the card sits over the floor,
+     so the last quarter's card would cover the game. Stepping straight from
+     visible to gone keeps the beat and removes the motion, which is what was
+     actually asked for. */
+  .bc-call.show { animation: bc-call-static 1500ms steps(1, end) forwards; }
+  .bc-break.show { animation: bc-break-static 2200ms steps(1, end) forwards; }
+  .bc-run.live { animation: none; }
+}
+
+@keyframes bc-call-static {
+  0%, 96% { opacity: 1; transform: translateX(-50%); }
+  100% { opacity: 0; transform: translateX(-50%); }
+}
+
+@keyframes bc-break-static {
+  0%, 96% { opacity: 1; }
+  100% { opacity: 0; }
+}

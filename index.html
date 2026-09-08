@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=9ad75e2" />
+  <link rel="stylesheet" href="css/style.css?v=4396bc0" />
 </head>
 <body>
   <header class="top-nav">
@@ -488,10 +488,10 @@
              it in `presentation.stage`, rather than editing a condition
              somewhere else. showStage() in js/main.js reveals the one named.
 
-             Basketball declares "board" and has no sibling at all: the
-             scoreboard IS its stage. It used to draw a court, which was 510px
-             of mostly-empty rectangle carrying less than the board under it -
-             removed outright rather than shrunk.
+             Basketball declares "court" and football "field". Basketball spent
+             a while declaring "board" - the scoreboard as its whole stage -
+             after its first court was removed for being 510px of mostly-empty
+             rectangle. The court is back with the shot ledger drawn on it.
 
              Every [data-stage] starts hidden. A default-visible stage is a
              default SPORT: the court once shipped unhidden, so any path
@@ -501,8 +501,13 @@
              makes that flash structurally impossible rather than a matter of
              who remembers to call showStage first. -->
         <div class="scoreboard" id="live-scoreboard"></div>
-        <!-- Football's playback, populated by renderFootballField() in
-             js/ui.js from the engine's `drives` array. -->
+        <!-- Basketball's playback, drawn by js/sports/nba/court.js from the shot
+             ledger. A court used to be here, was removed as 510px of
+             mostly-empty rectangle, and is back because things land on it now:
+             every shot the ledger produced, where the ledger put it. -->
+        <div id="basketball-court" class="basketball-court hidden" data-stage="court"></div>
+        <!-- Football's playback, drawn by js/sports/nfl/field.js from the
+             engine's `drives` array. -->
         <div id="football-field" class="football-field hidden" data-stage="field"></div>
         <div id="play-feed" class="play-feed"></div>
       </div>
@@ -535,6 +540,19 @@
           <div class="reward-toast-detail" id="reward-toast-detail"></div>
           <ul class="reward-toast-more" id="reward-toast-more"></ul>
         </div>
+      </div>
+
+      <!-- The finished game's shot chart. Basketball only - populated by
+           renderShotChart() in js/sports/nba/court.js from the same ledger the
+           live court drew, so a shot is in the same place here as it was when
+           you watched it drop. Hidden for any sport that draws no chart. -->
+      <div id="shot-chart" class="shot-chart hidden">
+        <div class="shot-chart-head">
+          <span class="shot-chart-title">Shot chart</span>
+          <div class="shot-chart-filters" id="shot-chart-filters" role="radiogroup" aria-label="Shot chart teams"></div>
+        </div>
+        <div class="shot-chart-court" id="shot-chart-court"></div>
+        <div class="shot-chart-legend" id="shot-chart-legend"></div>
       </div>
 
       <div id="full-box-score" class="hidden"></div>
@@ -850,6 +868,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=9ad75e2"></script>
+  <script type="module" src="js/main.js?v=4396bc0"></script>
 </body>
 </html>

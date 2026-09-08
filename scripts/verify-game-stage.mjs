@@ -117,28 +117,34 @@ async function runInPage(page) {
 
     // ---- every live sport declares a stage that the page actually has -----
     // A stage either resolves to an element on the page or is the one name
-    // that deliberately has none. Basketball's live stage is "board": the
-    // scoreboard IS the stage, and it lives outside this rotation because
-    // every sport shows it - so "board" correctly reveals no field art at all.
+    // that deliberately has none. "board" is that name - the scoreboard is
+    // every sport's, and it lives outside this rotation - and no live sport
+    // uses it today: basketball declares "court" and football "field".
     // Spelled out as an allow-list rather than "missing is fine", because
     // "missing is fine" is how a typo becomes a blank screen.
     const ARTLESS_STAGES = new Set(["board"]);
-    // A sport that DOES draw field art has to bring the code that draws it.
-    // Shared code calls presentation.renderField/showEvent through the
-    // registry - it never imports a sport - so a stage declared without them
-    // is a TypeError at the first play, not a missing picture.
-    const STAGE_RENDERERS = ["renderField", "showEvent"];
+    // A sport that DOES draw stage art has to bring the code that draws it.
+    // Shared code calls these through the registry - it never imports a sport -
+    // so a stage declared without them is a TypeError at the first play rather
+    // than a missing picture. Per stage, because a court and a field are drawn
+    // by different functions and asserting one list over both would mean
+    // asserting the smaller one.
+    const STAGE_RENDERERS = {
+      field: ["renderField", "showEvent"],
+      court: ["renderCourt", "showEvent", "buildShotLedger", "renderShotChart"],
+    };
     const declared = {};
     for (const id of ["nba", "nfl"]) {
       setActiveSport(id);
       declared[id] = activeSport().presentation?.stage;
       const resolves = !!stage.querySelector(`[data-stage="${declared[id]}"]`);
       if (resolves) {
-        const missing = STAGE_RENDERERS.filter((fn) => typeof activeSport().presentation?.[fn] !== "function");
+        const wanted = STAGE_RENDERERS[declared[id]] || [];
+        const missing = wanted.filter((fn) => typeof activeSport().presentation?.[fn] !== "function");
         check(
           `${id.toUpperCase()} brings the code that draws its stage`,
-          missing.length === 0,
-          missing.length === 0 ? STAGE_RENDERERS.join(", ") : `missing: ${missing.join(", ")}`
+          wanted.length > 0 && missing.length === 0,
+          missing.length === 0 ? wanted.join(", ") : `missing: ${missing.join(", ")}`
         );
       }
       check(
@@ -148,16 +154,19 @@ async function runInPage(page) {
       );
     }
 
-    // ---- NBA: court, and no field ----------------------------------------
+    // ---- NBA: the court, and no field ------------------------------------
     setActiveSport("nba");
     showStage(activeSport().presentation.stage);
-    // Basketball shows NO field art at any point: the board is the whole
-    // stage. There is no court to reveal - it was removed, not hidden.
-    check("NBA plays on the board, with no field art at all", visible().length === 0, `visible: ${visible().join(",") || "none"}`);
+    // Basketball shows its court and football's field is nowhere. The court
+    // spent a while not existing at all - removed as 510px of mostly-empty
+    // rectangle - and this check used to assert its absence; what it is really
+    // for is that ONE stage is up at a time, which is what stopped football
+    // playing on a basketball floor.
+    check("NBA shows the court and nothing else", visible().join(",") === "court", `visible: ${visible().join(",") || "none"}`);
     check(
-      "the court is gone from the page, not merely hidden",
-      !stage.querySelector('[data-stage="court"]') && !document.querySelector(".court"),
-      stage.querySelector('[data-stage="court"]') ? "a court element is still in the DOM" : "no court element exists"
+      "the court is drawable, not just declared",
+      !!stage.querySelector('[data-stage="court"]'),
+      stage.querySelector('[data-stage="court"]') ? "#basketball-court is on the page" : "no court element exists"
     );
     check(
       "NBA opens on Tip-off",
@@ -190,7 +199,7 @@ async function runInPage(page) {
     showStage(activeSport().presentation.stage);
     check(
       "switching NFL -> NBA leaves no stale field",
-      visible().length === 0,
+      visible().join(",") === "court",
       `visible: ${visible().join(",") || "none"}`
     );
     renderScoreboard(board, "A", "B", [], 4, 0, 0, openingLabel(), true);

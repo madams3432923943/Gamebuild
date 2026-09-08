@@ -67,6 +67,9 @@ import { draftAnalysis, impact } from "./engine.js";
 import { shotLine, formatShotLine } from "./shooting.js";
 import { buildShotLedger, describeEvent, foldLiveStats, formatClock, ZONES } from "./playback.js";
 import {
+  renderCourt, showEvent, liveStatusLabel, showQuarterBreak, hideQuarterBreak, renderShotChart,
+} from "./court.js";
+import {
   SLOTS as NBA_SLOTS,
   basePosition,
   isBenchSlot,
@@ -179,17 +182,25 @@ export const NBA = {
   // a final score into a sequence - who scored, from where, on what run - and
   // that drives the play-by-play, the sounds and the run/lead moments. Only
   // the drawing of it went away.
-  // Everything basketball's presentation offers, travelling through the
-  // registry rather than being imported by shared code: the ledger it draws,
-  // how one event reads in the feed, the running team lines, and the clock
-  // format. Shared UI never imports basketball - it asks activeSport().
+  // BASKETBALL'S STAGE IS A COURT. `stage` names the [data-stage] element in
+  // index.html that the game screen reveals for this sport, the same way
+  // football names its field - see showStage() in js/main.js.
   //
-  // `stage` is still "board" here; the court that reads all of this is built in
-  // the next commit, and a stage naming an element the page does not have yet
-  // is a blank screen (which is what scripts/verify-sport-contract.mjs refuses).
+  // Everything the court needs travels through here rather than being imported
+  // by shared code: the ledger it draws, how it draws one event, how one event
+  // reads in the feed, the running team lines, the clock format, and the
+  // post-game chart. Shared UI never imports basketball - it asks
+  // activeSport() - so a sport that draws no court simply declares none of this
+  // and keeps the plain board.
   presentation: {
-    stage: "board",
+    stage: "court",
     buildShotLedger,
+    renderCourt,
+    showEvent,
+    liveStatusLabel,
+    showQuarterBreak,
+    hideQuarterBreak,
+    renderShotChart,
     describeEvent,
     foldLiveStats,
     formatClock,

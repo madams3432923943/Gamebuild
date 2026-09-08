@@ -110,14 +110,32 @@ function noteShapeFaults(notes) {
  * shared code calls unconditionally once a stage is declared. */
 const REQUIRED_PRESENTATION = {
   field: ["renderField", "showEvent", "buildTimeline", "createLiveState", "applyEvent", "liveBox", "liveScore"],
+  // Basketball's court. Every one of these is called by js/main.js the moment a
+  // basketball game reaches the game screen, so a sport declaring this stage
+  // without them is a blank floor, not a degraded one. buildShotLedger is the
+  // source of everything drawn on it; foldLiveStats is the strip underneath;
+  // renderShotChart is the same picture after the whistle.
+  court: [
+    "renderCourt", "showEvent", "buildShotLedger", "foldLiveStats",
+    "describeEvent", "showQuarterBreak", "hideQuarterBreak", "renderShotChart",
+  ],
   board: [],
 };
 
 /** liveStatusLabel writes straight into the scoreboard's centre cell, so a
  * sport returning anything but a string or null puts "[object Object]" between
- * the two scores. Optional by design: basketball has no play clock and omits
- * it, which is why shared code calls it with ?. */
-const SAMPLE_EVENT = { quarter: 3, clock: "12:29", scoreA: 9, scoreB: 7, possession: "A", down: 4, distance: 1 };
+ * the two scores. Optional by design - a sport with no clock omits it, which is
+ * why shared code calls it with ?. Both live sports declare one now: football
+ * reads a play clock off its timeline, basketball a derived one off the
+ * ledger's event order (see js/sports/nba/playback.js, which is blunt about the
+ * engine having no clock).
+ *
+ * The sample carries BOTH shapes of event, because the two sports' events are
+ * their own and this is checking the contract rather than either timeline. */
+const SAMPLE_EVENT = {
+  quarter: 3, clock: "12:29", scoreA: 9, scoreB: 7, possession: "A", down: 4, distance: 1,
+  period: 3, clockSeconds: 461, overtime: false,
+};
 
 
 /** WCAG 2.1 relative luminance, then the contrast ratio between two colours.
