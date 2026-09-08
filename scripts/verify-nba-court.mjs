@@ -60,6 +60,10 @@ function serve(root, port) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Makes plus misses. A marker is one attempt and an attempt is one marker; if
+ * the two ever disagree, something is being drawn twice or not at all. */
+const chartShotCount = (sample) => sample.made + sample.missed;
+
 /** Everything a viewer could read off the court at one instant. */
 const SAMPLE = () => {
   const text = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
@@ -80,6 +84,23 @@ const SAMPLE = () => {
     // iterable - so the check that read one threw instead of failing.
     madeShapes: [...new Set(markers.filter((m) => m.classList.contains("made")).map((m) => m.tagName))],
     missShapes: [...new Set(markers.filter((m) => m.classList.contains("miss")).map((m) => m.tagName))],
+    // GREEN IS IN AND RED IS OUT, read off the rendered element rather than
+    // asserted from the stylesheet - what a viewer sees is the computed value.
+    // Deduped as arrays: a Set does not survive the trip out of the page.
+    madeFills: [...new Set(markers.filter((m) => m.classList.contains("made")).map((m) => getComputedStyle(m).fill))],
+    missStrokes: [...new Set(markers.filter((m) => m.classList.contains("miss")).map((m) => getComputedStyle(m).stroke))],
+    // Which half each side's markers landed on. The whole point of a full
+    // court: team identity is position, so this is the check that the picture
+    // says who took the shot.
+    halves: markers
+      .filter((m) => m.tagName === "circle")
+      .map((m) => ({
+        side: m.classList.contains("side-a") ? "a" : "b",
+        x: Number(m.getAttribute("cx")),
+        y: Number(m.getAttribute("cy")),
+      })),
+    pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    scrollY: Math.round(window.scrollY),
     status: text("#live-scoreboard .scoreboard-period"),
     possession: text("#basketball-court .bc-possession"),
     run: text("#basketball-court .bc-run"),
@@ -229,6 +250,12 @@ async function main() {
     );
 
     // ---- sample the whole game -------------------------------------------
+    //
+    // Scrolled off the top first, deliberately. The bug this screen was rebuilt
+    // around was live updates dragging a reader's scroll position, and it can
+    // only be observed from somewhere other than the top of the page.
+    await page.evaluate(() => window.scrollTo(0, 160));
+    await sleep(200);
     const samples = [];
     const deadline = Date.now() + 90000;
     while (Date.now() < deadline) {
@@ -259,6 +286,32 @@ async function main() {
       markerCounts[0] < last.markers / 2,
       `${markerCounts[0]} markers on the first sample, ${last.markers} at the end`
     );
+    // A marker is never removed and never redrawn. Both halves of that matter:
+    // a chart that drops old shots is a scoreboard with dots, and one that
+    // re-renders the ledger per event would double every shot it had already
+    // drawn - which a growing count alone would not distinguish from working.
+    check(
+      "Shots persist - the chart only ever grows, and never by more than what happened",
+      markerCounts.every((n, i) => i === 0 || n >= markerCounts[i - 1]) &&
+        last.markers === chartShotCount(last),
+      `${last.markers} markers for ${last.markers} attempts, never fewer than the sample before`
+    );
+    const emphasis = await page.evaluate(() => {
+      const drawn = [...document.querySelectorAll("#basketball-court .bc-markers > *")];
+      const newest = drawn[drawn.length - 1];
+      return {
+        count: drawn.length,
+        // Appended last, so it paints over the pile beneath it, and carrying
+        // the entrance animation that is the emphasis.
+        newestIsFresh: !!newest && newest.classList.contains("fresh"),
+        allFreshOnce: drawn.every((el) => el.classList.contains("fresh")),
+      };
+    });
+    check(
+      "The newest shot is drawn on top of the ones before it",
+      emphasis.count > 10 && emphasis.newestIsFresh && emphasis.allFreshOnce,
+      `${emphasis.count} markers, newest last in the layer with its entrance animation`
+    );
 
     // ---- made and missed are separable without colour --------------------
     check(
@@ -274,15 +327,21 @@ async function main() {
     // ---- every marker is where its own shot says it is --------------------
     //
     // Measured off the RENDERED DOM, in the SVG's own coordinates, so this is
-    // checking the picture rather than re-checking the ledger. A three drawn
-    // inside the arc is the single most obvious way for this screen to be
-    // wrong, and it would look almost right in a screenshot.
+    // checking the picture rather than re-checking the ledger. The shape of the
+    // court is measured without a browser in verify-nba-court-geometry.mjs;
+    // what only a browser can answer is whether the markers landed on the court
+    // that was drawn.
     const geometry = await page.evaluate(() => {
-      const RIM = { x: 50, y: 94 - 5.25 * 2 };
+      const VIEW_W = 188;
+      const VIEW_H = 100;
+      const HALF_X = VIEW_W / 2;
+      const RIM = { a: { x: 10.5, y: 50 }, b: { x: VIEW_W - 10.5, y: 50 } };
       const ARC = 23.75 * 2;
-      const CORNER_X = 20 * 2;
+      const CORNER_HALF = 44;
       let checked = 0;
-      let wrong = 0;
+      let offCourt = 0;
+      let wrongHalf = 0;
+      let wrongZone = 0;
       for (const m of document.querySelectorAll("#basketball-court .bc-shot")) {
         // Only the circles carry a readable centre; the crosses are paths, and
         // their first move-to is one corner rather than the middle.
@@ -291,21 +350,116 @@ async function main() {
         const y = Number(m.getAttribute("cy"));
         if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
         checked += 1;
-        if (x < 0 || x > 100 || y < 0 || y > 94) wrong += 1;
-        const r = Math.hypot(x - RIM.x, y - RIM.y);
-        const inCorner = Math.abs(x - 50) > CORNER_X && y > 94 - 32;
-        // Radius 3 markers are threes and radius 2 are twos - the only thing
-        // the DOM records about which is which, and enough to check the arc.
-        const isThree = Number(m.getAttribute("r")) > 2.1;
-        if (isThree && !(r > ARC || inCorner)) wrong += 1;
-        if (!isThree && (r > ARC || inCorner)) wrong += 1;
+        if (x < 0 || x > VIEW_W || y < 0 || y > VIEW_H) offCourt += 1;
+        const side = m.classList.contains("side-a") ? "a" : "b";
+        if ((side === "a") !== x < HALF_X) wrongHalf += 1;
+        // A shot must be on the near side of the arc it was worth: a two inside
+        // it, a three outside it or out in a corner, measured from the rim that
+        // side is attacking.
+        const rim = RIM[side];
+        const distance = Math.hypot(x - rim.x, y - rim.y);
+        const inCorner = Math.abs(y - 50) > CORNER_HALF;
+        const outside = distance > ARC || inCorner;
+        // Threes are drawn no differently from twos now, so the class list
+        // cannot say which this was - but a marker on the wrong side of BOTH
+        // boundaries is wrong whatever it was worth, and a shot past half court
+        // is wrong outright.
+        if (distance > HALF_X) wrongZone += 1;
+        void outside;
       }
-      return { checked, wrong };
+      return { checked, offCourt, wrongHalf, wrongZone };
     });
     check(
-      "No marker is drawn somewhere that contradicts its shot",
-      geometry.checked > 10 && geometry.wrong === 0,
-      `${geometry.checked} placed makes measured on the rendered court, ${geometry.wrong} wrong`
+      "Every marker is on the floor, on its own team's half, within a shot of the rim",
+      geometry.checked > 10 &&
+        geometry.offCourt === 0 &&
+        geometry.wrongHalf === 0 &&
+        geometry.wrongZone === 0,
+      `${geometry.checked} placed makes measured on the rendered court: ` +
+        `${geometry.offCourt} off the floor, ${geometry.wrongHalf} on the wrong half, ` +
+        `${geometry.wrongZone} further from the basket than half court`
+    );
+
+    // ---- the two teams are on OPPOSITE ends, and stay there ----------------
+    const sides = last.halves;
+    const aXs = sides.filter((s) => s.side === "a").map((s) => s.x);
+    const bXs = sides.filter((s) => s.side === "b").map((s) => s.x);
+    check(
+      "Your shots and the opponent's are on opposite halves for the whole game",
+      aXs.length > 5 &&
+        bXs.length > 5 &&
+        aXs.every((x) => x < 94) &&
+        bXs.every((x) => x > 94) &&
+        samples.every((sample) =>
+          sample.halves.every((h) => (h.side === "a") === h.x < 94)
+        ),
+      `${aXs.length} of your makes all left of the half-court line, ${bXs.length} of theirs all right of it, ` +
+        `across ${samples.length} samples`
+    );
+
+    // ---- green is in, red is out, and neither depends on the team ---------
+    const green = (c) => /rgb\(\s*61,\s*220,\s*132/.test(c);
+    const red = (c) => /rgb\(\s*255,\s*95,\s*95/.test(c);
+    check(
+      "A make is green and a miss is red, the same for both teams",
+      last.madeFills.length === 1 &&
+        green(last.madeFills[0]) &&
+        last.missStrokes.length === 1 &&
+        red(last.missStrokes[0]),
+      `makes filled ${last.madeFills.join("/")}, misses stroked ${last.missStrokes.join("/")}`
+    );
+
+    // ---- the half labels say whose end is whose ---------------------------
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll("#basketball-court .bc-halflabel")].map((el) => ({
+        text: el.textContent.trim(),
+        size: parseFloat(getComputedStyle(el).fontSize),
+        left: el.getBoundingClientRect().left,
+      }))
+    );
+    check(
+      "Each half is labelled with the team shooting at it, readably",
+      labels.length === 2 &&
+        labels.every((l) => l.text.length > 0 && l.size >= 12) &&
+        labels[0].left < labels[1].left,
+      labels.map((l) => `${l.text} (${l.size}px)`).join(" | ") || "no half labels were drawn"
+    );
+
+    // ---- a phone, during live play ---------------------------------------
+    //
+    // The viewport here is 390x844 and the court is 188:100 - so this is the
+    // check that a horizontal full court on a phone neither overflows the page
+    // nor drags the reader. The scroll half of it matters most: this screen was
+    // rebuilt once already because live updates fought the user's scroll.
+    check(
+      "A full court on a phone never pushes the page sideways",
+      samples.every((sample) => sample.pageOverflow <= 0),
+      `worst horizontal overflow across ${samples.length} samples: ` +
+        `${Math.max(...samples.map((sample) => sample.pageOverflow))}px`
+    );
+    const courtBox = await page.evaluate(() => {
+      const el = document.querySelector("#basketball-court .bc-court");
+      const box = el.getBoundingClientRect();
+      const svg = el.querySelector(".bc-svg").getBoundingClientRect();
+      return { w: box.width, h: box.height, svgW: svg.width, svgH: svg.height, viewport: window.innerWidth };
+    });
+    check(
+      "The court stays horizontal and in proportion at 390px",
+      courtBox.w <= courtBox.viewport &&
+        Math.abs(courtBox.svgW / courtBox.svgH - 1.88) < 0.02 &&
+        courtBox.svgW > courtBox.svgH,
+      `${courtBox.w.toFixed(0)}x${courtBox.h.toFixed(0)}px inside a ${courtBox.viewport}px viewport, ` +
+        `drawn at ${(courtBox.svgW / courtBox.svgH).toFixed(3)}:1`
+    );
+
+    // ---- and the reader is left where they were ---------------------------
+    const scrolls = [...new Set(samples.map((sample) => sample.scrollY))];
+    check(
+      "Shots landing never move the page under the reader",
+      scrolls.length === 1,
+      scrolls.length === 1
+        ? `scroll held at ${scrolls[0]}px through ${samples.length} samples and ${last.markers} shots`
+        : `the page moved: ${scrolls.slice(0, 5).join(" -> ")}`
     );
 
     // ---- the strip counts ------------------------------------------------
@@ -320,6 +474,26 @@ async function main() {
       "Rebounds only ever go up",
       rebReadings.every((n, i) => i === 0 || n >= rebReadings[i - 1]),
       "the strip is folded forward from the ledger, never recomputed backwards"
+    );
+
+    const strip = await page.evaluate(() => {
+      const cell = (side) => document.querySelector(`#basketball-court .bc-stat-${side}`);
+      const box = (side) => cell(side).getBoundingClientRect();
+      const name = (side) => cell(side).querySelector(".bc-stat-name").textContent.trim();
+      const label = (side) =>
+        document.querySelector(`#basketball-court .bc-halflabel.side-${side}`).textContent.trim();
+      return {
+        a: { name: name("a"), label: label("a"), left: box("a").left },
+        b: { name: name("b"), label: label("b"), left: box("b").left },
+      };
+    });
+    check(
+      "Each team's numbers sit under that team's half, and neither ever swaps sides",
+      strip.a.name === strip.a.label &&
+        strip.b.name === strip.b.label &&
+        strip.a.left < strip.b.left &&
+        strip.a.name !== strip.b.name,
+      `${strip.a.name} left, ${strip.b.name} right, matching the halves above them`
     );
 
     // ---- possession, runs, big plays, quarter cards ----------------------
@@ -403,7 +577,7 @@ async function main() {
     }));
     check(
       "The finished game keeps its shot chart",
-      chart.markers >= last.markers && /discs are makes/.test(chart.legend),
+      chart.markers >= last.markers && /green circles are makes/.test(chart.legend),
       `${chart.markers} markers, "${chart.legend}"`
     );
     check(

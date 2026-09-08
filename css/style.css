@@ -8572,22 +8572,21 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 
 /* THE FLOOR HOLDS ITS OWN SHAPE. aspect-ratio rather than a pixel height, so
    the court is the same court at 360px and at 1280px and the markers stay where
-   the ledger put them. 50:47 is the real half-court. */
-/* SIZED BY HEIGHT, NOT WIDTH. A 50:47 court filling a phone's width is 330px
-   tall, which pushed the board - score, quarter, clock - off the top of the
-   screen during live play. Capped by the viewport instead, width following from
-   the aspect ratio, so the whole broadcast fits one screen on a phone. */
+   the ledger put them. 188:100 is the real FULL court, 94 feet by 50, and it is
+   horizontal at every width - a court that turns vertical on a phone is a
+   different picture, and the two halves stop meaning "your end" and "theirs".
+
+   WIDTH FIRST, HEIGHT CAPPED. A 1.88:1 court across a 360px phone is 183px
+   tall, which leaves the board above it on screen - the reason the old
+   half-court had to be sized by height instead. The max-width still answers to
+   the viewport height so a landscape phone, where 52vh is small, shrinks the
+   court rather than pushing the scoreboard off the top. */
 .bc-court {
   position: relative;
-  height: min(34vh, 300px);
-  aspect-ratio: 50 / 47;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  max-width: min(100%, 900px, calc(min(52vh, 460px) * 1.88));
+  aspect-ratio: 188 / 100;
   margin: 0 auto;
-}
-
-@media (min-width: 700px) {
-  .bc-court { height: min(46vh, 420px); }
 }
 
 .bc-svg {
@@ -8602,68 +8601,134 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   stroke-width: 0.6;
 }
 
+/* The court lines are FURNITURE. They are restrained on purpose: everything
+   loud on this floor should be a shot, and a court drawn in team colours makes
+   the markers compete with the lines they sit on. */
 .bc-line {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.22);
+  stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 0.7;
 }
 
-.bc-paint { fill: rgba(var(--accent-rgb), 0.09); }
-.bc-arc { stroke: rgba(255, 255, 255, 0.34); stroke-width: 0.9; }
+.bc-paint { fill: rgba(var(--accent-rgb), 0.08); }
+.bc-arc { stroke: rgba(255, 255, 255, 0.32); stroke-width: 0.9; }
+.bc-midline { stroke: rgba(255, 255, 255, 0.26); stroke-width: 0.8; }
 .bc-backboard { stroke: rgba(255, 255, 255, 0.5); stroke-width: 1.2; }
 .bc-rim { fill: none; stroke: var(--buzzer); stroke-width: 1.1; }
 
-/* A MADE SHOT IS A DISC AND A MISS IS A CROSS. Shape first, colour second: a
-   chart distinguished only by hue is one many readers cannot read at all, and
-   this one is small and dense by design. */
+/* GREEN IS IN AND RED IS OUT - the only thing a marker's colour says. Which
+   team took it is which HALF it is on, so the two questions never share a
+   channel and no marker has to be read twice.
+
+   A MADE SHOT IS ALSO A DISC AND A MISS ALSO A CROSS. Shape first, colour
+   second: a chart distinguished only by hue is one many readers cannot read at
+   all, and this one is small and dense by design. */
+.basketball-court,
+.shot-chart {
+  --shot-make: #3ddc84;
+  --shot-miss: #ff5f5f;
+}
+
 .bc-shot {
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.bc-shot.made { fill: var(--team-a-ink, var(--accent-bright)); stroke: none; }
-.bc-shot.made.side-b { fill: var(--team-b-ink, var(--scoreboard)); }
+.bc-shot.made { fill: var(--shot-make); stroke: none; }
 .bc-shot.miss {
   fill: none;
-  stroke: var(--team-a-ink, var(--accent-bright));
+  stroke: var(--shot-miss);
   stroke-width: 1.1;
   stroke-linecap: round;
 }
-.bc-shot.miss.side-b { stroke: var(--team-b-ink, var(--scoreboard)); }
+
+/* THE NEWEST MAKE, for less than a second. Its own element in the flash layer,
+   so the disc underneath keeps its place in the chart while this happens. */
+.bc-ring {
+  fill: none;
+  stroke: var(--shot-make);
+  stroke-width: 1.2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bc-ring 620ms ease-out forwards;
+}
+
+@keyframes bc-ring {
+  0% { opacity: 0.95; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(3.4); }
+}
+
+/* Whose end is whose, over the floor rather than beside it - the label and the
+   shots it names cannot be separated by a line wrap that way. 0.75rem is the
+   12px floor the mobile audit enforces. */
+.bc-halflabels {
+  position: absolute;
+  inset: 0.35rem 0.5rem auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  pointer-events: none;
+  font-size: 0.75rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bc-halflabel {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+.bc-halflabel.side-a { color: var(--team-a-ink, var(--accent-bright)); }
+.bc-halflabel.side-b { color: var(--team-b-ink, var(--scoreboard)); }
+/* Filtered to one team post-game: the other end is empty, and its label says
+   so by stepping back rather than by disappearing - the court is still a full
+   court and the empty half is the point. */
+.bc-only-a .bc-halflabel.side-b,
+.bc-only-b .bc-halflabel.side-a { opacity: 0.28; }
 
 /* THE FADE IS AN ANIMATION, NOT A TIMER. It ends on the faint accumulated
    state, turning the last few seconds into "what just happened" and everything
    older into the shot chart building underneath. Two hundred setTimeouts a game
    would each need cancelling when a viewer leaves; an animation cannot outlive
    its element. */
-.bc-shot.fresh { animation: bc-shot-in 2.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+.bc-shot.fresh { animation: bc-shot-in 1.2s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
 .bc-shot.fresh.made.strong { animation-name: bc-shot-in-strong; }
-.bc-shot.miss.fresh { animation-name: bc-shot-miss; }
+/* A miss draws quickly and settles quickly. The score already says whether it
+   fell; the chart's job is to keep it, not to announce it. */
+.bc-shot.miss.fresh { animation: bc-shot-miss 700ms ease-out forwards; }
 /* The final chart is not a playback - every marker is equally present. */
-.bc-shot.final { opacity: 0.82; }
+.bc-shot.final { opacity: 0.85; }
 
+/* EVERY ONE OF THESE ENDS ON A VISIBLE MARKER. The old chart faded to 0.34 and
+   0.2, which turned an hour of shooting into a smudge; the point of a live shot
+   chart is that it is still a shot chart when the game is over. The emphasis on
+   the newest shot comes from the first third of a second, not from erasing the
+   ones before it. */
 @keyframes bc-shot-in {
   0% { opacity: 0; transform: scale(0.2); }
-  18% { opacity: 1; transform: scale(1.5); }
-  32% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0.34; transform: scale(0.78); }
+  18% { opacity: 1; transform: scale(1.6); }
+  36% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.7; transform: scale(0.92); }
 }
 
 /* A finish at the rim is the loudest shot the ledger can honestly describe -
    there are no dunks in this engine - so it gets the biggest pop. */
 @keyframes bc-shot-in-strong {
   0% { opacity: 0; transform: scale(0.2); }
-  16% { opacity: 1; transform: scale(2.1); }
-  36% { opacity: 1; transform: scale(1.1); }
-  100% { opacity: 0.4; transform: scale(0.82); }
+  16% { opacity: 1; transform: scale(2.2); }
+  36% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0.78; transform: scale(0.96); }
 }
 
 /* A miss is deliberately quieter. The score already says whether it fell, and
    naming every brick is noise. */
 @keyframes bc-shot-miss {
   0% { opacity: 0; transform: scale(0.5); }
-  20% { opacity: 0.85; transform: scale(1.15); }
-  100% { opacity: 0.2; transform: scale(0.85); }
+  25% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0.58; transform: scale(0.94); }
 }
 
 .bc-pop {
@@ -8840,12 +8905,13 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   color: var(--muted);
 }
 .shot-chart-filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+/* The same floor as the live one, and the same rule for sizing it - this is
+   the same component after the whistle, not a second chart. */
 .shot-chart-court {
   position: relative;
-  height: min(52vh, 420px);
-  aspect-ratio: 50 / 47;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  max-width: min(100%, 900px, calc(min(56vh, 480px) * 1.88));
+  aspect-ratio: 188 / 100;
   margin: 0 auto;
 }
 .shot-chart-legend {
@@ -8878,6 +8944,10 @@ table.box-table tfoot .box-totals td:nth-child(2) {
     opacity: 0.6;
   }
   .bc-pop { animation: none; opacity: 0; }
+  /* The ring is pure motion, so there is nothing left of it to show. It is
+     still REMOVED, by the hard cap on the flash layer rather than by an
+     animationend that will now never fire. */
+  .bc-ring { animation: none; opacity: 0; }
   /* Still TIMED, just not moved. `animation: none` here would leave the banner
      and the quarter card on screen permanently - the card sits over the floor,
      so the last quarter's card would cover the game. Stepping straight from
