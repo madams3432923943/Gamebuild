@@ -4434,7 +4434,11 @@ function runLocalSimulation() {
       }));
 
       const resultWritten = recordPracticeResult({
-        mode: "offline",
+        // The mode as HISTORY spells it, from the mode record rather than as a
+        // literal here. It is "offline" for every practice game and always has
+        // been - what changes is that the string now has one home, beside the
+        // "online" and "friendly" the Edge Function writes.
+        mode: matchConfig().historyMode,
         sport: game.sport || getSport(),
         era: game.era || DEFAULT_ERA,
         opponentLabel: "Bot",
