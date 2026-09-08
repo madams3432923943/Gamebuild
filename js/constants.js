@@ -80,6 +80,19 @@ export const BOT_TOP_PICK_BAN_SHARE = 0.5;
 // instead of emptying it, the same way a thin board already narrows the pool.
 export const BOT_MIN_CHOICES = 5;
 
+// The floor under a QUALITY-TARGETED pick's weight, which is the same rule as
+// BOT_MIN_CHOICES wearing different clothes: a sport whose difficulty is a
+// target rating per position group (see js/sports/nfl/botdraft.js) weights
+// every legal pick by how close it lands to that target, and a weight that
+// could reach zero would let a squad holding nothing near the target leave the
+// bot with no draw to make.
+//
+// Small enough to be invisible next to a pick that actually meets its target
+// (a match weighs 1) and large enough that a board of two dozen bad matches
+// still resolves - so the bot always drafts, and drafts the closest thing on
+// offer rather than forfeiting the slot.
+export const QUALITY_WEIGHT_FLOOR = 1e-4;
+
 // How long the live scoreboard lingers on each quarter before advancing,
 // so a game reads as "played out" rather than dumped on screen at once.
 // Time a finished period holds on screen before the next tips off. Generous

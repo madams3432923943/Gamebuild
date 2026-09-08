@@ -82,6 +82,7 @@ let ratingCtx = null;
 import { isUnit, unitLabel, rateEntry } from "./units.js";
 import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
 import { draftGrade } from "./draftgrade.js";
+import { botDraftPlan } from "./botdraft.js";
 import {
   OFFENSIVE_PLANS, DEFENSIVE_PLANS, STRATEGY_GROUPS, DEFAULT_STRATEGY,
   planFor, normalizeStrategy, plansFor, randomStrategy, formatStrategy,
@@ -564,6 +565,15 @@ export const NFL = {
   },
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
+
+  /** How good the practice bot's picks should be, position group by position
+   * group, at each difficulty - football's replacement for the shared
+   * one-ranking difficulty window. See js/sports/nfl/botdraft.js for what each
+   * difficulty is trying to BE, and js/draft.js for how a plan becomes a pick.
+   *
+   * It is still nothing but pick quality: no difficulty here reaches a rating,
+   * the RNG, or anything the simulation reads. */
+  botDraftPlan,
 
   /** Is this drafted entry a UNIT rather than a person?
    *

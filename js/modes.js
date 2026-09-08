@@ -84,8 +84,16 @@ export const FRIEND_MODE = {
  *
  * `window` is { start, take } over the board's legal players ranked best-first:
  * skip `start` of them (as a fraction of the list), then choose uniformly among
- * the next `take`. See pickWindow() in js/draft.js for the clamping that keeps
- * a thin board from leaving the bot with nothing legal.
+ * the next `take`. See windowedPool() in js/draft.js for the clamping that
+ * keeps a thin board from leaving the bot with nothing legal.
+ *
+ * THE WINDOW IS THE SHARED DEFAULT, NOT THE ONLY ANSWER. A sport may say what
+ * a difficulty means to it instead, through botDraftPlan (see the sport
+ * contract) - football does, because one ranked board cannot express "a decent
+ * offense in front of a weak defense", which is what its Medium is. Basketball
+ * returns null there and keeps exactly these windows. Either way the mechanism
+ * is which legal player the bot takes and nothing else: no difficulty declares
+ * a field the engine reads, whichever sport is answering.
  */
 export const DIFFICULTIES = {
   easy: {
@@ -97,6 +105,7 @@ export const DIFFICULTIES = {
     timed: false,
     openBoard: true,
     // The bottom third of the board. Legal, complete, and noticeably beatable.
+    // Football overrides this with a per-position plan - see js/sports/nfl/botdraft.js.
     window: { start: 0.62, take: 8 },
   },
   medium: {
@@ -108,9 +117,13 @@ export const DIFFICULTIES = {
     openBoard: false,
     // null means the LEGACY path: ban the top BOT_TOP_PICK_BAN_SHARE of the
     // board, then draw from the best BOT_POOL_SIZE combos underneath it. Kept
-    // bit-for-bit because every balance constant in the app was calibrated
-    // against this bot (see tools/calibrate-*.mjs); a "medium" that drafted
-    // even slightly differently would silently invalidate all of them.
+    // bit-for-bit for BASKETBALL, because every balance constant in that sport
+    // was calibrated against this bot (see tools/calibrate-*.mjs); a "medium"
+    // that drafted even slightly differently would silently invalidate them.
+    //
+    // The calibrators are NOT exposed to a sport's own plan either: they draft
+    // through `banTop`, which overrides difficulty entirely (see botAutoPick),
+    // so football giving Medium its own meaning cannot reach them.
     window: null,
   },
   hard: {

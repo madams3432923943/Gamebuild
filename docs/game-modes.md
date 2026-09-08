@@ -52,8 +52,14 @@ every screen reads it.
 
 ## Bot difficulty
 
+Difficulty decides **which legal player the bot takes**, and nothing else. It
+comes in two shapes, because one ranked list cannot say what football's
+difficulties mean.
+
+### The shared window (basketball)
+
 Difficulty selects a **window** over the board's legal players, ranked
-best-first by the sport's own `rate()`. That is the entire mechanism.
+best-first by the sport's own `rate()`.
 
 | difficulty | window | notes |
 | --- | --- | --- |
@@ -61,31 +67,81 @@ best-first by the sport's own `rate()`. That is the entire mechanism.
 | Medium | *(null)* | the legacy ban-and-pool path, bit-for-bit |
 | Hard | skip 0%, take 4 | the top of the board, four names wide |
 
-Medium is deliberately unchanged: every gamestyle modifier and variance range in
-this app was solved against that exact bot (`tools/calibrate-*.mjs`), and a
-"medium" that drafted even slightly differently would silently invalidate all of
-them.
+Basketball's Medium is deliberately unchanged: every gamestyle modifier and
+variance range in that sport was solved against that exact bot
+(`tools/calibrate-*.mjs`), and a "medium" that drafted even slightly differently
+would silently invalidate all of them. The calibrators draft through `banTop`,
+which overrides difficulty entirely, so a sport's own plan cannot reach them
+either.
 
-Measured over 30 drafts per difficulty per sport (`npm run verify:mode-rules`),
-as mean draft grade on a 0–1 scale:
+### The per-position plan (football)
 
-| sport | easy | medium | hard |
+A sport may answer the difficulty question itself, through `botDraftPlan` on the
+sport contract. Football does, because its difficulties are about **sides of the
+ball**: a window over one list can make a bot better or worse, and cannot make
+it good at one thing and bad at another.
+
+| difficulty | offense target | defense target | special teams | the game it is for |
+| --- | --- | --- | --- | --- |
+| Easy | 0.24 | 0.24 | 0.24 | beat up on a bad team while learning the pool |
+| Medium | 0.70 | 0.36 | 0.52 | put up points against an opponent that answers back |
+| Hard | 0.87 | 0.87 | 0.87 | a complete team; draft badly on either side and lose |
+
+Targets are in the rating space the draft board already shows — a percentile
+among others at the same position (`js/sports/nfl/units.js`) — so one number
+means "top of his position" for a cornerback unit and a quarterback alike, and
+no per-position raw thresholds are needed. Each pick is weighted by a one-sided
+Gaussian on its distance from its group's target (`qualityWeight` in
+`js/draft.js`): a preference, never a cutoff, with a floor under it so a squad
+holding nothing near the target still gets drafted from rather than forfeiting
+a slot. Overshooting is penalised harder than undershooting, since a Medium bot
+landing on a superstar is the specific thing Medium is defined by not doing.
+
+The lever reaches **seasons**, not just names, and it has to. A rolled squad is
+a team-era, so it offers about 24 distinct offensive candidates and only about 3
+defensive ones — one cornerback unit, one line, one safety group. But each of
+those units appears once per season in the era (about 8.6 rows) spanning roughly
+0.24 to 0.76 in rating, so which season of the Seahawks secondary the bot takes
+is most of the quality decision available at a defensive slot. A window over
+distinct players cannot express that at all, which is why football's old Hard
+drafted a *worse* defense (0.54) than its old Medium (0.70).
+
+Measured over 150 drafts per difficulty (`npm run verify:nfl-practice-difficulty`):
+
+| difficulty | overall | offense | defense | QB | RB | WR | TE | OL | DL | LB | CB | S | ST |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Easy | 0.27 | 0.27 | 0.28 | 0.26 | 0.31 | 0.28 | 0.27 | 0.20 | 0.27 | 0.29 | 0.27 | 0.28 | 0.21 |
+| Medium | 0.50 | 0.63 | 0.37 | 0.65 | 0.62 | 0.62 | 0.61 | 0.62 | 0.35 | 0.39 | 0.37 | 0.38 | 0.49 |
+| Hard | 0.77 | 0.80 | 0.75 | 0.80 | 0.78 | 0.80 | 0.80 | 0.83 | 0.78 | 0.71 | 0.74 | 0.75 | 0.85 |
+
+And what those rosters do on a Sunday — 120 simulated games each, the same
+reference roster on the human side, no difficulty passed to `simulate()` because
+it has no parameter for one:
+
+| difficulty | user pts | bot pts | user win rate |
 | --- | --- | --- | --- |
-| NBA | 0.15 | 0.23 | 0.69 |
-| NFL | 0.38 | 0.60 | 0.65 |
+| Easy | 37.7 | 7.3 | 98% |
+| Medium | 29.4 | 17.1 | 83% |
+| Hard | 11.6 | 24.8 | 14% |
 
-Football's spread is narrower and structurally so: it drafts twelve
-position-locked slots, and a late pick with one slot open can offer six eligible
-players — a window cannot bite through a board that thin. `BOT_MIN_CHOICES` is
-the same floor that stops the legacy ban emptying a thin board.
+Medium's higher scoring is a **roster** result: a decent offense in front of a
+soft defense, with no scoring multiplier, no eased RNG and no reduced
+interception rate anywhere. Hard against a full-strength drafter
+(`banTop: 0`) comes out 23.9–18.0 and 64% — punishing for a mediocre draft,
+beatable with a complete one, which is what the mode is for.
+
+Basketball's own spread, over 30 drafts per difficulty
+(`npm run verify:mode-rules`), as mean draft grade on a 0–1 scale: 0.15 easy,
+0.23 medium, 0.69 hard.
 
 ### Difficulty cannot reach the simulation
 
 A difficulty declares seven fields — `id`, `label`, `blurb`, `tagline`,
 `timed`, `openBoard`, `window` — and none of them is anything the engine reads.
-The difficulty travels exactly one hop, from `matchConfig()` into
-`DraftState.botAutoPick`, and nothing downstream of that line knows which was
-chosen.
+A sport's plan declares only `{ rating, below, above }` per position group, and
+none of those is either. The difficulty travels exactly one hop, from
+`matchConfig()` into `DraftState.botAutoPick`, and nothing downstream of that
+line knows which was chosen.
 
 `verify-mode-rules` asserts it twice: structurally, that no unexpected field has
 appeared on a difficulty; and behaviourally, that the same two rosters with the
@@ -167,4 +223,5 @@ roster shape that exists in the database.
 ```
 npm run verify:mode-rules      # what each mode promises, and the bot grades
 npm run verify:bot-difficulty  # the top of the board stays the human's
+npm run verify:nfl-practice-difficulty  # football's three teams, and the games they play
 ```
