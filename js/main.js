@@ -3554,6 +3554,10 @@ function createPlaybackClock() {
       schedule();
     },
     rate: () => rate,
+    /** The clock's own time. A caller scheduling a whole pre-built timeline has
+     * to rebase it onto the moment it starts, or every event the timeline puts
+     * before that moment is already due - see playEventDriven. */
+    now: () => nowVirtual(),
     /** SKIP. Runs everything still pending, in order, right now - so the game
      * finishes exactly as it would have, including the finish() at the end of
      * it, rather than being abandoned. */
@@ -4472,6 +4476,17 @@ function showShotChart(events, labelA, labelB) {
   }
 
   function playEventDriven() {
+    // THE TIMELINE STARTS AT ZERO; THE CLOCK DOES NOT.
+    //
+    // This runs after the opening hold, so the clock's virtual time is already
+    // past QUARTER_REVEAL_DELAY_MS by the time the first snap is scheduled.
+    // Scheduling a timeline offset directly - `at(event.atMs)` - therefore put
+    // every event of the first four seconds in the PAST, and they all fired at
+    // once: the kickoff and the opening drive flashed by in a single frame
+    // before the game settled into its proper pace. Rebasing onto the moment
+    // playback actually begins is what keeps a pre-built timeline in step with
+    // a clock that has already been running.
+    const base = playbackClock.now();
     const presentation = sport().presentation;
     const live = presentation.createLiveState({ rosterA, rosterB });
     // A quarter's summary is published once, by whichever event ends it.
@@ -4553,7 +4568,7 @@ function showShotChart(events, labelA, labelB) {
     };
 
     for (const event of timeline.events) {
-      playbackClock.at(event.atMs, () => {
+      playbackClock.at(base + event.atMs, () => {
           presentation.applyEvent(live, event);
           const score = presentation.liveScore(live);
           const scoreMoved = score.A !== runningA || score.B !== runningB;
@@ -4616,7 +4631,7 @@ function showShotChart(events, labelA, labelB) {
     // The whistle goes after the last event has had its time on screen, not
     // at the moment it appears.
     const last = timeline.events[timeline.events.length - 1];
-    playbackClock.after(last.atMs + last.durationMs + 250, finish);
+    playbackClock.at(base + last.atMs + last.durationMs + 250, finish);
   }
 
   // A sport that declares a live ledger is played back event by event;
