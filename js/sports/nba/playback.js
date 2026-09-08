@@ -118,7 +118,16 @@ const ZONE_ANCHORS = {
   // The corner three is the SHORT one - 22 feet, hard against the sideline and
   // barely off the baseline. Drawing it anywhere else is the single most
   // recognisable way to get a basketball court wrong.
-  "corner-three": { r: [0.44, 0.47], spread: [72, 88] },
+  //
+  // THE ANGLE IS WHAT KEEPS IT BEHIND THE LINE, not the distance. The corner
+  // line is straight and 22 feet from the middle of the floor, so what has to
+  // clear it is the shot's SIDEWAYS distance - r * sin(angle) - and at 72
+  // degrees a 22-foot shot is only 20.9 feet across, which is a corner three
+  // drawn inside the corner three line. The band below keeps the sideways
+  // distance above 22 feet at every point in it: 0.452 * sin(78 degrees) is
+  // 22.1. Widening either end without redoing that arithmetic puts the marker
+  // back on the wrong side of the line.
+  "corner-three": { r: [0.452, 0.485], spread: [78, 89] },
   "wing-three": { r: [0.49, 0.55], spread: [42, 70] },
   "above-break-three": { r: [0.49, 0.58], spread: [0, 40] },
 };

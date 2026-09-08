@@ -162,7 +162,10 @@ for (let g = 0; g < GAMES; g++) {
   // the placement agrees with itself.
   const RIM = { x: 0.5, y: 5.25 / 50 };
   const ARC = 23.75 / 50;
-  const CORNER_X = 20 / 50;
+  // 22 feet, which is where the corner three line actually is. This read 20
+  // for a while, and two feet of slack is exactly the room a corner three needs
+  // to be drawn inside the line it is named after.
+  const CORNER_X = 22 / 50;
   for (const e of events) {
     if (e.type !== "shot" || e.shotType === "free-throw") continue;
     if (typeof e.x !== "number" || typeof e.y !== "number") {
