@@ -341,13 +341,27 @@
       <div class="card start-card">
         <h2>Start a Draft Battle</h2>
         <p class="hint-text">Drafting as <span id="signed-in-as" class="signed-in-as"></span></p>
-        <!-- The three modes, rendered by renderModeCards() from MODE_CONFIG in
-             js/main.js rather than written out here. They used to be written
-             in both places: a short description in this markup and a longer
-             one in that config, and the screen printed both. A mode is
-             declared once now, and this is only where the group lives. -->
+        <!-- The modes, rendered by renderModeCards() in js/main.js from the
+             registry in js/modes.js rather than written out here. They used to
+             be written in both places: a short description in this markup and a
+             longer one in that config, and the screen printed both.
+
+             Two entries, not three. Quick Play and Ranked Practice were the
+             same game at two settings - and Quick Play silently dealt a
+             different roster shape as well - so they are one Practice mode with
+             a difficulty now. Play a Friend is deliberately absent: it needs a
+             specific person, so it lives on the Friends tab. -->
         <h3 class="field-heading">Mode</h3>
-        <div class="mode-toggle" id="mode-toggle" role="radiogroup" aria-label="Draft mode"></div>
+        <div class="mode-toggle" id="mode-toggle" role="radiogroup" aria-label="Game mode"></div>
+
+        <!-- Only for Practice, and hidden outright otherwise (renderDifficulty-
+             Cards): a difficulty is not a thing a ranked game has, and a greyed
+             row of it reads as something you have failed to unlock. -->
+        <div id="difficulty-field" hidden>
+          <h3 class="field-heading">Choose difficulty</h3>
+          <div class="mode-toggle" id="difficulty-toggle" role="radiogroup" aria-label="Practice difficulty"></div>
+          <p class="hint-text" id="difficulty-note"></p>
+        </div>
 
         <!-- Era bracket. Narrowing the pool turns the same draft into a
              different knowledge test, and each bracket ranks separately. -->

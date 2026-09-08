@@ -486,14 +486,21 @@ export async function runBrowserChecks(opts = {}) {
       const wantedSport = sport;
       const sportRow = page.locator(`[data-sport="${wantedSport}"]`).first();
       if (await sportRow.count()) await sportRow.click();
-      // WHICH MODE, likewise. Offline runs only ever drove Ranked Practice, so
-      // Quick Play - a mode with its own roster shape, its own ruleset and no
-      // strategy phases at all - had no browser coverage in either sport.
-      // SELFTEST_MODE selects it; the default is unchanged.
-      const offlineMode = process.env.SELFTEST_MODE === "quick" ? "practice-easy" : "practice-hard";
-      const modeBtn = mode === "online" ? '[data-mode="online"]' : `[data-mode="${offlineMode}"]`;
+      // WHICH MODE, likewise. There are two now - Online Ranked and Practice -
+      // and Practice carries a DIFFICULTY, which is what the old Quick Play /
+      // Ranked Practice pair really was. SELFTEST_MODE=quick drives Easy, which
+      // is the difficulty that also changes the draft interface (open board, no
+      // clock); the default drives Medium, the bot every balance constant in
+      // this app was calibrated against.
+      const modeBtn = mode === "online" ? '[data-mode="online"]' : '[data-mode="practice"]';
       await page.locator(`#mode-toggle ${modeBtn}`).waitFor({ state: "visible", timeout: 15000 });
       await page.locator(`#mode-toggle ${modeBtn}`).click();
+      if (mode !== "online") {
+        const difficulty = process.env.SELFTEST_MODE === "quick" ? "easy" : "medium";
+        const btn = page.locator(`#difficulty-toggle [data-mode="${difficulty}"]`);
+        await btn.waitFor({ state: "visible", timeout: 15000 });
+        await btn.click();
+      }
     }
     await Promise.all(sessions.map(({ page }) => page.evaluate(() => window.__bkPerfStart("matchup-intro"))));
     // Both sides enter the queue together so matchmaking pairs them with each

@@ -2,6 +2,7 @@
 // bot auto-pick. See build spec #4.
 
 import { BOT_POOL_SIZE, BOT_TOP_PICK_BAN_SHARE, BOT_MIN_CHOICES, MIN_SEARCH_CHARS } from "./constants.js";
+import { difficultyById } from "./modes.js";
 // Slot lists are default parameter values (see ui.js). The helpers below are
 // per-pick calls and go through the active sport.
 import { activeSport } from "./sports/index.js";
@@ -13,7 +14,11 @@ import { activeSport } from "./sports/index.js";
  * is how an NFL draft came to deal PG/SG/SF/PF/C off a Cowboys roster. Evaluated
  * per call, so it follows whichever sport is live rather than whatever was
  * loaded first. */
-const defaultSlots = () => activeSport().slots.quickPlay;
+/* The RANKED shape, since Quick Play was removed and every mode now drafts it.
+ * This used to default to the 5-slot compact shape, which is still declared by
+ * each sport (the engine handles it, and games played under it are in saved
+ * history) but is no longer what any mode deals. */
+const defaultSlots = () => activeSport().slots.ranked;
 const defaultStarters = () => activeSport().slots.starters;
 
 /** Groups the flat PLAYERS array into squads keyed by "Team|Decade". */
@@ -55,9 +60,8 @@ export function isEligible(player, slot) {
 }
 
 /** Open slots (not yet filled) for a roster-in-progress, in draft order.
- * `slots` defaults to the full 6-slot list so any caller that doesn't know
- * about smaller rosters (Quick Play's 5-slot draft, no 6th man) keeps
- * today's behavior unchanged. */
+ * `slots` defaults to the active sport's ranked shape; every real caller
+ * passes its own, since a draft always knows the shape it is dealing. */
 export function openSlots(roster, slots = defaultSlots()) {
   return slots.filter((s) => !roster[s]);
 }
@@ -356,11 +360,11 @@ export class DraftState {
    * @param recentSquadIds squads seen in the last game or two. They're kept
    *   out of this draft when there's anything else to roll, so consecutive
    *   games don't keep serving the same handful of teams.
-   * @param slots the roster shape this draft fills - defaults to the full
-   *   6-slot list (5 starters + 6th man). Quick Play passes STARTER_SLOTS
-   *   (no bench spot); a future 10-man Ranked roster passes its own list.
-   *   Kept as one class rather than a per-size variant since every mode
-   *   shares the exact same draft mechanics regardless of roster size.
+   * @param slots the roster shape this draft fills - defaults to the active
+   *   sport's ranked shape, which is what every mode deals since Quick Play
+   *   was removed. Kept as a parameter rather than read from the sport,
+   *   because the calibration harnesses and the box-score tests still drive
+   *   smaller shapes through the same mechanics.
    */
   constructor(allPlayers, recentSquadIds = [], slots = defaultSlots()) {
     this.squads = buildSquads(allPlayers);
@@ -475,15 +479,69 @@ export class DraftState {
    *
    * A thin board narrows the ban rather than emptying it - see
    * BOT_MIN_CHOICES. `banTop` is an override for the calibration harnesses,
-   * which draft both sides with the bot and need full-strength rosters. */
-  botAutoPick(side = "B", { banTop = null } = {}) {
+   * which draft both sides with the bot and need full-strength rosters.
+   *
+   * DIFFICULTY. Practice names one of three difficulties, and it selects a
+   * WINDOW over the same ranking rather than a different rule: Hard drafts from
+   * the top of the board, Medium from under the ban (the bot above, unchanged),
+   * Easy from the bottom third. Every difficulty fills every slot legally, and
+   * none of them reaches anything the simulation reads - see js/modes.js. */
+  botAutoPick(side = "B", { banTop = null, difficulty = null } = {}) {
     const roster = side === "A" ? this.rosterA : this.rosterB;
     if (!this.hasValidPick(roster)) return null;
     const combos = eligibleCombos(this.currentSquad, roster, this.slots);
-    const legal = withoutTopPlayers(combos, banTop);
-    const pool = legal.sort((a, b) => b.score - a.score).slice(0, BOT_POOL_SIZE);
+    // An explicit banTop is a calibration harness asking for a specific bot and
+    // always wins - a difficulty quietly overriding it would re-solve every
+    // balance constant against a different opponent than the one named.
+    const window = banTop === null || banTop === undefined ? difficultyWindow(difficulty) : null;
+    const pool = window ? windowedPool(combos, window) : legacyPool(combos, banTop);
     const choice = pool[Math.floor(Math.random() * pool.length)];
     this.makePick(side, choice.player, choice.slot);
     return choice;
   }
+}
+
+/** The window a difficulty drafts from, or null for the legacy pool.
+ *
+ * Medium is deliberately null: it IS the legacy pool, unchanged, because every
+ * gamestyle modifier and variance range in this app was solved against that
+ * exact bot (tools/calibrate-*.mjs). Easy and Hard are new windows over the
+ * same ranking, so neither of them can move a number the engine reads. */
+export function difficultyWindow(difficulty) {
+  return difficulty ? difficultyById(difficulty).window : null;
+}
+
+/** The board's best BOT_POOL_SIZE combos once the top share of players is
+ * banned - the bot this app has always had, and Practice (Medium). */
+function legacyPool(combos, banTop) {
+  const legal = withoutTopPlayers(combos, banTop);
+  return legal.sort((a, b) => b.score - a.score).slice(0, BOT_POOL_SIZE);
+}
+
+/**
+ * Every combo belonging to one slice of the board's ranked players.
+ *
+ * `start` is a FRACTION of however many legal names this pick actually offers,
+ * not a fixed count - a late pick with one position-locked slot open can be
+ * down to six names, and skipping "the first eight" there would leave nothing.
+ * `take` is a count, because "the top four" and "the bottom eight" are the
+ * claims the difficulties actually make.
+ *
+ * The result is never empty while `combos` is not. Two clamps do that: the
+ * start index cannot pass n - 1, and the take is widened to reach at least one
+ * name. A bot that forfeits a slot is not an easier opponent, it is a broken
+ * roster - the same rule BOT_MIN_CHOICES exists to enforce on the legacy path.
+ *
+ * Uniform across the window's combos rather than weighted toward its top. The
+ * window IS the weighting, and it keeps two games at the same difficulty from
+ * producing the same roster: an Easy bot draws from about a third of the board.
+ */
+function windowedPool(combos, { start, take }) {
+  const ranked = rankedPlayerNames(combos);
+  const n = ranked.length;
+  if (n === 0) return [];
+  const startIndex = Math.min(Math.round(start * n), n - 1);
+  const size = Math.max(1, Math.min(take, n - startIndex));
+  const chosen = new Set(ranked.slice(startIndex, startIndex + size));
+  return combos.filter((c) => chosen.has(c.player.name));
 }

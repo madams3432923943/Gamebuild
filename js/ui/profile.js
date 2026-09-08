@@ -41,6 +41,7 @@ import {
 import { emblemSvg } from "../emblems.js";
 import { bannerArt } from "./banner-art.js";
 import { renderNote } from "./note.js";
+import { historyModeLabel } from "../modes.js";
 import { roundStat } from "./format.js";
 import {
   FEATURED_BADGE_SLOTS,
@@ -1358,11 +1359,14 @@ function renderMatchList(container, profile, sport, sportLabel) {
     // style.css. Only worth setting when there is something to recover.
     if (entry.opponentLabel.length > 12) opponent.title = entry.opponentLabel;
     row.querySelector(".match-tag-sport").textContent = sportLabel;
-    // "local" was pass-and-play, which no longer exists - but games played
-    // before it was removed are still in saved history and should keep their
-    // real label rather than being mislabelled as bot games.
-    row.querySelectorAll(".match-tag")[1].textContent =
-      entry.mode === "online" ? "Ranked" : entry.mode === "local" ? "Local" : "Practice";
+    // WHAT WAS PLAYED, read at display time from js/modes.js rather than
+    // decided here. Three vocabularies meet in this one column: rows written
+    // today carry `gameMode` and (for practice) a difficulty; rows the Edge
+    // Function wrote carry mode "online" or "friendly"; and rows going back
+    // years carry "offline" or "local". historyModeLabel maps all of them and
+    // rewrites none of them - a friendly used to read "Practice" here, which is
+    // the one that was actually wrong.
+    row.querySelectorAll(".match-tag")[1].textContent = historyModeLabel(entry);
     row.querySelector(".match-mvp b").textContent = entry.mvpName;
     row.querySelector(".match-score").textContent = `${entry.scoreFor}-${entry.scoreAgainst}`;
     row.querySelector(".match-date").textContent = shortDate(entry.date);

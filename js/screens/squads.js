@@ -31,6 +31,8 @@ import {
   renderFriendChallenges, renderFriendRequests, renderFriendsLeaderboard,
 } from "../ui.js";
 import { getSession } from "../supabaseClient.js";
+import { SPORTS, isLive, sportById } from "../sports/index.js";
+import { FRIEND_MODE } from "../modes.js";
 import { showScreen, openModal, closeModal } from "../shell.js";
 import { game } from "../state.js";
 
@@ -369,16 +371,127 @@ async function loadFriendsPanel() {
   }
 }
 
-// Deliberately NOT routed through runFriendAction: success here means
-// leaving the squads screen entirely for the draft screen, which a
-// loadFriendsPanel()/openSquadsScreen() refresh afterward would undo.
-async function onChallengeFriend(friendId) {
-  try {
-    const matchId = await challengeFriend(friendId, currentSportId(), getEra());
-    await onJoinMatch(matchId);
-  } catch (e) {
-    setSquadStatus(e.message || "Couldn't start that challenge.", "error");
+/**
+ * Challenging a friend: pick the sport, pick the era, send it.
+ *
+ * THE ONLY WAY INTO A FRIEND MATCH, and deliberately so. It is not on the Play
+ * screen, because a friend match needs a specific person - a mode card cannot
+ * ask "which of your friends", and offering one that queued against a stranger
+ * would be a different mode wearing the word "friend".
+ *
+ * The dialog exists because this used to send `getEra()`, which is a function
+ * in js/main.js and has never been imported here: every challenge threw a
+ * ReferenceError that the catch below reported as "Couldn't start that
+ * challenge". Nobody could challenge anybody. Rather than import the Play
+ * screen's current selection - which is invisible from the Friends tab, so a
+ * challenge would silently inherit a bracket chosen on another screen - the two
+ * choices are asked for here, where they are being made.
+ */
+function onChallengeFriend(friendId, username) {
+  const playable = SPORTS.filter((s) => isLive(s.id));
+  // Nothing to challenge into. Impossible today (both sports are live) and
+  // still not a crash: an empty dialog is worse than a sentence.
+  if (!playable.length) {
+    setSquadStatus("No sport is playable right now.", "error");
+    return;
   }
+
+  let sportId = playable.some((s) => s.id === currentSportId()) ? currentSportId() : playable[0].id;
+  let eraId = sportById(sportId).defaultEra;
+
+  const body = document.createElement("div");
+  body.className = "challenge-dialog";
+
+  const rules = document.createElement("p");
+  rules.className = "hint-text";
+  // What a friend match IS, said before it is sent. Same rules as ranked and no
+  // rank attached is the whole shape of it, and a player who does not know the
+  // second half will assume the first half implies it.
+  rules.textContent =
+    `${FRIEND_MODE.blurb} Pick clock on, no player list, ranked roster - ` +
+    `it just doesn't touch your record.`;
+  body.appendChild(rules);
+
+  const sportHead = document.createElement("h4");
+  sportHead.className = "field-heading";
+  sportHead.textContent = "Sport";
+  const sportRow = document.createElement("div");
+  sportRow.className = "era-picker";
+  sportRow.setAttribute("role", "radiogroup");
+  sportRow.setAttribute("aria-label", "Sport");
+
+  const eraHead = document.createElement("h4");
+  eraHead.className = "field-heading";
+  eraHead.textContent = "Era";
+  const eraRow = document.createElement("div");
+  eraRow.className = "era-picker";
+  eraRow.setAttribute("role", "radiogroup");
+  eraRow.setAttribute("aria-label", "Era");
+
+  /** One pill in a radiogroup - the same control the Play screen's era picker
+   * uses, so the two read as the same choice in two places. */
+  function pill(row, id, label, selectedId, onSelect) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "era-chip" + (id === selectedId ? " active" : "");
+    btn.dataset.era = id;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(id === selectedId));
+    btn.textContent = label;
+    btn.addEventListener("click", () => onSelect(id));
+    row.appendChild(btn);
+  }
+
+  function renderEras() {
+    eraRow.innerHTML = "";
+    for (const era of sportById(sportId).eras) {
+      pill(eraRow, era.id, `${era.emoji} ${era.label}`, eraId, (id) => {
+        eraId = id;
+        renderEras();
+      });
+    }
+  }
+
+  function renderSports() {
+    sportRow.innerHTML = "";
+    for (const s of playable) {
+      pill(sportRow, s.id, `${s.icon} ${s.name}`, sportId, (id) => {
+        sportId = id;
+        // Era ids are only unique WITHIN a sport, so the bracket has to be
+        // re-resolved against the new one rather than carried across.
+        eraId = sportById(id).defaultEra;
+        renderSports();
+        renderEras();
+      });
+    }
+  }
+
+  renderSports();
+  renderEras();
+  body.append(sportHead, sportRow, eraHead, eraRow);
+
+  const send = document.createElement("button");
+  send.type = "button";
+  send.className = "btn btn-primary btn-block";
+  send.textContent = "Send Challenge";
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    send.textContent = "Sending…";
+    try {
+      const matchId = await challengeFriend(friendId, sportId, eraId);
+      closeModal();
+      // Deliberately NOT routed through runFriendAction: success here means
+      // leaving the squads screen entirely for the draft screen, which a
+      // loadFriendsPanel()/openSquadsScreen() refresh afterward would undo.
+      await onJoinMatch(matchId);
+    } catch (e) {
+      closeModal();
+      setSquadStatus(e.message || "Couldn't start that challenge.", "error");
+    }
+  });
+  body.appendChild(send);
+
+  openModal(`Challenge ${username || "your friend"}`, body);
 }
 
 async function onJoinChallenge(matchId) {

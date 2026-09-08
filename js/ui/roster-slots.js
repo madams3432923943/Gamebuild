@@ -14,7 +14,7 @@
 
 import { activeSport } from "../sports/index.js";
 
-export const defaultSlots = () => activeSport().slots.quickPlay;
+export const defaultSlots = () => activeSport().slots.ranked;
 
 // defaultStarters used to sit here too and had no caller left in the UI - the
 // draft and online modules each keep their own private copy of the same
@@ -22,7 +22,7 @@ export const defaultSlots = () => activeSport().slots.quickPlay;
 // caller ever wants it, those two duplicates are what it should replace.
 
 /** Display name for a roster slot. Derived rather than looked up in a fixed
- * map, because roster shape varies by mode: Quick Play uses bare positions,
+ * map, because roster shape varies: the compact shape uses bare positions,
  * the legacy/online path adds a "6TH", and Ranked uses depth-chart slots
  * ("PG1", "PG2") that no fixed 6-key map could cover. */
 export function slotLabel(slot) {

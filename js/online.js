@@ -14,7 +14,7 @@ import { DEFAULT_SPORT_ID, activeSport } from "./sports/index.js";
  * is how an NFL draft came to deal PG/SG/SF/PF/C off a Cowboys roster. Evaluated
  * per call, so it follows whichever sport is live rather than whatever was
  * loaded first. */
-const defaultSlots = () => activeSport().slots.quickPlay;
+const defaultSlots = () => activeSport().slots.ranked;
 const defaultStarters = () => activeSport().slots.starters;
 
 /**
@@ -105,7 +105,7 @@ export async function fetchStatsForPicks(picks) {
  * object comes back from the active sport's server pool. Do not hand-pick NBA
  * stats here: NFL units need members/group data and football skill players need
  * their passing/rushing/receiving fields. Spreading the trusted pool object
- * keeps online and Ranked Practice on the same roster shape. */
+ * keeps online and offline Practice on the same roster shape. */
 export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
   const rosterA = {};
   const rosterB = {};
@@ -136,7 +136,7 @@ export function buildVisibleState(picks, currentRound, statsByKey = new Map()) {
 /**
  * Fetch the rolled squad from the ACTIVE SPORT'S OWN TABLE and grouping key.
  * NBA => public.players + decade. NFL => public.nfl_players + era.
- * NFL rows keep the exact generated Ranked Practice object in `payload`.
+ * NFL rows keep the exact generated offline-Practice object in `payload`.
  */
 const squadCache = new Map();
 
@@ -256,7 +256,7 @@ export async function submitSkip(matchId) {
 }
 
 /** Submits this side's rotation/matchups/tactic once, after locally running
- * the same rotation -> matchups -> tactic sequence offline Ranked Practice
+ * the same rotation -> matchups -> tactic sequence offline Practice
  * uses (see startRotationPhase/startMatchupPhase/startTacticPhase in
  * main.js). */
 export async function submitStrategy(matchId, rotation, matchups, tactic) {

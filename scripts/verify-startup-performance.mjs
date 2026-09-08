@@ -170,7 +170,7 @@ async function main() {
     const beforeNfl = served.length;
     const pickStart = Date.now();
     await page.locator('[data-sport="nfl"]').first().click();
-    await page.locator('#mode-toggle [data-mode="practice-easy"]').waitFor({ state: "visible", timeout: 30000 });
+    await page.locator('#mode-toggle [data-mode="practice"]').waitFor({ state: "visible", timeout: 30000 });
     // READY means the data has landed, not that a toggle painted. The mode
     // toggle appears in ~70ms while 4.2MB is still in flight, so measuring
     // there timed the button rather than the load - and found no data fetched

@@ -19,7 +19,12 @@ export const game = {
   draft: null,
   round: { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} },
   roundNumber: 0,
-  ruleset: "easy",
+  // What is being played, resolved from js/modes.js - id, difficulty, and the
+  // answers every screen used to re-derive from `ruleset`: does a clock run,
+  // is the board open, does this move a rank. Replaced `ruleset: "easy"`,
+  // which was one string standing in for four unrelated questions and for the
+  // roster shape as well.
+  modeConfig: null,
   online: null,
   // Slots the pick CLOCK filled rather than the player, per side. The
   // simulation charges a real cost for these (see FORFEIT_PLAYER_SCALE in

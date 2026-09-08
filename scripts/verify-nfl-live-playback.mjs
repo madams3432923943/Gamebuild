@@ -168,7 +168,7 @@ async function main() {
 
     // ---- football, quick play -------------------------------------------
     await page.locator('[data-sport="nfl"]').first().click();
-    const mode = page.locator('#mode-toggle [data-mode="practice-easy"]');
+    const mode = page.locator('#mode-toggle [data-mode="practice"]');
     await mode.waitFor({ state: "visible", timeout: 15000 });
     await mode.click();
     // Football's data loads on selection, and the button says so while it

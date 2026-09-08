@@ -151,7 +151,7 @@ const HOW_TO_PLAY = [
   ["Your roster", "Twelve picks: seven on offense, five on defense and special teams."],
   ["Game plan", "Three offered at random, and what one is worth depends on who you drew - Ground and Pound wants a running quarterback."],
   ["Coin toss", "Winner receives or kicks. Tied after four quarters, both sides get a possession in overtime."],
-  ["Modes", "Quick Play is casual. Ranked Practice is the full game against a bot. Ranked moves your record."],
+  ["Modes", "Practice is the full game against a bot at Easy, Medium or Hard. Online Ranked moves your record."],
 ];
 
 export const NFL = {

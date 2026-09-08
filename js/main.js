@@ -45,6 +45,10 @@ import {
   allSportRatings,
 } from "./profile.js";
 import { countFriends } from "./friends.js";
+import {
+  MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
+  resolveMode, modeLabel,
+} from "./modes.js";
 import { GENERAL_TIERS } from "./ranks.js";
 import { START_RATING } from "./rating.js";
 import {
@@ -624,9 +628,9 @@ function sportCardAction(label, onClick) {
  *
  * Which is exactly why ranked shows YEARS ONLY. Printing the stat lines would
  * answer the question it is asking: anyone could pick the best season off a
- * table without knowing a thing about it. Quick Play shows them, because Quick
- * Play exists to teach the pool and hiding numbers there teaches nothing. Same
- * split the player board itself already makes (`showStats`). */
+ * table without knowing a thing about it. Easy practice shows them, because it
+ * exists to teach the pool and hiding numbers there teaches nothing. Same split
+ * the player board itself already makes (`showStats`). */
 /**
  * Which year of this player you are drafting.
  *
@@ -901,103 +905,119 @@ const btnStartDraft = document.getElementById("btn-start-draft");
 const btnCancelSearch = document.getElementById("btn-cancel-search");
 const searchStatusEl = document.getElementById("search-status");
 
-// Three experiences over two axes: who you're playing (bot / online) and
-// which ruleset applies. "easy" shows the whole squad with stats and no
-// clock; "strict" is the ranked ruleset - type the name from memory, no
-// stats, pick timer running. Only online play touches your rank; bot games
-// are practice by definition.
+// WHAT THE PLAY SCREEN OFFERS. Two modes, and a difficulty when the mode has
+// one. The definitions live in js/modes.js so that the pick clock, the draft
+// board, the strategy phases, the celebration and the history label all read
+// the same record rather than each re-deriving the mode from a string.
 //
-// `label`, `icon` and `blurb` are what the mode CARD shows. They used to live
-// in index.html while `hint` - a second, longer description of the same three
-// modes - lived here, and the screen printed both: a card saying "Ranked
-// Practice (vs Bot - ranked rules + rotation & gamestyle)" above a paragraph
-// saying "Ranked Practice: type names from memory, no stats, pick clock
-// running, then set your rotation and pick a gamestyle". One mode, described
-// twice, in two files. One description, in one place, and the card renders it.
-//
-// `tag` is the badge on the card. Only Ranked carries one, because it is the
-// only mode where the outcome is kept.
-const MODE_CONFIG = {
-  "practice-easy": {
-    mode: "bot",
-    ruleset: "easy",
-    label: "Quick Play",
-    icon: "🎓",
-    blurb: "Against the bot, with every player and their stats on screen. Learn the pool. Doesn't affect your rank.",
-  },
-  "practice-hard": {
-    mode: "bot",
-    ruleset: "strict",
-    label: "Ranked Practice",
-    icon: "🎯",
-    blurb: "Ranked rules against the bot: type names from memory, no stats, pick clock running, then rotation and gamestyle. Doesn't affect your rank.",
-  },
-  online: {
-    mode: "online",
-    ruleset: "strict",
-    label: "Ranked",
-    icon: "🏆",
-    tag: "Online",
-    blurb: "A real opponent, no stats, pick clock on both sides. Wins and losses count toward your rank.",
-  },
-};
+// This replaced a three-card list - Quick Play, Ranked Practice, Ranked - whose
+// first two entries were the same game at two settings, and whose first entry
+// also silently dealt a different roster shape. Practice is now one mode with a
+// difficulty, every mode drafts the ranked roster, and there is one competitive
+// mode rather than two things called ranked.
 
+const difficultyToggleEl = document.getElementById("difficulty-toggle");
+const difficultyFieldEl = document.getElementById("difficulty-field");
+const difficultyNoteEl = document.getElementById("difficulty-note");
 const launchSummaryEl = document.getElementById("launch-summary");
 
-let selectedMode = "practice-easy";
+const DIFFICULTY_KEY = "bk_practice_difficulty";
 
-/** The three mode cards, drawn from MODE_CONFIG so a mode is declared once.
+let selectedMode = "practice";
+let selectedDifficulty = readStoredDifficulty();
+
+/** Difficulty persists like the era does: someone practising at Hard should
+ * not be dropped back to Medium every time they open the app. */
+function readStoredDifficulty() {
+  try {
+    const stored = localStorage.getItem(DIFFICULTY_KEY);
+    return DIFFICULTY_IDS.includes(stored) ? stored : DEFAULT_DIFFICULTY;
+  } catch {
+    return DEFAULT_DIFFICULTY;
+  }
+}
+
+/** One radio button in a radiogroup, in the shape both pickers share.
  *
- * Object key order is insertion order for string keys, which is what puts
- * Quick Play first and Ranked last - the order they escalate in. Written out
- * rather than left implicit because it is load-bearing.
- *
- * The radiogroup markup is unchanged in every way a test or a screen reader
- * can see: still buttons inside #mode-toggle, still role="radio" carrying
- * data-mode and aria-checked. */
-function renderModeCards() {
-  modeToggleEl.innerHTML = "";
-  for (const [id, cfg] of Object.entries(MODE_CONFIG)) {
+ * The two pickers are the same control with different contents, and writing
+ * the markup twice is how the mode card and the difficulty card drift apart -
+ * which is exactly what happened to the old mode list and its blurbs. */
+function renderChoiceCards(container, entries, selectedId, onSelect) {
+  container.innerHTML = "";
+  for (const entry of entries) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "mode-btn" + (id === selectedMode ? " active" : "");
-    btn.dataset.mode = id;
+    btn.className = "mode-btn" + (entry.id === selectedId ? " active" : "");
+    btn.dataset.mode = entry.id;
     btn.setAttribute("role", "radio");
-    btn.setAttribute("aria-checked", String(id === selectedMode));
+    btn.setAttribute("aria-checked", String(entry.id === selectedId));
     btn.innerHTML =
       `<span class="mode-icon" aria-hidden="true"></span>` +
       `<span class="mode-text">` +
       `<span class="mode-title"><span class="mode-label"></span></span>` +
       `<span class="mode-blurb"></span>` +
       `</span>` +
-      // The tick is aria-hidden: aria-checked on the button already says
-      // whether this mode is selected, and a screen reader announcing a check
-      // mark as well says it twice.
-      `<span class="mode-check" aria-hidden="true">✓</span>`;
-    btn.querySelector(".mode-icon").textContent = cfg.icon;
-    btn.querySelector(".mode-label").textContent = cfg.label;
-    btn.querySelector(".mode-blurb").textContent = cfg.blurb;
-    if (cfg.tag) {
+      // aria-hidden: aria-checked on the button already says whether this is
+      // selected, and a screen reader announcing a tick as well says it twice.
+      `<span class="mode-check" aria-hidden="true">\u2713</span>`;
+    btn.querySelector(".mode-icon").textContent = entry.icon || "";
+    btn.querySelector(".mode-label").textContent = entry.label;
+    btn.querySelector(".mode-blurb").textContent = entry.blurb;
+    if (entry.tag) {
       const tag = document.createElement("span");
       tag.className = "mode-tag";
-      tag.textContent = cfg.tag;
+      tag.textContent = entry.tag;
       btn.querySelector(".mode-title").appendChild(tag);
     }
-    btn.addEventListener("click", () => {
-      selectedMode = id;
-      renderModeCards();
-      renderModeChoice();
-    });
-    modeToggleEl.appendChild(btn);
+    btn.addEventListener("click", () => onSelect(entry.id));
+    container.appendChild(btn);
   }
+}
+
+function renderModeCards() {
+  renderChoiceCards(modeToggleEl, Object.values(MODES), selectedMode, (id) => {
+    selectedMode = id;
+    renderModeCards();
+    renderDifficultyCards();
+    renderModeChoice();
+  });
+}
+
+/** The difficulty picker, shown only when Practice is selected. Hidden rather
+ * than disabled: a difficulty is not a choice that exists in a ranked game, and
+ * a greyed-out row of it reads as something the player has failed to unlock. */
+function renderDifficultyCards() {
+  const isPractice = selectedMode === "practice";
+  difficultyFieldEl.hidden = !isPractice;
+  if (!isPractice) return;
+  renderChoiceCards(
+    difficultyToggleEl,
+    DIFFICULTY_IDS.map((id) => difficultyById(id)),
+    selectedDifficulty,
+    (id) => {
+      selectedDifficulty = id;
+      try {
+        localStorage.setItem(DIFFICULTY_KEY, id);
+      } catch {
+        // Storage refused (private mode) - the choice still applies this session.
+      }
+      renderDifficultyCards();
+      renderModeChoice();
+    }
+  );
+  // The one line that says what this difficulty actually changes. Easy is the
+  // only one that changes the interface as well as the bot, and a player
+  // choosing it should know that before the board appears, not after.
+  difficultyNoteEl.textContent = difficultyById(selectedDifficulty).tagline;
 }
 
 function getMode() {
   return selectedMode;
 }
 
+/** The resolved match configuration for whatever is selected right now. */
 function currentModeConfig() {
-  return MODE_CONFIG[getMode()] || MODE_CONFIG["practice-easy"];
+  return resolveMode(selectedMode, selectedDifficulty);
 }
 
 function renderModeChoice() {
@@ -1015,7 +1035,7 @@ function renderLaunchSummary() {
   if (!launchSummaryEl) return;
   const era = sport().eraById(getEra());
   launchSummaryEl.textContent =
-    [currentModeConfig().label, era?.label, sport().name].filter(Boolean).join(" • ");
+    [modeLabel(currentModeConfig()), era?.label, sport().name].filter(Boolean).join(" • ");
 }
 
 /** Start Draft is only live for a sport that can actually be played.
@@ -1200,6 +1220,7 @@ function renderEraChoice() {
 applyTheme(sport());
 renderPlayHead();
 renderModeCards();
+renderDifficultyCards();
 renderEraChoice();
 warmDatasetStats();
 renderModeChoice();
@@ -1286,7 +1307,7 @@ async function startOnlineSearch() {
       // waste the final two seconds of the wait.
       if (Date.now() >= deadline) {
         await endOnlineSearch(
-          "No one else is looking for a game right now. Try Ranked Practice against the bot, or check back in a bit."
+          "No one else is looking for a game right now. Try Practice against the bot, or check back in a bit."
         );
         return;
       }
@@ -1310,9 +1331,11 @@ btnStartDraft.addEventListener("click", async () => {
   const config = currentModeConfig();
   cleanupOnlineWatcher();
 
-  game.ruleset = config.ruleset;
+  // The whole match configuration, not one flag off it: the clock, the board,
+  // the bot's difficulty and whether this counts all travel together from here.
+  game.modeConfig = config;
 
-  if (config.mode === "online") {
+  if (config.online) {
     // A sport whose SERVER cannot run an online match must say so here rather
     // than queue and fail. Football's matchmaking insert violates a CHECK
     // constraint, and the failure path used to navigate home while writing the
@@ -1322,14 +1345,14 @@ btnStartDraft.addEventListener("click", async () => {
       searchStatusEl.classList.remove("hidden");
       searchStatusEl.textContent =
         `Online ${sport().name} isn't open yet - the server has no ${sport().name} draft pool. ` +
-        `Ranked Practice against the bot plays the same game.`;
+        `Practice against the bot plays the same game.`;
       return;
     }
     startOnlineSearch();
     return;
   }
 
-  game.mode = config.mode;
+  game.mode = "bot";
   game.nameB = "Bot";
   startDraft();
 });
@@ -1495,7 +1518,7 @@ function renderTactics() {
 /** Final round: both rosters are set, 45 seconds to commit to a plan. Running
  * out doesn't punish you - it locks in whatever is highlighted - because the
  * timer exists to keep a match moving, not to tax indecision. */
-/** @param opts.timed false runs the phase with no clock at all - Quick Play's
+/** @param opts.timed false runs the phase with no clock at all - Easy practice's
  * whole identity is "no clock", and giving it a 45-second gamestyle timer
  * would be the one place that mode suddenly rushed you. Every other mode
  * keeps the timer, since a ranked opponent is waiting on the other side of
@@ -1633,11 +1656,11 @@ function offerStrategyResubmit(message, onRetry) {
   };
 }
 
-// Rotation phase: minutes-per-player, shared by Offline Ranked Practice (6
-// slots) and (later) Online Ranked. Only shown under the "strict" ruleset -
-// Quick Play stays a no-strategy, no-clock, just-play-it experience. A
-// strategy.rotationMinutes of null means "use the engine's default fixed split," so
-// every mode that never enters this phase behaves exactly as before.
+// Rotation phase: minutes-per-player, run by every mode that has a rotation to
+// set. Easy practice runs it with no clock rather than skipping it - see the
+// `timed` option below. A strategy.rotationMinutes of null means "use the
+// engine's default fixed split", which is what a sport with no rotation (NFL)
+// and a draft that never reached this phase both leave behind.
 let rotationTimerInterval = null;
 
 function cleanupRotationTimer() {
@@ -1653,7 +1676,7 @@ function cleanupRotationTimer() {
 // Shares the same constants the engine falls back to, so an untouched
 // rotation simulates identically to no rotation at all.
 
-/** Between draft-complete and the gamestyle pick in Ranked Practice: assign
+/** Between draft-complete and the gamestyle pick: assign
  * minutes across your roster before choosing how to play them. Timing out
  * locks in whatever's currently assigned, same philosophy as the tactic
  * timer - it keeps the match moving, it doesn't punish indecision. */
@@ -1683,7 +1706,7 @@ function hasMatchups() {
   return sport().usesMatchups === true;
 }
 
-function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS) {
+function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TIMER_SECONDS, { timed = true } = {}) {
   cleanupPickTimer();
   cleanupRotationTimer();
   strategy.rotationMinutes = sport().defaultMinutes(roster);
@@ -1696,7 +1719,14 @@ function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TI
 
   draftPoolPanel.classList.add("hidden");
   rotationPhaseEl.classList.remove("hidden");
-  pickTimerEl.hidden = false;
+  // UNTIMED MEANS NO INTERVAL, not a hidden one. Easy practice must have no
+  // path that confirms a phase the player did not confirm, and the only way to
+  // guarantee that is for the countdown never to be created.
+  pickTimerEl.hidden = !timed;
+  if (!timed) {
+    btnConfirmRotation.onclick = confirm;
+    return;
+  }
 
   let remaining = timerSeconds;
   renderPickTimer(pickTimerEl, remaining);
@@ -1722,7 +1752,7 @@ function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TI
   btnConfirmRotation.onclick = confirm;
 }
 
-// Who guards whom. Null outside ranked practice, in which case the engine
+// Who guards whom. Null for a sport with no matchups, in which case the engine
 // falls back to everyone guarding their own position.
 let matchupTimerInterval = null;
 
@@ -1737,7 +1767,7 @@ function cleanupMatchupTimer() {
  * opponent you actually want them on. Timing out locks in whatever is set,
  * same as the other timed phases - the clock keeps a match moving, it
  * doesn't punish deliberation. */
-function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
+function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm, { timed = true } = {}) {
   cleanupPickTimer();
   cleanupMatchupTimer();
 
@@ -1749,7 +1779,11 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
 
   draftPoolPanel.classList.add("hidden");
   matchupPhaseEl.classList.remove("hidden");
-  pickTimerEl.hidden = false;
+  pickTimerEl.hidden = !timed;
+  if (!timed) {
+    btnConfirmMatchups.onclick = confirm;
+    return;
+  }
 
   let remaining = MATCHUP_TIMER_SECONDS;
   renderPickTimer(pickTimerEl, remaining);
@@ -1775,10 +1809,15 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm) {
   btnConfirmMatchups.onclick = confirm;
 }
 
-/** The draft board reads differently under each ruleset, so the search box
- * and its hint have to say which game is actually being played. */
-function applyRulesetToDraftUI() {
-  const easy = game.ruleset === "easy";
+/** The draft board reads differently in an open-board game, so the search box
+ * and its hint have to say which game is actually being played.
+ *
+ * Reads the MATCH CONFIG rather than a ruleset string: an open board and a
+ * missing clock are two separate facts about Easy practice, and every other
+ * mode answers both the same way. */
+function applyModeToDraftUI() {
+  const config = matchConfig();
+  const easy = config.openBoard;
   // The sport says what its own board accepts. Basketball's slots are all
   // individuals, so it declares nothing and keeps the original wording;
   // football's board takes a position for its six unit slots and says so,
@@ -1786,9 +1825,23 @@ function applyRulesetToDraftUI() {
   const fromMemory = sport().labels?.searchHint || "Type a player's name from memory…";
   poolSearch.placeholder = easy ? "Filter this squad…" : fromMemory;
   knowledgeHintEl.textContent = easy
-    ? "Practice mode — full squad and stats shown, no clock."
+    ? "Easy practice — full squad and stats shown, no clock."
     : `No player list — draft from memory. ${MIN_SEARCH_CHARS}+ letters to search.`;
-  pickTimerEl.hidden = easy;
+  // Not merely hidden: easy practice runs NO clock at all (see startDraft and
+  // advanceDraft), so there is nothing to show and nothing that can time out.
+  pickTimerEl.hidden = !config.timed;
+}
+
+/** What is being played right now.
+ *
+ * Every screen between the draft board and the final whistle asks this. It
+ * falls back to the resolved Practice default rather than throwing, because an
+ * online match entered from a deep link (a friend's challenge) reaches the
+ * draft board without the Play screen ever having run - enterOnlineMatch sets
+ * the real config a moment later, and a board that threw in between would be a
+ * blank screen instead of a slightly generic hint. */
+function matchConfig() {
+  return game.modeConfig || resolveMode("practice", DEFAULT_DIFFICULTY);
 }
 
 // Squads from the last couple of games. A fresh DraftState avoids these when
@@ -1802,21 +1855,15 @@ function rememberSquad(squadId) {
   recentSquadIds = [squadId, ...recentSquadIds.filter((id) => id !== squadId)].slice(0, RECENT_SQUAD_MEMORY);
 }
 
-// Quick Play (easy ruleset) is a straight 5-slot draft - no bench at all.
-// Ranked Practice drafts the full 10-man ranked roster, two per position,
-// because its whole job is to rehearse Online Ranked; drafting a different
-// roster shape than the mode it prepares you for defeats the point.
+// ONE ROSTER SHAPE, IN EVERY MODE. Quick Play used to deal five slots and no
+// bench while the other two modes dealt ten, so the mode you picked silently
+// changed what a roster WAS - a different draft, a different engine path, and
+// its own entry in the balance constants. Practice exists to rehearse Online
+// Ranked, and a rehearsal at a different roster size rehearses nothing.
 //
-// This only governs local drafts: the Start Draft handler returns into
-// startOnlineSearch() before reaching startDraft(), so online play keeps its
-// own (still 6-slot) path until the ranked backend lands.
-function slotsForRuleset(ruleset) {
-  // Ask the SPORT. This returned basketball's slots for every sport, which is
-  // why an NFL draft dealt PG/SG/SF/PF/C and five bench spots off a Cowboys
-  // roster - the board was basketball wearing a football squad's name.
-  const shape = sport().slots;
-  return ruleset === "easy" ? shape.quickPlay : shape.ranked;
-}
+// The compact shape is still declared by each sport and still handled by the
+// engines (games played under it are in saved history, and the calibration
+// harnesses drive it), but no mode selects it any more.
 
 function startDraft() {
   cleanupPickTimer();
@@ -1830,13 +1877,13 @@ function startDraft() {
   strategy.matchups = null;
   draftPoolPanel.classList.remove("hidden");
   btnLeaveMatch.classList.add("hidden");
-  applyRulesetToDraftUI();
+  applyModeToDraftUI();
   game.era = getEra();
   game.sport = getSport();
   game.draft = new DraftState(
     sport().playersInEra(sport().players(), game.era),
     recentSquadIds,
-    slotsForRuleset(game.ruleset)
+    sport().slots.ranked
   );
   game.round = { needNewSquad: true, resolved: {}, activeSide: "A", pendingPlayer: null, pendingSlots: {} };
   game.forfeits = { A: [], B: [] };
@@ -1870,7 +1917,11 @@ function advanceDraft() {
 
   for (const side of botSides()) {
     if (!game.round.resolved[side]) {
-      const choice = draft.botAutoPick(side);
+      // The difficulty is a DRAFTING rule and reaches the bot here and nowhere
+      // else - nothing downstream of this line knows which difficulty was
+      // chosen, which is what makes "difficulty cannot change the simulation"
+      // structural rather than a promise.
+      const choice = draft.botAutoPick(side, { difficulty: matchConfig().difficulty });
       game.round.resolved[side] = true;
       if (choice) game.round.pendingSlots[side] = choice.slot;
     }
@@ -1882,7 +1933,9 @@ function advanceDraft() {
       game.round.activeSide = pendingHuman;
       game.round.pendingPlayer = null;
       poolSearch.value = "";
-      if (game.ruleset !== "easy") startPickTimer(handleLocalTimeout);
+      // Easy practice runs no clock and therefore cannot time out - there is no
+      // hidden forfeit path behind this, only the absence of one.
+      if (matchConfig().timed) startPickTimer(handleLocalTimeout);
       renderDraftRound();
       return;
     }
@@ -1943,7 +1996,7 @@ function renderPoolForCurrentState() {
     pendingName,
     onPoolPick,
     sport().players(),
-    game.ruleset,
+    matchConfig().openBoard,
     draft.slots,
     (player, seasons, showStats) =>
       openSeasonPicker(player, seasons, onPoolPick, showStats, {
@@ -2187,25 +2240,15 @@ function renderDraftComplete() {
     forfeits: forfeitedSlotsFor("A", draft.rosterA, draft.slots),
   });
 
-  // Quick Play stays the fast, no-strategy experience: straight to the sim.
-  // Ranked Practice adds the two strict-ruleset phases - rotation, then
-  // gamestyle - since it's meant to rehearse exactly what Online Ranked asks
-  // for, using a bot opponent instead of a real one.
-  if (game.ruleset !== "strict") {
-    // Quick Play drafts five players and no bench, so there is no rotation to
-    // set and nobody to switch onto anybody - those two phases would be
-    // screens with one legal answer. The gamestyle is a real choice at any
-    // roster size, though, and it is the first thing a new player should meet:
-    // Quick Play is where people learn what the game is, and hiding a third of
-    // the game behind Ranked Practice made gamestyles a thing you discovered
-    // late or not at all.
-    strategy.rotationMinutes = null;
-    strategy.matchups = null;
-    draftTurnBanner.textContent = "Pick your game plan";
-    tacticPhaseHintEl.textContent = "Choose how this team plays - no clock, take your time.";
-    startTacticPhase(runLocalSimulation, { timed: false });
-    return;
-  }
+  // EVERY practice game now runs the full strategy sequence - rotation,
+  // matchups, gamestyle - because every practice game now drafts the ranked
+  // roster. Quick Play used to skip all of it, which meant two thirds of the
+  // game was hidden behind a mode most new players never selected.
+  //
+  // Easy runs the same phases with no clock on any of them. That is the only
+  // difference: the phases, the choices and what the engine does with them are
+  // identical at all three difficulties.
+  const timed = matchConfig().timed;
 
   draftTurnBanner.textContent = "Set your rotation";
   rotationPhaseHintEl.textContent =
@@ -2213,8 +2256,10 @@ function renderDraftComplete() {
     `Lower someone to free ${sport().labels.unit} before raising someone else.`;
   const toTactic = () => {
     draftTurnBanner.textContent = "Final round — set your game plan";
-    tacticPhaseHintEl.textContent = `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
-    startTacticPhase(runLocalSimulation);
+    tacticPhaseHintEl.textContent = timed
+      ? `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`
+      : "Choose how this team plays - no clock, take your time.";
+    startTacticPhase(runLocalSimulation, { timed });
   };
   const afterRotationOffline = () => {
     if (!hasMatchups()) return toTactic();
@@ -2222,13 +2267,13 @@ function renderDraftComplete() {
     matchupPhaseHintEl.textContent =
       `Your starters are on their opposite numbers by default. Move anyone you want - ` +
       `switching two players trades their assignments.`;
-    startMatchupPhase(draft.rosterA, draft.rosterB, game.nameB, toTactic);
+    startMatchupPhase(draft.rosterA, draft.rosterB, game.nameB, toTactic, { timed });
   };
   // Straight past both phases for a sport that has neither. NFL has no minutes
   // to allocate and no matchups to assign, and the rotation screen keeps its
   // Confirm disabled until the budget is spent - a budget of zero could never
   // be spent, so the draft ended on a dead screen and nothing ever simulated.
-  if (hasRotation()) startRotationPhase(draft.rosterA, draft.slots, afterRotationOffline);
+  if (hasRotation()) startRotationPhase(draft.rosterA, draft.slots, afterRotationOffline, ROTATION_TIMER_SECONDS, { timed });
   else afterRotationOffline();
 }
 
@@ -2375,6 +2420,11 @@ async function enterOnlineMatch(matchId) {
   game.mode = "online";
   const session = await requireSession();
   const match = await getMatch(matchId);
+  // A friendly is entered by challenge, never by the Play screen, so this is
+  // the only place that can know it is one. Same rules as ranked - clock,
+  // hidden board, ranked roster, authoritative server - with `ranked: false`,
+  // which is the single fact that keeps it off the ladder.
+  game.modeConfig = match.is_friendly ? { ...FRIEND_MODE, difficulty: null } : resolveMode("ranked");
   const mySide = match.player_a === session.user.id ? "A" : "B";
   const oppUserId = mySide === "A" ? match.player_b : match.player_a;
 
@@ -2431,7 +2481,7 @@ async function enterOnlineMatch(matchId) {
     );
   }
 
-  applyRulesetToDraftUI();
+  applyModeToDraftUI();
   btnLeaveMatch.classList.remove("hidden");
   // Reset: handleOpponentLeft repurposes this button as "Back to Home", and a
   // new match must not inherit that label.
@@ -2646,7 +2696,7 @@ async function renderOnlineDraftRound(match) {
     .filter((p) => p.round_number === match.round_number - 1 && p.side === oppSide && p.action === "pick")
     .map((p) => p.slot);
 
-  if (game.ruleset !== "easy") startPickTimer(handleOnlineTimeout);
+  if (matchConfig().timed) startPickTimer(handleOnlineTimeout);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: sport().slots.ranked });
   renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, revealSlots: oppRevealSlots });
@@ -2667,7 +2717,7 @@ function renderOnlinePositionAndPool() {
     pendingName,
     onOnlinePoolPick,
     sport().players(),
-    game.ruleset,
+    matchConfig().openBoard,
     sport().slots.ranked,
     (player, seasons, showStats) =>
       openSeasonPicker(player, seasons, onOnlinePoolPick, showStats, {
@@ -2770,7 +2820,7 @@ async function onlineSkip() {
 
 /** Online's equivalent of renderDraftComplete's strict-ruleset branch: once
  * both rosters are full (status flips to 'strategy'), run the identical
- * rotation -> matchups -> tactic sequence offline Ranked Practice uses, then
+ * rotation -> matchups -> tactic sequence offline Practice uses, then
  * submit once instead of simulating locally - the server simulates once
  * BOTH sides have submitted (see submit_strategy). Each side runs this
  * independently at its own pace; nothing here waits on the opponent
@@ -3816,10 +3866,16 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
       // opponent, which spends the celebration on the game that risked
       // nothing - and leaves nothing bigger to give the one that did.
       //
-      // Read off what the mode actually IS rather than a flag set beside it:
-      // an online game is a real opponent, a strict ruleset is the full game,
-      // and anything else is casual.
-      const stakes = game.mode === "online" ? "ranked" : game.ruleset === "strict" ? "practice" : "casual";
+      // Read off what the mode actually IS rather than a flag set beside it. A
+      // game that moves your rank is the loudest; a friendly against a real
+      // person is a real game and gets the middle treatment; practice is
+      // practice, and Easy practice - the learning mode - is the quietest.
+      const config = matchConfig();
+      const stakes = config.ranked
+        ? "ranked"
+        : config.difficulty === "easy"
+          ? "casual"
+          : "practice";
       const CELEBRATION = {
         ranked: { count: 110, durationMs: 4200, fanfare: true, flare: true },
         practice: { count: 55, durationMs: 2600, fanfare: true, flare: true },
@@ -4083,7 +4139,13 @@ function runLocalSimulation() {
   // branch now, so the replay and the highlights are drawn from one number.
   const provenance = provenanceFor({
     sportId: getSport(),
-    mode: game.ruleset === "strict" ? "practice-strict" : "practice-easy",
+    // The RULES this game was played under, which is what rulesVersion is for.
+    // Every practice game now plays the ranked rules against the ranked roster,
+    // so there is one practice ruleset rather than the two Quick Play created.
+    // Difficulty is deliberately NOT part of it: it changes who the bot drafts
+    // and nothing about the rules or the engine, so folding it in here would
+    // claim three incomparable simulations where there is one.
+    mode: "practice",
     seed,
     datasetVersion: sport().datasetVersion(),
   });
@@ -4119,7 +4181,13 @@ function runLocalSimulation() {
         opponentLabel: "Bot",
         won: result.winner === "A",
         draftedTeams: draft.slots.map((slot) => draft.rosterA[slot].team),
-        ruleset: game.ruleset,
+        // What was played, in the vocabulary the profile screen reads back.
+        // `mode` above stays "offline" because that is what every stored row
+        // has said for years and what the era ladders aggregate on; these two
+        // are additive, so an old row simply lacks them and reads as a plain
+        // "Practice" rather than as a wrong difficulty.
+        gameMode: "practice",
+        difficulty: matchConfig().difficulty,
         scoreFor: result.teamScoreA,
         scoreAgainst: result.teamScoreB,
         mvpName: result.mvp.player.name,
@@ -4202,7 +4270,7 @@ function normalizeServerResult(dbResult, iAmA, serverWinner) {
     // Football's trusted server simulation stores its event/drive
     // ledger separately from the common score columns. Restore it
     // here so online NFL uses the same event-driven field playback
-    // as Ranked Practice instead of falling back to period totals.
+    // as offline Practice instead of falling back to period totals.
     drives,
     teamStatsA: iAmA ? gameData.teamStatsA : gameData.teamStatsB,
     teamStatsB: iAmA ? gameData.teamStatsB : gameData.teamStatsA,

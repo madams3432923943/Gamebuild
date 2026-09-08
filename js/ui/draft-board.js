@@ -434,7 +434,7 @@ export function renderPool(
   pendingPlayerName,
   onPick,
   allPlayers,
-  ruleset = "strict",
+  openBoard = false,
   slots = defaultSlots(),
   onPickSeason = null
 ) {
@@ -442,7 +442,7 @@ export function renderPool(
   try {
     renderPoolContents(
       container, squad, filterText, roster, pendingPlayerName,
-      onPick, allPlayers, ruleset, slots, onPickSeason
+      onPick, allPlayers, openBoard, slots, onPickSeason
     );
     return { ok: true };
   } catch (error) {
@@ -453,7 +453,7 @@ export function renderPool(
     // reproduce it, and returned to the caller, whose job is to stop the
     // timer rather than charge the player for a screen they cannot use.
     console.error("Draft pool render failed:", error, {
-      ruleset,
+      openBoard,
       filterText,
       squad: squad ? `${squad.team} ${squad.decade}` : null,
       squadSize: squad && squad.players ? squad.players.length : 0,
@@ -475,14 +475,20 @@ function renderPoolContents(
   pendingPlayerName,
   onPick,
   allPlayers,
-  ruleset,
+  openBoard,
   slots,
   onPickSeason
 ) {
-  // Easy practice puts the whole squad on screen with stats - it's for
+  // AN OPEN BOARD puts the whole squad on screen with stats - it's for
   // learning the pool, not testing recall. The search box still narrows the
-  // list, it just isn't the only way to see anyone.
-  if (ruleset === "easy") {
+  // list, it just isn't the only way to see anyone. Easy practice is the only
+  // mode that asks for it; every other mode hides the board on purpose, and
+  // hidden information is what Ranked and Friend matches are built on.
+  //
+  // A BOOLEAN, not the old "easy"/"strict" ruleset string. The board only ever
+  // asked one question of that string, and passing a whole ruleset to answer it
+  // is how the ruleset came to mean four unrelated things at once.
+  if (openBoard) {
     // Through normalizeName, not a bare toLowerCase: the dataset spells names
     // properly, so a raw substring match hides Doncic from anyone typing
     // "doncic" here exactly as it did in the ranked search.
@@ -520,7 +526,7 @@ function renderPoolContents(
   const result = resolveTypedInput(filterText, squad, allPlayers);
 
   if (result.tier === "too-short") {
-    // Nothing typed yet says nothing: the ruleset hint directly above the box
+    // Nothing typed yet says nothing: the hint directly above the box
     // already explains that you type a name and that it takes three letters,
     // and printing the same instruction twice cost four lines of a phone
     // screen right where the board needs them. Once someone HAS started

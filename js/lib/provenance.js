@@ -47,8 +47,12 @@ const RULES_STAMP = "rules-2026-08-11.1";
  * programs and a change to one says nothing about the other. */
 export const engineVersion = (sportId) => `${sportId}-${ENGINE_STAMP}`;
 
-/** `ranked-rules-2026-08-11.1`. Per mode, because a Quick Play roster and a
- * ranked one are not playing the same game. */
+/** `ranked-rules-2026-08-11.1`. Per mode, because the rules a game was played
+ * under are part of what makes its result comparable. Two values are written
+ * today - "ranked" and "practice" - and they now describe the same roster and
+ * the same rules; the distinction is kept because stored rows carry the older
+ * "practice-easy" and "practice-strict", which described genuinely different
+ * games and must stay readable as such. */
 export const rulesVersion = (mode) => `${mode || "ranked"}-${RULES_STAMP}`;
 
 /**

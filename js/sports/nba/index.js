@@ -113,11 +113,11 @@ const TIERS = [
 // One line each, and only the things you cannot work out from the screen.
 const HOW_TO_PLAY = [
   ["The draft", "Each round rolls one squad - say Bulls 1990s - and you both draft from it. Same options: it comes down to who knows the roster."],
-  ["Type from memory", "Ranked shows no list. Spelling is forgiving. Quick Play shows the whole squad with stats."],
+  ["Type from memory", "Ranked shows no list. Spelling is forgiving. Easy practice shows the whole squad with stats."],
   ["Your roster", "Five starters, position-locked, plus five bench spots that take anyone. Two-position players are worth more."],
   ["Rotation", "240 minutes across ten players. Past 34 a player tires and gives production back."],
   ["Gamestyle", "Three offered at random. Each boosts something and pays for it elsewhere."],
-  ["Modes", "Quick Play is casual. Ranked Practice is the full game against a bot. Ranked moves your record."],
+  ["Modes", "Practice is the full game against a bot at Easy, Medium or Hard. Online Ranked moves your record."],
 ];
 
 export const NBA = {

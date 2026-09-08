@@ -534,7 +534,9 @@ export function renderFriendsLeaderboard(container, entries, callbacks) {
     if (!entry.isMe) {
       const actions = document.createElement("div");
       actions.className = "friend-row-actions";
-      actions.appendChild(smallBtn("Challenge", () => callbacks.onChallenge(entry.userId)));
+      // The name travels with the id: the challenge dialog names who is being
+      // challenged, and it opens from here with nothing else to look it up in.
+      actions.appendChild(smallBtn("Challenge", () => callbacks.onChallenge(entry.userId, entry.username)));
       actions.appendChild(smallBtn("Remove", () => callbacks.onRemove(entry.userId), "btn-danger-small"));
       row.appendChild(actions);
     }

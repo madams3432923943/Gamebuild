@@ -222,7 +222,7 @@ for (const meta of SPORTS) {
     `${meta.name}: the engine and dataset a replay needs are both stamped`,
     engineVersion(meta.id).startsWith(`${meta.id}-`) &&
       /^[a-z-]+-\d+-(\d{4}|legacy)$/.test(sport.datasetVersion()),
-    `${engineVersion(meta.id)} / ${sport.datasetVersion()} / ${rulesVersion("practice-easy")}`
+    `${engineVersion(meta.id)} / ${sport.datasetVersion()} / ${rulesVersion("practice")}`
   );
 }
 

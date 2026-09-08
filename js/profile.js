@@ -415,6 +415,8 @@ export async function recordPracticeResult({
   scoreAgainst,
   mvpName,
   mvpIsOwnTeam,
+  gameMode = null,
+  difficulty = null,
   ownLines,
   rosterA,
   rosterB,
@@ -497,8 +499,21 @@ export async function recordPracticeResult({
   // Spread rather than nested so an entry written before this existed reads
   // the same as one written after - the fields are simply absent, which is the
   // honest representation of a game nobody can reproduce.
+  // WHAT WAS PLAYED, additively.
+  //
+  // `mode` stays the storage vocabulary it has always been - "offline" here,
+  // "online"/"friendly" from the Edge Function - because the era ladders and
+  // the online/offline records aggregate on it, and rewriting it would rewrite
+  // years of stored rows. `gameMode` and `difficulty` are the PRESENTATION
+  // vocabulary the new Play screen speaks, and they are additive: a row written
+  // before they existed simply lacks them and reads as "Practice", which is
+  // exactly what it was. Nothing migrates and nothing is corrupted.
+  //
+  // Undefined values are dropped rather than stored as nulls, so a ranked row
+  // is not carrying an empty difficulty column forever.
+  const modeStamp = { ...(gameMode ? { gameMode } : {}), ...(difficulty ? { difficulty } : {}) };
   const history = [
-    { date, mode, sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName, ...(provenance || {}) },
+    { date, mode, sport, won, opponentLabel, scoreFor, scoreAgainst, mvpName, ...modeStamp, ...(provenance || {}) },
     ...profile.history,
   ].slice(
     0,
