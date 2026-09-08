@@ -3046,6 +3046,18 @@ const btnGameHome = document.getElementById("btn-game-home");
 
 const REGULATION_PERIODS = 4;
 
+/** "Q3", or "OT1" past regulation, from a ZERO-BASED period index.
+ *
+ * One function because there were two copies of this arithmetic in this file
+ * and they disagreed: the scoreboard's had no +1, so the first overtime column
+ * read "OT0" while the recap - written from the other copy - called the same
+ * period OT1. Basketball's derived clock now writes a third reading onto the
+ * same board, which is what made the disagreement worth ending rather than
+ * patching in place. */
+function periodLabel(index) {
+  return index >= REGULATION_PERIODS ? `OT${index - REGULATION_PERIODS + 1}` : `Q${index + 1}`;
+}
+
 /** Distributes a team's true final score across periods proportionally to
  * that period's raw simulated share, so the live reveal ends up exactly at
  * the real final score while still showing quarter-to-quarter variance. */
@@ -3851,12 +3863,7 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     const fromA = runningA;
     const fromB = runningB;
     const isOt = result.quarterBoxScores[i].overtime;
-    // `i` is a zero-based period index, so the first overtime is index 4 and is
-    // OT1 - the +1 was missing and the scoreboard's first overtime column read
-    // "OT0". Harmless-looking until basketball's clock arrived on the same
-    // board reading "OT1 · 4:12" beside it; buildGameScript below has had the
-    // +1 all along, so the recap and the board disagreed too.
-    const label = isOt ? `OT${i - REGULATION_PERIODS + 1}` : `Q${i + 1}`;
+    const label = periodLabel(i);
     periodsSoFar.push({ label, a: deltaA[i], b: deltaB[i] });
     runningA += deltaA[i];
     runningB += deltaB[i];
@@ -4177,7 +4184,7 @@ function showShotChart(events, labelA, labelB) {
     const labelForQuarter = (quarter) => {
       const idx = result.quarterBoxScores.findIndex((q) => q.period === quarter);
       if (idx < 0) return null;
-      return { idx, label: idx >= REGULATION_PERIODS ? `OT${idx - REGULATION_PERIODS + 1}` : `Q${idx + 1}` };
+      return { idx, label: periodLabel(idx) };
     };
 
     // WHAT THE BOARD IS ALREADY SHOWING, so a repaint happens only when
