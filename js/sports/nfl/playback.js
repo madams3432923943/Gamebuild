@@ -93,6 +93,12 @@ const MIN_EVENT_MS = 90;
  * field shows is the one inside the fiction. */
 const QUARTER_SECONDS = 15 * 60;
 
+/** What a field goal is longer than the spot it is kicked from: ten yards of
+ * end zone and seven back to the holder. Football quotes the KICK, not the
+ * yard line - a snap from the 62 is a 55-yard attempt - and the scoring
+ * summary is the one place this app has to say it in football's units. */
+const KICK_OVERHEAD_YARDS = 17;
+
 /** ...and in an overtime period, which is ten minutes and not fifteen. Every
  * OT period was previously given a full quarter, so the clock in overtime read
  * five minutes higher than it should have all the way down. */
@@ -502,6 +508,39 @@ export function buildTimeline(drives, opts = {}) {
         distance: play.distance,
         gain: play.gain,
         scoring: drive.points > 0 ? drive.points : 0,
+        // THE SCORE AS FACTS, not as the sentence describing it. `text` above
+        // is one ready-made line for the live feed; the post-game scoring
+        // summary needs the same score spelled differently ("8 yd rushing TD"
+        // beside a clock), and recovering the man, the yards and the kind by
+        // parsing English out of `text` would make a display string the source
+        // of truth for something the drive already knows.
+        //
+        // The YARDS are the two different numbers football actually quotes: a
+        // touchdown is the length of the scoring play, a field goal the length
+        // of the kick - the spot plus the end zone plus the snap, which is why
+        // a kick from the 62 is a 55-yarder.
+        scoringPlay: drive.points > 0
+          ? {
+              outcome: drive.outcome,
+              scorer: drive.scorer,
+              kind: drive.kind,
+              points: drive.points,
+              conversion: drive.conversion,
+              // NULL RATHER THAN A GUESS. A kick's length is the spot plus
+              // the end zone plus the snap, and the spot has to be a real yard
+              // line for that to mean anything. A drive's `endYard` is how far
+              // it got, and on about a quarter of kicking drives the offense
+              // "reaches" the goal line or past it and kicks anyway - which is
+              // the engine's reach model, not a 17-yarder. Printing the floor
+              // there would put an invented number in a summary a reader takes
+              // literally, so those rows say "field goal" and stop.
+              yards: drive.outcome === "fieldGoal"
+                ? (Math.round(drive.endYard) < 100
+                    ? KICK_OVERHEAD_YARDS + 100 - Math.round(drive.endYard)
+                    : null)
+                : Math.max(1, Math.min(99, Math.round(play.gain))),
+            }
+          : null,
         turnover: drive.outcome === "turnover",
         playType: play.type,
         playerDeltas,
@@ -746,4 +785,85 @@ function describePlay(play) {
     default:
       return play.gain > 0 ? `Pass complete for ${y}` : "Pass complete, no gain";
   }
+}
+
+// ---------------------------------------------------------------------------
+// The scoring summary
+// ---------------------------------------------------------------------------
+// WHAT REPLACES THE PLAY FEED WHEN THE GAME IS OVER.
+//
+// During playback the feed is a broadcast: drives, takeaways, the odd big
+// quarter. That is the right thing to watch and the wrong thing to be left
+// with, because the feed holds four cards - so the moment the whistle goes,
+// what a player is looking at is whatever four things happened to be last,
+// which for a 25-23 game can easily be three punts and a lead change.
+//
+// A scoring summary is what a real broadcast leaves on screen instead, and it
+// is the only reading of a football game that answers "how did this end up
+// 25-23" without scrolling: every score, in order, with the man, the play and
+// the clock.
+//
+// Built from the TIMELINE rather than from the drives, because the clock is a
+// presentation fact - buildTimeline derives it, the engine models drives and
+// has no running clock (see the note there). Reading `drives` here would mean
+// inventing a second one.
+//
+// Full account, including the field goal that has no spot to kick from, in
+// docs/nfl-presentation.md.
+
+/** How a touchdown's extra play is worth mentioning.
+ *
+ * A made kick says nothing a reader cannot see from the score, so it says
+ * nothing. The other three are all decisions or failures a scoring summary is
+ * expected to record. */
+function conversionNote(conversion) {
+  if (!conversion) return "";
+  if (conversion.type === "two") return conversion.good ? " (2-pt good)" : " (2-pt failed)";
+  return conversion.good ? "" : " (XP missed)";
+}
+
+/** One score, in football's own words: who, how, and how far. */
+function describeScore(play, fallback) {
+  if (!play) return fallback;
+  if (play.outcome === "fieldGoal") {
+    const kick = play.yards ? `${play.yards} yd field goal` : "field goal";
+    return play.scorer ? `${play.scorer} ${kick}` : kick[0].toUpperCase() + kick.slice(1);
+  }
+  if (play.outcome === "touchdown") {
+    const how = play.kind === "rush" ? "rushing" : play.kind === "rec" ? "receiving" : "";
+    const head = play.scorer
+      ? `${play.scorer} ${play.yards} yd${how ? ` ${how}` : ""} TD`
+      : `${play.yards} yd${how ? ` ${how}` : ""} touchdown`;
+    return head + conversionNote(play.conversion);
+  }
+  // Anything the engine learns to score later - a safety, a return - still
+  // reads correctly here rather than being dropped, because the drive's own
+  // sentence is the fallback rather than an empty row.
+  return fallback;
+}
+
+/**
+ * Every score in the game, oldest first, as rows the shared feed can render.
+ *
+ * `{ when, team, text, score }` is deliberately sport-neutral vocabulary: the
+ * feed that draws these knows nothing about football, and a basketball scoring
+ * summary - if that sport ever wants one - would be the same four fields.
+ */
+export function scoringSummary(events, { labelA, labelB } = {}) {
+  const rows = [];
+  for (const event of Array.isArray(events) ? events : []) {
+    if (!(event.scoring > 0)) continue;
+    rows.push({
+      // The period and the clock, which is the half of a scoring summary the
+      // live feed never had room for.
+      when: `${event.quarter > 4 ? `OT${event.quarter - 4}` : `Q${event.quarter}`} ${event.clock}`,
+      team: event.possession === "A" ? labelA : labelB,
+      text: describeScore(event.scoringPlay, event.text),
+      // The score AFTER this one, the way a summary column reads: the run of
+      // rows is then also the story of who was ahead and when.
+      score: `${event.scoreA}-${event.scoreB}`,
+      leader: event.scoreA === event.scoreB ? null : event.scoreA > event.scoreB ? "A" : "B",
+    });
+  }
+  return rows;
 }

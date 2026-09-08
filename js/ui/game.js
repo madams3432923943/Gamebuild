@@ -473,6 +473,54 @@ export function clearPlayFeed(container) {
   container.innerHTML = "";
 }
 
+/**
+ * The feed at full time: a headline and then every score in the game.
+ *
+ * REPLACES the feed rather than pushing onto it, and that is the point.
+ * pushPlayHeadline keeps four cards, which is right while a game is being
+ * watched and wrong the moment it is over - what a player is left staring at
+ * is whichever four moments happened to be last, rather than the ones that put
+ * the numbers on the board.
+ *
+ * Rows are `{ when, team, text, score }` and nothing here knows which sport
+ * wrote them; the sport that has a scoring summary provides one (see
+ * scoringSummary in js/sports/nfl/playback.js) and a sport that does not keeps
+ * the running feed it always had.
+ *
+ * Built as nodes, never markup: `team` is an opponent's username in an online
+ * game, which has no business being parsed as HTML.
+ */
+export function renderScoringSummary(container, headline, rows) {
+  container.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "play-card final";
+  head.textContent = headline;
+  container.appendChild(head);
+
+  for (const row of rows) {
+    const card = document.createElement("div");
+    card.className = "play-card score-line";
+    const when = document.createElement("span");
+    when.className = "sl-when";
+    when.textContent = row.when;
+    const what = document.createElement("span");
+    what.className = "sl-what";
+    // The team leads the sentence because a summary is read down the column
+    // for one side at a time - "who scored" is the second question, not the
+    // first.
+    what.textContent = row.team ? `${row.team}: ${row.text}` : row.text;
+    const score = document.createElement("span");
+    score.className = "sl-score";
+    score.textContent = row.score;
+    card.append(when, what, score);
+    container.appendChild(card);
+  }
+  // The list reads oldest-first, so the opening drive is at the top where a
+  // summary starts - the opposite of the live feed, which prepends because
+  // the newest thing is the thing being watched.
+  container.scrollTop = 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // Football field playback

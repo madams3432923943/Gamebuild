@@ -126,7 +126,12 @@ function noteShapeFaults(notes) {
  * would fail at the first snap rather than at the build. These are the ones
  * shared code calls unconditionally once a stage is declared. */
 const REQUIRED_PRESENTATION = {
-  field: ["renderField", "showEvent", "buildTimeline", "createLiveState", "applyEvent", "liveBox", "liveScore"],
+  // scoringSummary is the post-game feed: shared code calls it the moment the
+  // game ends and falls back to the running feed when a sport has none, so a
+  // football that lost it would degrade silently into the four-card tail this
+  // stage replaced.
+  field: ["renderField", "showEvent", "buildTimeline", "createLiveState", "applyEvent", "liveBox", "liveScore",
+    "scoringSummary"],
   // Basketball's court. Every one of these is called by js/main.js the moment a
   // basketball game reaches the game screen, so a sport declaring this stage
   // without them is a blank floor, not a degraded one. buildShotLedger is the
