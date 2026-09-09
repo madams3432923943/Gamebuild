@@ -2153,7 +2153,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     const emptyLine = () => ({
       comp: 0, att: 0, pass_yds: 0, pass_tds: 0, rush_yds: 0, rush_tds: 0,
       carries: 0, targets: 0, sacked: 0,
-      rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, fumbles: 0, sacks: 0, fgs: 0, fga: 0,
+      rec: 0, rec_yds: 0, rec_tds: 0, ints: 0, ints_thrown: 0, fumbles: 0, sacks: 0, fgs: 0, fga: 0,
       td: 0, pts: 0,
     });
     // Every slot gets a line, filled or not. A quiet receiver had a quiet
@@ -2264,6 +2264,15 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
         if (enteredRedZone) team.redZoneTouchdowns += 1;
       } else if (drive.outcome === "turnover") {
         team.turnovers += 1;
+        // AND THE MAN WHO THREW IT WEARS IT. The live ledger charged the
+        // quarterback (playback.js), this one did not, so a pick showed in the
+        // INT column while the game was being played and then vanished into a
+        // dash on the final box score - the same drive telling two stories.
+        //
+        // `ints_thrown`, NOT `ints`: `ints` on a defensive slot means picks
+        // CAUGHT, and is credited below over the OTHER side's drives.
+        const passer = at("QB");
+        if (drive.takeaway === "int" && passer) passer.ints_thrown += 1;
       }
     }
 
