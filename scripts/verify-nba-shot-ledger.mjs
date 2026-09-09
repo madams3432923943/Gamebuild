@@ -145,23 +145,32 @@ for (let g = 0; g < GAMES; g++) {
   }
 
   // ---- assists are bounded by the engine, and never self-credited ---------
-  result.quarterBoxScores.forEach((period, i) => {
-    for (const side of ["a", "b"]) {
-      const credited = {};
+  //
+  // PER GAME, NOT PER QUARTER, and the difference is deliberate. A quarter can
+  // carry more assist credits than it has assistable teammate baskets, and
+  // assignAssists used to stop when it ran out - so the ledger held fewer
+  // assists than the box score it is an expansion of, and the live table (which
+  // is folded from the ledger now) climbed to one short of the final line and
+  // snapped up at the whistle. A credit that cannot stay in its own quarter
+  // moves to the nearest one with a free basket instead, which is a decision
+  // about WHICH basket, not about how many. The count is still the engine's.
+  for (const side of ["a", "b"]) {
+    const credited = {};
+    for (const period of result.quarterBoxScores) {
       for (const [slot, line] of Object.entries(period[side] || {})) {
-        credited[slot] = Number(line.ast) || 0;
-      }
-      const used = {};
-      for (const e of events) {
-        if (e.type !== "shot" || e.period !== i + 1 || e.side !== side || !e.assistedBy) continue;
-        used[e.assistedBy] = (used[e.assistedBy] || 0) + 1;
-        if (e.assistedBy === e.slot) selfAssists += 1;
-      }
-      for (const [slot, n] of Object.entries(used)) {
-        if (n > (credited[slot] || 0)) assistOverflow += 1;
+        credited[slot] = (credited[slot] || 0) + (Number(line.ast) || 0);
       }
     }
-  });
+    const used = {};
+    for (const e of events) {
+      if (e.type !== "shot" || e.side !== side || !e.assistedBy) continue;
+      used[e.assistedBy] = (used[e.assistedBy] || 0) + 1;
+      if (e.assistedBy === e.slot) selfAssists += 1;
+    }
+    for (const [slot, n] of Object.entries(used)) {
+      if (n > (credited[slot] || 0)) assistOverflow += 1;
+    }
+  }
 
   // ---- every shot has a place on the floor, and it matches the shot --------
   //
@@ -331,9 +340,11 @@ add(
   illegalThrees === 0 ? `${sampledShots} shots, none from a zero-attempt shooter` : `${illegalThrees} — ${illegalThreeExample}`
 );
 add(
-  "Assists never exceed what the engine credited",
+  "Assists never exceed what the engine credited, per player per game",
   assistOverflow === 0,
-  assistOverflow === 0 ? "every passer within his own count" : `${assistOverflow} player-quarters over budget`
+  assistOverflow === 0
+    ? "every passer within his own game count; a credit may move between quarters to find a basket, never appear"
+    : `${assistOverflow} player-games over budget`
 );
 add("Nobody assists his own basket", selfAssists === 0, selfAssists === 0 ? "clean" : `${selfAssists} self-assists`);
 add(

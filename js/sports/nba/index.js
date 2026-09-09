@@ -490,10 +490,26 @@ function loadPresentation() {
         packLedger: playback.packLedger,
         buildPlaybackTimeline: playback.buildPlaybackTimeline,
         periodSpan: playback.periodSpan,
-        speeds: playback.SPEEDS,
-        quarterCardMs: playback.QUARTER_CARD_MS,
         describeEvent: playback.describeEvent,
         foldLiveStats: playback.foldLiveStats,
+        // THE LIVE LEDGER - the same contract football declares, so one driver
+        // in js/main.js plays both sports back event by event. Basketball used
+        // to take a second path that revealed a whole quarter at a time, which
+        // is how the board came to show a quarter's finished score at 9:52 of
+        // it. See THE LIVE LEDGER in playback.js.
+        createLiveState: playback.createLiveState,
+        applyEvent: playback.applyEvent,
+        liveScore: playback.liveScore,
+        liveBox: playback.liveBox,
+        livePeriodScore: playback.livePeriodScore,
+        liveTeamStats: playback.liveTeamStats,
+        eventChangesBox: playback.eventChangesBox,
+        eventSound: playback.eventSound,
+        // Stateful: a scoring run is announced once rather than on every
+        // basket that extends it. A FACTORY, because "have I already said this
+        // run" is a fact about one viewing - a voice shared across games would
+        // carry the last game's run into the next one's first quarter.
+        createFeedVoice: playback.createFeedVoice,
         // The box score's shooting splits, from the same events the chart
         // draws - see foldPlayerShotLines for the two derivations this
         // replaced and what they disagreed about.

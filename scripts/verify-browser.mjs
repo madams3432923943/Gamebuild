@@ -205,10 +205,10 @@ export async function runBrowserChecks(opts = {}) {
     // server between showing the screen and playing the result, and this
     // harness plays a practice match. Keep the wider budget; football's
     // playback legitimately needs it.
-    // Basketball's own budget went up with its playback: a game that is paced to
-    // be watched takes about 205 seconds at 1x and half that at the 2x this run
-    // uses, against the seventeen seconds it used to take.
-    budgetMs = (opts.sport || process.env.SELFTEST_SPORT || "nba") === "nba" ? 360000 : 420000,
+    // Basketball's own budget came back down with its playback: a game is about
+    // a minute end to end now (it was 205 seconds, watched at 2x to fit), so the
+    // whole run needs no more wall clock than football's twelve draft rounds do.
+    budgetMs = (opts.sport || process.env.SELFTEST_SPORT || "nba") === "nba" ? 240000 : 360000,
     // Optional request interception, used only by the self-test to stand in
     // for the Supabase CDN module. A real run against a real site passes
     // nothing here and talks to the real backend.
@@ -697,27 +697,19 @@ export async function runBrowserChecks(opts = {}) {
     );
     if (reachedGame.some((r) => !r)) throw new Error("the game screen never appeared after the strategy phase");
 
-    // WATCHED AT 2x, AND STILL WATCHED TO THE END.
+    // WATCHED TO THE END, AT THE ONLY SPEED THERE IS.
     //
-    // Basketball's playback is paced to be followed now - about three and a half
-    // minutes at 1x, against the seventeen seconds it used to take - so a check
-    // that waits for the final banner has to wait for a real game. It is the
-    // whole point of this one that the game be watched to the end rather than
-    // sampled, so the answer is the viewer's own speed control rather than a
-    // shortcut past the playback: 2x halves the wall clock and changes nothing
-    // else (scripts/verify-nba-playback-pace.mjs proves that separately).
+    // There were 1x and 2x controls here and this check used to click 2x,
+    // because basketball took three and a half minutes to play back. It takes
+    // about a minute now (scripts/verify-nba-playback-pace.mjs measures it), so
+    // the speed control is gone and this simply watches the whole game - which
+    // is the stronger check anyway: nothing is skipped and nothing is hurried.
     //
-    // The click is best effort. A sport or a build without the control still
-    // finishes inside the budget below, which is set for 1x.
-    for (const { page } of sessions) {
-      await page.locator("#btn-speed-2").click({ timeout: 4000 }).catch(() => {});
-    }
-
-    // Long enough for the slowest sport's playback at 1x, with room to spare:
-    // basketball is ~205s of events plus its between-quarters cards, football a
-    // ~55s event timeline. Floor above the slower of the two so a long run
-    // cannot turn a healthy game into a reported failure.
-    const finalWaitMs = waitBudget(deadline, 260000, 380000);
+    // Long enough for the slower of the two sports with room to spare:
+    // basketball is ~58s end to end, football a ~55s event timeline. Floored
+    // above both so a slow run cannot turn a healthy game into a reported
+    // failure.
+    const finalWaitMs = waitBudget(deadline, 110000, 180000);
     const finals = await Promise.all(
       sessions.map(({ page }) =>
         page

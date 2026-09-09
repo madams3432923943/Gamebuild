@@ -93,23 +93,24 @@ export const BOT_MIN_CHOICES = 5;
 // offer rather than forfeiting the slot.
 export const QUALITY_WEIGHT_FLOOR = 1e-4;
 
-// How long the live scoreboard lingers on each quarter before advancing,
-// so a game reads as "played out" rather than dumped on screen at once.
-// Time a finished period holds on screen before the next tips off. Generous
-// on purpose: the score also counts up over QUARTER_TICK_MS inside this
-// window, so the gap is filled with motion rather than dead air.
-export const QUARTER_REVEAL_DELAY_MS = 4200;
-
-// How long the running score takes to climb to the new period's total.
-export const QUARTER_TICK_MS = 1500;
-
-/** Overtime plays back slower. A regulation quarter is one of four and the
- * viewer knows roughly where the game stands; overtime is the whole result
- * arriving in one period, often decided by a single score, and running it at
- * regulation pace throws away the moment people actually came for. The tick
- * is stretched too, so the score counts up rather than snapping. */
-export const OT_REVEAL_DELAY_MS = 6800;
-export const OT_TICK_MS = 2600;
+/**
+ * The beat before the opening tip, and the beat after the final buzzer.
+ *
+ * A game is played back event by event now (see playEventDriven in
+ * js/main.js), so there is nothing left to tune between periods here - the
+ * sport's own timeline decides how long every beat of the game is, including
+ * the cards between quarters. These two are the app's own bookends: long
+ * enough for the empty board and the stage to register as the game about to
+ * start, and for the last shot to land before the whistle takes the screen.
+ *
+ * THESE REPLACED QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS
+ * and OT_TICK_MS, which were the period-reveal playback's four dials: how long
+ * a whole quarter's finished score sat on the board, and how long it took to
+ * count up to it. That playback is gone - it published a quarter's result
+ * before the quarter was watched - and so are its dials.
+ */
+export const OPENING_HOLD_MS = 1200;
+export const FINAL_HOLD_MS = 700;
 
 // How long a resolved round's picks stay on screen before the next squad is
 // rolled and the board is rebuilt.

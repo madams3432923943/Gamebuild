@@ -131,7 +131,7 @@ const REQUIRED_PRESENTATION = {
   // football that lost it would degrade silently into the four-card tail this
   // stage replaced.
   field: ["renderField", "showEvent", "buildTimeline", "createLiveState", "applyEvent", "liveBox", "liveScore",
-    "scoringSummary"],
+    "livePeriodScore", "scoringSummary"],
   // Basketball's court. Every one of these is called by js/main.js the moment a
   // basketball game reaches the game screen, so a sport declaring this stage
   // without them is a blank floor, not a degraded one.
@@ -142,8 +142,16 @@ const REQUIRED_PRESENTATION = {
   // server about a game both are watching. What the stage needs instead is
   // hydrateLedger (names onto slots), unpackLedger (a stored online result back
   // into events) and buildPlaybackTimeline (how long each event holds).
+  //
+  // THE LIVE LEDGER IS REQUIRED OF EVERY STAGE NOW, not only football's. There
+  // is one playback driver in js/main.js and it is a fold of the events shown
+  // so far; a stage without createLiveState/applyEvent/liveScore/liveBox/
+  // livePeriodScore has nothing for it to fold, and the period-reveal path that
+  // used to cover for that is gone - deliberately, because it published a
+  // quarter's finished score at the first tick of that quarter.
   court: [
     "renderCourt", "showEvent", "hydrateLedger", "unpackLedger", "buildPlaybackTimeline",
+    "createLiveState", "applyEvent", "liveScore", "liveBox", "livePeriodScore", "liveTeamStats",
     "foldLiveStats", "foldPlayerShotLines",
     "describeEvent", "showQuarterBreak", "hideQuarterBreak", "renderShotChart",
   ],

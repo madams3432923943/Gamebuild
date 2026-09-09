@@ -5101,16 +5101,12 @@ table.box-table th {
   color: #fff;
 }
 
-/* The active speed is marked by fill AND by aria-pressed, never by colour
- * alone - this is a two-state toggle and it has to survive being colourblind. */
-.speed-btn.speed-on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
-}
-
+/* SKIP IS THE ONLY CONTROL. There were 1x and 2x buttons beside it, marked
+ * active by fill and aria-pressed; they existed because a game took three and a
+ * half minutes to watch, and the fix for that was to make the game a minute
+ * long rather than to sell a way of halving it. */
 .speed-btn.speed-skip {
-  margin-left: 6px;
+  margin-left: 0;
 }
 
 .speed-btn:focus-visible {

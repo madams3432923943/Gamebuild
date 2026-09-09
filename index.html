@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=b085c0c" />
+  <link rel="stylesheet" href="css/style.css?v=2799f9c" />
 </head>
 <body>
   <header class="top-nav">
@@ -536,10 +536,8 @@
              stage is what a viewer scrolls DOWN to read while the game plays -
              putting a control there would move under them as the feed grows.
              See scripts/verify-live-scroll.mjs. -->
-        <div id="playback-controls" class="playback-controls playback-idle" role="group" aria-label="Playback speed">
-          <button id="btn-speed-1" class="speed-btn" type="button" aria-pressed="true">1&times;</button>
-          <button id="btn-speed-2" class="speed-btn" type="button" aria-pressed="false">2&times;</button>
-          <button id="btn-skip-playback" class="speed-btn speed-skip" type="button">Skip</button>
+        <div id="playback-controls" class="playback-controls playback-idle">
+          <button id="btn-skip-playback" class="speed-btn speed-skip" type="button">Skip to result</button>
         </div>
       </div>
       <div id="final-banner" class="final-banner hidden"></div>
@@ -901,6 +899,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=b085c0c"></script>
+  <script type="module" src="js/main.js?v=2799f9c"></script>
 </body>
 </html>
