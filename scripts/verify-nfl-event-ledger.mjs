@@ -95,8 +95,8 @@ function playOneGame(seed) {
  * guarantee this file exists for, and it is exact. */
 const LINE_KEYS = [
   "comp", "att", "pass_yds", "pass_tds", "rush_yds", "rush_tds", "carries",
-  "targets", "sacked", "rec", "rec_yds", "rec_tds", "ints", "fumbles", "sacks",
-  "fgs", "fga", "td", "pts",
+  "targets", "sacked", "rec", "rec_yds", "rec_tds", "ints", "ints_thrown",
+  "fumbles", "sacks", "fgs", "fga", "td", "pts",
 ];
 
 /**
