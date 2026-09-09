@@ -435,19 +435,17 @@ function patchScoreboard(container, periods, totalA, totalB, statusLabel, isLive
   // header is no longer rebuilt between frames and last quarter's mark would
   // otherwise stay lit for the rest of the game.
   //
-  // THE LIVE COLUMN IS ONE OF `periods` NOW, not the first of the pending
-  // dashes. A quarter in progress carries the score so far and is flagged
-  // `live` by the playback (see columnsFor in js/main.js), so the column being
-  // played is the last published one when there is no live column and the live
-  // one itself when there is. Marking heads[periods.length] unconditionally
-  // would light the NEXT quarter - a column still reading "-" - which is the
-  // header equivalent of showing a score before it has been played.
+  // heads[periods.length] IS THE COLUMN BEING PLAYED, in both of the board's
+  // shapes, and the arithmetic is worth spelling out because it looks off by
+  // one. heads[0] is the empty team-name corner, so heads[n] is the nth quarter
+  // column. When `periods` ends with the live column - the quarter in progress,
+  // carrying the score so far - heads[periods.length] is that column. When it
+  // holds only finished quarters, the same index is the first pending dash,
+  // which is the quarter about to start. Marking periods.length - 1 for the
+  // live case lights the PREVIOUS quarter, which is how this was briefly wrong.
   const heads = [...container.querySelectorAll(".scoreboard-grid thead th")];
   for (const th of heads) th.classList.remove("period-current");
-  if (isLive && periods.length) {
-    const liveIndex = periods[periods.length - 1]?.live ? periods.length - 1 : periods.length;
-    heads[liveIndex]?.classList.add("period-current");
-  }
+  if (isLive && periods.length) heads[periods.length]?.classList.add("period-current");
 
   const period = container.querySelector(".scoreboard-period");
   if (period) {

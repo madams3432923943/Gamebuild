@@ -67,11 +67,20 @@ const SAMPLE = () => {
   const text = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
   const scores = [...document.querySelectorAll("#live-scoreboard .scoreboard-score")]
     .map((el) => Number(el.textContent.trim()) || 0);
-  // A published quarter is a column with a real label; the ones still to come
-  // render as an en dash.
+  // A PUBLISHED quarter is a column with a real label that is NOT the one being
+  // played. The board carries a live column now - the quarter in progress, with
+  // the score so far, marked `period-current` - so a label alone no longer
+  // means "this quarter is over", and reading it that way made every check
+  // below think Q1 was published at the opening kickoff. The ones still to come
+  // render as an en dash and are excluded either way.
   const periodHeads = [...document.querySelectorAll("#live-scoreboard .scoreboard-grid thead th")]
+    .filter((el) => !el.classList.contains("period-current"))
     .map((el) => el.textContent.trim())
-    .filter((t) => t && t !== "–" && t !== "T");
+    .filter((t) => t && t !== "\u2013" && t !== "T");
+  // ...and the live one, so the board can be checked for showing a quarter in
+  // progress rather than only for not showing the future.
+  const liveColumn = document.querySelector("#live-scoreboard .scoreboard-grid thead th.period-current")
+    ?.textContent.trim() || null;
   // Everything the box score currently claims happened, as one number. It only
   // has to move in one direction for the assertion below to mean something.
   const boxTotal = [...document.querySelectorAll("#full-box-score td")]
@@ -83,6 +92,7 @@ const SAMPLE = () => {
     scoreA: scores[0] ?? 0,
     scoreB: scores[1] ?? 0,
     periods: periodHeads,
+    liveColumn,
     boxTotal,
     status: text("#live-scoreboard .scoreboard-period"),
     // The clock must not inherit .scoreboard-period.live's blink: that rule
