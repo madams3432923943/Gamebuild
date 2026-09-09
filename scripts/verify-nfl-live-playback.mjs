@@ -119,6 +119,12 @@ const SAMPLE = () => {
       when: c.querySelector(".sl-when")?.textContent?.trim() || "",
       what: c.querySelector(".sl-what")?.textContent?.trim() || "",
       score: c.querySelector(".sl-score")?.textContent?.trim() || "",
+      // Which side scored, and the colour it is actually PAINTED - computed,
+      // so a var that never resolved shows up as the same colour on both sides
+      // rather than as a stylesheet that looks right in the source.
+      side: c.dataset.side || "",
+      ink: getComputedStyle(c.querySelector(".sl-team") || c).color,
+      border: getComputedStyle(c).borderLeftColor,
     })),
     canLeave: !document.querySelector("#btn-play-again")?.classList.contains("hidden"),
     mvpShown: !document.querySelector("#mvp-callout")?.classList.contains("hidden"),
@@ -543,6 +549,25 @@ async function main() {
               : "no scoring rows in the feed at full time" },
           { title: "The summary's last score is the final score", ok: agrees,
             detail: finalRow ? `summary ends ${finalRow.score}, board says ${last?.scoreA}-${last?.scoreB}` : "no rows" },
+          // WHOSE SCORE IT WAS, IN COLOUR. Both sides have to appear, each row
+          // has to say which side it belongs to, and the two sides have to be
+          // painted differently - a summary where every row is the same colour
+          // is the state this check exists to catch, and it is what a var that
+          // silently failed to resolve would produce.
+          ...(() => {
+            const sides = new Set(rows.map((r) => r.side).filter(Boolean));
+            const inkBySide = new Map(rows.map((r) => [r.side, r.ink]));
+            const borders = new Set(rows.map((r) => r.border));
+            const bothSides = sides.has("a") && sides.has("b");
+            return [{
+              title: "Each score is worn in the scoring side's kit",
+              ok: bothSides && rows.every((r) => r.side) &&
+                inkBySide.get("a") !== inkBySide.get("b") && borders.size >= 2,
+              detail: bothSides
+                ? `a ${inkBySide.get("a")} vs b ${inkBySide.get("b")}, ${borders.size} border colours`
+                : `sides seen: ${[...sides].join(", ") || "none"} (a one-sided shutout cannot prove this)`,
+            }];
+          })(),
         ];
       })(),
       { title: "The post-game screen offers a way out", ok: !!last?.canLeave,

@@ -5239,6 +5239,44 @@ table.box-table th {
   font-weight: 700;
 }
 
+/* WHOSE SCORE IT WAS, IN THEIR OWN KIT.
+   --team-a-ink / --team-b-ink are set on the game stage by dressStage, which is
+   the same pair the scoreboard's digits and team names wear - so a row and the
+   board agree rather than speaking two colour languages. Offline the bot's half
+   of that pair is red, or blue when the player is already wearing red (see
+   botKitFor in js/kits.js).
+
+   The colour is carried THREE ways on purpose: the border, a tint, and the team
+   name. Colour alone is never the only channel - the name is still written out
+   - and the tint gives the row a readable block of side even at a glance that
+   never reaches the text. */
+.score-line[data-side="a"] { border-left-color: var(--team-a-ink, var(--accent)); }
+.score-line[data-side="b"] { border-left-color: var(--team-b-ink, var(--accent)); }
+
+.score-line[data-side="a"] {
+  background:
+    linear-gradient(90deg, rgba(var(--team-a-ink-rgb, 122, 162, 255), 0.16), rgba(0, 0, 0, 0) 55%),
+    rgba(0, 0, 0, 0.45);
+}
+.score-line[data-side="b"] {
+  background:
+    linear-gradient(90deg, rgba(var(--team-b-ink-rgb, 122, 162, 255), 0.16), rgba(0, 0, 0, 0) 55%),
+    rgba(0, 0, 0, 0.45);
+}
+
+/* The team's own name in its own colour - the same treatment .scoreboard-team-a
+   has carried since kits shipped.
+
+   COLOUR IS NEVER THE ONLY CHANNEL HERE, and it cannot be: kits are held to the
+   3:1 non-text floor (MIN_SURFACE_CONTRAST), which a few of the darker ones sit
+   near, so a name is always also SPELLED OUT and the row is also marked by its
+   border and its tint. The bot's own two colours are the ones this feature
+   added, and those clear 4.5:1 - scripts/verify-kits.mjs holds them there. */
+.score-line[data-side="a"] .sl-team { color: var(--team-a-ink, var(--text)); }
+.score-line[data-side="b"] .sl-team { color: var(--team-b-ink, var(--text)); }
+
+.score-line .sl-team { font-weight: 700; }
+
 
 .play-card.hot {
   border-left-color: var(--buzzer);

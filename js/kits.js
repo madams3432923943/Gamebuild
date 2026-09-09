@@ -78,12 +78,60 @@ export const KITS = [
  * palette - a new account looks like Draft Nova rather than like nothing. */
 export const DEFAULT_KIT_ID = "nova";
 
-/** The bot's kit, fixed. Offline still has to read as two teams, and the bot
- * has no profile to carry a choice. Steel is deliberately the most neutral
- * thing in the catalogue - it is the colour the opponent used to be. */
-export const BOT_KIT_ID = "steel";
+/**
+ * THE BOT'S KITS, WHICH ARE NOT IN THE CATALOGUE ABOVE.
+ *
+ * The bot used to wear Steel - the most neutral thing a player could pick, and
+ * the colour the opponent was before kits existed. Neutral is the wrong answer
+ * now that the post-game scoring summary colours every row by the side that
+ * scored (see renderScoringSummary in js/ui/game.js): "who scored this" has to
+ * be answerable at a glance, and a pale blue-grey against a player's own colour
+ * is the weakest pairing the palette can produce.
+ *
+ * So the bot wears RED, and BLUE when the player is already wearing something
+ * red. Two colours, chosen for maximum separation from each other (111 apart in
+ * CIE76, where 25 is "comfortably distinct") and both legible as text on the
+ * game screen's darkest surface.
+ *
+ * SEPARATE FROM `KITS` ON PURPOSE. That list is the picker's - what a PLAYER
+ * may choose - and these two are not offered there. Adding a strong red to the
+ * catalogue to give the bot one would change what fourteen human players can
+ * wear in order to solve a problem the bot has.
+ *
+ * A kit's SECONDARY is what it wears away, and the bot is always away offline
+ * (js/main.js dresses the stage with the player at home), so the secondary is
+ * the colour these exist to set. The primary is the deeper version of the same
+ * hue, so the pair still reads as one kit if the seats are ever swapped.
+ */
+export const BOT_KITS = [
+  // The red is pulled toward crimson rather than sitting at pure red, and that
+  // is measured rather than taste: Nova is the DEFAULT player kit, so an orange
+  // player is the common case, and a fire-engine red sits 27 from Nova's orange
+  // - close enough to read as the same team. This one is 43 away, so the
+  // default matchup is red against orange and legible, while the players who
+  // really are wearing red (Ember at 18, Crimson at 25) get the blue kit.
+  { id: "bot-red",  name: "Bot Red",  primary: "#c62740", secondary: "#ff3b52" },
+  { id: "bot-blue", name: "Bot Blue", primary: "#2a6fc8", secondary: "#4aa3ff" },
+];
 
-const BY_ID = new Map(KITS.map((k) => [k.id, k]));
+/** What the bot wears unless the player forces the change. */
+export const BOT_KIT_ID = BOT_KITS[0].id;
+
+/**
+ * How close a player's colour may come to the bot's first choice before the bot
+ * changes kit.
+ *
+ * DELIBERATELY WIDER THAN MIN_KIT_SEPARATION. That threshold answers "can these
+ * two be told apart", and 25 is enough for that. This one answers a different
+ * question - "does the opponent read as the same TEAM COLOUR as me" - and the
+ * eye groups by family long before it fails to discriminate: measured against
+ * the shipped palette, Nova sits 27.4 from the bot's red and Crimson 28.8, both
+ * clear of 25 and both plainly "the red one" next to it. 35 is what puts those
+ * two on the blue kit, which is what a player asking for this actually means.
+ */
+export const BOT_KIT_CLEARANCE = 35;
+
+const BY_ID = new Map([...KITS, ...BOT_KITS].map((k) => [k.id, k]));
 
 /**
  * Never returns undefined.
@@ -95,6 +143,30 @@ const BY_ID = new Map(KITS.map((k) => [k.id, k]));
  */
 export function kitById(id) {
   return BY_ID.get(id) || BY_ID.get(DEFAULT_KIT_ID);
+}
+
+/**
+ * Which kit the bot wears against a player wearing `playerKitId`.
+ *
+ * Red, unless the player's own colour is close enough to red that the two would
+ * read as the same team - then blue. Nothing here is a preference the bot has;
+ * it is entirely a function of what the player is wearing, which is why it is
+ * computed rather than stored.
+ *
+ * Distances are measured between what each side actually WEARS: the player is
+ * home and wears their primary, the bot is away and wears its secondary. The
+ * general clash rule in wornColours below still runs on top of this and is
+ * still the guarantee - this only decides which of the two the bot brings.
+ */
+export function botKitFor(playerKitId) {
+  const worn = kitById(playerKitId).primary;
+  const clear = BOT_KITS.find((kit) => colourDistance(worn, kit.secondary) >= BOT_KIT_CLEARANCE);
+  // Nothing clears only if the palette changes underneath this - take the
+  // furthest of the two rather than the first, so the worst case is still the
+  // best pairing available instead of an arbitrary one.
+  return (clear || [...BOT_KITS].sort(
+    (a, b) => colourDistance(worn, b.secondary) - colourDistance(worn, a.secondary)
+  )[0]).id;
 }
 
 // ---------------------------------------------------------------------------

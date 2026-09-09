@@ -528,10 +528,17 @@ export function clearPlayFeed(container) {
  * is whichever four moments happened to be last, rather than the ones that put
  * the numbers on the board.
  *
- * Rows are `{ when, team, text, score }` and nothing here knows which sport
- * wrote them; the sport that has a scoring summary provides one (see
+ * Rows are `{ when, side, team, text, score }` and nothing here knows which
+ * sport wrote them; the sport that has a scoring summary provides one (see
  * scoringSummary in js/sports/nfl/playback.js) and a sport that does not keeps
  * the running feed it always had.
+ *
+ * EVERY ROW IS WORN IN THE SCORING SIDE'S KIT. `side` becomes a data attribute
+ * and the stylesheet does the rest, reading the same --team-a-ink /
+ * --team-b-ink the scoreboard's digits already use (dressStage in js/main.js).
+ * Colour is what makes a summary scannable - "who scored this" should not need
+ * the name to be read - and taking it from the kits means the summary agrees
+ * with the board above it rather than inventing a second colour language.
  *
  * Built as nodes, never markup: `team` is an opponent's username in an online
  * game, which has no business being parsed as HTML.
@@ -546,15 +553,26 @@ export function renderScoringSummary(container, headline, rows) {
   for (const row of rows) {
     const card = document.createElement("div");
     card.className = "play-card score-line";
+    // "a" / "b" rather than the raw side, since that is what the CSS reads and
+    // what a test can assert without knowing the engine's vocabulary. A row
+    // with no side still renders - in the feed's own accent, as before.
+    if (row.side) card.dataset.side = String(row.side).toLowerCase();
     const when = document.createElement("span");
     when.className = "sl-when";
     when.textContent = row.when;
+    // The team leads the line because a summary is read down the column for one
+    // side at a time - "who scored" is the second question, not the first - and
+    // it is its own element so it can be worn in that side's kit colour.
     const what = document.createElement("span");
     what.className = "sl-what";
-    // The team leads the sentence because a summary is read down the column
-    // for one side at a time - "who scored" is the second question, not the
-    // first.
-    what.textContent = row.team ? `${row.team}: ${row.text}` : row.text;
+    if (row.team) {
+      const team = document.createElement("span");
+      team.className = "sl-team";
+      team.textContent = `${row.team}: `;
+      what.append(team, document.createTextNode(row.text));
+    } else {
+      what.textContent = row.text;
+    }
     const score = document.createElement("span");
     score.className = "sl-score";
     score.textContent = row.score;

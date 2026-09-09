@@ -37,12 +37,42 @@ Q2 10:58   BOT: Mike Nugent 50 yd field goal           13-3
 ...
 ```
 
+## Every row is worn in the scoring side's kit
+
+A summary is read by scanning, and "who scored this" should not need the name to
+be read. So each row carries `side`, and the stylesheet paints its border, a
+tint and the team's name from `--team-a-ink` / `--team-b-ink` — the same pair
+`dressStage` sets for the scoreboard's digits, so the summary and the board
+speak one colour language instead of two.
+
+Colour is never the only channel: the team is also spelled out on every row, and
+kits are held to the 3:1 non-text floor, which a few of the darker ones sit near.
+
+**The bot dresses to contrast with the player.** It used to wear Steel — the
+most neutral thing in the catalogue — which is the weakest pairing the palette
+can produce for a feature that keys on colour. It now wears **red**, or **blue**
+when the player is already in red (`botKitFor` in `js/kits.js`). Those two are
+not in the player's picker: adding a strong red to the catalogue to give the bot
+one would change what fourteen human players can wear to solve a problem the bot
+has.
+
+The switch threshold (`BOT_KIT_CLEARANCE`, 35) is deliberately wider than
+`MIN_KIT_SEPARATION` (25). The narrower one answers "can these be told apart";
+this one answers "do they read as the same team colour", and the eye groups by
+family long before it fails to discriminate. Measured over the shipped palette:
+12 of the 14 player kits face the red bot, Ember (18 away) and Crimson (25 away)
+face the blue one, and the closest pairing anyone actually sees is 43 apart. The
+bot's red is pulled toward crimson rather than sitting at pure red for one
+measured reason — Nova, the default kit, is orange, and a fire-engine red sits
+27 from it.
+
 ## How it is put together
 
 | piece | where | what it does |
 | --- | --- | --- |
 | `scoringPlay` on the scoring event | `js/sports/nfl/playback.js` (`buildTimeline`) | the score as FACTS — scorer, kind, yards, points, conversion |
-| `scoringSummary(events, labels)` | `js/sports/nfl/playback.js` | rows of `{ when, team, text, score }`, oldest first |
+| `scoringSummary(events, labels)` | `js/sports/nfl/playback.js` | rows of `{ when, side, team, text, score }`, oldest first |
+| `botKitFor(playerKitId)` | `js/kits.js` | red, or blue against a player in red |
 | `presentation.scoringSummary` | `js/sports/nfl/index.js` | how shared code reaches it |
 | `renderScoringSummary` | `js/ui/game.js` | replaces the feed; knows nothing about football |
 | the call | `finish()` in `js/main.js` | summary when the sport has one, the old headline push when it does not |
@@ -59,7 +89,7 @@ the source of truth for something the drive already knew.
 presentation fact: `buildTimeline` derives it, the engine models drives and has
 no running clock. Reading `drives` here would mean inventing a second one.
 
-**The renderer's vocabulary is sport-neutral.** `{ when, team, text, score }` is
+**The renderer's vocabulary is sport-neutral.** `{ when, side, team, text, score }` is
 what a basketball scoring summary would need too, so the shared UI stays shared.
 A sport that declares no `scoringSummary` keeps exactly the feed it always had —
 which is what basketball does — and `scripts/verify-sport-contract.mjs` requires
@@ -85,5 +115,8 @@ Function and calibrated against — and it is not a presentation problem.
 npm run verify:nfl-playback       # 120 games: one row per score, the running
                                   # score row by row, no invented kick lengths
 npm run verify:nfl-live-playback  # real Chromium: the feed narrates the game
-                                  # while it runs, and is a scoring summary after
+                                  # while it runs, is a scoring summary after,
+                                  # and paints each row in its side's colour
+npm run verify:kits               # the bot changes kit for every player it
+                                  # would otherwise clash with
 ```
