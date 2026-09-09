@@ -4,7 +4,7 @@
 //   - "online": async, server-authoritative (Supabase - see online.js).
 
 import { playSound, primeSound, soundEnabled, setSoundEnabled } from "./sound.js";
-import { wornColours, rgbString, kitById, KITS, DEFAULT_KIT_ID, BOT_KIT_ID } from "./kits.js";
+import { wornColours, rgbString, kitById, KITS, DEFAULT_KIT_ID, botKitFor } from "./kits.js";
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
@@ -3404,10 +3404,14 @@ function resetGameScreen() {
   // Offline you are always home - it is your floor and there is no second
   // profile to consult. The bot wears a fixed neutral kit so the two sides still
   // read as two teams.
+  // The bot's kit is DERIVED FROM THE PLAYER'S, not fixed: red, or blue when
+  // the player is already wearing red (see botKitFor). An online opponent
+  // brings their own, so this only decides what the bot wears.
+  const myKit = game.myKit || DEFAULT_KIT_ID;
   dressStage(
     game.online?.homeSide || "A",
-    game.myKit || DEFAULT_KIT_ID,
-    game.online?.oppKit || BOT_KIT_ID
+    myKit,
+    game.online?.oppKit || botKitFor(myKit)
   );
   // Nor is the last game's result. The won/lost colour and the aria-label
   // outlive the banner being hidden, and both are wrong for the next game.

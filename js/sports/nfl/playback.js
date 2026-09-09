@@ -845,9 +845,9 @@ function describeScore(play, fallback) {
 /**
  * Every score in the game, oldest first, as rows the shared feed can render.
  *
- * `{ when, team, text, score }` is deliberately sport-neutral vocabulary: the
- * feed that draws these knows nothing about football, and a basketball scoring
- * summary - if that sport ever wants one - would be the same four fields.
+ * `{ when, side, team, text, score }` is deliberately sport-neutral vocabulary:
+ * the feed that draws these knows nothing about football, and a basketball
+ * scoring summary - if that sport ever wants one - would be the same fields.
  */
 export function scoringSummary(events, { labelA, labelB } = {}) {
   const rows = [];
@@ -857,6 +857,11 @@ export function scoringSummary(events, { labelA, labelB } = {}) {
       // The period and the clock, which is the half of a scoring summary the
       // live feed never had room for.
       when: `${event.quarter > 4 ? `OT${event.quarter - 4}` : `Q${event.quarter}`} ${event.clock}`,
+      // WHICH SIDE, not just which name. The feed colours a row in the scoring
+      // team's kit, and it cannot get that from the label: two players can be
+      // called the same thing, and "MADAMS" says nothing about which end of the
+      // stage they are dressed at.
+      side: event.possession,
       team: event.possession === "A" ? labelA : labelB,
       text: describeScore(event.scoringPlay, event.text),
       // The score AFTER this one, the way a summary column reads: the run of

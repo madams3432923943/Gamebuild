@@ -32,6 +32,9 @@ import {
   MIN_KIT_SEPARATION,
   DEFAULT_KIT_ID,
   BOT_KIT_ID,
+  BOT_KITS,
+  BOT_KIT_CLEARANCE,
+  botKitFor,
 } from "../js/kits.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -155,6 +158,83 @@ add(
   "The bot has a kit and it is a real one",
   !!kitById(BOT_KIT_ID) && kitById(BOT_KIT_ID).id === BOT_KIT_ID,
   `bot wears ${kitById(BOT_KIT_ID).name}`
+);
+
+// ---- the bot's own two kits ------------------------------------------------
+//
+// The bot wears red, or blue against a player already in red. That exists so
+// the post-game scoring summary can colour every row by the side that scored
+// (js/ui/game.js) and have "who scored this" be answerable without reading the
+// name - which only works while the two colours cannot converge.
+
+const botBadHex = BOT_KITS.filter(
+  (k) => !/^#[0-9a-f]{6}$/i.test(k.primary) || !/^#[0-9a-f]{6}$/i.test(k.secondary)
+);
+const botIdClash = BOT_KITS.filter((k) => KITS.some((p) => p.id === k.id));
+add(
+  "The bot's kits are well formed, and are not kits a player can pick",
+  botBadHex.length === 0 && botIdClash.length === 0 && BOT_KITS.length >= 2,
+  botBadHex.length || botIdClash.length
+    ? `${botBadHex.map((k) => k.id).join(", ")} ${botIdClash.map((k) => k.id).join(", ")}`.trim()
+    : `${BOT_KITS.map((k) => k.name).join(" / ")}, none of them in the ${KITS.length}-kit picker`
+);
+
+// The bot's worn colour is the one this feature ADDED, and it is read as text
+// (the team's name in the summary row), so it is held to the text standard
+// rather than to the 3:1 graphical floor the player palette clears.
+const botUnreadable = BOT_KITS
+  .map((k) => [k.id, contrastRatio(k.secondary, BOARD_SURFACE)])
+  .filter(([, ratio]) => ratio < 4.5);
+add(
+  "What the bot WEARS is legible as text on the game screen",
+  botUnreadable.length === 0,
+  botUnreadable.length
+    ? botUnreadable.map(([id, r]) => `${id} ${r.toFixed(2)}:1`).join(", ")
+    : BOT_KITS.map((k) => `${k.id} ${contrastRatio(k.secondary, BOARD_SURFACE).toFixed(2)}:1`).join(", ")
+);
+
+add(
+  "The bot's two kits could never be mistaken for each other",
+  colourDistance(BOT_KITS[0].secondary, BOT_KITS[1].secondary) >= MIN_KIT_SEPARATION,
+  `${colourDistance(BOT_KITS[0].secondary, BOT_KITS[1].secondary).toFixed(1)} apart` +
+    ` (minimum ${MIN_KIT_SEPARATION})`
+);
+
+// THE RULE ITSELF, over every kit a player can actually wear rather than the
+// two anybody would have tried. Two claims: the bot's choice clears the family
+// threshold that made it choose, and what the two sides END UP wearing - after
+// wornColours has had its say - still clears the separation every pair in this
+// file is held to.
+const botTooClose = [];
+const wornTooClose = [];
+for (const kit of KITS) {
+  const chosen = kitById(botKitFor(kit.id));
+  const gap = colourDistance(kit.primary, chosen.secondary);
+  if (gap < BOT_KIT_CLEARANCE) botTooClose.push(`${kit.id} vs ${chosen.id} ${gap.toFixed(1)}`);
+  const worn = wornColours(kit.id, chosen.id);
+  const separation = colourDistance(worn.home.ink, worn.away.ink);
+  if (separation < MIN_KIT_SEPARATION) wornTooClose.push(`${kit.id} ${separation.toFixed(1)}`);
+}
+const redCount = KITS.filter((k) => botKitFor(k.id) === BOT_KITS[0].id).length;
+add(
+  "The bot changes kit for every player it would otherwise clash with",
+  botTooClose.length === 0 && wornTooClose.length === 0,
+  botTooClose.length || wornTooClose.length
+    ? `${botTooClose.join("; ")} ${wornTooClose.join("; ")}`.trim()
+    : `${redCount} of ${KITS.length} player kits face the red one, the rest the blue;` +
+      ` closest worn pairing ${Math.min(...KITS.map((k) => {
+        const worn = wornColours(k.id, botKitFor(k.id));
+        return colourDistance(worn.home.ink, worn.away.ink);
+      })).toFixed(1)}`
+);
+
+add(
+  "botKitFor answers with a real kit, whatever it is handed",
+  junk.every((id) => {
+    const chosen = kitById(botKitFor(id));
+    return chosen && BOT_KITS.some((k) => k.id === chosen.id);
+  }),
+  `${junk.length} junk ids all dressed the bot in ${kitById(botKitFor(null)).name}`
 );
 
 // ---- helpers behave -------------------------------------------------------
