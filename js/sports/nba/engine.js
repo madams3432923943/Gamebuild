@@ -69,7 +69,9 @@ import {
   MAX_OT_PERIODS,
   OT_LENGTH_SCALE,
 } from "./constants.js";
-import { tacticMods, tacticClutchMods, tacticOpponentPaint } from "./tactics.js";
+import { tacticMods, tacticClutchMods, tacticOpponentPaint, tacticShotMods } from "./tactics.js";
+import { buildQuarterShotLines, emptyShotLine, addShotLine } from "./shooting.js";
+import { buildShotLedger } from "./ledger.js";
 
 const STAT_KEYS = ["ppg", "rpg", "apg", "spg", "bpg", "tov"];
 const LINE_KEYS = ["pts", "reb", "ast", "stl", "blk", "tov"];
@@ -111,12 +113,23 @@ export function computeDatasetStats(players) {
   const byPosTs = {};
   for (const pos of STARTER_SLOTS) byPosTs[pos] = { sum: 0, count: 0 };
 
+  // WHAT A REAL TEAM SCORES, measured off the pool itself rather than inferred
+  // from it. Summing a team-season's players' ppg IS that team's points per
+  // game, so this is a fact the dataset already contains - see the note on
+  // `teamPpg` below for why the engine needs it and what using the wrong number
+  // did to the scoreboard.
+  const teamSeasons = new Map();
+
   for (const p of players) {
     for (const k of STAT_KEYS) overall[k] += p[k];
     const ts = trueShooting(p);
     if (ts != null) {
       tsSum += ts;
       tsCount += 1;
+    }
+    if (p.team && p.season) {
+      const key = `${p.team}|${p.season}`;
+      teamSeasons.set(key, (teamSeasons.get(key) || 0) + (Number(p.ppg) || 0));
     }
     for (const pos of p.pos) {
       if (!byPos[pos]) continue;
@@ -132,6 +145,38 @@ export function computeDatasetStats(players) {
   const n = players.length || 1;
   for (const k of STAT_KEYS) overall[k] /= n;
   overall.ts = tsCount > 0 ? tsSum / tsCount : null;
+
+  /**
+   * WHAT AN NBA TEAM SCORES IN A GAME. The parity anchor, and the single number
+   * that decides this simulation's whole scoring level.
+   *
+   * THE MEDIAN, not the mean: a team-season's roster includes everyone who
+   * appeared for it, so a season with mid-year trades sums more players' ppg
+   * than the team had on the floor. The median shrugs that off; the mean does
+   * not.
+   *
+   * WHY IT IS HERE. applyTalentParity pulls every team toward "a league-average
+   * roster's output in the same minutes", and that anchor used to be
+   * `overall.ppg * minutesTotal` - the mean ppg of every player-SEASON in the
+   * pool, multiplied by a minutes count. That product is not a basketball
+   * quantity at all: the pool's mean ppg is dragged down by every deep reserve
+   * in it, and no team is made of league-average players in league-average
+   * minutes. It came to 87.6, and because parity pulls 60% of the way to the
+   * anchor, simulated teams averaged 87.1 points against a real NBA team's
+   * ~105. Every scoreboard in the game was six or seven points a quarter light.
+   *
+   * The number is DERIVED, not chosen: sum a team-season's ppg and you have
+   * what that team scored per game, which the pool has 1,292 of. It moves with
+   * the dataset, which is the point - a pool of only 1990s seasons should
+   * anchor to what 1990s teams scored.
+   *
+   * Falls back to the old product when the pool carries no team/season columns,
+   * so a dataset that predates them still simulates rather than scoring zero.
+   */
+  const teamTotals = [...teamSeasons.values()].sort((a, b) => a - b);
+  overall.teamPpg = teamTotals.length
+    ? teamTotals[teamTotals.length >> 1]
+    : overall.ppg * (ROTATION_BUDGET / STARTER_MINUTES);
 
   for (const pos of STARTER_SLOTS) {
     const bucket = byPos[pos];
@@ -925,8 +970,25 @@ function applyTalentParity(lines, roster, minutesMap, datasetStats, parity) {
   const actual = Object.keys(lines).reduce((sum, slot) => sum + lines[slot].pts, 0);
   if (actual <= 0) return;
 
+  // A LEAGUE-AVERAGE TEAM'S OUTPUT IN THESE MINUTES. `teamPpg` is what an NBA
+  // team actually scores in a full game (see computeDatasetStats), scaled by how
+  // much of a full rotation this side is playing - normally exactly 1, and less
+  // only when a draft left somebody a slot short. Then divided into quarters.
+  //
+  // This was `overall.ppg * minutesTotal`, the mean ppg of every player-season
+  // in the pool times a minutes count, which is not a quantity that means
+  // anything: it came to 87.6 and pinned every simulated team to it.
   const minutesTotal = activeSlots(roster).reduce((sum, slot) => sum + minutesScaleFor(slot, minutesMap), 0);
-  const anchor = (datasetStats.overall.ppg * minutesTotal) / QUARTERS_PER_GAME;
+  const rotationShare = minutesTotal / (ROTATION_BUDGET / STARTER_MINUTES);
+  // A rating context that predates teamPpg - a baked server file from before
+  // this change, most likely, since the Edge Function deploys separately from
+  // the site - falls back to the old product rather than multiplying by
+  // undefined and scoring every player NaN. The result is the OLD scoring level
+  // for that game, which is wrong but playable; a NaN box score is neither.
+  const teamPpg = Number.isFinite(datasetStats.overall.teamPpg)
+    ? datasetStats.overall.teamPpg
+    : datasetStats.overall.ppg * (ROTATION_BUDGET / STARTER_MINUTES);
+  const anchor = (teamPpg * rotationShare) / QUARTERS_PER_GAME;
   const target = anchor + (actual - anchor) * parity;
 
   const factor = target / actual;
@@ -1096,6 +1158,35 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
   // there is exactly one set of numbers in the result.
   reconcilePeriods(quarterBoxScores, "a", boxA);
   reconcilePeriods(quarterBoxScores, "b", boxB);
+  concentrateQuarterScoring(quarterBoxScores, "a");
+  concentrateQuarterScoring(quarterBoxScores, "b");
+
+  // ---- SHOOTING, AND THE EVENT LEDGER THAT DRAWS IT -----------------------
+  //
+  // WHY THIS IS IN THE ENGINE AND NOT IN PLAYBACK.
+  //
+  // Until now the simulation produced points, rebounds, assists, steals, blocks
+  // and turnovers, and the BROWSER worked out how those points were scored -
+  // every FG, 3PT and FT figure on the box score, plus the whole shot chart.
+  // For an online match that meant the one authoritative result was rebuilt
+  // twice, once per client, from a client-local random stream and in each
+  // client's own "A = me" frame. Two players saw the same final score and two
+  // different box scores, which is exactly what was reported.
+  //
+  // It happens HERE now, in the same seeded stream as the rest of the
+  // simulation, so the Edge Function computes it once, stores it, and both
+  // clients render what they are given. Nothing downstream rolls a die.
+  //
+  // It runs AFTER reconcilePeriods on purpose: every game-level adjustment -
+  // zone defense, the turnover swing, the draft and scheme multipliers, usage
+  // compression, the scoring ceiling and the absolute clamp - has already moved
+  // the points by this line. Deriving shots before them would describe a game
+  // nobody played, and deriving points from shots would put a second author on
+  // the scoreboard. The engine decides the score; this decides where it came
+  // from.
+  attachShooting(rosterA, boxA, quarterBoxScores, "a", minutesA, tacticShotMods(opts.tacticA));
+  attachShooting(rosterB, boxB, quarterBoxScores, "b", minutesB, tacticShotMods(opts.tacticB));
+  const { events: shotEvents } = buildShotLedger(quarterBoxScores);
 
   const teamScoreA = Object.keys(boxA).reduce((s, slot) => s + boxA[slot].pts, 0);
   const teamScoreB = Object.keys(boxB).reduce((s, slot) => s + boxB[slot].pts, 0);
@@ -1112,7 +1203,65 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
     winner: teamScoreA === teamScoreB ? (rosterCombinedImpact(rosterA) >= rosterCombinedImpact(rosterB) ? "A" : "B") : teamScoreA > teamScoreB ? "A" : "B",
     mvp,
     analysis,
+    // The play-by-play, as part of the RESULT rather than as something a
+    // renderer works out afterwards. See attachShooting above.
+    shotEvents,
   };
+}
+
+/**
+ * Turns each player's per-quarter points into a per-quarter shooting line, and
+ * sums those into the game box score.
+ *
+ * THE PERIOD LINES AND THE GAME LINE CANNOT DISAGREE, because the game line is
+ * literally the sum of the period lines - there is no second derivation over
+ * whole-game totals. That is the mistake this replaces: the box score used to
+ * roll one unseeded split over a player's game total while the shot chart rolled
+ * a different one per quarter, and over 40 games the two disagreed about team
+ * three-point makes in 37 of them.
+ *
+ * Minutes reach the shot volume here, which is what makes a bench player's line
+ * a bench player's line: a rotation share scales the attempts he gets, not just
+ * the points, so 240 team minutes buy a believable number of team shots.
+ */
+function attachShooting(roster, box, quarterBoxScores, key, minutesMap, shotMods) {
+  for (const slot of Object.keys(box)) {
+    const player = roster[slot];
+    const periodLines = quarterBoxScores.map((q) => (q[key] && q[key][slot]) || null);
+    const points = periodLines.map((line) => (line ? Number(line.pts) || 0 : 0));
+    const built = player
+      ? buildQuarterShotLines(player, points, Math.random, {
+          minutesShare: minutesScaleFor(slot, minutesMap),
+          // Overtime is a shorter period and buys fewer shots. OT_LENGTH_SCALE
+          // is the same fraction the simulation itself runs those periods at.
+          periodShares: quarterBoxScores.map(
+            (q) => (q.overtime ? OT_LENGTH_SCALE : 1) / QUARTERS_PER_GAME
+          ),
+          shotMods,
+        })
+      : null;
+
+    const total = emptyShotLine();
+    periodLines.forEach((line, i) => {
+      if (!line) return;
+      // A player with no shooting profile (a dataset row that predates the
+      // columns) gets an empty line rather than an invented one, and the ledger
+      // emits his points as unplaced scoring - see shotsForQuarter there. A
+      // plausible fabricated split would be worse than an honest gap.
+      const shot = built ? built.periods[i] : emptyShotLine();
+      Object.assign(line, {
+        fgm: shot.fgm, fga: shot.fga,
+        tpm: shot.tpm, tpa: shot.tpa,
+        ftm: shot.ftm, fta: shot.fta,
+      });
+      addShotLine(total, shot);
+    });
+    Object.assign(box[slot], {
+      fgm: total.fgm, fga: total.fga,
+      tpm: total.tpm, tpa: total.tpa,
+      ftm: total.ftm, fta: total.fta,
+    });
+  }
 }
 
 /** Everything the draft itself contributed to one side's result, as one
@@ -1264,6 +1413,77 @@ function reconcilePeriods(quarterBoxScores, key, box) {
         if (q[key] && q[key][slot]) q[key][slot][stat] = shares[i];
       });
     }
+  }
+}
+
+/**
+ * Makes a player's scoring quarters LUMPY, the way real ones are.
+ *
+ * WHY THIS IS NEEDED, AND WHY IT IS SAFE.
+ *
+ * Each quarter is an independent draw of the same distribution, so a player's
+ * points come out spread almost evenly across the four - a ten-point night is
+ * usually 2, 3, 3, 2. Real ones are not: a player scores in bursts, and a real
+ * box score is full of 0-point and 7-point quarters.
+ *
+ * That flatness is invisible until something has to explain HOW the points were
+ * scored, and then it is fatal. A quarter worth two points cannot contain a made
+ * three - three is more than two - so a player whose every quarter is worth one
+ * or two can never make one, whatever his tendency says. Measured over 200
+ * Ranked games before this pass existed: 1,053 of 2,000 player-games had no
+ * quarter worth three points, and the league's three-point percentage came out
+ * at 25% against a real 36% - not because the shooting model was wrong, but
+ * because the arithmetic of the periods left nowhere to put the makes.
+ *
+ * WHAT IT PRESERVES, EXACTLY: every player's GAME total, and every team's
+ * QUARTER total. The move is a four-corner swap - one point from player X's
+ * quarter j to his quarter i, and simultaneously one from player Y's quarter i
+ * to his quarter j - which leaves both margins of the table untouched. So the
+ * scoreboard, the box score, the MVP and every balance number this engine is
+ * calibrated on are bit-for-bit what they were; only WHICH quarter a given
+ * player's points fell in changes, which is the one thing that was wrong.
+ *
+ * Hill-climbing on the sum of squares, which is concentration: a swap is kept
+ * only if it makes the team's scoring lumpier. Bounded iterations, because this
+ * is a nicety and not a solve.
+ */
+function concentrateQuarterScoring(quarterBoxScores, key) {
+  const periods = quarterBoxScores.length;
+  if (periods < 2) return;
+  const slots = Object.keys(quarterBoxScores[0][key] || {});
+  if (slots.length < 2) return;
+
+  const at = (slot, q) => Number(quarterBoxScores[q][key][slot]?.pts) || 0;
+  const set = (slot, q, value) => {
+    if (quarterBoxScores[q][key][slot]) quarterBoxScores[q][key][slot].pts = value;
+  };
+
+  const ATTEMPTS = slots.length * periods * 12;
+  for (let n = 0; n < ATTEMPTS; n++) {
+    const x = slots[Math.floor(Math.random() * slots.length)];
+    const y = slots[Math.floor(Math.random() * slots.length)];
+    if (x === y) continue;
+    const i = Math.floor(Math.random() * periods);
+    const j = Math.floor(Math.random() * periods);
+    if (i === j) continue;
+
+    const xi = at(x, i);
+    const xj = at(x, j);
+    const yi = at(y, i);
+    const yj = at(y, j);
+    // The move needs a point to take from X in j and one from Y in i.
+    if (xj < 1 || yi < 1) continue;
+
+    // Concentration, before and after. Only the four cells the swap touches
+    // can change, so the whole objective never has to be recomputed.
+    const before = xi * xi + xj * xj + yi * yi + yj * yj;
+    const after = (xi + 1) ** 2 + (xj - 1) ** 2 + (yi - 1) ** 2 + (yj + 1) ** 2;
+    if (after <= before) continue;
+
+    set(x, i, xi + 1);
+    set(x, j, xj - 1);
+    set(y, i, yi - 1);
+    set(y, j, yj + 1);
   }
 }
 

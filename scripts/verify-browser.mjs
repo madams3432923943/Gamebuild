@@ -205,7 +205,10 @@ export async function runBrowserChecks(opts = {}) {
     // server between showing the screen and playing the result, and this
     // harness plays a practice match. Keep the wider budget; football's
     // playback legitimately needs it.
-    budgetMs = (opts.sport || process.env.SELFTEST_SPORT || "nba") === "nba" ? 210000 : 420000,
+    // Basketball's own budget went up with its playback: a game that is paced to
+    // be watched takes about 205 seconds at 1x and half that at the 2x this run
+    // uses, against the seventeen seconds it used to take.
+    budgetMs = (opts.sport || process.env.SELFTEST_SPORT || "nba") === "nba" ? 360000 : 420000,
     // Optional request interception, used only by the self-test to stand in
     // for the Supabase CDN module. A real run against a real site passes
     // nothing here and talks to the real backend.
@@ -694,12 +697,27 @@ export async function runBrowserChecks(opts = {}) {
     );
     if (reachedGame.some((r) => !r)) throw new Error("the game screen never appeared after the strategy phase");
 
-    // Long enough for the slowest sport's playback. Football's is a ~55s event
-    // timeline against basketball's quarter animation, and it is the whole
-    // point of the check that it be watched to the end rather than sampled.
-    // Floor above football's ~55s playback, so a long run cannot turn a
-    // healthy game into a reported failure.
-    const finalWaitMs = waitBudget(deadline, 120000, 240000);
+    // WATCHED AT 2x, AND STILL WATCHED TO THE END.
+    //
+    // Basketball's playback is paced to be followed now - about three and a half
+    // minutes at 1x, against the seventeen seconds it used to take - so a check
+    // that waits for the final banner has to wait for a real game. It is the
+    // whole point of this one that the game be watched to the end rather than
+    // sampled, so the answer is the viewer's own speed control rather than a
+    // shortcut past the playback: 2x halves the wall clock and changes nothing
+    // else (scripts/verify-nba-playback-pace.mjs proves that separately).
+    //
+    // The click is best effort. A sport or a build without the control still
+    // finishes inside the budget below, which is set for 1x.
+    for (const { page } of sessions) {
+      await page.locator("#btn-speed-2").click({ timeout: 4000 }).catch(() => {});
+    }
+
+    // Long enough for the slowest sport's playback at 1x, with room to spare:
+    // basketball is ~205s of events plus its between-quarters cards, football a
+    // ~55s event timeline. Floor above the slower of the two so a long run
+    // cannot turn a healthy game into a reported failure.
+    const finalWaitMs = waitBudget(deadline, 260000, 380000);
     const finals = await Promise.all(
       sessions.map(({ page }) =>
         page

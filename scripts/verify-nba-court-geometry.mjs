@@ -29,7 +29,6 @@ import {
   FT_CIRCLE_R, CENTER_R, FT,
 } from "../js/sports/nba/court-geometry.js";
 import { simulateGame, computeDatasetStats } from "../js/sports/nba/engine.js";
-import { buildShotLedger } from "../js/sports/nba/playback.js";
 import NBA from "../js/sports/nba/index.js";
 import { loadDataset } from "../data/load.mjs";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
@@ -337,8 +336,9 @@ for (let g = 0; g < 12; g++) {
   const a = roster();
   const b = roster();
   const result = simulateGame(a, b, datasetStats);
-  const { events } = buildShotLedger(result.quarterBoxScores, a, b, Math.floor(rand() * 2 ** 30));
-  for (const e of events) if (e.type === "shot" && typeof e.x === "number") placed.push(e);
+  // Straight off the result: the ledger is produced by the simulation now, not
+  // rebuilt by whoever is drawing it. See js/sports/nba/ledger.js.
+  for (const e of result.shotEvents) if (e.type === "shot" && typeof e.x === "number") placed.push(e);
 }
 
 /** Everything the court can say about where a marker ended up. */

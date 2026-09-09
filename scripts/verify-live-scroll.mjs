@@ -217,6 +217,31 @@ async function watchScroll(page, ms) {
           // Whether anything is still playing. A finished game stops moving,
           // and a sample taken after the final whistle proves nothing.
           live: !!document.querySelector("#live-scoreboard .scoreboard-score.pulse"),
+          // WHICH BOX MOVED, not just that the page did. A shrink is reported
+          // with the element responsible, because "the page got shorter" sends
+          // the next reader hunting through the whole stage - and the two this
+          // has caught so far (a play-feed card falling off the bottom, the
+          // field's status strip wrapping onto a second line) were both a
+          // single element quietly changing size.
+          // WHICH BOX MOVED, not just that the page did.
+          //
+          // "The page got shorter" sends the next reader hunting through the
+          // whole game screen, and the three this has caught so far were each
+          // one element quietly changing size: a play-feed card falling off the
+          // bottom, the field's status strip wrapping onto a second line, and
+          // an empty possession chip collapsing to its padding. None of them is
+          // findable by reading the CSS; all three are obvious the moment the
+          // failure names the element. Every visible descendant is measured, so
+          // a future cause needs no change here.
+          parts: Object.fromEntries(
+            [...document.querySelectorAll("#screen-game *")]
+              .filter((el) => el.getBoundingClientRect().height > 0)
+              .map((el, i) => [
+                `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}` +
+                  `${(el.className || "").toString().split(" ")[0] ? "." + el.className.toString().split(" ")[0] : ""}[${i}]`,
+                el.getBoundingClientRect().height,
+              ])
+          ),
         });
       }, sampleMs);
       return { target, max, y: window.scrollY, height: document.documentElement.scrollHeight };
@@ -238,6 +263,7 @@ async function watchScroll(page, ms) {
   // which of the two the regression is: the scroll moved, or the layout did.
   let shrinks = 0;
   let shrinkPx = 0;
+  const culprits = [];
   let previous = start;
   for (const s of samples) {
     if (s.y > peak) peak = s.y;
@@ -245,10 +271,16 @@ async function watchScroll(page, ms) {
     if (s.height < previous.height) {
       shrinks += 1;
       shrinkPx += previous.height - s.height;
+      {
+        const diffs = Object.entries(s.parts || {})
+          .filter(([k, v]) => Math.abs(v - (previous.parts?.[k] ?? v)) > 0.5)
+          .map(([k, v]) => `${k}: ${(previous.parts[k]).toFixed(1)} -> ${v.toFixed(1)}`);
+        culprits.push(`${previous.height}->${s.height} (${diffs.join("; ") || "nothing tracked changed"})`);
+      }
     }
     previous = s;
   }
-  return { start, samples, worstUp, peak, shrinks, shrinkPx };
+  return { start, samples, worstUp, peak, shrinks, shrinkPx, culprits };
 }
 
 async function main() {
@@ -289,7 +321,7 @@ async function main() {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         // One frame for the relayout to settle before deciding where 60% is.
         await sleep(180);
-        const { start, samples, worstUp, shrinks, shrinkPx } = await watchScroll(page, WATCH_MS);
+        const { start, samples, worstUp, shrinks, shrinkPx, culprits } = await watchScroll(page, WATCH_MS);
         const live = samples.filter((s) => s.live).length;
         sawLive = sawLive || live > 0;
         const grew = samples.length
@@ -320,7 +352,8 @@ async function main() {
           shrinks === 0,
           shrinks === 0
             ? "document height only ever grew"
-            : `${shrinks} shrinks totalling ${shrinkPx}px - each one clamps a bottom-pinned reader upward`
+            : `${shrinks} shrinks totalling ${shrinkPx}px - each one clamps a bottom-pinned reader upward` +
+              (culprits.length ? `\n  ${culprits.slice(0, 3).join("\n  ")}` : "")
         );
       }
 

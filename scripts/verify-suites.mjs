@@ -118,6 +118,36 @@ check(
     : `no such file: ${staleExceptions.join(", ")}`
 );
 
+// ---- ANYTHING THAT DRAFTS MUST LOAD THE SIMULATION FIRST -------------------
+//
+// Basketball's engine, recap, shot model and draft grader load on demand
+// alongside its dataset (see preload() in js/sports/nba/index.js), because they
+// are 110KB that only a game needs and this app has no build step. Reading a
+// registry hook before that throws with the fix in the message rather than
+// returning undefined - a deliberate loud failure.
+//
+// The trap is that the tools are not in the verify chain. `DraftState` drafts
+// through `activeSport().rate`, so tools/calibrate-*.mjs broke the moment the
+// engine went lazy and nothing said so until one was run by hand, weeks later,
+// in the middle of a balance pass. This is the cheap check that would have.
+const NEEDS_PRELOAD = /\bDraftState\b|\bactiveSport\(\)/;
+const PRELOADS = /\bpreload\(\)|ensureSportData\(/;
+const drafters = [];
+for (const dir of ["scripts", "tools"]) {
+  for (const file of await readdir(path.join(ROOT, dir))) {
+    if (!/\.m?js$/.test(file)) continue;
+    const source = await readFile(path.join(ROOT, dir, file), "utf8");
+    if (NEEDS_PRELOAD.test(source) && !PRELOADS.test(source)) drafters.push(`${dir}/${file}`);
+  }
+}
+check(
+  "Every script that drafts loads the sport's simulation first",
+  drafters.length === 0,
+  drafters.length === 0
+    ? "no script reaches a registry hook without awaiting preload()"
+    : drafters.map((f) => `${f} uses DraftState or activeSport() without awaiting preload()`).join("\n    ")
+);
+
 // A tag that is empty, or that no suite composes, is a tag nobody runs.
 const TAGS = ["verify:rules", "verify:assets", "verify:engine", "verify:screens"];
 const unusedTags = TAGS.filter((tag) => {

@@ -11,8 +11,16 @@ import { computeDatasetStats, simulateGame } from "../js/sports/nba/engine.js";
 import { DraftState } from "../js/draft.js";
 import { RANKED_SLOTS } from "../js/sports/nba/constants.js";
 import { loadDataset } from "../data/load.mjs";
+import NBA from "../js/sports/nba/index.js";
 
 const PLAYERS = await loadDataset("nba-players");
+
+// DraftState drafts through the SPORT REGISTRY (activeSport().rate), and
+// basketball's simulation is loaded on demand alongside its dataset - see
+// preload() in js/sports/nba/index.js. Calling a registry hook before that
+// throws with the fix in the message rather than returning undefined, so this
+// is the one line that has to come before any drafting.
+await NBA.preload();
 
 const stats = computeDatasetStats(PLAYERS);
 

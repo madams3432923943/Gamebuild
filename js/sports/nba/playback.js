@@ -1,165 +1,43 @@
-// Basketball's presentation ledger: the play-by-play's source of truth.
+// Basketball's playback: how the authoritative ledger is REVEALED.
 //
-// WHAT THIS IS, AND WHAT IT IS CAREFULLY NOT
+// The ledger itself moved to js/sports/nba/ledger.js and is now built by the
+// simulation - see the header there for why. What is left here is presentation
+// in the strict sense: how long each event is on screen, how it is worded, and
+// how the live strip and the box score fold the events that have already been
+// shown. Nothing in this file decides a fact about the game.
 //
-// js/sports/nba/engine.js does not simulate possessions. It produces per-player,
-// per-quarter STAT LINES - points, rebounds, assists, steals, blocks,
-// turnovers - through matchups, tactics and variance. There is no shot in
-// there to visualise, and there is no clock.
+// WHY THE PACING NEEDED ITS OWN MODEL
 //
-// So this module does not ask the engine for events it does not have, and it
-// does not go and invent a second simulation to get them. It DECOMPOSES what
-// the engine already decided into the events that must have produced it, and
-// the split between what is authoritative and what is presentation is the
-// whole design:
+// A quarter used to be squeezed into QUARTER_REVEAL_DELAY_MS - 4.2 seconds, of
+// which 1.6 belonged to the between-quarters card. About ninety events shared
+// the remaining 2.6 seconds, so an ordinary shot was on screen for roughly 25
+// milliseconds. A whole game finished in seventeen seconds. That is not fast
+// pacing, it is a slideshow at the wrong frame rate: the score, the chart and
+// the feed all moved faster than anyone could read a single line of them.
 //
-//   AUTHORITATIVE - comes from the engine, never altered here:
-//     points, assists, steals, blocks and turnovers, per player, per quarter.
-//     Every one of those is reproduced exactly. The ledger's points for a
-//     player in a quarter equal the engine's, or this module has a bug -
-//     scripts/verify-nba-shot-ledger.mjs fails on a single point of drift.
+// Football already had the right shape for this - a weighted timeline scaled to
+// a watchable target (js/sports/nfl/playback.js) - and this is the same idea in
+// basketball's units. Every event gets a duration in proportion to how much
+// there is to take in, the whole game is scaled to land in a known band, and a
+// single `speed` divisor re-times all of it consistently.
 //
-//   DERIVED FROM REAL PLAYER DATA - shooting.js, not guesswork:
-//     how those points split into twos, threes and free throws. That module
-//     already refuses to let a player take a shot they never took: Shaquille
-//     O'Neal cannot attempt a three here, in any game, ever, because his
-//     recorded tpa is 0 and every share downstream of it is 0.
-//
-//   PRESENTATION - this module's own, and honestly labelled as such:
-//     the ORDER events fall in within a quarter, WHERE on the floor a shot
-//     was taken, and the clock time attached to it. The engine models none of
-//     those. A three is always placed behind the arc and a two always inside
-//     it, so the zone never contradicts the shot, but which of the three
-//     three-point zones it was is this module's choice, not a simulated fact.
-//     The clock is the period's real length laid over the period's own event
-//     order; it is monotonic and its boundaries are right, and it is not a
-//     claim that a shot was taken with 4:12 left.
-//
-// WHAT IS DELIBERATELY ABSENT
-//
-// Dunks and and-ones. The engine has no concept of either, so neither appears
-// as an event type. A rim finish is a real ZONE - the shot went in from close
-// - and gets the stronger visual treatment on that basis, which is a fact
-// about placement rather than a dunk this module made up. An and-one would
-// require a foul model that does not exist; there is no honest way to emit one
-// and it is better to be missing than fabricated.
-//
-// Offensive versus defensive rebounds, for the same reason. The engine records
-// a rebound total per player per quarter and nothing about which end of the
-// floor it happened at. The feed says "Rebound", and a caption that said
-// "Defensive Rebound" would be a statistic invented to make a line read better.
-//
-// A real buzzer-beater, likewise. `endOfPeriod` marks the last event of a
-// quarter, which is a true thing to say and is what earns that shot its beat;
-// it is not a claim that the shot went up at 0:00.
+// PACING CHANGES NOTHING BUT TIMING. The events, the box score, the shot chart
+// and the MVP are all decided by the simulation before this module is called.
+// Watching at 2x, or skipping to the end, cannot alter any of them.
 
-import { shotLine } from "./shooting.js";
+import {
+  ZONES,
+  FREE_THROW,
+  annotateLedger,
+  buildShotLedger,
+  hydrateLedger,
+  packLedger,
+  unpackLedger,
+} from "./ledger.js";
 
-/** Court zones, and the points a make in each is worth.
- *
- * Ordered inside-out. `weight` is how often a shot of that class lands in the
- * zone - a presentation distribution, loosely league-shaped, NOT something the
- * engine produced. `strong` marks the finishes worth a louder animation.
- *
- * Each zone used to carry a `label` ("at the rim", "from the corner") for the
- * chart's callouts. The chart is gone with the court; the play-by-play builds
- * its wording from shotType and strong instead, so the labels were read by
- * nothing and are removed. */
-export const ZONES = {
-  rim: { points: 2, weight: 0.34, strong: true, label: "at the rim" },
-  paint: { points: 2, weight: 0.24, label: "in the paint" },
-  "short-mid": { points: 2, weight: 0.22, label: "from mid-range" },
-  "long-mid": { points: 2, weight: 0.2, label: "from the elbow" },
-  "corner-three": { points: 3, weight: 0.26, label: "from the corner" },
-  "wing-three": { points: 3, weight: 0.37, label: "from the wing" },
-  "above-break-three": { points: 3, weight: 0.37, label: "from up top" },
-};
+export { ZONES, FREE_THROW, annotateLedger, buildShotLedger, hydrateLedger, packLedger, unpackLedger };
 
-const TWO_ZONES = Object.keys(ZONES).filter((z) => ZONES[z].points === 2);
-const THREE_ZONES = Object.keys(ZONES).filter((z) => ZONES[z].points === 3);
-
-/**
- * Where each zone sits on a half-court, as a distance and an angle FROM THE
- * BASKET - which is how a shot chart works, and why this is polar rather than a
- * set of rectangles.
- *
- * THE COORDINATE SYSTEM. Both axes are feet divided by 50 - x runs 0 to 1
- * across a 50-foot half-court, y runs 0 (baseline) to 0.94 (half-court) on the
- * SAME scale - so a distance measured across this square is a real distance and
- * the arc is a circle rather than an ellipse. Normalising each axis by its own
- * length instead makes 23 feet along the baseline a different number from 23
- * feet up the floor, which is how a corner three ends up at the top of the key.
- * The basket is at (0.5, 0.105), 5.25 feet off the baseline.
- *
- * `r` is the distance band in the same units (0.02 is a foot); `spread` is the
- * angle in degrees either side of straight-on, so a zone is an ARC and twenty
- * shots from it are a fan rather than a stack.
- *
- * WHY THIS CANNOT DRAW A THREE INSIDE THE ARC. The zone decides the points
- * before the position is rolled, and each band is the real distance that zone
- * is: the rim inside four feet, the arc at 23.75, the corner at 22 because the
- * corner three genuinely IS the shorter shot. There is no position a zone can
- * produce that contradicts it - not a correction applied afterward.
- * scripts/verify-nba-shot-ledger.mjs measures it on every shot of 120 games.
- *
- * These were rectangles once, on a square whose axes were normalised by
- * different lengths, which put mid-range twos 0.33 from the rim - outside the
- * arc. The test caught it. That is why they are polar.
- */
-const RIM = { x: 0.5, y: 0.105 };
-
-const ZONE_ANCHORS = {
-  rim: { r: [0.02, 0.08], spread: 55 },
-  paint: { r: [0.09, 0.19], spread: 42 },
-  "short-mid": { r: [0.21, 0.31], spread: 60 },
-  // Capped at 62 degrees so a long two never strays out to where a corner
-  // three lives - at 22 feet, 90 degrees IS the corner.
-  "long-mid": { r: [0.33, 0.43], spread: 62 },
-  // The corner three is the SHORT one - 22 feet, hard against the sideline and
-  // barely off the baseline. Drawing it anywhere else is the single most
-  // recognisable way to get a basketball court wrong.
-  //
-  // THE ANGLE IS WHAT KEEPS IT BEHIND THE LINE, not the distance. The corner
-  // line is straight and 22 feet from the middle of the floor, so what has to
-  // clear it is the shot's SIDEWAYS distance - r * sin(angle) - and at 72
-  // degrees a 22-foot shot is only 20.9 feet across, which is a corner three
-  // drawn inside the corner three line. The band below keeps the sideways
-  // distance above 22 feet at every point in it: 0.452 * sin(78 degrees) is
-  // 22.1. Widening either end without redoing that arithmetic puts the marker
-  // back on the wrong side of the line.
-  "corner-three": { r: [0.452, 0.485], spread: [78, 89] },
-  "wing-three": { r: [0.49, 0.55], spread: [42, 70] },
-  "above-break-three": { r: [0.49, 0.58], spread: [0, 40] },
-};
-
-/** A point inside `zone`, rolled from the ledger's own seeded stream.
- *
- * Zones with a two-ended `spread` exist as a mirrored PAIR - the two corners,
- * the two wings - and the roll picks a side. A single number means the zone is
- * a fan centred on the basket and the angle runs either way within it. */
-function placeInZone(zone, rand) {
-  const anchor = ZONE_ANCHORS[zone];
-  if (!anchor) return null;
-  const [minR, maxR] = anchor.r;
-  const radius = minR + rand() * (maxR - minR);
-  const [minA, maxA] = Array.isArray(anchor.spread) ? anchor.spread : [0, anchor.spread];
-  const magnitude = minA + rand() * (maxA - minA);
-  const degrees = (rand() < 0.5 ? -1 : 1) * magnitude;
-  const radians = (degrees * Math.PI) / 180;
-  const clamp = (n, hi) => Math.min(hi, Math.max(0.02, n));
-  return {
-    x: clamp(RIM.x + radius * Math.sin(radians), 0.98),
-    // cos, so straight-on is straight out toward half court. A shot is never
-    // placed behind the baseline: the angle never reaches 90 degrees, and the
-    // rim's own 0.105 of clearance covers what is left.
-    y: clamp(RIM.y + radius * Math.cos(radians), 0.93),
-  };
-}
-
-/** How long a period is, for the derived clock below. Regulation quarters are
- * twelve minutes and overtime is five - real numbers, used only to scale a
- * presentation clock, because a board that counted down from an invented length
- * would look wrong to anyone who has watched a game. */
+/** How long a period is, for the board's derived clock. */
 const QUARTER_SECONDS = 12 * 60;
 const OT_SECONDS = 5 * 60;
 
@@ -170,321 +48,190 @@ export function formatClock(seconds) {
   return `${minutes}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-/** Free throws are marked apart from field goals: they are not shot attempts,
- * so they must not be counted as ones anywhere the ledger is aggregated, and
- * the play-by-play describes them differently. They still exist in the ledger
- * as scoring events so the running score stays exact. */
-const FREE_THROW = "free-throw";
+// ---------------------------------------------------------------------------
+// PACING
+// ---------------------------------------------------------------------------
 
 /**
- * A small deterministic PRNG.
+ * What each kind of event is worth, in milliseconds at normal speed.
  *
- * The ledger has to be REPRODUCIBLE: an online game is simulated once on the
- * server and then played back on two clients, and two players watching the
- * same game must see the same play-by-play. Math.random would give them
- * different ones. Seeded from the match's own numbers by the caller.
+ * These are RATIOS as much as durations: the whole game is scaled to fit the
+ * target band below, so what survives scaling is how much longer a made three
+ * is than a rebound. They are ordered the way a broadcast spends its attention.
+ *
+ * A rebound is the beat between two things happening and gets the shortest hold
+ * of anything - it is also the most common event in the ledger, so it is where
+ * most of the time saved comes from, which is what keeps a full game inside
+ * four minutes without any of the moments feeling clipped.
  */
-function rng(seed) {
-  let s = (seed >>> 0) || 1;
-  return () => {
-    s ^= s << 13; s >>>= 0;
-    s ^= s >> 17;
-    s ^= s << 5; s >>>= 0;
-    return s / 4294967296;
-  };
-}
+export const EVENT_MS = {
+  rebound: 300,
+  freeThrow: 420,
+  missedTwo: 620,
+  missedThree: 700,
+  turnover: 800,
+  madeTwo: 900,
+  // A finish at the rim reads as one motion and is worth a beat more than a
+  // jumper - it is the zone, which is a real fact about the shot, not a dunk
+  // this module invented.
+  madeRimTwo: 1050,
+  steal: 1050,
+  block: 1050,
+  madeThree: 1300,
+  // Unplaced scoring: a player whose dataset row has no shooting columns. It is
+  // still points on the board and gets an ordinary make's hold.
+  unplaced: 900,
+};
 
-function pickWeighted(keys, rand, weightOf) {
-  const total = keys.reduce((sum, k) => sum + weightOf(k), 0);
-  let roll = rand() * total;
-  for (const k of keys) {
-    roll -= weightOf(k);
-    if (roll <= 0) return k;
-  }
-  return keys[keys.length - 1];
-}
-
+/** Added on top of an event's own hold when the ledger says something larger
+ * happened on it. Cumulative on purpose: the three that ends a quarter AND
+ * flips the lead is the longest single beat in the game, which is right. */
+export const EMPHASIS_MS = {
+  run: 450,
+  leadChange: 700,
+  endOfPeriod: 900,
+};
 
 /**
- * One player's quarter, decomposed into the shots that produced it.
+ * The band a whole game's playback has to land in, and where it aims.
  *
- * `line` is shooting.js's split, which is derived from the player's real shot
- * profile. The makes in it are trusted; what this adds is the misses (attempts
- * minus makes), a zone for each, and the reconciliation that guarantees the
- * points add up to what the engine said.
+ * A basketball game is 350-450 events against football's ~150, so the same
+ * wall-clock target would give each of them a third of the time. Aiming near
+ * 3 minutes 15 puts an ordinary miss at about half a second, a made basket at
+ * three quarters, and a three that changes the lead past two - which is the
+ * "fast gamecast" pace rather than either a highlight reel or a broadcast.
+ *
+ * The band matters more than the target: a blowout with 500 events and a
+ * grinder with 320 should still take about the same time to watch, and scaling
+ * every event by target/rawTotal is what makes that true while keeping the
+ * ratios above intact.
  */
-function shotsForQuarter(player, points, rand) {
-  const line = points > 0 ? shotLine(player, points, rand) : null;
-  const shots = [];
-  if (!line) {
-    // No shooting profile - the player still scored, so the points are emitted
-    // as unplaced scoring rather than dropped. Better a play line missing its
-    // detail than a scoreboard missing points.
-    // UNPLACED, and marked as such. It is not a free throw - it can be worth
-    // two or three - it is the player's points with no shot to attribute them
-    // to, kept so the scoreboard stays exact. Anything that folds the ledger
-    // into a shooting line has to leave it out, or a player with no profile
-    // would be credited with a three-point free throw.
-    if (points > 0) shots.push({ made: true, points, shotType: FREE_THROW, zone: null, unplaced: true });
-    return shots;
+export const TARGET_MIN_MS = 150000;
+export const TARGET_MAX_MS = 260000;
+export const TARGET_MS = 195000;
+
+/** Nothing is on screen for less than this at 1x. Divided by the speed rather
+ * than applied under it, so asking for 2x gives 2x rather than 1.8x - see the
+ * same note in football's timeline. */
+const MIN_EVENT_MS = 110;
+
+/** The speeds the viewer can choose. `skip` is not a speed - it is a separate
+ * action that finishes the game immediately - and lives with the buttons rather
+ * than here. */
+export const SPEEDS = [1, 2];
+export const DEFAULT_SPEED = 1;
+
+/** How long the between-quarters card is on screen. Matches the .bc-break
+ * animation in style.css. Longer than it used to be because there is now
+ * something to read on it and time to read it in. */
+export const QUARTER_CARD_MS = 1900;
+
+/** What one event is worth before scaling. Every term is a fact the ledger
+ * already carries, so the pacing follows the game rather than a script laid
+ * over it. */
+export function eventWeight(event) {
+  let base;
+  switch (event.type) {
+    case "rebound": base = EVENT_MS.rebound; break;
+    case "steal": base = EVENT_MS.steal; break;
+    case "block": base = EVENT_MS.block; break;
+    case "turnover": base = EVENT_MS.turnover; break;
+    case "shot":
+      if (event.unplaced) base = EVENT_MS.unplaced;
+      else if (event.shotType === FREE_THROW) base = EVENT_MS.freeThrow;
+      else if (event.shotType === "three") base = event.made ? EVENT_MS.madeThree : EVENT_MS.missedThree;
+      else if (!event.made) base = EVENT_MS.missedTwo;
+      else base = event.strong ? EVENT_MS.madeRimTwo : EVENT_MS.madeTwo;
+      break;
+    default: base = EVENT_MS.rebound;
   }
-
-  const threes = Math.min(line.tpm, line.tpa);
-  const twos = Math.max(0, line.fgm - line.tpm);
-  const threeMisses = Math.max(0, line.tpa - line.tpm);
-  const twoMisses = Math.max(0, line.fga - line.tpa - twos);
-
-  const addShot = (made, kind) => {
-    const zones = kind === 3 ? THREE_ZONES : TWO_ZONES;
-    const zone = pickWeighted(zones, rand, (z) => ZONES[z].weight);
-    shots.push({
-      made,
-      points: made ? kind : 0,
-      shotType: kind === 3 ? "three" : "two",
-      zone,
-      // Where the marker goes. Rolled here, once, and carried on the event -
-      // the court must not roll its own, or the same shot would land somewhere
-      // different in the live chart and in the final one.
-      ...placeInZone(zone, rand),
-      strong: !!(made && ZONES[zone].strong),
-    });
-  };
-
-  for (let i = 0; i < threes; i++) addShot(true, 3);
-  for (let i = 0; i < twos; i++) addShot(true, 2);
-  for (let i = 0; i < threeMisses; i++) addShot(false, 3);
-  for (let i = 0; i < twoMisses; i++) addShot(false, 2);
-  for (let i = 0; i < line.ftm; i++) shots.push({ made: true, points: 1, shotType: FREE_THROW, zone: null });
-  for (let i = 0; i < Math.max(0, line.fta - line.ftm); i++) {
-    shots.push({ made: false, points: 0, shotType: FREE_THROW, zone: null });
-  }
-
-  // RECONCILIATION. shooting.js rounds each share independently, so its
-  // implied total can sit a point or two either side of what the engine
-  // decided. The engine wins, always: the scoreboard is the thing players
-  // check against, and a play-by-play that quietly disagrees with it is worse
-  // than no play-by-play. Settled in free throws, which are the only scoring
-  // unit worth 1 and so the only one that can close any gap exactly.
-  //
-  // One loop in both directions, not two passes. Removing a made two swings
-  // the total by +2, which can step straight over zero from -1 to +1 - a
-  // second one-directional pass would have already run and exited, leaving the
-  // point of drift this is here to prevent. Converging in a single loop lets
-  // the overshoot be paid straight back with a free throw.
-  const settled = () => points - shots.reduce((sum, s) => sum + s.points, 0);
-  for (let guard = 0; guard < 64; guard++) {
-    const drift = settled();
-    if (drift === 0) break;
-    if (drift > 0) {
-      shots.push({ made: true, points: 1, shotType: FREE_THROW, zone: null });
-      continue;
-    }
-    const ft = shots.findIndex((s) => s.made && s.points === 1);
-    if (ft >= 0) { shots.splice(ft, 1); continue; }
-    const two = shots.findIndex((s) => s.made && s.points === 2);
-    if (two >= 0) { shots[two].made = false; shots[two].points = 0; shots[two].strong = false; continue; }
-    const three = shots.findIndex((s) => s.made && s.points === 3);
-    if (three >= 0) { shots[three].made = false; shots[three].points = 0; continue; }
-    break;
-  }
-
-  return shots;
+  if (event.runPoints) base += EMPHASIS_MS.run;
+  if (event.leadChange) base += EMPHASIS_MS.leadChange;
+  if (event.endOfPeriod) base += EMPHASIS_MS.endOfPeriod;
+  return base;
 }
 
 /**
- * The whole game as an ordered ledger of events.
+ * Lays the whole game out on a clock.
  *
- * @param quarterBoxScores the engine's per-period lines: [{ a: {slot: line}, b: {...} }]
- * @param rosterA/rosterB  slot -> player, for names and shot profiles
- * @param seed             any integer; the same seed always yields the same ledger
+ * Returns the events untouched plus, for each, `atMs` (when it appears, from
+ * the opening tip) and `durationMs` (how long it holds). The quarter card's
+ * time is added at the end of each period, so a period's span already includes
+ * the pause the viewer gets to read it.
+ *
+ * @param opts.speed     divisor on every duration; 2 is twice as fast
+ * @param opts.targetMs  override the aim, clamped to the band above. Used by
+ *                       scripts/verify-nba-playback-pace.mjs, not by the app.
  */
-export function buildShotLedger(quarterBoxScores, rosterA, rosterB, seed = 1) {
-  const rand = rng(seed);
-  const events = [];
-  const periods = Array.isArray(quarterBoxScores) ? quarterBoxScores : [];
+export function buildPlaybackTimeline(events, opts = {}) {
+  const list = events || [];
+  if (!list.length) return { events: [], totalMs: 0, periods: [] };
 
-  periods.forEach((period, periodIndex) => {
-    // One flat list per period so the two teams interleave, the way a quarter
-    // actually looks, rather than one team's whole quarter then the other's.
-    const pending = [];
+  const speed = opts.speed > 0 ? opts.speed : DEFAULT_SPEED;
+  const target = Math.max(TARGET_MIN_MS, Math.min(TARGET_MAX_MS, opts.targetMs || TARGET_MS));
+  const cardMs = opts.quarterCardMs ?? QUARTER_CARD_MS;
 
-    for (const [side, roster] of [["a", rosterA], ["b", rosterB]]) {
-      const lines = period[side] || {};
-      for (const slot of Object.keys(lines)) {
-        const player = roster?.[slot];
-        const line = lines[slot] || {};
-        const name = player?.name || slot;
+  const weights = list.map(eventWeight);
+  const rawTotal = weights.reduce((sum, w) => sum + w, 0);
+  // ONE scale factor across every event, so the ratios in EVENT_MS survive: a
+  // made three stays worth four rebounds whether the game had 320 events or 500.
+  const scale = rawTotal > 0 ? target / rawTotal : 1;
 
-        for (const shot of shotsForQuarter(player, Number(line.pts) || 0, rand)) {
-          pending.push({ type: "shot", side, slot, player: name, ...shot });
-        }
-        // Counting stats the engine produced directly. Emitted as their own
-        // events so the moments layer has something real to surface - these
-        // are not derived or reconstructed, they are the engine's numbers.
-        //
-        // REBOUNDS ARE HERE NOW. They were the one counting stat the engine
-        // records that the ledger dropped, so the possession feed could show a
-        // steal and a block and never once say who cleaned the glass - which is
-        // most of what actually happens between shots. The COUNT is the
-        // engine's, exactly, like the other three.
-        //
-        // Offensive or defensive is NOT recorded by the engine and is not
-        // guessed at: the event says "rebound" and the feed says "Rebound".
-        // Splitting it would be inventing a fact to make a caption read better.
-        for (const [stat, type] of [["reb", "rebound"], ["stl", "steal"], ["blk", "block"], ["tov", "turnover"]]) {
-          for (let i = 0; i < (Number(line[stat]) || 0); i++) {
-            pending.push({ type, side, slot, player: name });
-          }
-        }
-      }
-    }
+  const timed = [];
+  const periods = [];
+  let atMs = 0;
+  let periodStart = 0;
+  let periodNumber = list[0].period;
 
-    // Shuffle within the period, then hand out assists and clock times. The
-    // order is presentation - the engine has no sequence inside a quarter -
-    // but it is seeded, so it is the SAME presentation for both players.
-    for (let i = pending.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [pending[i], pending[j]] = [pending[j], pending[i]];
-    }
-
-    assignAssists(pending, period, rand);
-
-    const period1 = periodIndex + 1;
-    const periodSeconds = period.overtime ? OT_SECONDS : QUARTER_SECONDS;
-    pending.forEach((event, i) => {
-      // Evenly spread across the period. The engine models no clock, so a real
-      // one cannot be recovered; what this gives is a monotonic order with
-      // quarter boundaries in the right places.
-      const fraction = pending.length > 1 ? i / (pending.length - 1) : 0;
-      events.push({
-        ...event,
-        period: period1,
-        overtime: !!period.overtime,
-        order: events.length + i,
-        periodFraction: fraction,
-        // THE CLOCK IS PRESENTATION, and is labelled as such everywhere it is
-        // used. The engine has no clock and never had one, so this is the
-        // period's length laid over the period's own event ORDER - the same
-        // presentation the order itself already is, read as a time because a
-        // basketball broadcast reads it as a time and "event 7 of 23" is not
-        // something anybody watching a game thinks in.
-        //
-        // It never contradicts anything: it is monotonic within a period, it
-        // starts at 12:00 and ends at 0:00, and quarter boundaries fall where
-        // the ledger says they do. It is not a claim that this shot was taken
-        // with 4:12 left, and nothing downstream may treat it as one.
-        clockSeconds: Math.max(0, Math.round(periodSeconds * (1 - fraction))),
+  list.forEach((event, i) => {
+    const durationMs = Math.max(MIN_EVENT_MS / speed, Math.round((weights[i] * scale) / speed));
+    timed.push({ event, atMs, durationMs });
+    atMs += durationMs;
+    const last = i === list.length - 1;
+    if (last || list[i + 1].period !== event.period) {
+      // The between-quarters card sits at the END of the period it summarises,
+      // after the last event of that period has had its own hold. It used to be
+      // carved out of the FRONT of the next period's budget, which is why a
+      // 1.4-second card was on screen for four hundred milliseconds.
+      const cardAt = atMs;
+      atMs += cardMs / speed;
+      periods.push({
+        period: periodNumber,
+        overtime: !!event.overtime,
+        startMs: periodStart,
+        cardAtMs: cardAt,
+        endMs: atMs,
+        spanMs: atMs - periodStart,
       });
-    });
+      periodStart = atMs;
+      if (!last) periodNumber = list[i + 1].period;
+    }
   });
 
-  annotateMoments(events);
-  return { events, periods: periods.length };
+  return { events: timed, totalMs: atMs, periods };
 }
 
-/**
- * Marks the moments already implicit in the order.
- *
- * None of this is new information - it is the running score, read once. But
- * "Denver just scored ten in a row" and "the lead changed hands" are the two
- * things a person watching would actually say out loud, and until something
- * computes them the presentation has no way to know a moment happened. The
- * events carry them so the renderer can slow down, raise its voice, or stay
- * out of the way, without recomputing a score of its own and risking a
- * different answer from the scoreboard's.
- *
- * Derived, never invented: a run is consecutive scoring in the ledger's own
- * order, and a lead change is the sign of the margin flipping. If the ledger is
- * right, these are right.
- */
-function annotateMoments(events) {
-  const score = { a: 0, b: 0 };
-  let runSide = null;
-  let runPoints = 0;
-  let lastLeader = null;
-
-  events.forEach((event, i) => {
-    const scoring = event.type === "shot" && event.made && event.points > 0;
-    if (scoring) {
-      score[event.side] += event.points;
-      // A run is broken by the OTHER team scoring, not by a miss - a team can
-      // miss five in a row mid-run and the run is still theirs.
-      if (runSide === event.side) runPoints += event.points;
-      else { runSide = event.side; runPoints = event.points; }
-    }
-
-    const leader = score.a === score.b ? null : score.a > score.b ? "a" : "b";
-    // Only a genuine change of hands. Going from tied to ahead is not a lead
-    // change, it is taking the lead for the first time since the tie - counting
-    // it would fire this on nearly every basket of a close game and make the
-    // signal worthless.
-    const leadChange = !!(scoring && leader && lastLeader && leader !== lastLeader);
-    if (leader) lastLeader = leader;
-
-    // The last event of a period, whatever it was. A shot here is the closest
-    // this model gets to a buzzer-beater: the engine has no clock, so what can
-    // be said honestly is "this was the last thing that happened in the
-    // quarter", which is enough to earn a beat.
-    const endOfPeriod = i === events.length - 1 || events[i + 1].period !== event.period;
-
-    event.scoreAfter = { a: score.a, b: score.b };
-    event.leadChange = leadChange;
-    event.endOfPeriod = endOfPeriod;
-    // Surfaced only once it is worth saying. Eight is the threshold a
-    // broadcast would bother mentioning.
-    event.runPoints = scoring && runPoints >= 8 ? runPoints : 0;
-    event.runSide = event.runPoints ? runSide : null;
-  });
+/** The span one period occupies on the timeline, including its card. Shared
+ * code asks for this to decide how long to hold a period before revealing the
+ * next one - the same question football's timelineSpanFor answers. */
+export function periodSpan(timeline, period) {
+  const found = (timeline?.periods || []).find((p) => p.period === period);
+  return found ? found.spanMs : 0;
 }
 
-/**
- * Hands the period's assists to made field goals.
- *
- * The COUNT is the engine's and is never exceeded: a player credited with
- * three assists in a quarter is attached to at most three made shots, and a
- * player credited with none is attached to nothing. Which shots they were is
- * presentation, and a passer is never given his own basket.
- */
-function assignAssists(pending, period, rand) {
-  for (const side of ["a", "b"]) {
-    const lines = period[side] || {};
-    const credits = [];
-    for (const slot of Object.keys(lines)) {
-      for (let i = 0; i < (Number(lines[slot]?.ast) || 0); i++) credits.push(slot);
-    }
-    if (!credits.length) continue;
-
-    const assistable = pending.filter(
-      (e) => e.type === "shot" && e.side === side && e.made && e.shotType !== FREE_THROW
-    );
-    for (let i = assistable.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [assistable[i], assistable[j]] = [assistable[j], assistable[i]];
-    }
-    for (const shot of assistable) {
-      const k = credits.findIndex((slot) => slot !== shot.slot);
-      if (k < 0) break;
-      shot.assistedBy = credits.splice(k, 1)[0];
-    }
-  }
-}
-
-// ZONE_BANDS and zoneSummary lived here and are gone with the court they were
-// drawn on. The shape they aggregated is still in the ledger - every shot
-// carries its zone - so a text version of the same thing is a reduce away if
-// it is ever wanted somewhere that is not a floor.
+// ---------------------------------------------------------------------------
+// WORDING AND FOLDS
+// ---------------------------------------------------------------------------
 
 /**
  * One event, as the possession feed says it out loud.
  *
  * Returned as PARTS rather than a sentence, because the feed sets the player's
- * name, what happened, and whether it dropped in three different weights - a
- * single string would have to be parsed back apart to do that.
+ * name, what happened, and whether it dropped in three different weights.
  *
- * Every word here is derived from the event and nothing is embellished. A rim
- * finish reads "at the rim", not "DUNK": the engine has no dunks and no fouls,
- * so there is no honest way to emit either, and a caption that claims one is a
- * fabricated statistic wearing a verb. See the header of this file.
+ * Every word is derived from the event and nothing is embellished. A rim finish
+ * reads "at the rim", not "DUNK": the engine has no dunks and no fouls, so
+ * there is no honest way to emit either.
  */
 export function describeEvent(event) {
   if (!event) return null;
@@ -504,8 +251,8 @@ export function describeEvent(event) {
       }
       // "Finish" only when it actually finished. The zone's `strong` flag is a
       // property of the RIM - it is true whether the shot fell or not - so a
-      // missed layup read "Finish at the rim - MISS", which is a sentence that
-      // argues with itself.
+      // missed layup read "Finish at the rim - MISS", a sentence that argues
+      // with itself.
       const kind =
         event.shotType === "three" ? "Three" : !zone?.strong ? "Jumper" : event.made ? "Finish" : "Shot";
       return {
@@ -534,12 +281,10 @@ const emptyTeamStats = () => ({ fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, 
 /**
  * The two teams' live lines, folded from the ledger up to and including `upTo`.
  *
- * READ OFF THE SAME EVENTS THE SCOREBOARD IS, which is the entire reason this
- * is here rather than being summed out of the engine's period lines. A quarter
- * line is only true once the quarter is over; the strip under the court has to
- * be true right now, and the only thing that knows "right now" is how far into
- * the ledger the playback has got. Summing period lines instead would show a
- * field-goal percentage for shots that, on screen, have not been taken yet.
+ * READ OFF THE SAME EVENTS THE SCOREBOARD IS. A quarter line is only true once
+ * the quarter is over; the strip under the court has to be true right now, and
+ * the only thing that knows "right now" is how far into the ledger the playback
+ * has got.
  *
  * Free throws are counted apart from field goals - they are not attempts, and
  * folding them into FG% is the commonest way to get a shooting line wrong.
@@ -551,6 +296,10 @@ export function foldLiveStats(events, upTo) {
     const team = totals[e.side];
     if (!team) continue;
     if (e.type === "shot") {
+      if (e.unplaced) {
+        if (e.made) team.pts += e.points;
+        continue;
+      }
       if (e.shotType === FREE_THROW) {
         team.fta += 1;
         if (e.made) team.ftm += 1;
@@ -563,8 +312,8 @@ export function foldLiveStats(events, upTo) {
         }
       }
       if (e.made) team.pts += e.points;
-      // An assist is credited to the PASSER's team, which is the shooter's
-      // team - a passer is never given his own basket (see assignAssists), so
+      // An assist is credited to the PASSER's team, which is the shooter's team
+      // - a passer is never given his own basket (see assignAssists), so
       // counting it on the shot is the same total by a shorter route.
       if (e.made && e.assistedBy) team.ast += 1;
     } else if (e.type === "rebound") team.reb += 1;
@@ -578,23 +327,12 @@ export function foldLiveStats(events, upTo) {
 /**
  * Every player's shooting line, folded from the ledger.
  *
- * WHY THIS EXISTS. The box score used to roll its own split: one unseeded call
- * to shotLine() over the player's whole-game total, while the ledger rolled a
- * seeded one per quarter. Both reconciled the POINTS with the engine, so the
- * scoreboard was safe - but they disagreed about how those points were scored.
- * Measured over 40 games, the box score's team three-point makes differed from
- * the threes actually drawn on the chart in 37 of them, by up to six. A viewer
- * counting six made threes in the box score and finding two on the court was
- * reading two different derivations of the same fact.
- *
- * There is one now, and it is this one - the same events the chart draws and
- * the live strip counts. It is also the only one that is REPRODUCIBLE: the
- * ledger is seeded because an online game is simulated once and played back on
- * two machines, and an unseeded box score gave those two players different
- * shooting lines for the same game.
+ * The ledger is an expansion of the box score's own shooting columns, so this
+ * necessarily agrees with them - which is what it is for. It exists so the LIVE
+ * table can show a partial line mid-game without asking the box score for a
+ * total that has not happened yet.
  *
  * Keyed by side, then by roster slot, matching what the box score asks for.
- * The rules are foldLiveStats's, per player instead of per team.
  */
 export function foldPlayerShotLines(events) {
   const lines = { a: {}, b: {} };
@@ -627,3 +365,5 @@ export function scoreAfter(events, upTo) {
   }
   return score;
 }
+
+export { QUARTER_SECONDS, OT_SECONDS };

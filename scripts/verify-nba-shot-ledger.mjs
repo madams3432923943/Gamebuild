@@ -20,10 +20,11 @@
 // rounding drift is a tail event and one game proves nothing.
 
 import { simulateGame, computeDatasetStats } from "../js/sports/nba/engine.js";
-import { buildShotLedger, ZONES, describeEvent, foldLiveStats, foldPlayerShotLines } from "../js/sports/nba/playback.js";
+import { ZONES, describeEvent, foldLiveStats, foldPlayerShotLines, hydrateLedger } from "../js/sports/nba/playback.js";
 import NBA from "../js/sports/nba/index.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 import { loadDataset } from "../data/load.mjs";
+import { withSeededRandom } from "./lib/seeded-rng.mjs";
 
 const PLAYERS = await loadDataset("nba-players");
 
@@ -92,8 +93,16 @@ for (let g = 0; g < GAMES; g++) {
   const rosterA = randomRoster(rand);
   const rosterB = randomRoster(rand);
   const result = simulateGame(rosterA, rosterB, stats);
-  const seed = Math.floor(rand() * 2 ** 31);
-  const { events } = buildShotLedger(result.quarterBoxScores, rosterA, rosterB, seed);
+  // THE LEDGER COMES OFF THE RESULT NOW. It used to be built here, the way the
+  // browser built it - which is exactly the bug this rewrite removed: an online
+  // game rebuilt on each client produced two different box scores under one
+  // final score. Asking the engine for it is what this file should have been
+  // doing, because it is what the app does.
+  // Names are attached by the renderer, not stored on the events - a slot and a
+  // side already identify the player, and leaving the name out is what keeps a
+  // stored online ledger small enough to live inside the result row. The feed
+  // check below needs them, so hydrate exactly as the app does.
+  const events = hydrateLedger(result.shotEvents, rosterA, rosterB);
   sampledEvents += events.length;
   sampledShots += events.filter((e) => e.type === "shot").length;
 
@@ -290,12 +299,19 @@ for (let g = 0; g < GAMES; g++) {
 }
 
 // ---- determinism -----------------------------------------------------------
+//
+// WHAT DETERMINISM MEANS NOW. The ledger is no longer a function of the box
+// score plus a seed the caller chose - it is produced by the simulation, so the
+// question is whether the SIMULATION replays: the same seed and the same rosters
+// must give the same events, and a different seed must not. That is the property
+// an online match depends on, since the Edge Function runs inside
+// withSeededMathRandom and stamps the seed onto the stored result.
 const detA = randomRoster(rand);
 const detB = randomRoster(rand);
-const detResult = simulateGame(detA, detB, stats);
-const first = buildShotLedger(detResult.quarterBoxScores, detA, detB, 12345);
-const again = buildShotLedger(detResult.quarterBoxScores, detA, detB, 12345);
-const differentSeed = buildShotLedger(detResult.quarterBoxScores, detA, detB, 999);
+const replay = (seed) => withSeededRandom(seed, () => simulateGame(detA, detB, stats)).value;
+const first = { events: replay(12345).shotEvents };
+const again = { events: replay(12345).shotEvents };
+const differentSeed = { events: replay(999).shotEvents };
 
 add(
   "Points reconcile exactly, per player per quarter",
@@ -370,7 +386,7 @@ add(
 add(
   "The same seed replays the same ledger",
   JSON.stringify(first) === JSON.stringify(again),
-  `${first.events.length} events, byte-identical on a second build`
+  `${first.events.length} events, byte-identical on a second run of the same seed`
 );
 add(
   "A different seed produces a different game",

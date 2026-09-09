@@ -309,6 +309,15 @@ export const TEAM_QUARTER_VARIANCE_MAX = 1.34;
 // the sweep rate lands at 17.3% against a ~27% target, and it misses at every
 // spread the tool tries rather than just at this one. Quarters have become
 // harder to sweep than they were.
+// RE-SOLVED after the parity ANCHOR was fixed (2026-09), and it came back
+// unchanged: ±34% spread, parity 0.400, the same two values already here.
+//
+// That is the expected result rather than a lucky one. The anchor sets the
+// LEVEL a team is pulled toward; parity sets what FRACTION of a roster's
+// deviation from it survives. Moving the level does not change the fraction, so
+// the win-rate curve the tool solves against barely moved. The gamestyle `pts`
+// mods did have to be re-solved - see js/sports/nba/tactics.js - because a
+// style that buys defense with points is charged against that level.
 export const TALENT_PARITY = 0.40;
 
 // Turnover margin -> point swing. Each net extra possession (opponent

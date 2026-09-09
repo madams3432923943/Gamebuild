@@ -5046,6 +5046,78 @@ table.box-table th {
  * four, older cards scrolling WITHIN this box. overflow-anchor: none because a
  * card entering at the top is exactly what the browser would otherwise anchor
  * to. Full account in docs/nba-presentation.md. */
+/* Playback speed, inside the game stage.
+ *
+ * Fixed height and a fixed number of buttons, so nothing about this control
+ * moves while a game plays - it sits above the box score a viewer scrolls down
+ * to read, and a control that grew or appeared late would push that reading
+ * position around. See scripts/verify-live-scroll.mjs.
+ *
+ * The buttons are 44px tall, which is the minimum comfortable touch target and
+ * the reason they are not the small pill they look like they should be. */
+.playback-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  /* THE ROW IS ALWAYS IN FLOW, and only its CONTENTS come and go.
+   *
+   * Hiding it with display:none would take 54px out of the stage at the final
+   * buzzer, and the stage sits ABOVE the box score a viewer scrolls down to
+   * read while the game plays - so the page would get shorter underneath them
+   * and a bottom-pinned reader would be clamped upward. That is the exact
+   * failure scripts/verify-live-scroll.mjs exists to catch, and it caught this
+   * one. A reserved empty strip costs 54px; moving the reader does not have a
+   * price you can pay back. */
+  min-height: 54px;
+}
+
+/* Its own state class rather than the global .hidden, which is
+ * `display: none !important` and would take the row out of flow - see above for
+ * why that is not allowed here. */
+.playback-controls.playback-idle {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.speed-btn {
+  min-width: 56px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim, #b9bec9);
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* The active speed is marked by fill AND by aria-pressed, never by colour
+ * alone - this is a two-state toggle and it has to survive being colourblind. */
+.speed-btn.speed-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.speed-btn.speed-skip {
+  margin-left: 6px;
+}
+
+.speed-btn:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
 .play-feed {
   position: relative;
   padding: 0 1rem 1rem;
@@ -7527,15 +7599,38 @@ html {
   padding: 0.5rem 0;
 }
 
+/* ONE LINE, ALWAYS. This wrapped, and a strip that wraps is a strip that
+   changes height - the possession chip carries the player's USERNAME, so a long
+   one pushed the row onto two lines for some plays and back to one for others.
+   The field is inside the game stage, which sits above the box score a viewer
+   scrolls down to read while the game plays, so every one of those was the page
+   getting fifteen pixels shorter underneath them. Caught by
+   scripts/verify-live-scroll.mjs, which is the whole reason that file exists.
+
+   Nothing is lost at phone width: the down and distance keeps its full text and
+   only an over-long username is trimmed, which is the right way round. */
 .ff-status {
   display: flex;
-  flex-wrap: wrap;
+  /* A CHIP WITH NO TEXT IN IT IS STILL A CHIP-SHAPED HOLE. The possession chip
+     is empty on a kickoff and at the end of a quarter, and an empty inline
+     element collapses to its padding - taking the strip from 19.5px to 4.5px
+     and the page with it. Reserved rather than conditionally hidden, so the
+     row is the same height whoever has the ball and whether anyone does. */
+  min-height: 1.35rem;
+  flex-wrap: nowrap;
   align-items: baseline;
   justify-content: center;
   gap: 0.35rem 0.9rem;
   font-size: var(--text-xs);
   letter-spacing: 0.04em;
   color: var(--muted);
+}
+
+.ff-downdist,
+.ff-possession {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* .ff-quarter, .ff-clock and .ff-score used to live here. All three reprinted
@@ -7557,6 +7652,12 @@ html {
    the team name too, so this reads the same without colour vision. */
 .ff-possession {
   margin-left: auto;
+  /* Bounded so a long username cannot squeeze the down and distance, which is
+     the number the viewer actually needs. */
+  max-width: 55%;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
   font-weight: 600;
   font-size: var(--text-xs);
   letter-spacing: 0.01em;
@@ -7766,8 +7867,20 @@ html {
   margin-left: -9px;
 }
 
+/* TWO LINES' WORTH, ALWAYS RESERVED.
+   min-height was one line, so a play description long enough to wrap made this
+   box - and the field, and the game stage, and the page - fifteen pixels taller
+   for that play and shorter again for the next. The field sits above the box
+   score a viewer scrolls down to read while the game plays, so every one of
+   those shrinks clamped a bottom-pinned reader upward. See
+   scripts/verify-live-scroll.mjs; this is the same rule the basketball court
+   has followed since it was drawn (nothing in the stage may change the page's
+   height mid-game), applied to the one part of the field that still could. */
 .ff-call {
-  min-height: 1.2rem;
+  min-height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-size: 0.85rem;
   font-weight: 600;
