@@ -21,7 +21,7 @@ import { bannerById, DEFAULT_BANNER_ID } from "./banners.js";
 import { bannerArt } from "./ui/banner-art.js";
 import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { adviceNote, isNote, noteText } from "./gradenotes.js";
-import { QUARTER_REVEAL_DELAY_MS, QUARTER_TICK_MS, OT_REVEAL_DELAY_MS, OT_TICK_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
+import { OPENING_HOLD_MS, FINAL_HOLD_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
 // unpicking that is a separate change from this one.
@@ -123,7 +123,6 @@ import {
   renderFriendChallenges,
   renderFriendRequests,
   renderFriendsLeaderboard,
-  accumulatePeriodStats,
   liveStatKeys,
   formatMvpStatLine,
   statPairs,
@@ -3138,8 +3137,6 @@ const mvpCallout = document.getElementById("mvp-callout");
 const gameRecapEl = document.getElementById("game-recap");
 const playFeedEl = document.getElementById("play-feed");
 const playbackControlsEl = document.getElementById("playback-controls");
-const btnSpeed1 = document.getElementById("btn-speed-1");
-const btnSpeed2 = document.getElementById("btn-speed-2");
 const btnSkipPlayback = document.getElementById("btn-skip-playback");
 const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
@@ -3162,21 +3159,15 @@ function periodLabel(index) {
   return index >= REGULATION_PERIODS ? `OT${index - REGULATION_PERIODS + 1}` : `Q${index + 1}`;
 }
 
-/** Distributes a team's true final score across periods proportionally to
- * that period's raw simulated share, so the live reveal ends up exactly at
- * the real final score while still showing quarter-to-quarter variance. */
-/** Points scored in each period. The engine reconciles its period lines onto
- * the finished box score, so these already add up to the final total - this
- * used to rescale them to force that, which quietly made the scoreboard the
- * only consumer showing correct figures while the live box score and the
- * recap read the unreconciled numbers underneath. */
-function computeDisplayPeriodScores(quarterBoxScores, finalScore, teamKey) {
-  return quarterBoxScores.map((q) => Object.values(q[teamKey]).reduce((sum, line) => sum + line.pts, 0));
-}
-
-/** Plays the live quarter-by-quarter reveal and final box score for any
- * already-computed result (local simulateGame() output or a normalized
- * server result), then calls onComplete() once everything is on screen. */
+/** Plays a finished result out, event by event, and calls onComplete() once
+ * everything is on screen. Works from a local simulateGame() output or a
+ * normalized server result - they are the same shape by design.
+ *
+ * GONE FROM HERE: computeDisplayPeriodScores, which summed each period's box
+ * lines so the reveal loop could publish a whole quarter at once. The quarter
+ * columns are folded from the events as they are watched now (see
+ * playEventDriven), which is the only way a column can be true at the moment it
+ * appears. */
 // ---- Reward toast ----
 // The payoff for playing. Badges, banners and rank are derived from profile
 // counters rather than granted by an event, so without a before/after diff a
@@ -3482,20 +3473,23 @@ const playbackTimers = { intervals: [], timeouts: [], settle: null };
  * to the end without either losing the result or replaying it. Both are things
  * this screen now offers.
  *
- * Everything is scheduled against a VIRTUAL time that advances at `rate` times
- * real time, and exactly one setTimeout is ever outstanding - the one waiting
- * for whichever event is next. Changing the rate re-anchors the virtual clock
- * and re-times what has not happened yet; nothing already shown is disturbed,
- * and nothing pending is dropped.
+ * Everything is scheduled against a VIRTUAL time, and exactly one setTimeout is
+ * ever outstanding - the one waiting for whichever event is next. Skip empties
+ * the queue in order instead of dropping it, so a game that is skipped finishes
+ * rather than being abandoned.
  *
- * SPEED IS NOT A SIMULATION INPUT. Every number in the game - the box score,
+ * TIMING IS NOT A SIMULATION INPUT. Every number in the game - the box score,
  * the shot chart, the MVP, the events themselves - was decided by the engine
  * before this clock started. This only decides when each one appears, which is
- * why 1x, 2x and Skip cannot produce three different games.
+ * why watching a game and skipping it cannot produce two different games.
+ *
+ * `rate` is fixed at 1 and kept as one named constant rather than inlined: it
+ * is the unit conversion between virtual and real milliseconds, and spelling
+ * that out is what makes the two nowVirtual/setTimeout lines readable.
  */
 function createPlaybackClock() {
   let items = [];
-  let rate = 1;
+  const rate = 1;
   let virtual = 0;
   let anchor = null;
   let timer = null;
@@ -3551,14 +3545,6 @@ function createPlaybackClock() {
     after(delayMs, fn) {
       clock.at(nowVirtual() + delayMs, fn);
     },
-    setRate(next) {
-      if (!(next > 0) || next === rate) return;
-      virtual = nowVirtual();
-      anchor = Date.now();
-      rate = next;
-      schedule();
-    },
-    rate: () => rate,
     /** The clock's own time. A caller scheduling a whole pre-built timeline has
      * to rebase it onto the moment it starts, or every event the timeline puts
      * before that moment is already due - see playEventDriven. */
@@ -3583,7 +3569,6 @@ function createPlaybackClock() {
       clearTimer();
       anchor = null;
       virtual = 0;
-      rate = 1;
     },
     pending: () => items.length,
   };
@@ -3592,67 +3577,29 @@ function createPlaybackClock() {
 
 const playbackClock = createPlaybackClock();
 
-/** The speed the viewer last chose, remembered across games.
- *
- * A preference, not game state - which is why it is in localStorage and not in
- * the result. Reading it can throw in a browser with site data blocked, so it
- * degrades to the normal speed rather than taking the game screen down. */
-const PLAYBACK_SPEED_KEY = "draftnova.playbackSpeed";
-
-function storedPlaybackSpeed() {
-  try {
-    const raw = Number(localStorage.getItem(PLAYBACK_SPEED_KEY));
-    return raw === 2 ? 2 : 1;
-  } catch {
-    return 1;
-  }
-}
-
-function rememberPlaybackSpeed(speed) {
-  try {
-    localStorage.setItem(PLAYBACK_SPEED_KEY, String(speed));
-  } catch {
-    // A remembered preference is a convenience; losing it costs one tap.
-  }
-}
-
-/** Paints which speed is active. aria-pressed rather than a class alone: this
- * is a toggle group, and a screen reader has to be able to say which one is on. */
-function paintPlaybackSpeed(speed) {
-  for (const [button, value] of [[btnSpeed1, 1], [btnSpeed2, 2]]) {
-    if (!button) continue;
-    const on = speed === value;
-    button.classList.toggle("speed-on", on);
-    button.setAttribute("aria-pressed", on ? "true" : "false");
-  }
-}
-
-function setPlaybackSpeed(speed) {
-  playbackClock.setRate(speed);
-  rememberPlaybackSpeed(speed);
-  paintPlaybackSpeed(speed);
-}
-
-btnSpeed1?.addEventListener("click", () => setPlaybackSpeed(1));
-btnSpeed2?.addEventListener("click", () => setPlaybackSpeed(2));
 // SKIP IS NOT AN ABANDON. It runs everything still queued, in order, right now
 // - including the finish() at the end of it - so the game is recorded exactly
 // as it would have been. Walking away mid-game settles it the same way; see
 // cleanupPlayback.
+//
+// IT IS ALSO THE ONLY PLAYBACK CONTROL. There were 1x and 2x buttons here,
+// which existed because a game took three and a half minutes to watch; the fix
+// for that was to make the game a minute long, not to sell a way of halving it.
+// With them went a stored preference, a rate on the playback clock, and a
+// `speed` divisor threaded through both sports' timelines - three pieces of
+// state that could disagree about how fast a game was being shown.
 btnSkipPlayback?.addEventListener("click", () => {
   hidePlaybackControls();
   playbackClock.finishNow();
 });
 
 /** The controls come and go, THE ROW DOES NOT. `.playback-idle` hides the
- * buttons without taking their 54px out of the stage: the stage sits above the
- * box score a viewer scrolls down to read while a game plays, so a row that
+ * buttons without taking their height out of the stage: the stage sits above
+ * the box score a viewer scrolls down to read while a game plays, so a row that
  * disappeared at the final buzzer would shorten the page underneath them. See
  * scripts/verify-live-scroll.mjs, which caught exactly that. */
-function showPlaybackControls(speed) {
-  if (!playbackControlsEl) return;
-  paintPlaybackSpeed(speed);
-  playbackControlsEl.classList.remove("playback-idle");
+function showPlaybackControls() {
+  playbackControlsEl?.classList.remove("playback-idle");
 }
 
 function hidePlaybackControls() {
@@ -3701,32 +3648,34 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // again - see scripts/verify-live-scroll.mjs.
   window.scrollTo({ top: 0, behavior: "instant" });
 
-  const deltaA = computeDisplayPeriodScores(result.quarterBoxScores, result.teamScoreA, "a");
-  const deltaB = computeDisplayPeriodScores(result.quarterBoxScores, result.teamScoreB, "b");
-
+  // The board's state, and NOTHING ELSE'S. These are the presentation's own
+  // running totals, folded from the events already revealed - see THE LIVE
+  // LEDGER in each sport's playback module. The authoritative result sits
+  // untouched in `result` and is read only at the final whistle.
   const periodsSoFar = [];
   let runningA = 0;
   let runningB = 0;
-  let i = 0;
+  // The frame a live box-score repaint is waiting on. Held HERE rather than
+  // inside the driver so finish() can cancel it: a frame still queued when a
+  // viewer walks out mid-game would land after the authoritative box score had
+  // been rendered and paint the half-finished live one back over it.
+  let boxFrame = 0;
 
-  // Cumulative per-slot totals, grown as each period is revealed, so the live
-  // box score builds through the game instead of appearing finished.
-  const scoreTickIntervals = playbackTimers.intervals;
   // Seeded from the SPORT's own line keys. These were basketball's six
   // literals, so a football game opened on a live table of PTS/REB/AST that
   // had nowhere to put a completion - the football columns existed in the
   // header with no key behind them to accumulate into.
   const liveTotals = { a: {}, b: {} };
   const emptyLine = () => {
-    const line = { pts: 0 };
-    for (const key of sport().lineKeys) line[key] = 0;
+    const line = {};
+    for (const key of liveStatKeys(sport())) line[key] = 0;
     return line;
   };
   for (const slot of Object.keys(rosterA)) liveTotals.a[slot] = emptyLine();
   for (const slot of Object.keys(rosterB)) liveTotals.b[slot] = emptyLine();
 
-  // One box score for the whole game: the same table fills in live as periods
-  // are revealed, then gains shooting splits at the final buzzer. Showing a
+  // One box score for the whole game: the same table fills in live as the game
+  // is played, then gains shooting splits at the final buzzer. Showing a
   // reduced live table alongside a separate full one meant two box scores on
   // screen saying different things.
   fullBoxScore.classList.remove("hidden");
@@ -3745,14 +3694,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   let fieldRefs = null;
   // The whole game's playback, built as data before a single timer starts.
   let timeline = { events: [], totalMs: 0 };
-  // The board's centre cell has TWO writers: the per-play loop below, and
-  // tickScoreTo's 60ms score animation, which re-renders the whole board for
-  // QUARTER_TICK_MS at the start of every period. Without one value they both
-  // read, the score animation spends the first 1.5s of each quarter painting
-  // "Q3 in progress" over a clock that is trying to count down, and the clock
-  // appears to freeze at every period break. Whoever writes last wins is not a
-  // design; this is.
-  let liveStatus = null;
   if (sport().presentation.stage === "field" && Array.isArray(result.drives) && result.drives.length) {
     fieldRefs = sport().presentation.renderField(footballFieldEl, labelA, labelB);
     timeline = sport().presentation.buildTimeline?.(result.drives) || timeline;
@@ -3785,161 +3726,28 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   const ledgerEvents = Array.isArray(result.shotEvents) ? result.shotEvents : [];
   let ledger = { events: hydrate ? hydrate(ledgerEvents, rosterA, rosterB) : ledgerEvents };
 
-  // How long each of those events is on screen. Built once, at 1x; the speed
-  // control changes the CLOCK's rate rather than rebuilding this, so switching
-  // to 2x mid-game cannot re-time an event that has already been shown.
-  const buildTimeline = sport().presentation.buildPlaybackTimeline;
-  const shotTimeline = buildTimeline && ledger.events.length ? buildTimeline(ledger.events) : null;
-  const QUARTER_CARD_MS = sport().presentation.quarterCardMs ?? 1400;
-  // Every event's index, once. indexOf inside the per-event handler is O(n) over
-  // a few hundred events on every one of them, which is the shape of the bug
-  // that froze this app on a single click.
-  const indexOfEvent = new Map(ledger.events.map((event, i) => [event, i]));
-
-  function playQuarterShots(period) {
-    if (!courtRefs || !shotTimeline) return;
-    const ofPeriod = shotTimeline.events.filter((e) => e.event.period === period);
-    if (!ofPeriod.length) return;
-
-    // THE TIMELINE DECIDES THE PACE, and the period reveal waits for it - the
-    // same contract football's field playback has had. This used to divide a
-    // fixed 4.2-second hold among the quarter's ninety-odd events, which gave
-    // an ordinary shot about 25 milliseconds and finished a whole NBA game in
-    // seventeen seconds. See js/sports/nba/playback.js for what replaced it.
-    const base = ofPeriod[0].atMs;
-
-    ofPeriod.forEach(({ event, atMs }) => {
-      // THE INDEX INTO THE WHOLE LEDGER, not into this period. The live strip
-      // is folded from the start of the game up to the event on screen, so it
-      // needs to know where this event sits in the game rather than in the
-      // quarter - folding from the quarter would reset every number to zero
-      // four times.
-      const index = indexOfEvent.get(event) ?? 0;
-      playbackClock.after(atMs - base, () => {
-        // The clock belongs on the board, where a broadcast puts it and where
-        // the eye already is. Basketball's is derived (the engine has no clock)
-        // and the ledger is blunt about that; what it gives is a reading that
-        // counts down and restarts each quarter.
-        liveStatus = sport().presentation.liveStatusLabel?.(event) || liveStatus;
-        setScoreboardStatus(liveScoreboard, liveStatus);
-
-        // Folded ONCE per event and handed to the court. Folding inside
-        // showEvent would be O(n squared) over a few hundred events, which is
-        // the shape of the bug that froze this app on a single click.
-        sport().presentation.showEvent(courtRefs, event, sport().presentation.foldLiveStats(ledger.events, index));
-
-        // The possession feed. Not every event - a line for all four hundred is
-        // a wall nobody follows, and the court already showed the ordinary
-        // ones. What reaches the feed is what a commentator would say: a make
-        // worth naming, and every takeaway.
-        const said = sport().presentation.describeEvent(event);
-        const worthSaying =
-          (event.type === "shot" &&
-            event.made &&
-            (event.shotType === "three" || event.strong || event.runPoints || event.leadChange || event.endOfPeriod)) ||
-          event.type === "steal" ||
-          event.type === "block";
-        if (said && worthSaying) {
-          pushPlayHeadline(
-            playFeedEl,
-            `${said.player} — ${said.detail}${said.verdict ? ` — ${said.verdict}` : ""}`,
-            event.leadChange ? "lead-change" : ""
-          );
-        }
-
-        // The sound names the KIND of shot, and the throttle in sound.js keeps
-        // a busy quarter from turning into a buzz. A miss is quieter than a
-        // make on purpose - the court already shows every attempt, and the
-        // sound is there to mark the ones that changed the score.
-        if (event.type === "shot") {
-          playSound(
-            !event.made ? "shotMiss" : event.strong ? "rimFinish" : event.shotType === "three" ? "shotThree" : "shotMade"
-          );
-        } else if (event.type === "steal" || event.type === "block") {
-          playSound("steal");
-        }
-
-        // The two things a person watching would say out loud. Both are read
-        // off the ledger's running score, so they can never disagree with the
-        // scoreboard ticking up beside them.
-        if (event.leadChange) {
-          const who = event.side === "a" ? labelA : labelB;
-          pushPlayHeadline(playFeedEl, `${who} TAKE THE LEAD`, "lead-change");
-          playSound("steal");
-        } else if (event.runPoints) {
-          const who = event.runSide === "a" ? labelA : labelB;
-          pushPlayHeadline(playFeedEl, `${who} ON A ${event.runPoints}-0 RUN`, "run");
-        }
-      });
-    });
+  // ONE TIMELINE SHAPE FOR EVERY SPORT: a flat list of events, each carrying
+  // `quarter`, `atMs`, `durationMs` and `quiet`. Football's builder already
+  // emitted exactly that; basketball's wraps its ledger events, so they are
+  // flattened here rather than teaching the driver two shapes. The copy is
+  // shallow and happens once - the ledger itself is never written to, because
+  // it is the authoritative record the final box score is checked against.
+  const buildShotTimeline = sport().presentation.buildPlaybackTimeline;
+  if (buildShotTimeline && ledger.events.length) {
+    const built = buildShotTimeline(ledger.events);
+    timeline = {
+      events: built.events.map(({ event, atMs, durationMs, quiet }) => ({
+        ...event,
+        quarter: event.period,
+        atMs,
+        durationMs,
+        quiet: !!quiet,
+      })),
+      totalMs: built.totalMs,
+      periods: built.periods,
+    };
   }
 
-  /**
-   * Plays one period's slice of the timeline.
-   *
-   * The events already carry their own offsets, so this only has to rebase
-   * them onto the moment the period starts. Timing comes from the timeline,
-   * not from the period's hold - which is what stops a game with few drives
-   * crawling and one with many flickering past.
-   */
-  /** How long one period's events actually take, at the pace the timeline was
-   * built for. Zero when this sport has no timeline. */
-  function timelineSpanFor(period) {
-    const ofPeriod = timeline.events.filter((e) => e.quarter === period);
-    if (!ofPeriod.length) return 0;
-    const last = ofPeriod[ofPeriod.length - 1];
-    return Math.max(0, last.atMs + last.durationMs - ofPeriod[0].atMs);
-  }
-
-  /**
-   * Plays one period's slice of the timeline, AT ITS OWN PACE.
-   *
-   * This used to compress the slice to fit basketball's quarter hold: a
-   * quarter of football spans about eight seconds and the hold is 3.8, so
-   * every event was shown at under half the speed it was designed for. That
-   * is the whole of "the simulation finishes too quickly to follow" - the
-   * timeline was right and the harness around it was throwing the pacing
-   * away.
-   *
-   * Nothing is squeezed now. The period reveal WAITS for the timeline
-   * instead (see holdFor below), which is the only way the ball, the down and
-   * distance, the description and the score can stay in step with each other.
-   */
-  function playQuarterEvents(period) {
-    if (!fieldRefs) return;
-    const ofPeriod = timeline.events.filter((e) => e.quarter === period);
-    if (!ofPeriod.length) return;
-    const base = ofPeriod[0].atMs;
-    for (const event of ofPeriod) {
-      playbackClock.after(event.atMs - base, () => {
-          sport().presentation.showEvent(fieldRefs, event);
-          // The clock belongs on the board, where a broadcast puts it and
-          // where the eye already is. Sports without a play clock leave this
-          // hook off and keep the board's plain period text.
-          liveStatus = sport().presentation.liveStatusLabel?.(event) || liveStatus;
-          setScoreboardStatus(liveScoreboard, liveStatus);
-          // Only the moments worth reading go to the feed. Every snap would
-          // be a wall of text nobody follows, and the ball already showed the
-          // ordinary ones.
-          if (event.scoring > 0 || event.turnover) {
-            pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
-          }
-      });
-    }
-  }
-
-  /** The pause before the next period is revealed. A sport with a timeline
-   * gets however long that period's events genuinely take; everything else
-   * keeps basketball's fixed hold. */
-  function holdFor(period, isOtPeriod) {
-    const fixed = isOtPeriod ? OT_REVEAL_DELAY_MS : QUARTER_REVEAL_DELAY_MS;
-    // Basketball's own timeline, which includes the between-quarters card at
-    // the end of the period it summarises.
-    const shotSpan = shotTimeline ? sport().presentation.periodSpan?.(shotTimeline, period) ?? 0 : 0;
-    if (shotSpan > 0) return Math.max(fixed, shotSpan);
-    const span = timelineSpanFor(period);
-    return span > 0 ? Math.max(fixed, span + 250) : fixed;
-  }
   pushPlayHeadline(playFeedEl, `${labelA} vs ${labelB} — ${sport().labels.opening}`);
 
   // The player each side's memo named last period. A team's best quarter is
@@ -4015,43 +3823,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     }
   }
 
-  /** Animates the scoreboard from one period's totals to the next. `onDone`
-   * (optional) fires right as the numbers land on the new total - that's
-   * when a period-end flash actually reads as tied to the score, not just
-   * to a timer running somewhere else. */
-  function tickScoreTo(fromA2, fromB2, toA, toB, periods, remaining, duringLabel, doneLabel, onDone, tickMs) {
-    const started = Date.now();
-    const tick = setInterval(() => {
-      const t = Math.min(1, (Date.now() - started) / (tickMs || QUARTER_TICK_MS));
-      const eased = 1 - Math.pow(1 - t, 2);
-      const done = t >= 1;
-      renderScoreboard(
-        liveScoreboard,
-        labelA,
-        labelB,
-        periods,
-        remaining,
-        Math.round(fromA2 + (toA - fromA2) * eased),
-        Math.round(fromB2 + (toB - fromB2) * eased),
-        done ? doneLabel : liveStatus || duringLabel,
-        true
-      );
-      // renderScoreboard REBUILDS the centre cell, so the ticking state has to
-      // go back on after it. Without this the class survives exactly until the
-      // next score frame and the clock blinks anyway - which is precisely how
-      // this shipped the first time.
-      if (!done && liveStatus) setScoreboardStatus(liveScoreboard, liveStatus);
-      if (done) {
-        // The period is over: drop the last clock reading so the next quarter
-        // does not open showing the previous one's final seconds.
-        liveStatus = null;
-        clearInterval(tick);
-        if (onDone) onDone();
-      }
-    }, 60);
-    scoreTickIntervals.push(tick);
-  }
-
   /** Retriggers a CSS animation class on `el` - removing then re-adding a
    * class that's already present is a no-op without a reflow between the
    * two, so back-to-back flashes (e.g. two period-end flashes in a row)
@@ -4062,147 +3833,6 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
     el.classList.add(cls);
   }
 
-  /**
-   * The between-quarters card: the period, the score, who led it, and how the
-   * two teams shot.
-   *
-   * The leading scorer comes from the ENGINE's own period lines - the same
-   * numbers the box score is built from - and the shooting from the ledger
-   * folded to the end of that period. Two sources, both authoritative, neither
-   * of them recomputed here.
-   */
-  function scheduleQuarterBreak(periodIndex, label, holdMs) {
-    if (!courtRefs) return;
-    const period = result.quarterBoxScores[periodIndex];
-    if (!period) return;
-
-    // Whose quarter it was, across both rosters. A bot's big period is still
-    // the answer to "who led the scoring", and hiding it would make the card
-    // a card about one team.
-    let leader = null;
-    for (const [key, roster] of [["a", rosterA], ["b", rosterB]]) {
-      for (const slot of Object.keys(period[key] || {})) {
-        const points = Number(period[key][slot]?.pts) || 0;
-        const player = roster[slot];
-        if (!player || points <= 0) continue;
-        if (!leader || points > leader.points) leader = { name: player.name, points: Math.round(points) };
-      }
-    }
-
-    // The last event of this period is where the fold has to stop: a card
-    // shown at the end of Q2 must show Q2's shooting, not the whole game's.
-    const lastIndex = ledger.events.reduce(
-      (found, event, index) => (event.period === periodIndex + 1 ? index : found),
-      -1
-    );
-    const stats = lastIndex >= 0 ? sport().presentation.foldLiveStats(ledger.events, lastIndex) : null;
-
-    // CAPTURED NOW, not read when the timer fires. runningA and runningB are
-    // the reveal loop's own counters and keep moving; a card that read them at
-    // fire time would be one race away from showing the next quarter's score
-    // under the last quarter's heading.
-    const scoreA = runningA;
-    const scoreB = runningB;
-    playbackClock.after(Math.max(0, holdMs - QUARTER_CARD_MS), () => {
-      sport().presentation.showQuarterBreak(courtRefs, { label, scoreA, scoreB, leader, stats });
-    });
-  }
-
-  function step() {
-    if (i >= deltaA.length) {
-      finish();
-      return;
-    }
-    const fromA = runningA;
-    const fromB = runningB;
-    const isOt = result.quarterBoxScores[i].overtime;
-    const label = periodLabel(i);
-    periodsSoFar.push({ label, a: deltaA[i], b: deltaB[i] });
-    runningA += deltaA[i];
-    runningB += deltaB[i];
-
-    // A real lead change (not just the opening 0-0 tie resolving) gets its
-    // own flash and headline - the score ticking up is the baseline, this is
-    // the moment actually worth reacting to.
-    const prevLeader = fromA === fromB ? null : fromA > fromB ? "A" : "B";
-    const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
-    const leadChanged = !!newLeader && !!prevLeader && newLeader !== prevLeader;
-
-    // The stats this sport keeps, not basketball's six literals. A football
-    // period line has no `reb`, so every one of those added undefined and
-    // turned the running total into NaN, while a completion or a passing yard
-    // was never added at all because nothing asked for it.
-    const statKeys = liveStatKeys(sport());
-    for (const key of ["a", "b"]) {
-      const period = result.quarterBoxScores[i][key];
-      for (const slot of Object.keys(liveTotals[key])) {
-        accumulatePeriodStats(liveTotals[key][slot], period[slot], statKeys);
-      }
-    }
-
-    const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
-    const periodsRemaining = Math.max(0, REGULATION_PERIODS - regulationPlayed);
-
-    // Climb to the new totals instead of snapping to them, so a quarter reads
-    // as being played rather than reported. The flash fires once the count
-    // actually lands - a bigger, buzzer-colored one for a lead change, the
-    // calmer accent one for an ordinary period end.
-    tickScoreTo(
-      fromA,
-      fromB,
-      runningA,
-      runningB,
-      periodsSoFar,
-      periodsRemaining,
-      `${label} in progress`,
-      `End of ${label}`,
-      () => flashClass(liveScoreboard, leadChanged ? "lead-flash" : "period-flash"),
-      // Overtime counts up slower, so a two-point period is watchable rather
-      // than a number that changes between blinks.
-      isOt ? OT_TICK_MS : QUARTER_TICK_MS
-    );
-    // A card up from the last quarter comes down before the next one starts.
-    // Taken down HERE rather than on a timer of its own: a timer would have to
-    // be cancelled if the viewer left, and the card would otherwise sit over
-    // live play if a quarter ran short.
-    if (courtRefs) sport().presentation.hideQuarterBreak(courtRefs);
-    // Football's playback runs off its own timeline (below), built once for
-    // the whole game rather than sliced out of each quarter's hold - see
-    // js/sports/nfl/playback.js for why that distinction matters.
-    playQuarterEvents(i + 1);
-    playQuarterShots(i + 1);
-    // The quarter card, at the END of the period whose events were just
-    // scheduled - so it lands on the beat the last shot of the quarter earns
-    // (the timeline gives the last event of a quarter the longest hold in it).
-    // Every number on it is read off the
-    // ledger and the engine's own box score, so it cannot disagree with the
-    // scoreboard it is covering.
-    scheduleQuarterBreak(i, label, holdFor(i + 1, isOt));
-    renderFullBoxScore(fullBoxScore, rosterA, liveTotals.a, labelA, rosterB, liveTotals.b, labelB, null, null, minutesA, minutesB);
-    announcePeriod(i, label);
-    if (leadChanged) {
-      const leaderLabel = newLeader === "A" ? labelA : labelB;
-      pushPlayHeadline(
-        playFeedEl,
-        `${leaderLabel} ${subjectVerb(leaderLabel, "takes", "take")} the lead in ${label}`,
-        "lead-change"
-      );
-    }
-
-    // The period just revealed is the one whose events are now playing, so
-    // the wait has to be ITS span - read before `i` moves on to the next.
-    const wait = holdFor(i + 1, isOt);
-    i += 1;
-    // Overtime holds longer - see OT_REVEAL_DELAY_MS. isOt is this period, so
-    // the pause after it is the one that lets the decisive score land.
-    // REGISTERED, because this is the timer that schedules the NEXT quarter:
-    // leaving mid-game without cancelling it means the game keeps revealing
-    // itself, quarter by quarter, onto a screen the player has left.
-    // ON THE PLAYBACK CLOCK, not a bare timer: the period reveal has to speed
-    // up and slow down with the events inside it, and Skip has to be able to
-    // run the rest of the game from here.
-    playbackClock.after(wait, step);
-  }
 
 /** The shot chart under a finished basketball game.
  *
@@ -4287,11 +3917,13 @@ function showShotChart(events, labelA, labelB) {
   function finish(silent = false) {
     if (finished) return;
     finished = true;
-    // Everything still waiting to draw on a game that is over: the score
-    // ticker, the field's plays, and the shot ledger's play lines. One of those
-    // firing after the whistle lands on the next game's feed, or on a screen
-    // that has moved on.
+    // Everything still waiting to draw on a game that is over: the queued
+    // events, the pending box-score frame, and any timer a celebration owns.
+    // One of those firing after the whistle lands on the next game's feed, or
+    // paints the live table back over the final one.
     cleanupPlayback();
+    if (boxFrame) cancelAnimationFrame(boxFrame);
+    boxFrame = 0;
     hidePlaybackControls();
     renderScoreboard(liveScoreboard, labelA, labelB, periodsSoFar, 0, runningA, runningB, "Final", false);
     flashClass(gameStageEl, "final-flash");
@@ -4473,22 +4105,35 @@ function showShotChart(events, labelA, labelB) {
   }
 
   /**
-   * Playback for a sport that keeps a LIVE LEDGER - one event at a time,
-   * nothing revealed before the play that produced it.
+   * THE PLAYBACK: one event at a time, nothing revealed before the play that
+   * produced it.
    *
-   * The period path above (`step`) reveals a whole quarter at once: it
-   * accumulates `result.quarterBoxScores[i]` into the running totals the
-   * moment quarter i begins, and only then starts playing that quarter's
-   * events. For basketball that is exactly right - the quarter reveal IS the
-   * presentation. For football it meant the scoreboard showed the quarter's
-   * final score at its first snap and the box score showed every yard still
-   * to be gained, so the plays that followed were a replay of a result the
-   * viewer had already been given.
+   * WHAT THIS REPLACED, AND WHY IT WAS WRONG. Basketball used to be revealed a
+   * PERIOD at a time: at the first tick of Q1 it pushed
+   * result.quarterBoxScores[0] into the running totals - the quarter's finished
+   * score AND every player's finished line for it - animated the board up to
+   * them over a second and a half, and only then began playing the events that
+   * produced them. So the board read 36-24 with 9:52 left in the first, and the
+   * fifty shots underneath were a replay of a result the viewer had already
+   * been handed. Football had exactly the same bug and was fixed first; this is
+   * that fix, generalised, and the period path is gone.
    *
-   * Here the state is a fold of the events shown so far and nothing else, so
-   * a viewer knows exactly as much as the play feed has told them. The sport
-   * owns the folding (see js/sports/nfl/playback.js); this function only
-   * decides when each event is shown and what on screen reacts to it.
+   * THE TWO STATES, KEPT APART.
+   *
+   *   result       the AUTHORITATIVE record. Read at the final whistle and
+   *                nowhere else. Playback cannot write to it and never
+   *                recomputes any part of it.
+   *   live         the PRESENTATION state: a pure fold of the events already
+   *                shown. Every number on screen during a game comes from here.
+   *
+   * Because each sport's ledger is an exact expansion of its own box score, the
+   * fold of ALL the events is the result - so the last frame of playback and
+   * the authoritative final are the same numbers by construction, not by two
+   * derivations happening to agree. Skip proves it: it runs the rest of the
+   * queue immediately and lands on the identical screen.
+   *
+   * The sport owns the folding (see THE LIVE LEDGER in each playback module);
+   * this decides only WHEN each event is shown and what on screen reacts to it.
    */
   /** Whose drive it was, in the names actually on screen. */
   function possessionLabel(side) {
@@ -4499,22 +4144,46 @@ function showShotChart(events, labelA, labelB) {
     // THE TIMELINE STARTS AT ZERO; THE CLOCK DOES NOT.
     //
     // This runs after the opening hold, so the clock's virtual time is already
-    // past QUARTER_REVEAL_DELAY_MS by the time the first snap is scheduled.
+    // past OPENING_HOLD_MS by the time the first event is scheduled.
     // Scheduling a timeline offset directly - `at(event.atMs)` - therefore put
-    // every event of the first four seconds in the PAST, and they all fired at
-    // once: the kickoff and the opening drive flashed by in a single frame
-    // before the game settled into its proper pace. Rebasing onto the moment
-    // playback actually begins is what keeps a pre-built timeline in step with
-    // a clock that has already been running.
+    // every event of the first few seconds in the PAST, and they all fired at
+    // once: the opening flashed by in a single frame before the game settled
+    // into its proper pace. Rebasing onto the moment playback actually begins
+    // is what keeps a pre-built timeline in step with a clock that has already
+    // been running.
     const base = playbackClock.now();
     const presentation = sport().presentation;
     const live = presentation.createLiveState({ rosterA, rosterB });
+    // The feed's voice, made fresh for this game. A sport without one falls
+    // back to the plain scoring/turnover lines below.
+    const feedLine = presentation.createFeedVoice?.() || null;
+    // Whichever stage this sport draws on. One name, because everything below
+    // treats it the same way: hand it the event, let the sport decide what that
+    // looks like.
+    const stageRefs = fieldRefs || courtRefs;
     // A quarter's summary is published once, by whichever event ends it.
     const published = new Set();
     let leader = null;
+    // Whether a between-periods card is currently over the stage. Taken down by
+    // the next event rather than on a timer of its own, so it can never sit
+    // over live play and never needs cancelling when a viewer leaves.
+    let breakShowing = false;
 
+    /**
+     * A period number, as the board names it and as the recap indexes it.
+     *
+     * TWO WAYS TO FIND IT, because the two sports record a period differently.
+     * Football stamps `period` onto each entry of quarterBoxScores; basketball's
+     * entries are `{a, b}` and the period IS the position - and reading only the
+     * stamp meant every basketball lookup returned -1, so no quarter was ever
+     * published, no card was ever shown, and the board finished a game with an
+     * empty grid beside a correct total. Caught by scripts/verify-nba-court.mjs,
+     * which is exactly the class of wiring bug a Node test cannot see.
+     */
     const labelForQuarter = (quarter) => {
-      const idx = result.quarterBoxScores.findIndex((q) => q.period === quarter);
+      if (quarter == null) return null;
+      let idx = result.quarterBoxScores.findIndex((q) => q.period === quarter);
+      if (idx < 0 && quarter >= 1 && quarter <= result.quarterBoxScores.length) idx = quarter - 1;
       if (idx < 0) return null;
       return { idx, label: periodLabel(idx) };
     };
@@ -4522,13 +4191,13 @@ function showShotChart(events, labelA, labelB) {
     // WHAT THE BOARD IS ALREADY SHOWING, so a repaint happens only when
     // something on it has actually changed.
     //
-    // This is called on EVERY event - roughly 130 times a game, most of them
-    // an ordinary snap that scored nothing - and it used to rebuild the whole
-    // scoreboard each time. Two things came of that, and the second is the one
-    // a viewer complains about:
+    // This is called on EVERY event - a few hundred times a basketball game,
+    // most of them a miss that changed no number on the board - and it used to
+    // rebuild the whole scoreboard each time. Two things came of that, and the
+    // second is the one a viewer complains about:
     //
     //   The score elements were destroyed and recreated between plays, so the
-    //   `pulse` glow on them restarted from frame zero about twice a second.
+    //   `pulse` glow on them restarted from frame zero several times a second.
     //   A number that is meant to sit still and breathe instead twitched.
     //
     //   The period table was thrown away and re-parsed to change one string.
@@ -4536,35 +4205,97 @@ function showShotChart(events, labelA, labelB) {
     //   own comment - it just was never the only writer, so the saving it
     //   describes was never actually taken on this path.
     //
-    // The board's state is the two totals and the quarter columns; everything
-    // else on it is fixed for the game. So those three are what is compared,
-    // and between scores the centre cell is the only thing that moves.
+    // The board's state is the two totals, the quarter columns and the LIVE
+    // cell for the quarter in progress; everything else on it is fixed for the
+    // game. So those are what is compared, and between scores the centre cell
+    // is the only thing that moves.
     let paintedA = null;
     let paintedB = null;
     let paintedPeriods = -1;
+    let paintedLive = null;
 
-    const paint = (statusLabel, ticking = false) => {
-      if (runningA === paintedA && runningB === paintedB && periodsSoFar.length === paintedPeriods) {
+    /**
+     * The quarter columns, as watched.
+     *
+     * Completed periods carry their finished totals; the one in progress
+     * carries the score SO FAR and is marked live; periods that have not
+     * started are not in the list at all, and renderScoreboard prints a dash
+     * for them. That last part is the whole requirement - a game two minutes
+     * old must not be able to tell you what the fourth quarter finished.
+     */
+    const columnsFor = (quarter) => {
+      if (quarter == null || published.has(quarter)) return periodsSoFar;
+      const named = labelForQuarter(quarter);
+      if (!named) return periodsSoFar;
+      const points = presentation.livePeriodScore
+        ? presentation.livePeriodScore(live, quarter)
+        : null;
+      if (!points) return periodsSoFar;
+      return [...periodsSoFar, { label: named.label, a: Math.round(points.a), b: Math.round(points.b), live: true }];
+    };
+
+    const paint = (statusLabel, { ticking = false, quarter = null } = {}) => {
+      const columns = columnsFor(quarter);
+      const liveCell = columns.length > periodsSoFar.length
+        ? `${columns[columns.length - 1].a}-${columns[columns.length - 1].b}`
+        : null;
+      if (
+        runningA === paintedA &&
+        runningB === paintedB &&
+        periodsSoFar.length === paintedPeriods &&
+        liveCell === paintedLive
+      ) {
         setScoreboardStatus(liveScoreboard, statusLabel, ticking);
         return;
       }
       paintedA = runningA;
       paintedB = runningB;
       paintedPeriods = periodsSoFar.length;
-      const regulationPlayed = periodsSoFar.filter((p) => !p.label.startsWith("OT")).length;
+      paintedLive = liveCell;
+      // Columns that have not been STARTED, which is what reads "-". The live
+      // column is one of `columns` now, so it has to come out of the pending
+      // count or the board grows a fifth quarter the moment Q1 tips off.
+      const regulationShown = columns.filter((p) => !p.label.startsWith("OT")).length;
       renderScoreboard(
         liveScoreboard,
         labelA,
         labelB,
-        periodsSoFar,
-        Math.max(0, REGULATION_PERIODS - regulationPlayed),
+        columns,
+        Math.max(0, REGULATION_PERIODS - regulationShown),
         runningA,
         runningB,
         statusLabel,
         true
       );
-      // Same rebuild, same reason as tickScoreTo above.
+      // renderScoreboard REBUILDS the centre cell when the board's shape
+      // changes, so the ticking state has to go back on after it.
       if (ticking) setScoreboardStatus(liveScoreboard, statusLabel, ticking);
+    };
+
+    /**
+     * THE BOX SCORE, COALESCED ONTO A FRAME.
+     *
+     * Basketball produces an event every 150-400ms and every one of them moves
+     * some player's line, so repainting the table inline would rebuild a
+     * twenty-row table several times a second for a minute. The table is above
+     * the fold on a phone and under the reader's thumb; rebuilding it that
+     * often is both the churn requirement 19 is about and a scroll hazard.
+     *
+     * One frame is the right granularity: nothing is ever more than 16ms stale,
+     * a burst of folded events lands as a single repaint, and the browser gets
+     * to schedule it. The pending flag is cleared BEFORE the paint so an event
+     * firing inside the same frame queues the next one rather than being lost.
+     */
+      const repaintBox = () => {
+      boxFrame = 0;
+      renderFullBoxScore(
+        fullBoxScore, rosterA, presentation.liveBox(live, "A"), labelA,
+        rosterB, presentation.liveBox(live, "B"), labelB, null, null, minutesA, minutesB
+      );
+    };
+    const scheduleBoxPaint = () => {
+      if (boxFrame) return;
+      boxFrame = requestAnimationFrame(repaintBox);
     };
 
     /**
@@ -4572,7 +4303,7 @@ function showShotChart(events, labelA, labelB) {
      * point: the summary is a report of something the viewer has now watched
      * rather than a preview of something they have not.
      *
-     * The score comes from the live ledger, not from quarterBoxScores, so the
+     * The score comes from the live fold, not from quarterBoxScores, so the
      * column can never disagree with the running total beside it.
      */
     const publishPeriod = (quarter) => {
@@ -4580,97 +4311,159 @@ function showShotChart(events, labelA, labelB) {
       const named = labelForQuarter(quarter);
       if (!named) return;
       published.add(quarter);
-      const points = live.quarterScores[quarter] || { A: 0, B: 0 };
-      periodsSoFar.push({ label: named.label, a: Math.round(points.A), b: Math.round(points.B) });
+      const points = presentation.livePeriodScore
+        ? presentation.livePeriodScore(live, quarter)
+        : { a: 0, b: 0 };
+      periodsSoFar.push({ label: named.label, a: Math.round(points.a), b: Math.round(points.b) });
       paint(`End of ${named.label}`);
       flashClass(liveScoreboard, "period-flash");
       announcePeriod(named.idx, named.label);
+      // The card between periods, for a sport that draws one. Every number on
+      // it comes off the live fold and the engine's own period lines, so it
+      // cannot disagree with the board it is covering.
+      if (stageRefs && presentation.showQuarterBreak) {
+        presentation.showQuarterBreak(stageRefs, {
+          label: named.label,
+          scoreA: Math.round(points.a),
+          scoreB: Math.round(points.b),
+          leader: periodLeader(named.idx),
+          stats: presentation.liveTeamStats?.(live) || null,
+        });
+        breakShowing = true;
+      }
     };
 
     for (const event of timeline.events) {
       playbackClock.at(base + event.atMs, () => {
-          presentation.applyEvent(live, event);
-          const score = presentation.liveScore(live);
-          const scoreMoved = score.A !== runningA || score.B !== runningB;
-          runningA = score.A;
-          runningB = score.B;
+        presentation.applyEvent(live, event);
+        const score = presentation.liveScore(live);
+        const scoreMoved = score.A !== runningA || score.B !== runningB;
+        runningA = score.A;
+        runningB = score.B;
+        // Only a play that produced something changes the table. Football's
+        // kickoffs and drive starts carry no player production; basketball's
+        // events all do, and the frame coalescing above is what keeps that
+        // affordable.
+        if (event.playerDeltas || presentation.eventChangesBox?.(event)) scheduleBoxPaint();
 
-          if (fieldRefs) sport().presentation.showEvent(fieldRefs, event);
-          // Only the moments worth reading go to the feed - every snap would
-          // be a wall of text nobody follows, and the ball already showed the
-          // ordinary ones.
-          if (event.scoring > 0 || event.turnover) {
-            pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
-          } else if (event.driveSummary) {
-            // Every drive gets its epitaph, not just the ones that scored. A
-            // twelve-play march that stalled on the 4 used to look exactly
-            // like a three-and-out, because the feed only spoke about points.
-            pushPlayHeadline(playFeedEl, `${possessionLabel(event.possession)}: ${event.text}`, "drive-summary");
-          }
+        // A FOLDED EVENT HAS NO TURN ON SCREEN. It has already been counted
+        // into the fold above - so the rebound is in the REB column and the
+        // strip - it simply shares the beat of the event that follows it
+        // rather than spending one of its own. See isQuietEvent.
+        if (event.quiet) return;
 
-          // Only a play that produced something changes the table. Kickoffs
-          // and drive starts carry no player production, and rebuilding the
-          // box score for them would be pure churn.
-          if (event.playerDeltas) {
-            renderFullBoxScore(
-              fullBoxScore, rosterA, presentation.liveBox(live, "A"), labelA,
-              rosterB, presentation.liveBox(live, "B"), labelB, null, null, minutesA, minutesB
+        // The card from the last period comes down as the next one starts.
+        if (breakShowing && presentation.hideQuarterBreak) {
+          presentation.hideQuarterBreak(stageRefs);
+          breakShowing = false;
+        }
+
+        // THE STAGE, THE SCORE AND THE STRIP MOVE TOGETHER. One handler, one
+        // frame: the shot marker, the points on the board, the quarter cell and
+        // the live shooting line are all written from the same event, so there
+        // is no arrangement of them in which the chart is ahead of the score or
+        // behind it.
+        if (stageRefs) presentation.showEvent(stageRefs, event, presentation.liveTeamStats?.(live));
+
+        // Only the moments worth reading go to the feed. A line for every event
+        // is a wall nobody follows, and the stage already showed the ordinary
+        // ones. WHAT counts as worth reading is the sport's to say.
+        const said = feedLine?.(event, { labelA, labelB });
+        if (said) pushPlayHeadline(playFeedEl, said.text, said.kind || "");
+        else if (event.scoring > 0 || event.turnover) {
+          pushPlayHeadline(playFeedEl, event.text, event.scoring > 0 ? "lead-change" : "");
+        } else if (event.driveSummary) {
+          // Every drive gets its epitaph, not just the ones that scored. A
+          // twelve-play march that stalled on the 4 used to look exactly
+          // like a three-and-out, because the feed only spoke about points.
+          pushPlayHeadline(playFeedEl, `${possessionLabel(event.possession)}: ${event.text}`, "drive-summary");
+        }
+
+        const sfx = presentation.eventSound?.(event);
+        if (sfx) playSound(sfx);
+
+        // A lead change is caught on the SCORING PLAY, which is when it
+        // actually happens.
+        if (scoreMoved) {
+          const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
+          if (newLeader && leader && newLeader !== leader) {
+            const leaderLabel = newLeader === "A" ? labelA : labelB;
+            pushPlayHeadline(
+              playFeedEl,
+              `${leaderLabel} ${subjectVerb(leaderLabel, "takes", "take")} the lead`,
+              "lead-change"
             );
+            flashClass(liveScoreboard, "lead-flash");
           }
+          if (newLeader) leader = newLeader;
+        }
 
-          // A lead change is now caught on the SCORING PLAY rather than at the
-          // quarter break, which is when it actually happens.
-          if (scoreMoved) {
-            const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
-            if (newLeader && leader && newLeader !== leader) {
-              const leaderLabel = newLeader === "A" ? labelA : labelB;
-              pushPlayHeadline(
-                playFeedEl,
-                `${leaderLabel} ${subjectVerb(leaderLabel, "takes", "take")} the lead`,
-                "lead-change"
-              );
-              flashClass(liveScoreboard, "lead-flash");
-            }
-            if (newLeader) leader = newLeader;
-          }
-
-          if (event.type === "quarterEnd" || event.type === "halfEnd" || event.type === "gameEnd") {
-            publishPeriod(event.quarter);
-          } else {
-            const named = labelForQuarter(event.quarter);
-            // Football puts the running clock in the board's centre cell.
-            // Online repaints the board once per event anyway, so unlike the
-            // offline path this needs no second writer - the clock is just a
-            // better status label.
-            const ticking = sport().presentation.liveStatusLabel?.(event);
-            paint(ticking || (named ? `${named.label} in progress` : openingLabel()), !!ticking);
-          }
+        if (event.type === "quarterEnd" || event.type === "halfEnd" || event.type === "gameEnd" || event.endOfPeriod) {
+          publishPeriod(event.quarter);
+        } else {
+          const named = labelForQuarter(event.quarter);
+          // The sport's own clock in the board's centre cell. Basketball's is
+          // derived from the ledger and JUMPS between events rather than
+          // counting down - there is no possession between two shots to count
+          // through, and a clock ticking past a stage that is not moving is
+          // exactly the "the clock runs while the events dribble out" the
+          // period reveal produced.
+          const ticking = presentation.liveStatusLabel?.(event);
+          paint(ticking || (named ? `${named.label} in progress` : openingLabel()), {
+            ticking: !!ticking,
+            quarter: event.quarter,
+          });
+        }
       });
     }
 
     // The whistle goes after the last event has had its time on screen, not
-    // at the moment it appears.
+    // at the moment it appears. Long enough for the final card to be read.
     const last = timeline.events[timeline.events.length - 1];
-    playbackClock.at(base + last.atMs + last.durationMs + 250, finish);
+    playbackClock.at(base + last.atMs + last.durationMs + FINAL_HOLD_MS, finish);
+  }
+
+  /**
+   * Whose period it was, across both rosters, for the between-periods card.
+   *
+   * From the ENGINE's own period lines - the same numbers the box score is
+   * built from. Reading them is not a leak: this is only ever called for a
+   * period that has just FINISHED on screen, so every point in it has been
+   * watched. A bot's big quarter is still the answer to "who led the scoring",
+   * and hiding it would make the card a card about one team.
+   */
+  function periodLeader(periodIndex) {
+    const period = result.quarterBoxScores[periodIndex];
+    if (!period) return null;
+    let leader = null;
+    for (const [key, roster] of [["a", rosterA], ["b", rosterB]]) {
+      for (const slot of Object.keys(period[key] || {})) {
+        const points = Number(period[key][slot]?.pts) || 0;
+        const player = roster[slot];
+        if (!player || points <= 0) continue;
+        if (!leader || points > leader.points) leader = { name: player.name, points: Math.round(points) };
+      }
+    }
+    return leader;
   }
 
   // A sport that declares a live ledger is played back event by event;
   // everything else keeps the period reveal.
-  const hasLiveLedger = !!(
-    sport().presentation.createLiveState &&
-    sport().presentation.applyEvent &&
-    timeline.events.length
-  );
   // HOW AN ABANDONED GAME STILL COUNTS. Armed here rather than earlier because
   // `finished` is a let and is in its temporal dead zone until this line runs.
   playbackTimers.settle = () => finish(true);
-  // The viewer's own pace, applied before the first event is scheduled. Both
-  // stages get the controls: football's timeline already took a speed divisor
-  // and never had a way to ask for one.
-  const startSpeed = storedPlaybackSpeed();
-  playbackClock.setRate(startSpeed);
-  showPlaybackControls(startSpeed);
-  playbackClock.after(QUARTER_REVEAL_DELAY_MS, hasLiveLedger ? playEventDriven : step);
+  // SKIP IS THE ONLY CONTROL NOW. 1x/2x is gone: it existed because a game took
+  // three and a half minutes, and the answer to that was to make the game a
+  // minute long rather than to offer a way to halve it. One less piece of state
+  // that could be wrong, and one less thing between a viewer and the game.
+  showPlaybackControls();
+  // A game with no events cannot be played out and is settled rather than left
+  // on an empty board - it is still a result, and the result is what counts.
+  if (!timeline.events.length) {
+    playbackClock.after(OPENING_HOLD_MS, () => finish());
+    return;
+  }
+  playbackClock.after(OPENING_HOLD_MS, playEventDriven);
 }
 
 function runLocalSimulation() {

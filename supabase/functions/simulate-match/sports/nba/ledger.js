@@ -203,7 +203,9 @@ export function buildShotLedger(quarterBoxScores, rand = Math.random) {
   const events = [];
   const periods = Array.isArray(quarterBoxScores) ? quarterBoxScores : [];
 
-  periods.forEach((period, periodIndex) => {
+  // Built per period FIRST, then assists are handed out across the whole game -
+  // see assignAssists for why that cannot be done a period at a time.
+  const pendings = periods.map((period) => {
     // One flat list per period so the two teams interleave, the way a quarter
     // actually looks, rather than one team's whole quarter then the other's.
     const pending = [];
@@ -226,19 +228,22 @@ export function buildShotLedger(quarterBoxScores, rand = Math.random) {
       }
     }
 
-    // Shuffle within the period, then hand out assists. The order is
-    // presentation - the engine has no sequence inside a quarter - but it is
-    // drawn from the simulation's own seeded stream, so it is the SAME
-    // presentation everywhere the result is rendered.
+    // Shuffle within the period. The order is presentation - the engine has no
+    // sequence inside a quarter - but it is drawn from the simulation's own
+    // seeded stream, so it is the SAME presentation everywhere the result is
+    // rendered.
     for (let i = pending.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
       [pending[i], pending[j]] = [pending[j], pending[i]];
     }
+    return pending;
+  });
 
-    assignAssists(pending, period, rand);
+  assignAssists(pendings, periods, rand);
 
+  pendings.forEach((pending, periodIndex) => {
     for (const event of pending) {
-      events.push({ ...event, period: periodIndex + 1, overtime: !!period.overtime });
+      events.push({ ...event, period: periodIndex + 1, overtime: !!periods[periodIndex].overtime });
     }
   });
 
@@ -247,34 +252,68 @@ export function buildShotLedger(quarterBoxScores, rand = Math.random) {
 }
 
 /**
- * Hands the period's assists to made field goals.
+ * Hands out assists, over the WHOLE GAME rather than one period at a time.
  *
- * The COUNT is the engine's and is never exceeded: a player credited with three
- * assists in a quarter is attached to at most three made shots, and a player
- * credited with none is attached to nothing. Which shots they were is
- * presentation, and a passer is never given his own basket.
+ * The COUNT is the engine's and is never exceeded or fallen short of: a player
+ * credited with eight assists is attached to exactly eight made field goals,
+ * and a player credited with none is attached to nothing. Which shots they were
+ * is presentation, and a passer is never given his own basket.
+ *
+ * WHY THIS CANNOT BE DONE A PERIOD AT A TIME, which is how it was written.
+ * A quarter can carry more assist credits than it has assistable teammate
+ * baskets - three credits against two made field goals by anyone else - and the
+ * period-local version simply stopped when it ran out, dropping the rest. The
+ * ledger then held fewer assists than the box score it is an expansion of, and
+ * nothing noticed until the live box score started being folded from the events
+ * (see THE LIVE LEDGER in playback.js): the table climbed to one assist short
+ * of the final line and snapped up at the whistle.
+ *
+ * A credit is placed in its OWN period when there is room, which is what keeps
+ * a quarter's assists in that quarter for all but the crowded ones, and in the
+ * nearest period with a free basket otherwise. Both are presentation decisions
+ * about a number the engine had already decided.
  */
-function assignAssists(pending, period, rand) {
+function assignAssists(pendingsByPeriod, periods, rand) {
   for (const side of ["a", "b"]) {
-    const lines = period[side] || {};
-    const credits = [];
-    for (const slot of Object.keys(lines)) {
-      for (let i = 0; i < (Number(lines[slot]?.ast) || 0); i++) credits.push(slot);
-    }
-    if (!credits.length) continue;
+    // Every made field goal in the game that could carry an assist, kept by
+    // period and shuffled inside it, so which basket gets credited is drawn
+    // from the simulation's own stream rather than from roster order.
+    const free = pendingsByPeriod.map((list) => {
+      const shots = list.filter(
+        (e) => e.type === "shot" && e.side === side && e.made && e.shotType !== FREE_THROW
+      );
+      for (let i = shots.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [shots[i], shots[j]] = [shots[j], shots[i]];
+      }
+      return shots;
+    });
 
-    const assistable = pending.filter(
-      (e) => e.type === "shot" && e.side === side && e.made && e.shotType !== FREE_THROW
-    );
-    for (let i = assistable.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [assistable[i], assistable[j]] = [assistable[j], assistable[i]];
-    }
-    for (const shot of assistable) {
-      const k = credits.findIndex((slot) => slot !== shot.slot);
-      if (k < 0) break;
-      shot.assistedBy = credits.splice(k, 1)[0];
-    }
+    /** Places one credit on the first free basket, searching `order` of
+     * periods. Returns false when the whole game has no unassisted basket by
+     * anyone other than the passer - which the engine's own numbers make
+     * vanishingly unlikely and which is reported by
+     * scripts/verify-nba-playback-state.mjs rather than swallowed here. */
+    const place = (slot, order) => {
+      for (const i of order) {
+        const k = free[i].findIndex((shot) => shot.slot !== slot && !shot.assistedBy);
+        if (k < 0) continue;
+        free[i][k].assistedBy = slot;
+        return true;
+      }
+      return false;
+    };
+
+    const everyPeriod = periods.map((_, i) => i);
+    periods.forEach((period, i) => {
+      const lines = period[side] || {};
+      // Nearest period first, so a credit that cannot stay home moves as little
+      // as possible rather than landing in the fourth quarter.
+      const order = [i, ...everyPeriod.filter((j) => j !== i).sort((x, y) => Math.abs(x - i) - Math.abs(y - i))];
+      for (const slot of Object.keys(lines)) {
+        for (let k = 0; k < (Number(lines[slot]?.ast) || 0); k++) place(slot, order);
+      }
+    });
   }
 }
 

@@ -93,9 +93,9 @@ async function main() {
       // draft rounds against ten, and names like "Cleveland Browns Offensive
       // Line" typed a character at a time. A single budget generous enough for
       // football would stop being a hang guard for basketball.
-      // Basketball's playback is minutes now rather than seconds; see the same
-      // note on budgetMs in scripts/verify-browser.mjs.
-      budgetMs: sport === "nfl" ? 420000 : 360000,
+      // Basketball's playback is about a minute; see the same note on budgetMs
+      // in scripts/verify-browser.mjs.
+      budgetMs: sport === "nfl" ? 360000 : 240000,
       // Serve the stub in place of the CDN module the import map points at, so
       // the app boots with a session and every backend call resolves.
       routes: [

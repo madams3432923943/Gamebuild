@@ -713,6 +713,7 @@ function loadPresentation() {
         applyEvent: playback.applyEvent,
         liveBox: playback.liveBox,
         liveScore: playback.liveScore,
+        livePeriodScore: playback.livePeriodScore,
         // What the feed becomes once the whistle goes - every score, in order,
         // with the man and the clock. See scoringSummary in ./playback.js for
         // why the running feed is the wrong thing to be left looking at.

@@ -744,6 +744,15 @@ export function liveScore(state) {
   return { A: Math.round(state?.score?.A || 0), B: Math.round(state?.score?.B || 0) };
 }
 
+/** Points scored in one quarter, as watched. The board shows the quarter in
+ * progress with the score SO FAR, so this has to answer for a quarter that is
+ * not finished - which is exactly what a fold of the events already shown can
+ * do and a read of the finished result cannot. */
+export function livePeriodScore(state, quarter) {
+  const found = state?.quarterScores?.[quarter];
+  return { a: Math.round(found?.A || 0), b: Math.round(found?.B || 0) };
+}
+
 /** m:ss for a duration rather than a countdown - a drive lasts 3:24, it does
  * not read 3:24 on the clock. */
 function formatDuration(seconds) {

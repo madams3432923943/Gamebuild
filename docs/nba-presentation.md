@@ -354,33 +354,100 @@ obvious the moment the failure named the box:
 - an **empty** possession chip collapsing to its padding on a kickoff (its height
   is reserved rather than conditional).
 
-The playback speed controls sit inside the stage for the same reason, and are
-hidden with `visibility` rather than `display` — a control row that vanished at
-the final buzzer would take 54px out from under a reader.
+The Skip button sits inside the stage for the same reason, and the row is hidden
+with `visibility` rather than `display` — a control row that vanished at the
+final buzzer would take its height out from under a reader.
+
+## The authoritative result and the playback state
+
+These are two different things and the screen must never confuse them.
+
+- **The authoritative result** is what the simulation recorded: the final score,
+  the quarter box scores, every player's line, the MVP, the event ledger. It is
+  read at the final whistle and nowhere else. Playback cannot write to it and
+  never recomputes any part of it.
+- **The playback state** is a pure fold of the events that have already been
+  *shown* — `createLiveState` / `applyEvent` / `liveScore` / `liveBox` /
+  `livePeriodScore` / `liveTeamStats` in each sport's playback module. Every
+  number on screen during a game comes from here.
+
+There used to be no such state for basketball. A quarter was revealed all at
+once: `result.quarterBoxScores[i]` — that quarter's *finished* score and every
+player's finished line for it — was pushed onto the board at the first tick of
+quarter *i*, animated up over a second and a half, and only then were the events
+that produced it played underneath. The board read 36–24 with 9:52 left in the
+first, and the fifty shots that followed were a replay of a result the viewer
+had already been handed. Football had the same bug and was fixed first; the
+period path is now gone for both, and there is **one** driver (`playEventDriven`
+in `js/main.js`) that plays any sport declaring the live-ledger contract.
+
+Because each sport's ledger is an exact expansion of its own box score, folding
+*all* the events lands on the authoritative result — so the last frame of
+playback and the final screen are the same numbers by construction rather than
+by two derivations happening to agree. `scripts/verify-nba-playback-state.mjs`
+asserts both halves: nothing is known before it happens, and everything is known
+at the end. The one documented exception is assists, below.
+
+The quarter grid follows the same rule. A finished quarter carries its total, the
+quarter in progress carries the score **so far** and is marked live, and a
+quarter that has not started reads `–`.
 
 ## Playback pacing
 
-A quarter used to be revealed inside `QUARTER_REVEAL_DELAY_MS` — 4.2 seconds, of
-which the between-quarters card took 1.6. About ninety events shared the
-remaining 2.6, so an ordinary shot was on screen for roughly **25 milliseconds**
-and a whole game finished in seventeen seconds.
+A quarter used to be revealed inside a 4.2-second hold, of which the
+between-quarters card took 1.6. About ninety events shared the remaining 2.6, so
+an ordinary shot was on screen for roughly **25 milliseconds** and a whole game
+finished in seventeen seconds. The fix for that overshot: playback then aimed at
+**195 seconds**, which is a broadcast's pace applied to a gamecast's amount of
+information.
 
-`buildPlaybackTimeline()` replaces that with football's shape in basketball's
-units: every event gets a duration in proportion to how much there is to take
-in (`EVENT_MS`, plus `EMPHASIS_MS` for a run, a lead change or the last event of
-a quarter), and the whole game is scaled to land near **195 seconds**. Measured
-over 60 games: 202–206s total whatever the event count, a median event of 590ms,
-an ordinary missed field goal at ~600ms, a made three at ~1.1s, and a
-lead-changing three that ends a quarter at 2.9s. The period reveal now *waits*
-for its events rather than squeezing them into a fixed hold.
+`buildPlaybackTimeline()` now aims at **52 seconds of events**, which with the
+opening hold and the final beat is a game of about **58 seconds** end to end.
+Two things get it there:
+
+- **Weights, not a script.** Every event gets a duration in proportion to how
+  much there is to take in (`EVENT_MS`, plus `EMPHASIS_MS` for a run, a lead
+  change or the last event of a quarter), and one scale factor —
+  `target / rawTotal` — is applied across all of them. That is why the length
+  does **not** track possession count: a 380-event game gets quicker beats, not
+  three minutes.
+- **Compression.** A rebound gets no beat of its own. It is the most common
+  event in a ledger (~22%) and the one with nothing to place and nothing to
+  read; it is *folded* into the next beat instead — counted into the score, the
+  strip and the box score at the same instant the following event is revealed.
+  That is where most of the minute came from. The last event of a period is
+  never folded, whatever it is, because it is what publishes the quarter.
+
+The last two minutes of a fourth quarter inside five points get a **1.7×**
+multiplier, applied before the scale factor — so a close finish borrows time
+from the rest of the game rather than adding to it, and a blowout's last two
+minutes finish at the ordinary clip.
+
+Measured over 120 simulated games: min 57.6s, mean 57.7s, max 58.5s across
+266–377 events, an ordinary missed field goal at ~151ms, quarters of 11–17s.
+Measured in Chromium on one real game: **56.4s** from tip-off to the final
+banner.
 
 Everything is scheduled on one **virtual clock** (`createPlaybackClock` in
-`js/main.js`), which is what makes 1x / 2x / Skip possible: changing the rate
-re-times what has not happened yet, and Skip runs the remaining queue in order —
-so a skipped game still *finishes*, and is recorded, rather than being
-abandoned. Speed is a presentation input and reaches nothing else; the result,
-the box score, the chart and the MVP are all decided before the first timer
-starts.
+`js/main.js`). Skip runs the remaining queue in order — so a skipped game still
+*finishes*, and is recorded, rather than being abandoned. There is no speed
+control: 1x / 2x existed because a game took three and a half minutes, and the
+answer to that was to make the game a minute long.
+
+## Known: assists the ledger cannot place
+
+The engine draws a player's assists from his own rate, independently of how many
+field goals his team made. On about 3% of team-games that finishes above the
+team's own made-field-goal count — a box score claiming a pass on a basket that
+does not exist. `assignAssists` places every credit there is a free teammate
+basket for, searching the nearest quarter outward, and cannot invent one for the
+rest.
+
+The visible cost is one assist appearing on the live table at the final whistle,
+when the authoritative box score replaces the fold. It is the **only** value that
+can differ between the two. Fixing it means bounding the engine's assist draw by
+team makes, which is a simulation change and belongs in its own commit;
+`scripts/verify-nba-playback-state.mjs` warns on it and fails above 8%.
 
 ## Verifying
 
@@ -388,7 +455,8 @@ starts.
 npm run verify:nba-shot-ledger    # the ledger against the engine, 120 games
 npm run verify:nba-shooting       # 3PA by roster and era, FT realism, Monte Carlo
 npm run verify:nba-online-sync    # two clients, one stored result, field for field
-npm run verify:nba-playback-pace  # event timing, 2x, and that speed changes nothing else
+npm run verify:nba-playback-pace   # measured runtime, compression, and that pacing changes nothing else
+npm run verify:nba-playback-state  # no reading ahead; the last frame IS the result
 npm run verify:nba-court-geometry # the shape of the court, no browser needed
 npm run verify:nba-court          # the court in Chromium, one real game
 npm run verify:live-scroll        # both sports, five viewports

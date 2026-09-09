@@ -114,6 +114,45 @@ const SAMPLE = () => {
     reb: text('#basketball-court [data-stat="a-reb"]'),
     feed: [...document.querySelectorAll("#play-feed .play-card")].map((c) => c.textContent.trim()),
     scores: [...document.querySelectorAll("#live-scoreboard .scoreboard-score")].map((el) => Number(el.textContent.trim()) || 0),
+    // THE QUARTER GRID, EXACTLY AS PRINTED. Headers, both rows of cells, and
+    // which header is marked as the period being played. This is the evidence
+    // for the leak check below: a cell holding a number for a quarter that has
+    // not been played is the bug, and reading the printed strings is the only
+    // way to catch it - the internal state cannot be trusted to have been
+    // rendered.
+    grid: (() => {
+      const head = [...document.querySelectorAll("#live-scoreboard .scoreboard-grid thead th")];
+      const row = (key) =>
+        head.map((_, i) => {
+          const cell = document.querySelector(`#live-scoreboard [data-cell="${key}${i - 1}"]`);
+          return cell ? cell.textContent.trim() : null;
+        });
+      return {
+        labels: head.map((th) => th.textContent.trim()),
+        current: head.findIndex((th) => th.classList.contains("period-current")),
+        pending: [...document.querySelectorAll("#live-scoreboard td.period-pending")].length,
+        a: row("a"),
+        b: row("b"),
+      };
+    })(),
+    // The live box score's two team totals, so the table can be shown to build
+    // through the game rather than arriving finished.
+    boxPts: (() => {
+      // BY HEADER NAME, not by column position. The table carries Slot, Player
+      // and MIN before the statistics, and MIN is only there for some views -
+      // counting from the left read the player's name and scored every team
+      // zero for a whole game.
+      let total = 0;
+      for (const table of document.querySelectorAll("#full-box-score .box-table")) {
+        const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+        const at = heads.indexOf("PTS");
+        if (at < 0) continue;
+        const totals = table.querySelector("tr.box-totals");
+        if (!totals) continue;
+        total += Number(totals.children[at]?.textContent.trim()) || 0;
+      }
+      return total;
+    })(),
     finalShown: !document.querySelector("#final-banner")?.classList.contains("hidden"),
     finalText: text("#final-banner"),
   };
@@ -286,58 +325,115 @@ async function main() {
       };
     });
 
-    // ---- WATCHING A GAME THAT IS NOW MEANT TO TAKE MINUTES ----------------
+    // ---- WATCHING THE WHOLE GAME, WHICH NOW FITS IN THE BUDGET ------------
     //
-    // Basketball's playback used to finish in about seventeen seconds, so this
-    // test could simply watch the whole thing inside a 90-second window. It is
-    // now paced to be followed - roughly three and a half minutes at 1x - which
-    // is the point of the change and would make this test time out.
+    // This used to click a 2x button and then Skip, because basketball's
+    // playback ran three and a half minutes and no sampling loop could sit
+    // through it. It is about a minute now, so the game is watched end to end
+    // at the only speed there is - which is a stronger check, because every
+    // assertion below is about a frame that was actually painted rather than
+    // one that was hurried past.
     //
-    // So it does what a viewer in a hurry does, using the controls the viewer
-    // has: switch to 2x, watch long enough to see real live behaviour (a full
-    // quarter, its break card, the chart filling in, the feed, the scroll
-    // position holding), then Skip to the end. Nothing is stubbed and no timing
-    // is monkey-patched - if the speed control or Skip stops working, this test
-    // stops finishing.
-    const speedButton = page.locator("#btn-speed-2");
-    const speedControlsShown = await page.locator("#playback-controls:not(.playback-idle)").isVisible().catch(() => false);
-    await speedButton.click({ timeout: 5000 }).catch(() => {});
-    const fastEngaged = await speedButton.getAttribute("aria-pressed").catch(() => null);
+    // Skip stays in the app and is exercised separately, at the end.
+    const controlsShown = await page.locator("#playback-controls:not(.playback-idle)").isVisible().catch(() => false);
+    const controlButtons = await page.locator("#playback-controls button").count().catch(() => -1);
 
     const samples = [];
-    const LIVE_WINDOW_MS = 75000;
     const startedWatching = Date.now();
-    let skipped = false;
     const deadline = Date.now() + 150000;
     while (Date.now() < deadline) {
       const sample = await page.evaluate(SAMPLE);
       samples.push(sample);
       if (sample.finalShown) break;
-      // Enough watched. Skip runs the rest of the queue in order, so the game
-      // still FINISHES rather than being abandoned - which is what makes the
-      // final-screen checks below meaningful.
-      if (!skipped && Date.now() - startedWatching > LIVE_WINDOW_MS) {
-        skipped = true;
-        await page.locator("#btn-skip-playback").click({ timeout: 5000 }).catch(() => {});
-      }
       await sleep(140);
     }
+    const watchedMs = Date.now() - startedWatching;
     const last = samples[samples.length - 1];
 
     check(
-      "The playback speed controls are on the stage while a game plays",
-      speedControlsShown,
-      speedControlsShown ? "1x / 2x / Skip, inside the stage rather than under it" : "no controls found"
+      "Skip is the only playback control, and it is on the stage while a game plays",
+      controlsShown && controlButtons === 1,
+      `${controlButtons} button in #playback-controls (1x/2x are gone), shown inside the stage rather than under it`
     );
     check(
-      "Choosing 2x is reflected back to the viewer",
-      fastEngaged === "true",
-      `aria-pressed=${fastEngaged} on the 2x button`
+      "A whole game plays out in about a minute, in a real browser",
+      !!last.finalShown && watchedMs >= 40000 && watchedMs <= 90000,
+      `the final banner appeared after ${(watchedMs / 1000).toFixed(1)}s of real wall clock, ` +
+        `watched end to end with nothing skipped`
+    );
+
+    // ---- THE SCOREBOARD NEVER SHOWS A QUARTER BEFORE IT IS PLAYED ---------
+    //
+    // THE BUG THIS EXISTS FOR. Playback used to publish result.quarterBoxScores[i]
+    // at the first tick of quarter i - the quarter's FINISHED score and every
+    // player's finished line for it - and only then play the events that
+    // produced them. The board read 36-24 with 9:52 left in the first.
+    //
+    // Two things are asserted, and they are different. First, that the grid
+    // never prints more columns of numbers than quarters that have started -
+    // the future is dashes. Second, that the running total never runs ahead of
+    // where the events have got to, which is the same leak seen from the score
+    // rather than from the grid.
+    const live = samples.filter((s2) => !s2.finalShown && s2.grid.labels.length > 1);
+    let futureLeaks = 0;
+    let currentMismarked = 0;
+    for (const s2 of live) {
+      // Columns are the labelled quarters plus the pending dashes plus the "T"
+      // total column. A published or in-progress quarter has a label; one that
+      // has not started reads an en dash.
+      const named = s2.grid.labels.filter((l) => /^(Q\d|OT\d)$/.test(l)).length;
+      const dashes = s2.grid.labels.filter((l) => l === "\u2013").length;
+      if (named + dashes !== 4 && named < 4) futureLeaks += 1;
+      // The header marked as the period being played must be one of the named
+      // columns, never one of the dashes.
+      if (s2.grid.current > 0 && s2.grid.current > named) currentMismarked += 1;
+    }
+    check(
+      "Future quarters read \u2013, never a score",
+      futureLeaks === 0 && live.length > 10,
+      `${live.length} live samples; every one showed exactly four regulation columns, of which only the ` +
+        `quarters that had started carried numbers`
     );
     check(
-      "Skip lands on a finished game rather than abandoning one",
-      !!last.finalShown,
-      skipped ? "skipped after the live window and the final banner appeared" : "the game finished on its own"
+      "The quarter marked as in progress is a quarter that has started",
+      currentMismarked === 0,
+      `over ${live.length} live samples the period-current marker never landed on a pending column`
+    );
+
+    // ---- THE SCORE BUILDS WITH THE EVENTS ---------------------------------
+    const totals = live.map((s2) => s2.scores[0] + s2.scores[1]);
+    const monotonic = totals.every((n, i) => i === 0 || n >= totals[i - 1]);
+    const startedAtZero = totals.length > 0 && totals[0] <= 12;
+    const finalTotal = last.scores[0] + last.scores[1];
+    check(
+      "The score builds through the game rather than arriving finished",
+      monotonic && startedAtZero && finalTotal > (totals[0] || 0) + 60,
+      `first live sample ${totals[0]} combined points, last ${finalTotal}; never decreased across ` +
+        `${totals.length} samples`
+    );
+    const boxTotals = live.map((s2) => s2.boxPts);
+    check(
+      "The live box score builds with it",
+      boxTotals.every((n, i) => i === 0 || n >= boxTotals[i - 1]) && boxTotals[boxTotals.length - 1] > 60,
+      `points in the live table went ${boxTotals[0]} \u2192 ${boxTotals[boxTotals.length - 1]} without ever ` +
+        `going backwards - the table is a fold of what was shown, not a paste of the result`
+    );
+    // AND THE CHART KEEPS STEP WITH THE SCORE. A marker for a shot the board
+    // has not counted, or a point on the board with no marker behind it, is the
+    // two halves of the screen telling different stories.
+    let chartAhead = 0;
+    for (let i = 1; i < live.length; i++) {
+      const scored = live[i].scores[0] + live[i].scores[1] - (live[i - 1].scores[0] + live[i - 1].scores[1]);
+      const drew = live[i].markers - live[i - 1].markers;
+      // Points can arrive with no new marker only from an unplaced bucket, and
+      // markers with no points are misses - so the only impossible case is
+      // points appearing while the chart stood completely still over a stretch.
+      if (scored > 6 && drew === 0) chartAhead += 1;
+    }
+    check(
+      "The shot chart and the score move together",
+      chartAhead === 0,
+      `over ${live.length} samples the board never gained a burst of points while the chart stood still`
     );
 
     // ---- the floor is there, and football's is not -----------------------

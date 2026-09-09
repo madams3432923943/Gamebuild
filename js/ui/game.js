@@ -319,9 +319,13 @@ export function buildShotLines(roster, box) {
 /**
  * NBA broadcast-style scoreboard: a big score up top, and a quarter-by-
  * quarter grid underneath that fills in as periods complete.
- * @param periods array of {label, a, b} for periods played so far
- * @param periodsRemaining count of regulation periods not yet played (shown
- *   as "-" placeholder columns, e.g. 4 at tip-off, 0 once Q4 is in)
+ * @param periods array of {label, a, b} for periods played so far, optionally
+ *   ending in one flagged `live` - the quarter in progress, carrying the score
+ *   SO FAR rather than its finished total
+ * @param periodsRemaining count of regulation periods not yet STARTED (shown
+ *   as "-" placeholder columns, e.g. 4 at tip-off, 0 once Q4 has begun). A
+ *   quarter that has not been played must read "-": a live board that could
+ *   print Q4's total in the first minute is the bug this parameter guards.
  */
 export function renderScoreboard(container, labelA, labelB, periods, periodsRemaining, totalA, totalB, statusLabel, isLive) {
   // BUILT ONCE PER SHAPE, PATCHED EVERY FRAME AFTER THAT.
@@ -430,9 +434,20 @@ function patchScoreboard(container, periods, totalA, totalB, statusLabel, isLive
   // The period being played is marked in the header. Cleared first, because the
   // header is no longer rebuilt between frames and last quarter's mark would
   // otherwise stay lit for the rest of the game.
+  //
+  // THE LIVE COLUMN IS ONE OF `periods` NOW, not the first of the pending
+  // dashes. A quarter in progress carries the score so far and is flagged
+  // `live` by the playback (see columnsFor in js/main.js), so the column being
+  // played is the last published one when there is no live column and the live
+  // one itself when there is. Marking heads[periods.length] unconditionally
+  // would light the NEXT quarter - a column still reading "-" - which is the
+  // header equivalent of showing a score before it has been played.
   const heads = [...container.querySelectorAll(".scoreboard-grid thead th")];
   for (const th of heads) th.classList.remove("period-current");
-  if (isLive && periods.length) heads[periods.length]?.classList.add("period-current");
+  if (isLive && periods.length) {
+    const liveIndex = periods[periods.length - 1]?.live ? periods.length - 1 : periods.length;
+    heads[liveIndex]?.classList.add("period-current");
+  }
 
   const period = container.querySelector(".scoreboard-period");
   if (period) {
@@ -627,6 +642,14 @@ export function renderScoringSummary(container, headline, rows) {
  * recorded that quarter, and a missing value must leave the total alone rather
  * than poison it - NaN in a box score is worse than a zero, because it
  * propagates and nothing downstream can tell where it started.
+ *
+ * NO LONGER USED BY THE APP, and kept deliberately rather than by accident.
+ * The live box score used to be grown a PERIOD at a time by this function; it
+ * is folded event by event now (see THE LIVE LEDGER in each sport's playback
+ * module), which is the only way a table can be true at the moment it is
+ * painted. What still calls this is scripts/verify-nfl-live-stats.mjs, where it
+ * sums an engine's period lines to check they reconcile with its game totals -
+ * a question about the ENGINE, independent of how anything is displayed.
  */
 export function accumulatePeriodStats(total, periodLine, keys) {
   if (!total || !periodLine) return total;
