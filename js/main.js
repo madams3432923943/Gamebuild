@@ -64,6 +64,7 @@ import {
   updateEmail,
   getAuthUser,
   onPasswordRecovery,
+  authLinkError,
   isPlaceholderEmail,
   USERNAME_PATTERN,
   EMAIL_PATTERN,
@@ -411,10 +412,15 @@ btnAuthForgot.addEventListener("click", async () => {
   btnAuthForgot.disabled = true;
   setAuthStatus("Sending a reset link…");
   try {
-    const { placeholder } = await requestPasswordReset(identifier);
-    if (placeholder) {
+    const { sent } = await requestPasswordReset(identifier);
+    // NOT SENT means the identifier was a username, which has no inbox behind
+    // it - see requestPasswordReset. The old version mailed it anyway and then
+    // said "reset link sent", which is the sentence that made someone watch an
+    // empty inbox. Recovery is by email address, for every account.
+    if (!sent) {
       setAuthStatus(
-        "That's an older username-only account, so there's no inbox to send to. Sign in with your password and add an email on the Profile tab.",
+        "A reset can only be sent to an email address, not a username. Enter the email you signed up with. " +
+          "If your account predates email sign-up, sign in with your password and add one on the Profile tab.",
         "error"
       );
     } else {
@@ -5798,6 +5804,24 @@ initBrandFallbacks();
 // existing session; a Supabase/CDN failure here must not leave a blank page,
 // so any error falls through to the sign-in screen.
 (async () => {
+  // A LINK THAT DID NOT WORK IS REPORTED BEFORE ANYTHING ELSE.
+  //
+  // An expired or already-used recovery link redirects back here with the
+  // failure in the URL and no session, which is indistinguishable from an
+  // ordinary cold visit - so it used to land on the sign-in screen saying
+  // nothing, and the player's only move was to click the dead link again. The
+  // failure is captured at module load (see authLinkError) because supabase-js
+  // clears the fragment as soon as it initialises.
+  //
+  // Checked FIRST: if there is no session, this is why, and there is nothing
+  // to gain from asking the network before saying so.
+  const linkError = authLinkError();
+  if (linkError) {
+    showAuthScreen("signin");
+    setAuthStatus(linkError, "error");
+    return;
+  }
+
   try {
     const session = await getSession();
     if (session) {
