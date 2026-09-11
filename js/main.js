@@ -47,7 +47,6 @@ import {
 import { countFriends } from "./friends.js";
 import { maybeShowOnboarding } from "./onboarding.js";
 import { renderSponsor, releaseSponsor } from "./ads/placements.js";
-import { drawShareCard, shareCard, saveCard, cardPreviewUrl, FORMATS } from "./sharecard.js";
 import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
@@ -3246,6 +3245,8 @@ const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
 const btnShareResult = document.getElementById("btn-share-result");
+// Read off the markup rather than repeated here, so the label has one home.
+const SHARE_BUTTON_LABEL = btnShareResult.textContent;
 const btnToProfile = document.getElementById("btn-to-profile");
 const btnPlayAgain = document.getElementById("btn-play-again");
 const btnGameHome = document.getElementById("btn-game-home");
@@ -3440,10 +3441,41 @@ async function resolveShareCardRating(card) {
   }
 }
 
+/**
+ * The card renderer, fetched on first use.
+ *
+ * A DYNAMIC IMPORT, like the sports' own presentation modules. This is ~20KB of
+ * canvas drawing code that matters only once a game is over and only if
+ * somebody taps Share - so it has no business being in the boot payload, which
+ * scripts/verify-startup-performance.mjs holds to a budget. The module is
+ * cached after the first open, so the second card costs nothing.
+ */
+let shareCardModule = null;
+function loadShareCard() {
+  if (!shareCardModule) shareCardModule = import("./sharecard.js");
+  return shareCardModule;
+}
+
 /** The share dialog: the card as an image, and the two ways out of it. */
-function openShareDialog() {
+async function openShareDialog() {
   const card = shareCardData;
   if (!card) return;
+
+  btnShareResult.disabled = true;
+  let sharecard;
+  try {
+    sharecard = await loadShareCard();
+  } catch (e) {
+    // Never silent, and never a dead button: the only thing that can fail here
+    // is the module fetch, and saying so is more use than a click that does
+    // nothing.
+    console.error("Couldn't load the share card renderer:", e);
+    btnShareResult.disabled = false;
+    btnShareResult.textContent = "Share unavailable";
+    return;
+  }
+  btnShareResult.disabled = false;
+  const { drawShareCard, shareCard, saveCard, cardPreviewUrl, FORMATS } = sharecard;
 
   let format = FORMATS.story;
   let canvas = null;
@@ -3711,6 +3743,11 @@ function resetGameScreen() {
   // out, so the button cannot open a dialog describing a result that is no
   // longer on screen.
   shareCardData = null;
+  // And the button goes back to saying what it does. Without this, one failed
+  // module fetch left it reading "Share unavailable" for the rest of the
+  // session - including on the next game, where it would have worked.
+  btnShareResult.disabled = false;
+  btnShareResult.textContent = SHARE_BUTTON_LABEL;
 
   // The postgame sponsor slot goes away with everything else a finished game
   // put on this screen. It is filled at the final whistle, so leaving it up

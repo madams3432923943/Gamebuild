@@ -65,7 +65,9 @@ Then open http://localhost:8000.
 
 ```
 index.html        markup + import map; loads js/main.js
+admin.html        the private admin dashboard - authorization is server-side
 css/style.css     all styling
+css/admin.css     the admin dashboard only; deliberately not style.css
 data/
   nba-players.json  the player dataset - GENERATED, and deliberately outside js/
                   so a search of the app code never has to wade through 2,542
@@ -92,6 +94,11 @@ js/                 shared app code - never imports a sport directly
                     format.js       roundStat
   online.js       Supabase-backed online play
   profile.js      profile/record persistence
+  onboarding.js   the first-run welcome, shown once per ACCOUNT
+  analytics.js    first-party funnel events - see docs/growth-infrastructure.md
+  sharecard.js    the postgame share card, drawn on a canvas at 1080x1920
+  ads/            sponsorship inventory: campaigns.js (config), placements.js
+  admin/          the private dashboard's page code (main.js, render.js)
   badges.js       tiered achievements
   banners.js      earnable team banners
   progress.js     diffs your profile before/after a game, so gains announce themselves
@@ -271,8 +278,43 @@ username, and anything without an `@` is run through `usernameToEmail()`. Those
 players can attach a real address from the Profile tab and become recoverable.
 
 Password recovery needs the project's Site URL and redirect allow-list
-(Authentication > URL Configuration) to include wherever the game is served
-from, or Supabase refuses to mail a link back to it.
+(Authentication > URL Configuration) to include the production domain, or
+Supabase refuses to mail a link back to it. Every mailed link now points at
+`https://draftnovagame.com/` regardless of which host asked, so that is one
+allow-list entry rather than one per spelling of the site — and resetting by
+USERNAME is refused rather than mailing an address nobody can read.
+
+The full audit of what each account email does, the branded templates, and the
+four steps that still need dashboard or DNS access are in
+**docs/production-email.md**.
+
+A brand-new account sees one welcome modal, once, tracked on the profile rather
+than in the browser so it follows the account across devices. See
+**docs/growth-infrastructure.md**.
+
+## Growth infrastructure
+
+Onboarding, product analytics, the admin dashboard, account email, sponsorship
+inventory and the postgame share card. One document covers all six, including
+what each one deliberately is not: **docs/growth-infrastructure.md**.
+
+The short version:
+
+- **`/admin.html`** is a private dashboard. Authorization is enforced by
+  `SECURITY DEFINER` RPCs that check an allowlist table, not by hiding a link —
+  it is a static file and anyone can fetch it. Users, DAU/WAU/MAU, games by
+  sport/mode/difficulty, engagement, retention and the funnel, in two queries
+  that aggregate in Postgres and return one document each.
+- **Analytics** are first-party and cover only what the match tables cannot
+  answer: the pre-match funnel, and practice games, which are simulated in the
+  browser and have no match row. Payloads are filtered against a twelve-key
+  allowlist on both sides, so no event can carry an address, a token or a
+  message.
+- **Sponsor rails** sit in the empty columns beside the centred content on a
+  wide desktop. They are `position: fixed`, so the game's own column is
+  unchanged at every width, and they disappear entirely below 1500px.
+- **Share Result** on the final screen draws a 1080x1920 card from the same
+  authoritative result the box score was drawn from.
 
 ## Era brackets
 
@@ -337,6 +379,14 @@ as the offline client?) and a real Chromium driving a real match end to end,
 measuring paint and frame timings and watching the console. Exits 0/1 and
 writes `verify-report.json` for CI. See `scripts/README.md` for what each check
 covers, how to run a real online match, and the current results.
+
+Six of those checks cover the growth infrastructure: `verify:analytics` (the
+event and privacy contracts between the client, the database and the
+dashboard), `verify:email`, `verify:sponsors`, `verify:onboarding`,
+`verify:admin` and `verify:share-card`. The last three drive a real browser;
+`verify:share-card` also writes every card variant to
+`verify-artifacts/share-card/` so a person can look at what the game is about
+to put on somebody's Instagram.
 
 The `simulate-match` Edge Function carries its own copies of `engine.js`,
 `constants.js` and `tactics.js`. They now live in this repo under

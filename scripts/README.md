@@ -217,3 +217,26 @@ ranked loss.** Use throwaway accounts.
 The 5-minute budget is enforced in `verify-build.js`: parity finishes in ~0.3s,
 and the browser leg is capped at 4 minutes with the remaining time passed to
 it as a deadline. A full self-test match runs in ~40s.
+
+## Growth-infrastructure checks
+
+Added with the onboarding / analytics / admin / email / sponsorship / share-card
+sprint. Full account of each feature: `docs/growth-infrastructure.md`.
+
+| Script | Needs a browser | What it would catch |
+| --- | --- | --- |
+| `verify:analytics` | no | The event list in `js/analytics.js`, the allowlist rows in `db/migrations/20260911_02`, and `FUNNEL_ORDER` in `js/admin/render.js` are three copies in two languages with nothing making them agree. Also the privacy boundary: the prop allowlist exists in JavaScript and in SQL, and two copies of a privacy boundary that disagree is one nobody can reason about. |
+| `verify:email` | no | The templates are pasted into a dashboard, so nothing in the development loop ever renders one. Supabase substitutes `{{ .ConfirmationURL }}` with Go templates and renders an **unknown variable as empty** - so `{{ .ConfirmationUrl }}`, one lowercase letter, mails a button that links to nothing. |
+| `verify:sponsors` | no | A commercial promise made in a config file. A campaign naming a placement nothing renders never appears; a wrong date comparison runs someone's creative past what they paid for; a reused id merges two campaigns' reporting forever; and the date window's failing case is usually a campaign that is not running yet, so a browser test cannot see it. |
+| `verify:onboarding` | yes | "Show it once" is four failure modes, three of them worse than not shipping. The one that would cost users is reading a MISSING `has_seen_onboarding` column as "new player", which welcomes the entire existing player base at once - and that depends on what a profile row happens to say, so it cannot be seen in a diff. |
+| `verify:admin` | yes | Two things nobody would notice: a figure coming from a table read rather than a guarded RPC (the page would look identical and be open to every signed-in player), and a null metric drawn as `0%`. A 0% Day-1 retention nobody measured is not a blank - it is a finding somebody plans around. |
+| `verify:share-card` | yes | The one thing this app produces that LEAVES it. A canvas draws whatever it is told, so a card with the wrong winner, or with the score off the bottom edge, renders perfectly. Three real layout bugs came out of writing it. |
+
+`verify:share-card` writes every card variant to
+`verify-artifacts/share-card/`. That is not a debugging aid - the point of a
+share card is how it looks, and no assertion covers that. Two of the layout
+bugs were found by opening the folder.
+
+`verify:schema` (needs `SUPABASE_DB_URL`, so it is not in `npm run verify`)
+checks the four migrations this sprint applied are documented in
+`db/applied.tsv`.
