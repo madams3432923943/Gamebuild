@@ -19,6 +19,7 @@ import {
   watchSquadChat, sendSquadMessage, createSquad, joinPublicSquad, joinSquadByCode,
   leaveSquad, kickMember, setMemberRole, transferLeadership, regenerateInviteCode,
   updateSquadSettings, disbandSquad,
+  ROSTER_SORTS, DEFAULT_ROSTER_SORT, rosterSortById, sortRoster,
 } from "../squads.js";
 import {
   sendFriendRequest, acceptFriendRequest, declineFriendRequest, removeFriend,
@@ -27,7 +28,7 @@ import {
 } from "../friends.js";
 import {
   renderSquadEmojiPalette, renderSquadBrowseList, renderSquadHeader,
-  renderSquadRoster, renderSquadChat, renderSquadsTopTabs,
+  renderSquadRoster, renderRosterSortOptions, renderSquadChat, renderSquadsTopTabs,
   renderFriendChallenges, renderFriendRequests, renderFriendsLeaderboard,
 } from "../ui.js";
 import { getSession } from "../supabaseClient.js";
@@ -72,6 +73,38 @@ const squadSearchInput = document.getElementById("input-squad-search");
 const squadsListEl = document.getElementById("squads-list");
 const squadHeaderEl = document.getElementById("squad-header");
 const squadRosterEl = document.getElementById("squad-roster");
+const squadRosterSortEl = document.getElementById("squad-roster-sort");
+
+// ---- How the roster is ordered --------------------------------------------
+// Remembered across visits, because it is a preference about how somebody
+// reads their squad rather than a per-visit choice. A stored id that no longer
+// exists resolves to the default (rosterSortById), so removing a sort cannot
+// strand anyone on a blank roster.
+const ROSTER_SORT_KEY = "bk_roster_sort";
+
+let rosterSort = readStoredRosterSort();
+
+function readStoredRosterSort() {
+  try {
+    return rosterSortById(localStorage.getItem(ROSTER_SORT_KEY)).id;
+  } catch {
+    // Storage refused (private mode). The default applies this session.
+    return DEFAULT_ROSTER_SORT;
+  }
+}
+
+function setRosterSort(id) {
+  rosterSort = rosterSortById(id).id;
+  try {
+    localStorage.setItem(ROSTER_SORT_KEY, rosterSort);
+  } catch {
+    // Same as above - the choice still applies for this session.
+  }
+  // Re-renders from the CACHED squad rather than re-fetching: sorting is a
+  // question about rows this client already has, and a round trip to reorder
+  // them would make a chip feel like a page load.
+  renderSquadDetailFromCache();
+}
 const squadChatNoneEl = document.getElementById("squad-chat-none");
 const squadChatActiveEl = document.getElementById("squad-chat-active");
 const squadChatMessagesEl = document.getElementById("squad-chat-messages");
@@ -262,9 +295,13 @@ function renderSquadDetailFromCache() {
     }
   );
 
+  renderRosterSortOptions(squadRosterSortEl, ROSTER_SORTS, rosterSort, setRosterSort);
+
   renderSquadRoster(
     squadRosterEl,
-    roster,
+    // Sorted here rather than inside the renderer: the renderer draws rows,
+    // and what order they go in is logic (see ROSTER_SORTS in js/squads.js).
+    sortRoster(roster, rosterSort),
     myUserId,
     myRole,
     {
@@ -279,7 +316,8 @@ function renderSquadDetailFromCache() {
       },
       onAddFriend: (username) => addFriendFromSquad(username),
     },
-    squadKnownFriendIds
+    squadKnownFriendIds,
+    rosterSort
   );
 }
 

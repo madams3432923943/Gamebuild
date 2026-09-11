@@ -9577,3 +9577,75 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .share-status:empty {
   display: none;
 }
+
+/* ---- Roster sorting (js/squads.js ROSTER_SORTS) ----------------------------
+   The heading and the chips share a row and wrap as one, so on a phone the
+   chips fall under "Roster" instead of squeezing it. */
+.roster-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.roster-head h3 {
+  margin: 0;
+}
+
+.roster-sorts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  /* A scroller would hide options behind a swipe nobody knows is there; six
+     one-word chips wrap onto two lines at 360px and stay visible. */
+}
+
+.roster-sort {
+  appearance: none;
+  background: var(--surface-3);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  /* 2.25rem ~= 36px. Below the 44px thumb floor the app uses for primary
+     controls, deliberately: six of these at 44px is a 264px-tall block above a
+     roster on a phone. They are a filter, not the screen's action. */
+  min-height: 2.25rem;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .roster-sort:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+}
+
+.roster-sort.active {
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  background: var(--accent);
+  font-weight: 600;
+}
+
+.roster-sort:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* The figure the current sort is ordering on. Monospace and tabular so a
+   column of ratings or percentages lines up as numbers rather than as text of
+   varying width - the whole reason to show it is to make the order checkable
+   at a glance. */
+.squad-member-figure {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-micro);
+  color: var(--scoreboard);
+  white-space: nowrap;
+}

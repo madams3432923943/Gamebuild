@@ -281,7 +281,71 @@ const SQUAD_ROLE_LABEL = { leader: "👑 Leader", "co-leader": "⭐ Co-Leader", 
  * (accepted or pending), so the Add Friend button only appears where it would
  * actually do something.
  */
-export function renderSquadRoster(container, roster, myUserId, myRole, callbacks, friendIds = new Set()) {
+/**
+ * The figure the current sort is ordering on, or null when the record already
+ * shows it.
+ *
+ * "Unranked" rather than a rating of 500 for somebody who has not played:
+ * every player HAS a rating from game one, but it means nothing until the games
+ * floor, and printing it beside a squadmate's earned number would present the
+ * two as comparable. Same rule the sport cards on the home screen already
+ * follow.
+ */
+function memberSortFigure(member, sortId) {
+  if (sortId === "rating") {
+    const rating = member.rating;
+    if (!rating || !rating.games) return "Unranked";
+    return `${Math.round(rating.rating)} rating`;
+  }
+  if (sortId === "winrate") {
+    const games = (member.onlineWins || 0) + (member.onlineLosses || 0);
+    if (!games) return "No games yet";
+    return `${Math.round((member.onlineWins / games) * 100)}% of ${games}`;
+  }
+  if (sortId === "games") {
+    const games = (member.onlineWins || 0) + (member.onlineLosses || 0);
+    return `${games} ${games === 1 ? "game" : "games"}`;
+  }
+  // Wins, name and joined are all already legible from the row: the record
+  // carries the wins, the name is the name, and a joined-order list does not
+  // need a date on every line to be understood.
+  return null;
+}
+
+/**
+ * The sort chips above the roster.
+ *
+ * Chips rather than a <select>: there are six, they are one word each, and on
+ * a phone a native select opens a modal wheel to change something the reader
+ * wants to flick between. Same shape as the era and mode pickers this app
+ * already uses, so it reads as the same control.
+ *
+ * role="radiogroup" with aria-checked, because that is what it is - one of six,
+ * exactly one active. A row of buttons with a highlight class says nothing to a
+ * screen reader about which one is chosen.
+ */
+export function renderRosterSortOptions(container, sorts, activeId, onChoose) {
+  container.innerHTML = "";
+  container.setAttribute("role", "radiogroup");
+  container.setAttribute("aria-label", "Sort the roster by");
+  for (const sort of sorts) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "roster-sort" + (sort.id === activeId ? " active" : "");
+    btn.textContent = sort.label;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(sort.id === activeId));
+    btn.addEventListener("click", () => onChoose(sort.id));
+    container.appendChild(btn);
+  }
+}
+
+/**
+ * @param sortId which order the roster is in. The row shows the FIGURE that
+ *   order is sorting on, so the sort is legible: a roster ordered by win rate
+ *   with only "12-4 online" on each row asks the reader to do the division.
+ */
+export function renderSquadRoster(container, roster, myUserId, myRole, callbacks, friendIds = new Set(), sortId = "rating") {
   container.innerHTML = "";
   for (const member of roster) {
     const isSelf = member.userId === myUserId;
@@ -309,8 +373,22 @@ export function renderSquadRoster(container, roster, myUserId, myRole, callbacks
     const role = info.querySelector(".squad-member-role");
     role.textContent = SQUAD_ROLE_LABEL[member.role];
     role.classList.add(`role-${member.role}`);
+    // THE RECORD, AND THE NUMBER THE LIST IS ORDERED BY.
+    //
+    // The record alone was fine while join order was the only order. Sorted by
+    // win rate, a column of "12-4 online" makes the reader divide in their head
+    // to check the list is in the order it claims to be - and sorted by rating,
+    // the number doing the sorting was not on the screen at all.
     info.querySelector(".squad-member-record").textContent =
       `${member.onlineWins}-${member.onlineLosses} online`;
+
+    const figure = memberSortFigure(member, sortId);
+    if (figure) {
+      const el = document.createElement("span");
+      el.className = "squad-member-figure";
+      el.textContent = figure;
+      info.querySelector(".squad-member-meta").appendChild(el);
+    }
 
     row.append(avatar, info);
 

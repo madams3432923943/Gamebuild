@@ -29,6 +29,13 @@ import { chromium, devices } from "playwright";
 
 import { loadSquadIndex, driveDraft, driveStrategyPhases, signIn } from "./lib/app-driver.mjs";
 
+// The same squad fixture scripts/verify-squads.mjs asserts against, so the
+// picture and the test describe one roster.
+const SQUAD_STUB = await readFile(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "selftest/squads-stub.js"),
+  "utf8"
+);
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "verify-artifacts", "growth-screens");
 const PORT = Number(process.env.BK_SHOOT_PORT || 8951);
@@ -307,7 +314,44 @@ async function main() {
         await context.close();
       }
 
-      // ---- 6. a real game, to its final screen -------------------------
+      // ---- 6. the squad roster, in each of its orders -------------------
+      // Shot with the squads fixture rather than the stub above: this needs a
+      // squad with awkward squadmates in it (a 1-0 record, a 0-0 one) or every
+      // sort comes out looking the same.
+      {
+        const context = await browser.newContext(view.context);
+        const page = await context.newPage();
+        await page.route("**/esm.sh/**", (route) =>
+          route.fulfill({ status: 200, contentType: "text/javascript; charset=utf-8", body: SQUAD_STUB })
+        );
+        await page.addInitScript(() => {
+          window.__SQUAD_SCENARIO = "leader";
+          // Start from the default so the first shot is what a player lands on.
+          try { localStorage.removeItem("bk_roster_sort"); } catch {}
+        });
+        await page.goto(`${base}/index.html`);
+        await page.locator("#nav-squads").waitFor({ state: "visible", timeout: 20000 });
+        await page.locator("#nav-squads").click();
+        await page.locator("#squad-roster .squad-member").first().waitFor({ state: "visible", timeout: 20000 });
+        await page.waitForTimeout(600);
+        await shoot(page, view, "18-squad-roster-rating");
+
+        // Win rate is the order worth photographing second: it is the one whose
+        // tiering is visible only in the rendered list - Rookie's 1-0 sits
+        // under PostUp's 7-9.
+        for (const [label, name] of [
+          ["Win rate", "19-squad-roster-winrate"],
+          ["Wins", "20-squad-roster-wins"],
+        ]) {
+          const chip = page.locator(".roster-sort", { hasText: label }).first();
+          await chip.click();
+          await page.waitForTimeout(500);
+          await shoot(page, view, name);
+        }
+        await context.close();
+      }
+
+      // ---- 7. a real game, to its final screen -------------------------
       if (!SKIP_GAME) {
         const { context, page } = await newPage(browser, view, { onboarded: true });
         const errors = [];

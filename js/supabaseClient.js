@@ -159,6 +159,11 @@ export function authLinkError() {
 }
 
 function captureAuthLinkError() {
+  // NO DOCUMENT MEANS NO LINK TO READ. This module is imported by Node for the
+  // verify scripts, where `window` does not exist - and an absent browser is
+  // not a failed recovery link, so reporting one would be a console error on
+  // every run of a passing test.
+  if (typeof window === "undefined") return null;
   try {
     // The fragment for the implicit flow, the query string for PKCE. Checking
     // both costs nothing and means this does not depend on which flow the

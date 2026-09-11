@@ -861,7 +861,13 @@
           <div class="card squad-header-card" id="squad-header"></div>
 
           <div class="card">
-            <h3>Roster</h3>
+            <div class="roster-head">
+              <h3>Roster</h3>
+              <!-- How the roster is ordered. Filled by renderRosterSortOptions
+                   from ROSTER_SORTS in js/squads.js, so adding an order is one
+                   object there rather than markup here. -->
+              <div id="squad-roster-sort" class="roster-sorts"></div>
+            </div>
             <div id="squad-roster" class="squad-roster"></div>
           </div>
 
