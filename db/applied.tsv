@@ -101,3 +101,5 @@
 20260903232802	signin_hardening	db/migrations/20260903_02_signin_hardening.sql
 20260903233805	signin_hardening_constant_time	FOLDED:db/migrations/20260903_02_signin_hardening.sql
 20260903233941	report_grants_and_indexes	db/migrations/20260903_03_report_grants_and_indexes.sql
+20260911143437	onboarding_state	db/migrations/20260911_01_onboarding_state.sql
+20260911143707	product_analytics	db/migrations/20260911_02_product_analytics.sql

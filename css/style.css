@@ -5548,6 +5548,140 @@ table.box-table th {
   width: min(920px, 100%);
 }
 
+/* ---- First-run welcome (js/onboarding.js) ----
+   A shade wider than a dialog and no wider: the five steps read as a list,
+   and at 560px each step title wrapped onto its own line and stopped looking
+   like one. Everything below uses the same tokens as the rest of the app - the
+   welcome screen is the first impression of the product, not of a modal. */
+.modal.modal-onboarding {
+  width: min(640px, 100%);
+}
+
+.onboarding-hook {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--accent-bright);
+  margin: 0 0 0.4rem;
+}
+
+.onboarding-lede {
+  margin: 0 0 1.1rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* Numbered by the list itself rather than by hardcoded digits in the copy -
+   a step inserted in the middle then cannot renumber the ones after it. */
+.onboarding-steps {
+  list-style: none;
+  counter-reset: onboarding-step;
+  margin: 0 0 1.3rem;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.onboarding-step {
+  counter-increment: onboarding-step;
+  display: grid;
+  grid-template-columns: 1.7rem 1fr;
+  gap: 0.15rem 0.6rem;
+  align-items: baseline;
+  background: var(--surface-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-inner);
+  padding: 0.6rem 0.75rem;
+}
+
+.onboarding-step::before {
+  content: counter(onboarding-step);
+  grid-row: 1 / span 2;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+}
+
+.onboarding-step-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--text-micro);
+  color: var(--text);
+}
+
+.onboarding-step-detail {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.onboarding-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 0.55rem;
+}
+
+.onboarding-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+
+.onboarding-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--surface-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-inner);
+  padding: 0.7rem 0.8rem;
+}
+
+.onboarding-mode-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--accent-bright);
+}
+
+.onboarding-mode-blurb {
+  color: var(--text);
+  font-size: var(--text-xs);
+}
+
+.onboarding-tiers {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.onboarding-cta {
+  margin-top: 0.2rem;
+}
+
+/* One column on a phone. The two mode cards side by side at 360px give each
+   about 150px, which breaks "Online Ranked" across two lines under a heading
+   that is itself two words. */
+@media (max-width: 520px) {
+  .onboarding-modes {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-hook {
+    font-size: 1.2rem;
+  }
+}
+
 .modal-body {
   padding: 1rem 1.1rem 1.2rem;
   overflow-y: auto;

@@ -45,6 +45,8 @@ import {
   allSportRatings,
 } from "./profile.js";
 import { countFriends } from "./friends.js";
+import { maybeShowOnboarding } from "./onboarding.js";
+import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
 import {
   MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
   resolveMode, modeLabel,
@@ -452,12 +454,29 @@ const homeHeaderRefs = {
 
 /** Called once a session exists: loads the profile, shows the app shell, and
  * stamps the display name the game will use for this player. */
-async function enterApp() {
+async function enterApp({ newAccount = false } = {}) {
   navTabs.hidden = false;
   setActiveNav("play");
   showScreen("home");
   await reconcileUsername();
-  await refreshHome();
+  const profile = await refreshHome();
+
+  // DAU/WAU/MAU, and nothing else. One idempotent upsert of (user, today) per
+  // app entry - see markActiveToday. Not awaited: a retention metric has no
+  // business delaying the home screen.
+  void markActiveToday();
+  // A BRAND-NEW ACCOUNT REACHING THE APP, which is not the same moment as the
+  // sign-up form succeeding: with email confirmation on, signUp() returns no
+  // session and the account does not enter anything until the link is clicked
+  // and they sign in, possibly days later. So this fires on either path - the
+  // flag from the sign-up handler, or a profile that has never been onboarded,
+  // which is only ever true on an account's first entry.
+  if (newAccount || !profile?.hasSeenOnboarding) trackOnce(EVENTS.SIGNUP_COMPLETED);
+
+  // THE WELCOME, for an account that has never seen it. Last, so it opens over
+  // a home screen that is already drawn rather than over an empty one, and so
+  // a failure anywhere above cannot take the first-run experience down with it.
+  if (profile) maybeShowOnboarding(profile);
 }
 
 /** Writes the username from the signup metadata onto the profile if the row
@@ -589,6 +608,11 @@ async function renderHomeSportCards(profile, population = null) {
 
     if (selectable) {
       open.addEventListener("click", () => {
+        // The funnel step, recorded where the CHOICE is made. setSport() is
+        // also called on boot to restore the stored sport, which is not a
+        // player choosing anything - counting it there would make every page
+        // load look like a sport selection.
+        track(EVENTS.SPORT_SELECTED, { sport: s.id });
         setSport(s.id);
         showScreen("play");
       });
@@ -704,8 +728,10 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
 /** Re-reads the profile and repaints the home header. Called on entry and
  * after anything that can change the record (a finished game, a rename). */
 async function refreshHome() {
+  let loaded = null;
   try {
     const profile = await loadProfile();
+    loaded = profile;
     game.nameA = profile.username || "Player";
     // Your kit travels with the session so every stage can dress itself without
     // re-reading the profile mid-match.
@@ -731,6 +757,10 @@ async function refreshHome() {
     game.nameA = "Player";
   }
   signedInAsEl.textContent = game.nameA;
+  // RETURNED so a caller that has just triggered this read does not trigger a
+  // second one. enterApp needs the profile for the first-run check, and the
+  // alternative was loadProfile() twice on the first screen of every visit.
+  return loaded;
 }
 
 btnAuthSubmit.addEventListener("click", async () => {
@@ -791,7 +821,7 @@ btnAuthSubmit.addEventListener("click", async () => {
       }
       await setUsername(username);
       inputAuthPassword.value = "";
-      await enterApp();
+      await enterApp({ newAccount: true });
     } catch (e) {
       setAuthStatus(e.message || "That didn't work. Try again.", "error");
     } finally {
@@ -979,6 +1009,10 @@ function renderChoiceCards(container, entries, selectedId, onSelect) {
 
 function renderModeCards() {
   renderChoiceCards(modeToggleEl, Object.values(MODES), selectedMode, (id) => {
+    // On the click, not on the render: renderModeCards() runs again on every
+    // selection and on every return to the Play screen, and an event fired
+    // from a render is an event fired by the app rather than by the player.
+    track(EVENTS.MODE_SELECTED, { mode: id, sport: getSport() });
     selectedMode = id;
     renderModeCards();
     renderDifficultyCards();
@@ -998,6 +1032,7 @@ function renderDifficultyCards() {
     DIFFICULTY_IDS.map((id) => difficultyById(id)),
     selectedDifficulty,
     (id) => {
+      track(EVENTS.PRACTICE_DIFFICULTY_SELECTED, { difficulty: id, sport: getSport() });
       selectedDifficulty = id;
       try {
         localStorage.setItem(DIFFICULTY_KEY, id);
@@ -1285,6 +1320,11 @@ async function endOnlineSearch(message) {
 
 async function startOnlineSearch() {
   onlineSearchActive = true;
+  // The search, not each poll of it. joinQueue is called every
+  // ONLINE_QUEUE_POLL_MS for up to two minutes - roughly sixty calls for one
+  // search - so recording the RPC would measure the poll interval rather than
+  // player intent. This is the only line that runs once per search.
+  track(EVENTS.RANKED_QUEUE_JOINED, { sport: getSport(), era: getEra() });
   btnStartDraft.disabled = true;
   btnCancelSearch.classList.remove("hidden");
   searchStatusEl.classList.remove("hidden");
@@ -1307,6 +1347,7 @@ async function startOnlineSearch() {
     while (onlineSearchActive) {
       const res = await joinQueue(getSport(), getEra());
       if (res.status === "matched") {
+        track(EVENTS.RANKED_MATCH_FOUND, { sport: getSport(), era: getEra() });
         await enterOnlineMatch(res.match_id);
         return;
       }
@@ -1903,6 +1944,16 @@ function startDraft() {
   poolSearch.value = "";
   hideDraftGrade();
   captureProgressBaseline();
+  // A DRAFT HAS BEGUN. One of the two places this can be true - the other is
+  // enterOnlineMatch, which is how a ranked or friend draft starts - and the
+  // mode is carried on the event so the funnel splits without a second one.
+  const started = matchConfig();
+  track(EVENTS.DRAFT_STARTED, {
+    sport: getSport(),
+    mode: started.id,
+    difficulty: started.difficulty || undefined,
+    era: game.era,
+  });
   showScreen("draft");
   advanceDraft();
 }
@@ -2306,6 +2357,11 @@ function showDraftGrade(roster, opts = {}) {
 function renderDraftComplete() {
   cleanupPickTimer();
   const draft = game.draft;
+  track(EVENTS.DRAFT_COMPLETED, {
+    sport: getSport(),
+    mode: matchConfig().id,
+    difficulty: matchConfig().difficulty || undefined,
+  });
   draftRoundLabel.textContent = "Draft complete";
   squadBannerTeam.textContent = "Rosters set";
   squadBannerDecade.textContent = "";
@@ -2508,6 +2564,15 @@ async function enterOnlineMatch(matchId) {
   // hidden board, ranked roster, authoritative server - with `ranked: false`,
   // which is the single fact that keeps it off the ladder.
   game.modeConfig = match.is_friendly ? { ...FRIEND_MODE, difficulty: null } : resolveMode("ranked");
+
+  // The online half of draft_started. Keyed on the match id rather than fired
+  // outright: enterOnlineMatch is also how a player RECONNECTS to a match
+  // already in progress, and a dropped connection is not a second draft.
+  trackOnce(
+    EVENTS.DRAFT_STARTED,
+    { sport: match.sport || getSport(), mode: game.modeConfig.id, era: match.era },
+    `draft_started:${matchId}`
+  );
 
   // THE MATCH DECIDES THE SPORT, not whatever this client last had selected.
   //
@@ -2935,6 +3000,15 @@ async function onlineSkip() {
 async function beginOnlineStrategyPhase(match) {
   const o = game.online;
   if (!o) return;
+
+  // Once per match. This runs from the match watcher, which fires on every
+  // row change and can re-enter the strategy phase on a reconnect - the
+  // reason trackOnce takes a key.
+  trackOnce(
+    EVENTS.DRAFT_COMPLETED,
+    { sport: getSport(), mode: matchConfig().id },
+    `draft_completed:${o.matchId}`
+  );
 
   draftRoundLabel.textContent = "Draft complete";
   squadBannerTeam.textContent = "Rosters set";
@@ -3652,6 +3726,19 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // running totals, folded from the events already revealed - see THE LIVE
   // LEDGER in each sport's playback module. The authoritative result sits
   // untouched in `result` and is read only at the final whistle.
+  // EVERY MODE ROUTES THROUGH HERE, which is why the last two funnel events
+  // are recorded in this function rather than three times over in the offline,
+  // ranked and friendly paths. A simulation has started; the result is already
+  // decided and is about to be played out.
+  {
+    const config = matchConfig();
+    track(EVENTS.SIMULATION_STARTED, {
+      sport: game.sport || getSport(),
+      mode: config.id,
+      difficulty: config.difficulty || undefined,
+    });
+  }
+
   const periodsSoFar = [];
   let runningA = 0;
   let runningB = 0;
@@ -3917,6 +4004,31 @@ function showShotChart(events, labelA, labelB) {
   function finish(silent = false) {
     if (finished) return;
     finished = true;
+
+    // A GAME WAS COMPLETED. Recorded here, behind the same `finished` guard
+    // that stops the result being written twice, so an abandoned game settled
+    // by cleanupPlayback counts exactly once and a game watched to the whistle
+    // also counts exactly once.
+    //
+    // WHY game_completed FIRES FOR EVERY MODE AND THE OTHER TWO DO NOT. The
+    // admin aggregates read online games out of `matches`, which is
+    // authoritative, and only union the PRACTICE ones in from this event - so
+    // game_completed carries `mode` to let them be told apart. The ranked and
+    // friendly events are for the funnel, where "how many people finished a
+    // ranked game" is a question about people rather than about matches.
+    {
+      const config = matchConfig();
+      const props = {
+        sport: game.sport || getSport(),
+        mode: config.id,
+        difficulty: config.difficulty || undefined,
+        won: result.winner === "A",
+        margin: Math.abs(result.teamScoreA - result.teamScoreB),
+      };
+      track(EVENTS.GAME_COMPLETED, props);
+      if (config.ranked) track(EVENTS.RANKED_GAME_COMPLETED, props);
+      else if (config.id === FRIEND_MODE.id) track(EVENTS.FRIEND_GAME_COMPLETED, props);
+    }
     // Everything still waiting to draw on a game that is over: the queued
     // events, the pending box-score frame, and any timer a celebration owns.
     // One of those firing after the whistle lands on the next game's feed, or

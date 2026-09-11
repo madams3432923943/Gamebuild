@@ -34,6 +34,7 @@ import { getSession } from "../supabaseClient.js";
 import { SPORTS, isLive, sportById } from "../sports/index.js";
 import { FRIEND_MODE } from "../modes.js";
 import { showScreen, openModal, closeModal } from "../shell.js";
+import { track, EVENTS } from "../analytics.js";
 import { game } from "../state.js";
 
 // The squad chat subscription. Lives here rather than in main.js because this
@@ -352,7 +353,17 @@ async function loadFriendsPanel() {
     ]);
     renderFriendChallenges(friendChallengesListEl, challenges, onJoinChallenge);
     renderFriendRequests(friendRequestsListEl, incoming, outgoing, {
-      onAccept: (id) => runFriendAction(() => acceptFriendRequest(id)),
+      // friend_added on the ACCEPT, which is the moment a friendship exists -
+      // a request that was sent and never answered is not a friend. Only the
+      // accepting side records it, so one friendship is one event rather than
+      // two. No id in the payload: who is friends with whom is a social graph,
+      // and analytics has no business holding one (see the key allowlist in
+      // js/analytics.js).
+      onAccept: (id) =>
+        runFriendAction(async () => {
+          await acceptFriendRequest(id);
+          track(EVENTS.FRIEND_ADDED);
+        }),
       onDecline: (id) => runFriendAction(() => declineFriendRequest(id)),
       // Cancelling a request you sent uses the same RPC as declining one you
       // received - decline_friend_request checks both directions.
@@ -479,6 +490,8 @@ function onChallengeFriend(friendId, username) {
     send.textContent = "Sending…";
     try {
       const matchId = await challengeFriend(friendId, sportId, eraId);
+      // After the RPC, so a refused challenge is not counted as a sent one.
+      track(EVENTS.FRIEND_CHALLENGE_SENT, { sport: sportId, era: eraId || undefined });
       closeModal();
       // Deliberately NOT routed through runFriendAction: success here means
       // leaving the squads screen entirely for the draft screen, which a
