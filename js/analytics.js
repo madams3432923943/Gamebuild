@@ -65,6 +65,41 @@ const ALLOWED_PROPS = new Set([
 /** Keys already recorded once this page session - see trackOnce. */
 const alreadyFired = new Set();
 
+// ---- Going quiet when there is nothing to talk to --------------------------
+//
+// Offline play needs no network at all, on purpose: supabase-js is a dynamic
+// import precisely so a slow or unreachable CDN cannot take bot mode down with
+// it (see js/supabaseClient.js). But a player with no connection still plays
+// games, and every one of those fires a dozen events - so the honest "never
+// allow a silent failure" rule was producing a dozen identical console errors
+// per game, which is not debugging information, it is noise that buries the
+// one line somebody needed.
+//
+// So the first few failures are reported and then it stops trying. One line
+// says analytics is off and why. Three rather than one because a single
+// failure can be a blip, and losing the whole session's funnel over one
+// dropped request would be the opposite mistake. getSupabase() caches its
+// rejected promise for the session anyway, so once the module genuinely cannot
+// load, every subsequent attempt fails the same way.
+const FAILURES_BEFORE_GIVING_UP = 3;
+let consecutiveFailures = 0;
+let transportGaveUp = false;
+
+function noteFailure(event, reason) {
+  consecutiveFailures += 1;
+  if (consecutiveFailures < FAILURES_BEFORE_GIVING_UP) {
+    console.error(`analytics: ${event} not recorded:`, reason);
+    return;
+  }
+  if (!transportGaveUp) {
+    transportGaveUp = true;
+    console.error(
+      `analytics: giving up after ${consecutiveFailures} consecutive failures (last: ${reason}). ` +
+        `Nothing further will be recorded this session. The game is unaffected.`
+    );
+  }
+}
+
 /** Scalars only, allowlisted keys only, and undefined/null dropped rather than
  * stored as an empty value. */
 function cleanProps(props) {
@@ -125,10 +160,12 @@ export function firedAlready(key) {
 }
 
 async function send(event, props) {
+  if (transportGaveUp) return;
   try {
     // No session means the sign-in screen, where track_event would raise
     // 42501. Nothing to record and nothing to report: a visitor who has not
-    // signed in is not in the funnel yet.
+    // signed in is not in the funnel yet, and this is not a failure - so it
+    // does not count toward giving up.
     const session = await getSession();
     if (!session) return;
     const supabase = await getSupabase();
@@ -139,9 +176,13 @@ async function send(event, props) {
     // Logged, not thrown. CLAUDE.md forbids silent failures, and a console
     // error is the useful debugging information here - there is no recovery to
     // attempt and nothing to tell the player.
-    if (error) console.error(`analytics: ${event} not recorded:`, error.message);
+    if (error) {
+      noteFailure(event, error.message);
+      return;
+    }
+    consecutiveFailures = 0;
   } catch (e) {
-    console.error(`analytics: ${event} not recorded:`, e?.message || e);
+    noteFailure(event, e?.message || String(e));
   }
 }
 

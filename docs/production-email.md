@@ -170,7 +170,27 @@ is a single toggle whenever you want it.
 **Do C before D.** Confirmation on top of the built-in rate-limited mailer means
 a player who signs up during a busy hour cannot get in at all.
 
-### E. Then test recovery end to end
+### E. One toggle unrelated to email, found while auditing
+
+**Authentication → Policies → Leaked password protection** is off. Supabase can
+check a chosen password against HaveIBeenPwned on sign-up and password reset and
+refuse the ones that are already in a breach corpus. It is a switch, it costs
+nothing, and it is the single highest-value auth setting not currently enabled.
+
+Supabase's own security advisor reports it (`auth_leaked_password_protection`).
+Noted here rather than filed elsewhere because the reset flow is where it
+matters most: a reset is exactly when somebody types the password they use
+everywhere.
+
+Nothing else in the advisor output is a finding. The `analytics_events`,
+`active_days`, `analytics_event_types` and `admin_users` tables appear under
+"RLS enabled, no policy", which is the intended design and the same shape
+`presence`, `rpc_attempts` and `signin_attempts` already have: RLS on with no
+policies and no grants means only `SECURITY DEFINER` code can read them. And no
+function added in this sprint is reachable by `anon` — the advisor's anon list
+contains only the two sign-in helpers that are meant to be.
+
+### F. Then test recovery end to end
 
 Once A and B are in:
 

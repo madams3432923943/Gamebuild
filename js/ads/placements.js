@@ -40,6 +40,22 @@ const watchers = new WeakMap();
 // as textContent, so a headline containing a "<" is a headline containing a
 // "<" - there is no escaping step for anyone to forget, and no path from this
 // config to innerHTML. Keep it that way.
+/** `href` if it is somewhere a sponsor may send a player, else null. An
+ * unparseable or wrong-scheme destination renders the card without its button
+ * rather than with a dead or dangerous one. */
+function safeDestination(href) {
+  if (!href) return null;
+  try {
+    const url = new URL(href, window.location.href);
+    if (url.protocol === "https:" || url.protocol === "mailto:") return href;
+    console.error(`sponsor: refusing a ${url.protocol} destination -`, href);
+    return null;
+  } catch {
+    console.error("sponsor: refusing an unparseable destination -", href);
+    return null;
+  }
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -143,14 +159,23 @@ export function renderSponsor(container, placement, { now = new Date() } = {}) {
   card.appendChild(el("span", "sponsor-headline", campaign.headline));
   if (campaign.body) card.appendChild(el("span", "sponsor-body", campaign.body));
 
-  if (campaign.href && campaign.cta) {
+  // A DESTINATION IS CHECKED AT RENDER TIME AS WELL AS AT BUILD TIME.
+  //
+  // scripts/verify-sponsors.mjs already fails a campaign whose href is not
+  // https or mailto, and the config is committed code a person reviewed. Both
+  // of those are true today and neither is a property of THIS function - the
+  // moment campaigns come out of a database (see the note in campaigns.js), the
+  // build check stops covering them and this is the line that still does. A
+  // `javascript:` href in a sponsor slot is script execution inside the page.
+  const destination = safeDestination(campaign.href);
+  if (destination && campaign.cta) {
     const link = document.createElement("a");
     link.className = "sponsor-cta";
-    link.href = campaign.href;
+    link.href = destination;
     link.textContent = campaign.cta;
     // A sponsor's destination is off-site and not ours: a new tab, no referrer
     // beyond the origin, and no window.opener handle back into the game.
-    if (!campaign.href.startsWith("mailto:")) {
+    if (!destination.startsWith("mailto:")) {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
     }
