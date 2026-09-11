@@ -298,17 +298,54 @@ async function main() {
       }
 
       // ---- 5. the account emails ---------------------------------------
-      // Rendered in a browser at a mail-client-ish width. Not a mail client -
-      // nothing here can be - but it is what the markup produces.
+      //
+      // AS A RECIPIENT SEES THEM, which takes two substitutions the raw file
+      // cannot do for itself:
+      //
+      //   The Go template variables. Supabase fills {{ .ConfirmationURL }} and
+      //   friends server-side, so a screenshot of the file shows the literal
+      //   braces where the reader will see a link and their own address. That
+      //   is the template, not the mail.
+      //
+      //   The logo. It is an absolute https URL because a mail has no base URL
+      //   to resolve against - correct for a real inbox, and unreachable from a
+      //   sandboxed browser with no network, where it renders as alt text in a
+      //   broken-image box. The request is routed to the file on disk, which is
+      //   the same bytes the live site serves.
+      //
+      // Still not a mail client - nothing here can be - but it is what the
+      // markup produces once it has been filled in.
       {
         const { context, page } = await newPage(browser, view, { onboarded: true });
+        // The lockup, served from disk in place of the production URL.
+        await page.route("https://draftnovagame.com/assets/brand/**", async (route) => {
+          const file = route.request().url().split("/assets/")[1];
+          route.fulfill({ status: 200, contentType: "image/png", body: await readFile(path.join(ROOT, "assets", file)) });
+        });
+
+        const SAMPLE = {
+          "{{ .Email }}": "madams@example.com",
+          "{{ .NewEmail }}": "maxwell@gurrbrothers.com",
+          // A link shaped like the real one, so its length and wrapping are
+          // what a reader will actually meet.
+          "{{ .ConfirmationURL }}":
+            "https://draftnovagame.com/?token=pkce_8f3c1d9a4b7e2f60a1c8d35e97b4&type=recovery",
+        };
+        const fill = (html) =>
+          Object.entries(SAMPLE).reduce((out, [k, v]) => out.split(k).join(v), html);
+
         for (const [name, file] of [
           ["09-email-reset-password", "docs/email/reset-password.html"],
           ["10-email-confirm-signup", "docs/email/confirm-signup.html"],
           ["11-email-change-email", "docs/email/change-email.html"],
         ]) {
-          await page.goto(`${base}/${file}`);
-          await page.waitForTimeout(500);
+          const html = fill(await readFile(path.join(ROOT, file), "utf8"));
+          // A real document, so the mail's own <table> ground fills the frame
+          // the way it does in an inbox rather than sitting on white.
+          await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0">${html}</body>`, {
+            waitUntil: "load",
+          });
+          await page.waitForTimeout(600);
           await shoot(page, view, name, { full: true });
         }
         await context.close();
