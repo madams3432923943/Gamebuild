@@ -27,12 +27,13 @@ import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// EVERY PAGE ON THE ORIGIN, not just the game. admin.html is a second entry
-// point into the same origin and the same localStorage session, so a weaker
-// policy there is a weaker policy everywhere - and it carries its own copy of
-// the inline import map, which means its own hash to rot. Adding a page to
-// this list is the whole cost of keeping it covered.
-const PAGES = ["index.html", "admin.html"];
+// EVERY PAGE IN THE REPOSITORY, not just the game. The admin dashboard is not
+// part of the website any more - it is served from localhost by `npm run
+// admin` - but it is still a page that loads supabase-js and signs somebody
+// in, so it gets the same policy for the same reasons, and it carries its own
+// copy of the inline import map, which means its own hash to rot. Adding a
+// page to this list is the whole cost of keeping it covered.
+const PAGES = ["index.html", "tools/admin/index.html"];
 
 // One list across both pages, so the exit code covers all of it and the
 // summary at the bottom counts the whole run rather than the last page.

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Same policy as index.html, for the same reasons - see the long note
+       there. This page is a second entry point into the same origin, so a
+       weaker policy here would be a weaker policy everywhere: an injection on
+       this page can read the same localStorage session the game uses.
+       scripts/verify-csp.mjs checks both pages against the same rules,
+       including the sha256 of the inline import map below. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://esm.sh 'sha256-Wt3qc8kfJLB7OhSqO1a0r6nu4+rIO+DqNIgTJPJQzQQ=';
+    style-src 'self';
+    img-src 'self' data:;
+    font-src 'self';
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://esm.sh;
+    object-src 'none';
+    base-uri 'none';
+    form-action 'none';
+  " />
+  <!-- AN INTERNAL TOOL, AND NOT PART OF THE WEBSITE.
+       
+       This page used to sit at the repo root as /admin.html, which made it a
+       top-level page of draftnovagame.com. It is under tools/ now and is opened
+       with `npm run admin`, which serves the repo on 127.0.0.1 - so there is no
+       admin page on the live site, nothing links to one, and no player can
+       stumble into it.
+       
+       WHAT THAT DOES AND DOES NOT BUY. GitHub Pages serves this repository's
+       whole tree, so this file is still fetchable by anyone who types the
+       tools/admin path. That is harmless and was never the security boundary:
+       the page holds no data, and every figure on it comes from a SECURITY
+       DEFINER function that refuses a non-administrator (see
+       db/migrations/20260911_03). Moving it is about it not being part of the
+       product, not about hiding it. robots.txt disallows /tools/ as well, and
+       this meta covers a crawler that ignores robots.txt. -->
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" href="/assets/brand/draft-nova-icon.png" />
+  <title>Draft Nova — Admin</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="/css/admin.css" />
+</head>
+<body>
+  <header class="admin-top">
+    <div class="admin-brand">
+      <img class="admin-mark" src="/assets/brand/draft-nova-icon.png" alt="" />
+      <span>Draft Nova <strong>Admin</strong></span>
+    </div>
+    <div class="admin-top-actions">
+      <span class="admin-generated" id="admin-generated"></span>
+      <button type="button" class="admin-btn" id="admin-refresh">Refresh</button>
+      <a class="admin-btn admin-btn-quiet" href="/index.html">Back to the game</a>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <!-- Four states, and only one of them is the dashboard: loading, sign-in,
+         refused, and the numbers. The refusal is a real state with real copy
+         rather than an empty page, because "I am signed in and see nothing" is
+         indistinguishable from a broken tool. -->
+    <p class="admin-status" id="admin-status">Checking your access…</p>
+
+    <!-- ITS OWN SIGN-IN, because this page is served from 127.0.0.1 and the
+         game is served from draftnovagame.com. Those are different origins, so
+         supabase-js finds no session here however recently you signed in over
+         there - localStorage does not cross an origin. Telling somebody to
+         "sign in on the game first" would have been advice that cannot work.
+         
+         It signs in against the same Supabase project with the same publishable
+         key the game uses; being signed in buys nothing on its own, because the
+         dashboard's data still comes from functions that check is_admin(). -->
+    <form class="admin-signin" id="admin-signin" hidden>
+      <h2>Sign in</h2>
+      <p class="admin-signin-note">Use your Draft Nova account. Only an account on the admin allowlist can read anything here.</p>
+      <label class="admin-field">
+        <span>Email</span>
+        <input type="email" id="admin-email" autocomplete="username" required />
+      </label>
+      <label class="admin-field">
+        <span>Password</span>
+        <input type="password" id="admin-password" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="admin-btn admin-btn-primary" id="admin-signin-submit">Sign in</button>
+      <p class="admin-status admin-status-error" id="admin-signin-error" hidden></p>
+    </form>
+
+    <div id="admin-body" hidden></div>
+  </main>
+
+  <script type="module" src="/js/admin/main.js"></script>
+</body>
+</html>

@@ -6553,6 +6553,50 @@ html {
   overscroll-behavior-y: contain;
 }
 
+/* ---- ZOOMING THE WHOLE APP OUT ON A PHONE --------------------------------
+   Every size in this file is in rem, which makes the root font size the one
+   lever that scales the entire app at once - type, spacing, card padding,
+   avatars, control heights, the lot. On a phone the app read as zoomed in: the
+   home screen fit the identity banner, one heading and a single sport card,
+   and reaching the second sport meant scrolling.
+
+   93.75% (15px) at phone widths and 90.6% (14.5px) on a narrow one. Chosen
+   rather than eyeballed: below about 90% the app stops looking smaller and
+   starts looking like a desktop site on a phone, which is the failure this
+   is one step away from.
+
+   THE TYPE FLOOR IS HELD IN PIXELS THROUGH IT. --text-micro and --text-xs are
+   the 12px and 13px bottoms of the range, measured in the mobile baseline
+   audit (docs/audits/2026-09-02-*) after it counted 1,089 readings of text too
+   small to read at arm's length on a couch. Scaling the root without
+   recomputing them would have quietly undone that: 0.75rem of 15px is 11.25px.
+   So they are re-expressed here to land back on exactly 12 and 13.
+
+   The 44px tap floor is held the same way - see the block below, where it
+   stops being 2.75rem and becomes 44px, because a thumb does not get smaller
+   when the type does. */
+@media (max-width: 700px) {
+  html {
+    font-size: 93.75%; /* 15px */
+  }
+
+  :root {
+    --text-micro: 0.8rem;    /* 12px at a 15px root */
+    --text-xs: 0.8667rem;    /* 13px */
+  }
+}
+
+@media (max-width: 400px) {
+  html {
+    font-size: 90.6%; /* 14.5px */
+  }
+
+  :root {
+    --text-micro: 0.8276rem; /* 12px at a 14.5px root */
+    --text-xs: 0.8966rem;    /* 13px */
+  }
+}
+
 /* A box score is genuinely wider than a phone. Let it scroll inside its own
    frame rather than squeezing columns to nothing. Recent Games used to need
    this too and no longer does - it is a list of match rows now, not a table. */
@@ -6586,12 +6630,15 @@ html {
     margin-left: 0;
   }
 
-  /* Comfortable thumb targets. 2.75rem ~= 44px, the usual floor. */
+  /* Comfortable thumb targets. IN PIXELS, not 2.75rem: the root font size
+     shrinks at this width (see the html rule further down) and a rem-based
+     floor would shrink with it, taking a 44px target to 41px and then 40px.
+     A thumb is the one thing on the screen that is not smaller on a phone. */
   .btn,
   .mode-btn,
   .sport-tile,
   .era-chip {
-    min-height: 2.75rem;
+    min-height: 44px;
   }
 
   .btn-small {
@@ -8277,11 +8324,23 @@ table.box-table th:nth-child(2) {
     font-family: var(--font-body);
   }
 
+  /* 152px, IN PIXELS, AND NOT 9.5rem.
+     
+     This width is a measurement, not a proportion: it is the column in which
+     "Washington Commanders Defensive Line" takes three lines and not four,
+     which is the limit verify-box-score holds it to. Expressed in rem it
+     followed the root font size down when the phone breakpoint started scaling
+     the app (see the html rule near the top of the mobile block) - 9.5rem
+     became 138px, under the 140px floor that test asserts, and the check went
+     red for a change that had nothing to do with box scores.
+     
+     The TEXT inside it is still in rem and still scales, which only helps: a
+     smaller face fits more characters in the same 152px. */
   table.box-table td:nth-child(2),
   table.box-table th:nth-child(2) {
-    width: 9.5rem;
-    min-width: 9.5rem;
-    max-width: 9.5rem;
+    width: 152px;
+    min-width: 152px;
+    max-width: 152px;
   }
 
   /* The team and season under the name, held to two lines.

@@ -217,7 +217,7 @@ async function main() {
       // ---- 4. the admin dashboard --------------------------------------
       {
         const { context, page } = await newPage(browser, view, { onboarded: true });
-        await page.goto(`${base}/admin.html`);
+        await page.goto(`${base}/tools/admin/index.html`);
         await page.waitForTimeout(400);
         // Rendered from the same fixtures verify-admin-dashboard.mjs asserts
         // against, so the picture and the test are describing one thing.

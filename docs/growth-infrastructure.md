@@ -164,17 +164,44 @@ tables are ungranted; and the recurring events are keyed.
 
 ## 3. Admin dashboard
 
-**Route** `/admin.html` — a separate page, not a screen inside the game.
+**How you open it** `npm run admin`, then <http://127.0.0.1:8790/>.
 
-**Files** `admin.html`, `js/admin/main.js`, `js/admin/render.js`,
-`css/admin.css`, `db/migrations/20260911_03_admin_dashboard.sql`,
+**Files** `tools/admin/index.html`, `js/admin/main.js`, `js/admin/render.js`,
+`css/admin.css`, `scripts/serve-admin.mjs`,
+`db/migrations/20260911_03_admin_dashboard.sql`,
 `db/migrations/20260911_04_games_per_user_window.sql`
+
+### It is not part of the website
+
+It started as `/admin.html` at the repo root, which made it a top-level page of
+draftnovagame.com. Nothing about that was insecure — the data comes from
+functions that refuse a non-administrator, so the page held nothing and showed
+nothing to anybody else — but a business dashboard is not part of the product,
+and a URL that exists is a URL somebody eventually links, bookmarks or
+screenshots.
+
+So it is a local tool. `npm run admin` serves the repo on **127.0.0.1** —
+loopback explicitly, not `0.0.0.0`, because on a shared network the second one
+would put the page on every device in the room. There is no admin page among
+the site's own pages, nothing links to one, and no player can stumble into it.
+
+**What that does and does not buy, stated plainly.** GitHub Pages serves this
+repository's whole tree, so the file is still *fetchable* by anyone who types
+the `tools/admin/` path. That is harmless and was never the boundary: the page
+has no data of its own. If you want zero public footprint, the remaining step
+is keeping `tools/admin/` off `main` — say so and it is one command.
+
+It has **its own sign-in**, and it has to: the page is served from `127.0.0.1`
+and the game from `draftnovagame.com`, and `localStorage` does not cross an
+origin. An earlier version told the reader to "sign in on the game first",
+which was advice that could not work. Signing in buys nothing on its own —
+the data still comes from `is_admin()`-guarded functions.
 
 ### Authorization
 
-**Enforced in the database, not by hiding a link.** `admin.html` is a static
-file on a static host: anyone can fetch it, read its source and call what it
-calls. So the page has no data of its own — every figure comes from
+**Enforced in the database, not by where the file lives.** The page is a static
+file; anyone who has it can read its source and call what it calls. So the page
+has no data of its own — every figure comes from
 `admin_overview()` or `admin_funnel()`, both `SECURITY DEFINER` functions that
 call `is_admin()` first and `raise ... errcode = '42501'` otherwise.
 
@@ -387,6 +414,10 @@ migrations applied in this sprint are documented in `db/applied.tsv`.
   browser and have no server-side record, so a player with JavaScript errors, a
   blocked request or an offline session finishes a game that is never counted.
   Online games are unaffected — those come from the match tables.
+- **The dashboard's page file is still fetchable on the live site** at the
+  `tools/admin/` path, because GitHub Pages serves the whole repository. It
+  contains no data and refuses every non-administrator; see above for the step
+  that removes even that.
 - **Sponsor creative must be committed to the repo.** The CSP is
   `img-src 'self' data:`; a remotely hosted image does not load, silently.
   Deliberate, and documented in `docs/sponsorship.md`.

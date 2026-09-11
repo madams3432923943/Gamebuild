@@ -6,14 +6,20 @@
 //
 // TWO THINGS ON THIS PAGE CAN BE WRONG IN A WAY NOBODY NOTICES.
 //
-// 1. AUTHORIZATION. admin.html is a static file on a static host. Anyone can
-//    fetch it, read it and call what it calls, so if any number on it came
-//    from a table read rather than from a guarded RPC, the dashboard would be
-//    open to every signed-in player - and it would look exactly the same to
-//    the person who built it. That property is checked live against the
-//    database by the grant assertions further down; what this file checks is
-//    that the PAGE has no other way to get data, which is the half a migration
-//    cannot enforce.
+// 1. AUTHORIZATION. The page is a static file. Anyone who has it can read it
+//    and call what it calls, so if any number on it came from a table read
+//    rather than from a guarded RPC, the dashboard would be open to every
+//    signed-in player - and it would look exactly the same to the person who
+//    built it. That property is checked live against the database by the grant
+//    assertions further down; what this file checks is that the PAGE has no
+//    other way to get data, which is the half a migration cannot enforce.
+//
+//    It also checks the page is not a page of the WEBSITE. It used to be
+//    /admin.html at the repo root, which made it a top-level page of
+//    draftnovagame.com; it is under tools/ now and opened with `npm run
+//    admin`. That is a product decision rather than a security one - the data
+//    was never reachable - and a decision nothing else would notice being
+//    undone.
 //
 // 2. A METRIC THAT CANNOT BE CALCULATED. The brief was explicit: do not fake
 //    one. Retention before a cohort has closed, and games-per-active-user
@@ -28,6 +34,7 @@
 
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, devices } from "playwright";
@@ -130,7 +137,7 @@ async function main() {
   const add = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS : FAIL, detail: String(detail) });
 
   // ---- static: the page has no data of its own ----------------------------
-  const adminHtml = await readFile(path.join(ROOT, "admin.html"), "utf8");
+  const adminHtml = await readFile(path.join(ROOT, "tools/admin/index.html"), "utf8");
   const adminMain = await readFile(path.join(ROOT, "js/admin/main.js"), "utf8");
   const migration = await readFile(path.join(ROOT, "db/migrations/20260911_03_admin_dashboard.sql"), "utf8");
 
@@ -168,10 +175,35 @@ async function main() {
   );
 
   add(
-    "admin.html is kept out of search results",
+    "The dashboard is kept out of search results",
     /<meta name="robots" content="noindex, nofollow"/.test(adminHtml) &&
-      (await readFile(path.join(ROOT, "robots.txt"), "utf8")).includes("Disallow: /admin.html"),
+      (await readFile(path.join(ROOT, "robots.txt"), "utf8")).includes("Disallow: /tools/"),
     "noindex and robots.txt - neither is what protects it, and both are worth having"
+  );
+
+  // NOT A PAGE OF THE SITE. A file at the repo root is a top-level page on
+  // GitHub Pages; this asserts nobody moves it back, and that the local server
+  // that replaced it binds loopback rather than every interface - on a shared
+  // network, 0.0.0.0 would put the dashboard on every device in the room.
+  add(
+    "There is no admin page at the site root",
+    !existsSync(path.join(ROOT, "admin.html")),
+    "the dashboard lives at tools/admin/index.html and is opened with `npm run admin`"
+  );
+
+  const serveAdmin = await readFile(path.join(ROOT, "scripts/serve-admin.mjs"), "utf8");
+  add(
+    "The local admin server binds loopback only",
+    /const HOST = "127\.0\.0\.1"/.test(serveAdmin) && /server\.listen\(PORT, HOST/.test(serveAdmin),
+    "127.0.0.1, not 0.0.0.0"
+  );
+
+  // The page cannot inherit a session from the game - different origin - so it
+  // needs its own way in, or it is a dashboard nobody can open.
+  add(
+    "The dashboard has its own sign-in",
+    /id="admin-signin"/.test(adminHtml) && /signIn/.test(adminMain),
+    "localStorage does not cross an origin, so there is no session to inherit from the live site"
   );
 
   // ---- the render ---------------------------------------------------------
@@ -179,7 +211,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto(`http://127.0.0.1:${PORT}/admin.html`);
+    await page.goto(`http://127.0.0.1:${PORT}/tools/admin/index.html`);
 
     const read = async (overview, funnel) =>
       page.evaluate(
@@ -315,7 +347,7 @@ async function main() {
     // ---- a phone ---------------------------------------------------------
     // An internal tool gets read on a phone more than anyone plans for.
     const mobile = await browser.newPage({ ...devices["iPhone 13"] });
-    await mobile.goto(`http://127.0.0.1:${PORT}/admin.html`);
+    await mobile.goto(`http://127.0.0.1:${PORT}/tools/admin/index.html`);
     const mobileState = await mobile.evaluate(
       async ([o, f]) => {
         const { renderDashboard } = await import("/js/admin/render.js");

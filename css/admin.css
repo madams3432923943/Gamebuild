@@ -278,3 +278,71 @@ body {
     width: 35%;
   }
 }
+
+/* ---- Sign-in ----
+   This page is served from 127.0.0.1 and the game from draftnovagame.com, so
+   there is no session to inherit - see the note in js/admin/main.js. */
+.admin-signin {
+  max-width: 22rem;
+  margin: 2rem auto;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-signin h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.admin-signin-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.admin-field input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  /* 16px would stop iOS zooming the field on focus, but this is a desktop tool
+     on localhost and 15px reads better; the trade is deliberate. */
+  min-height: 2.5rem;
+}
+
+.admin-field input:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.admin-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1d0c01;
+  font-weight: 600;
+  justify-content: center;
+}
+
+.admin-signin .admin-status {
+  padding: 0;
+  margin: 0;
+  font-size: 0.8125rem;
+}

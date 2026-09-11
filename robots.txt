@@ -8,9 +8,10 @@ Disallow: /data/
 Disallow: /tools/
 Disallow: /scripts/
 Disallow: /db/
-# The internal dashboard. Authorization is enforced server-side (see
-# db/migrations/20260911_03_admin_dashboard.sql) - this line only keeps it out
-# of search results, and is not what protects it.
-Disallow: /admin.html
+# The internal dashboard now lives under /tools/, which the line above already
+# disallows. It is opened with `npm run admin` on localhost rather than being a
+# page of this site at all - and authorization is enforced server-side either
+# way (db/migrations/20260911_03_admin_dashboard.sql), so no crawler rule is
+# what protects it.
 
 Sitemap: https://draftnovagame.com/sitemap.xml

@@ -65,7 +65,6 @@ Then open http://localhost:8000.
 
 ```
 index.html        markup + import map; loads js/main.js
-admin.html        the private admin dashboard - authorization is server-side
 css/style.css     all styling
 css/admin.css     the admin dashboard only; deliberately not style.css
 data/
@@ -108,6 +107,8 @@ js/                 shared app code - never imports a sport directly
     nba/          engine, constants, tactics, shooting, recap, draftgrade, playback
     nfl/          engine, constants, tactics, units, recap, draftgrade, playback, field
 tools/            data import, artwork and balance-calibration scripts (Node)
+  admin/          the private dashboard's page - served by `npm run admin`,
+                  NOT a page of the website
 ```
 
 ## Balance
@@ -300,19 +301,20 @@ what each one deliberately is not: **docs/growth-infrastructure.md**.
 
 The short version:
 
-- **`/admin.html`** is a private dashboard. Authorization is enforced by
-  `SECURITY DEFINER` RPCs that check an allowlist table, not by hiding a link —
-  it is a static file and anyone can fetch it. Users, DAU/WAU/MAU, games by
-  sport/mode/difficulty, engagement, retention and the funnel, in two queries
-  that aggregate in Postgres and return one document each.
+- **`npm run admin`** opens a private dashboard on `127.0.0.1` — deliberately
+  not a page of this site. Authorization is enforced by `SECURITY DEFINER` RPCs
+  that check an allowlist table, not by where the file lives. Users,
+  DAU/WAU/MAU, games by sport/mode/difficulty, engagement, retention and the
+  funnel, in two queries that aggregate in Postgres and return one document
+  each.
 - **Analytics** are first-party and cover only what the match tables cannot
   answer: the pre-match funnel, and practice games, which are simulated in the
   browser and have no match row. Payloads are filtered against a twelve-key
   allowlist on both sides, so no event can carry an address, a token or a
   message.
-- **Sponsor rails** sit in the empty columns beside the centred content on a
-  wide desktop. They are `position: fixed`, so the game's own column is
-  unchanged at every width, and they disappear entirely below 1500px.
+- **Sponsor inventory** is built and tested but **nothing renders**: the
+  campaign list is empty, so no slot appears anywhere on the site. Going live
+  with a sponsor is one object in `CAMPAIGNS`.
 - **Share Result** on the final screen draws a 1080x1920 card from the same
   authoritative result the box score was drawn from.
 

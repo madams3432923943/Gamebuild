@@ -96,7 +96,8 @@
     "verify:share-card": "node scripts/verify-share-card.mjs",
     "verify:analytics": "node scripts/verify-analytics.mjs",
     "verify:onboarding": "node scripts/verify-onboarding.mjs",
-    "verify:admin": "node scripts/verify-admin-dashboard.mjs"
+    "verify:admin": "node scripts/verify-admin-dashboard.mjs",
+    "admin": "node scripts/serve-admin.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2"
