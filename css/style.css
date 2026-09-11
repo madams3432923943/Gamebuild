@@ -3551,7 +3551,11 @@ table.box-table th {
 .player-banner {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  /* 0.6rem, not 0.9rem. Three stacked rows at 0.9rem is 1.8rem of gap before
+     any content, and on a phone - where the card is the full column width -
+     that is what turned a banner into a near-square block taking a third of
+     the screen above the fold. The matchup card sets its own. */
+  gap: 0.6rem;
   position: relative;
   overflow: hidden;
   /* So the artwork rules below can ask how wide THIS CARD is. The viewport is
@@ -3795,8 +3799,14 @@ table.box-table th {
 
 
 /* Badges get their own full-width row rather than sharing pb-top with the
-   avatar/name - at 2x size (see .pb-badge) they're meant to be the second
-   thing you notice on the card, not a corner accent. */
+   avatar/name - they're meant to be the second thing you notice on the card,
+   not a corner accent.
+ 
+   THEY USED TO BE 5.2rem SQUARE, which is where most of this card's height
+   came from: three empty dashed 83px tiles, on their own row, above the stat
+   plate. On a phone that made the whole banner read as a fat square rather
+   than as a banner. 3.6rem still reads as the second thing you notice and
+   costs 26px instead of 83. */
 .pb-badges {
   display: flex;
   flex-wrap: wrap;
@@ -3804,29 +3814,29 @@ table.box-table th {
 }
 
 .pb-badge {
-  width: 5.2rem;
-  height: 5.2rem;
-  border-radius: 14px;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  font-size: 2.5rem;
+  font-size: 1.8rem;
 }
 
 .pb-badge.empty {
   border-style: dashed;
   color: var(--muted);
-  font-size: 2rem;
+  font-size: 1.4rem;
 }
 
 .pb-badge-tier {
   position: absolute;
-  bottom: -4px;
-  right: -4px;
-  font-size: 1.3rem;
+  bottom: -3px;
+  right: -3px;
+  font-size: 1rem;
 }
 
 /* THE STATS SIT ON SOMETHING. Three loose value-over-label pairs laid onto
@@ -3840,7 +3850,7 @@ table.box-table th {
   width: max-content;
   max-width: 100%;
   flex-wrap: wrap;
-  padding: 0.5rem 0.9rem;
+  padding: 0.4rem 0.8rem;
   border-radius: var(--radius-inner);
   background: rgba(0, 0, 0, 0.42);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -3868,8 +3878,8 @@ table.box-table th {
 
 @media (max-width: 560px) {
   .pb-top { flex-wrap: wrap; }
-  .pb-badge { width: 4rem; height: 4rem; font-size: 1.9rem; }
-  .pb-badge.empty { font-size: 1.5rem; }
+  .pb-badge { width: 3.1rem; height: 3.1rem; font-size: 1.55rem; }
+  .pb-badge.empty { font-size: 1.25rem; }
 }
 
 .player-avatar {

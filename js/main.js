@@ -3475,7 +3475,14 @@ async function openShareDialog() {
     return;
   }
   btnShareResult.disabled = false;
-  const { drawShareCard, shareCard, saveCard, cardPreviewUrl, FORMATS } = sharecard;
+  const { drawShareCard, shareCard, saveCard, cardPreviewUrl, loadBrandMark, FORMATS } = sharecard;
+
+  // THE LOCKUP, AWAITED BEFORE THE FIRST DRAW. A canvas cannot draw an image
+  // that has not decoded, so a card drawn while it was still loading would ship
+  // without the logo and the redraw on a format switch would suddenly have it -
+  // the same card, two different brands. It resolves to null on failure and the
+  // card falls back to the wordmark in text.
+  const brandMark = await loadBrandMark();
 
   let format = FORMATS.story;
   let canvas = null;
@@ -3493,7 +3500,7 @@ async function openShareDialog() {
   const draw = () => {
     // drawShareCard also reports where it put each block; only the test needs
     // that (see scripts/verify-share-card.mjs), so the canvas is all this takes.
-    ({ canvas } = drawShareCard(card, format));
+    ({ canvas } = drawShareCard(card, format, { brandMark }));
     // A data: URL, not a blob: one - the page's CSP allows `data:` in img-src
     // and not `blob:`, so the preview and the download encode the same canvas
     // two different ways on purpose (see js/sharecard.js).

@@ -76,30 +76,49 @@ const PLACEMENT_IDS = new Set(Object.values(PLACEMENTS));
  *               can exclude it and so the label reads "Draft Nova" instead of
  *               claiming a sponsor that does not exist.
  *
- * THE ONE CAMPAIGN HERE IS OURS. The brief asked for inventory, not for
- * advertising, and a slot showing a placeholder that says "sponsor" would be
- * a fake sponsor on a live site. This says what the slot is and who to email,
- * which is both honest and the only thing that could actually sell it.
+ * NOT EXPORTED, AND THAT IS THE POINT. This is the shape a campaign has and a
+ * fixture the tests and the docs can point at; it is deliberately NOT in
+ * CAMPAIGNS, so nothing renders it.
  */
-export const CAMPAIGNS = [
-  {
-    id: "house-sponsorship-2026",
-    sponsor: "Draft Nova",
-    headline: "Sponsorship available",
-    body: "This slot reaches people mid-draft, deciding between eras. Reach us and it's yours.",
-    // NOT THE ADDRESS ITSELF. "business@draftnovagame.com" is 26 characters
-    // and the side rail is 160px wide, so it cannot fit on one line at any
-    // legible size - it rendered as "business@draftn / ovagame.com", broken
-    // mid-word, which reads as a layout bug rather than as an invitation. The
-    // mailto carries the address; the button says what it does.
-    cta: "Get in touch",
-    href: "mailto:business@draftnovagame.com",
-    placements: [PLACEMENTS.HOME_RAIL_LEFT, PLACEMENTS.HOME_RAIL_RIGHT],
-    start: "2026-09-11",
-    end: null,
-    house: true,
-  },
-];
+export const EXAMPLE_CAMPAIGN = {
+  id: "house-sponsorship-2026",
+  sponsor: "Draft Nova",
+  headline: "Sponsorship available",
+  body: "This slot reaches people mid-draft, deciding between eras. Reach us and it's yours.",
+  // NOT THE ADDRESS ITSELF. "business@draftnovagame.com" is 26 characters and
+  // the side rail is 160px wide, so it cannot fit on one line at any legible
+  // size - it rendered as "business@draftn / ovagame.com", broken mid-word,
+  // which reads as a layout bug rather than as an invitation. The mailto
+  // carries the address; the button says what it does.
+  cta: "Get in touch",
+  href: "mailto:business@draftnovagame.com",
+  placements: [PLACEMENTS.HOME_RAIL_LEFT, PLACEMENTS.HOME_RAIL_RIGHT],
+  start: "2026-09-11",
+  end: null,
+  house: true,
+};
+
+/**
+ * THE RUNNING CAMPAIGNS. EMPTY, ON PURPOSE.
+ *
+ * Every placement therefore draws nothing: renderSponsor() hides its container
+ * and returns null, the rails stay `hidden` at every width, and the postgame
+ * slot is not in the layout. There is no empty box, no "advertisement" label,
+ * no reserved space, and nothing on the site tells a player that sponsorship
+ * exists. Nobody sees a house ad for a product they are already using.
+ *
+ * WHAT IS STILL HERE is the whole system: four placements with containers and
+ * renderers for three of them, viewable-impression counting, click tracking,
+ * the date window, the CSP-constrained creative path, and a verify script that
+ * holds all of it. Going live with a sponsor is one object in this array - the
+ * shape is EXAMPLE_CAMPAIGN above - and nothing else.
+ *
+ * Which is why the array is empty rather than the code being deleted: the
+ * expensive part of advertising inventory is having somewhere trustworthy to
+ * put it, and that part is done and tested. Turning it on should be a one-line
+ * change reviewed by a person, not a sprint.
+ */
+export const CAMPAIGNS = [];
 
 /** Midnight-anchored comparison, so a campaign that starts today is running
  * from the start of today rather than from whenever the file was loaded. */

@@ -21,6 +21,43 @@
 // everything below is laid out from the canvas dimensions rather than from
 // hardcoded pixel positions.
 
+/**
+ * The brand lockup, loaded once.
+ *
+ * SAME ORIGIN, WHICH IS THE WHOLE REASON THIS WORKS. Drawing a cross-origin
+ * image onto a canvas taints it, and a tainted canvas throws on toDataURL and
+ * toBlob - so the card would draw perfectly and then fail to export, which is
+ * the most annoying possible failure. The lockup is served from this origin
+ * (and the CSP's img-src is 'self' anyway), so the canvas stays clean.
+ *
+ * RESOLVES TO null RATHER THAN REJECTING. A missing or slow image must not cost
+ * anybody their share card: the card falls back to the wordmark set in text,
+ * which is what it drew before this existed and is legible at any size.
+ */
+// RESOLVED AGAINST THIS MODULE, NOT AGAINST THE PAGE. A bare relative path
+// resolves against the document's URL, so "assets/brand/..." is correct from
+// index.html at the root and a 404 from any page in a subdirectory - which is
+// where the test harness lives, and which is how this was caught. import.meta.url
+// is this file's own URL (/js/sharecard.js), so one path works from every page
+// and from a subdirectory deployment.
+const BRAND_MARK_SRC = new URL("../assets/brand/draft-nova-lockup.png", import.meta.url).href;
+let brandMarkPromise = null;
+
+export function loadBrandMark() {
+  if (!brandMarkPromise) {
+    brandMarkPromise = new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        console.error(`Share card: couldn't load ${BRAND_MARK_SRC}; falling back to the wordmark in text.`);
+        resolve(null);
+      };
+      img.src = BRAND_MARK_SRC;
+    });
+  }
+  return brandMarkPromise;
+}
+
 /** The output sizes. 1080x1920 is the Instagram/TikTok Story and the vertical
  * shape a phone shares by default; the square is for X and Discord, where a
  * 9:16 image is shown as a tall sliver. */
@@ -143,7 +180,7 @@ export function drawCardBackground(ctx, width, height, accent) {
  * layout. Reporting the rectangles makes the check exact and keeps it correct
  * across a redesign.
  */
-export function drawShareCard(card, format = FORMATS.story) {
+export function drawShareCard(card, format = FORMATS.story, { brandMark = null } = {}) {
   // TWO PASSES, BECAUSE THE CONTENT HEIGHT IS NOT KNOWN UNTIL IT IS DRAWN.
   //
   // Every block's position depends on how tall the one before it turned out to
@@ -162,17 +199,17 @@ export function drawShareCard(card, format = FORMATS.story) {
   // and happens once when the share dialog opens. The alternative - a layout
   // engine that measures without drawing - is a second implementation of every
   // block's height, and the two would drift.
-  const probe = paintCard(card, format, null);
+  const probe = paintCard(card, format, null, brandMark);
   const topMargin = Math.round(format.height * 0.055);
   const contentHeight = probe.regions.contentBottom - probe.startY;
   const footerTop = format.height - Math.round(format.height * 0.035) - Math.round(format.width * 0.032) * 1.5;
   const centred = Math.round((footerTop - contentHeight) / 2);
-  return paintCard(card, format, Math.max(topMargin, centred));
+  return paintCard(card, format, Math.max(topMargin, centred), brandMark);
 }
 
 /** One pass of the card. `startY` null means "use the plain top margin", which
  * is what the measuring pass wants. */
-function paintCard(card, format, startY) {
+function paintCard(card, format, startY, brandMark) {
   const canvas = document.createElement("canvas");
   canvas.width = format.width;
   canvas.height = format.height;
@@ -196,11 +233,29 @@ function paintCard(card, format, startY) {
   // ---- brand --------------------------------------------------------------
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillStyle = INK;
   const brandSize = Math.round(W * 0.062);
-  ctx.font = font(brandSize, 800);
-  ctx.fillText("DRAFT NOVA", W / 2, y);
-  y += brandSize * 1.15;
+
+  if (brandMark) {
+    // SCALED BY WIDTH, HEIGHT FOLLOWING THE ASPECT RATIO. The lockup is 386x282
+    // today and has been other things before; deriving the height means a
+    // re-exported mark at a different ratio reflows instead of stretching.
+    //
+    // 0.25 AND NOT MORE, because the lockup is nearly square (1.37:1) and the
+    // text it replaces was one line. At 0.42 it was 331px tall against the
+    // wordmark's 67px, which pushed the square card's content 70px past its
+    // own footer - scripts/verify-share-card.mjs caught it on the fixture with
+    // a rating line. This is about as large as it can be and still leave the
+    // square format room for a score, a rating and an MVP.
+    const markWidth = Math.round(W * 0.25);
+    const markHeight = Math.round(markWidth * (brandMark.naturalHeight / brandMark.naturalWidth));
+    ctx.drawImage(brandMark, Math.round((W - markWidth) / 2), y, markWidth, markHeight);
+    y += markHeight + Math.round(H * 0.008);
+  } else {
+    ctx.fillStyle = INK;
+    ctx.font = font(brandSize, 800);
+    ctx.fillText("DRAFT NOVA", W / 2, y);
+    y += brandSize * 1.15;
+  }
 
   // The sport and the mode, on one line, in the sport's colour. This is the
   // context the score below is meaningless without - a 24-21 means one thing

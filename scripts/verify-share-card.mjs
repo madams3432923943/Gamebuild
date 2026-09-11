@@ -205,8 +205,15 @@ async function main() {
     await page.goto(`http://127.0.0.1:${PORT}/scripts/selftest/share-card-harness.html`);
 
     const results = await page.evaluate(async (fixtures) => {
-      const { drawShareCard, drawCardBackground, FORMATS, cardFilename, cardBlob, cardPreviewUrl } =
+      const { drawShareCard, drawCardBackground, FORMATS, cardFilename, cardBlob, cardPreviewUrl, loadBrandMark } =
         await import("/js/sharecard.js");
+
+      // THE LOCKUP IS PART OF THE CARD NOW, so it is part of the test. Loading
+      // it here also proves the thing that would otherwise fail silently at the
+      // worst moment: a cross-origin image taints a canvas, and a tainted
+      // canvas throws on toBlob - so the card would draw perfectly and then
+      // refuse to export. The cardBlob() call further down is what catches it.
+      const brandMark = await loadBrandMark();
 
       /** Average colour of a box, so "is this region green" is answerable. */
       const regionColour = (ctx, x, y, w, h) => {
@@ -224,7 +231,7 @@ async function main() {
       const out = [];
       for (const fixture of fixtures) {
         for (const format of [FORMATS.story, FORMATS.square]) {
-          const { canvas, regions } = drawShareCard(fixture, format);
+          const { canvas, regions } = drawShareCard(fixture, format, { brandMark });
           const ctx = canvas.getContext("2d");
           const { width, height } = canvas;
           const { data } = ctx.getImageData(0, 0, width, height);
@@ -300,7 +307,8 @@ async function main() {
             // Two draws of the same fixture must be identical - the card is a
             // pure function of the result, and a card that changes between
             // renders would mean the preview and the saved file could differ.
-            stable: cardPreviewUrl(canvas) === cardPreviewUrl(drawShareCard(fixture, format).canvas),
+            stable: cardPreviewUrl(canvas) === cardPreviewUrl(drawShareCard(fixture, format, { brandMark }).canvas),
+            brandMarkLoaded: !!brandMark,
           });
         }
       }
@@ -311,6 +319,17 @@ async function main() {
       "The card module loads and draws under the page's own CSP",
       results.length === FIXTURES.length * 2,
       `${results.length} cards drawn`
+    );
+
+    // A card without the logo is not broken - it falls back to the wordmark in
+    // text - but it is not the card that was designed, and the fallback is
+    // exactly the sort of thing that goes unnoticed for a release.
+    add(
+      "The brand lockup loads and is drawn on the card",
+      results.length > 0 && results.every((r) => r.brandMarkLoaded),
+      results.length > 0 && results.every((r) => r.brandMarkLoaded)
+        ? "assets/brand/draft-nova-lockup.png decoded onto the canvas"
+        : "the lockup did not load - every card fell back to the wordmark in text"
     );
 
     for (const r of results) {
@@ -399,13 +418,14 @@ async function main() {
     // These are written so a person can open the folder and see exactly what
     // their product is about to put on somebody's Instagram.
     const pngs = await page.evaluate(async (fixtures) => {
-      const { drawShareCard, FORMATS, cardPreviewUrl } = await import("/js/sharecard.js");
+      const { drawShareCard, FORMATS, cardPreviewUrl, loadBrandMark } = await import("/js/sharecard.js");
+      const brandMark = await loadBrandMark();
       const out = [];
       for (const fixture of fixtures) {
         for (const format of [FORMATS.story, FORMATS.square]) {
           out.push({
             file: `${fixture.name}-${format.id}.png`,
-            base64: cardPreviewUrl(drawShareCard(fixture, format).canvas).split(",")[1],
+            base64: cardPreviewUrl(drawShareCard(fixture, format, { brandMark }).canvas).split(",")[1],
           });
         }
       }

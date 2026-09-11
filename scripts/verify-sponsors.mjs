@@ -26,9 +26,19 @@ import { fileURLToPath } from "node:url";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const { CAMPAIGNS, PLACEMENTS, activeCampaigns, isRunning } = await import(
+const { CAMPAIGNS, EXAMPLE_CAMPAIGN, PLACEMENTS, activeCampaigns, isRunning } = await import(
   path.join(ROOT, "js/ads/campaigns.js")
 );
+
+// THE SHAPE CHECKS RUN OVER WHATEVER IS RUNNING, PLUS THE EXAMPLE.
+//
+// CAMPAIGNS is empty today - nothing is meant to render anywhere - so a suite
+// that only looped over it would pass by having nothing to check, and would go
+// on passing after somebody added a malformed campaign with a typo'd placement
+// and no end date. EXAMPLE_CAMPAIGN is the documented shape and is held to
+// every rule a real one is, so the rules stay live while the inventory is
+// dormant.
+const SHAPE_CHECKED = [...CAMPAIGNS, EXAMPLE_CAMPAIGN];
 
 const checks = [];
 const check = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS : FAIL, detail });
@@ -63,8 +73,32 @@ for (const [placement, elementId] of Object.entries(RENDERED)) {
   );
 }
 
-// ---- 2. no campaign names a placement that cannot draw ---------------------
-for (const campaign of CAMPAIGNS) {
+// ---- 2. nothing is running, which is the current intent --------------------
+// Stated as an assertion rather than left implicit: "no sponsor slot appears
+// anywhere on the site" is a product decision, and a campaign added by accident
+// - or a placeholder left in after a demo - would otherwise ship a house ad to
+// every player silently.
+//
+// WHEN A REAL SPONSOR GOES LIVE this check is the one to change, deliberately,
+// in the same commit that adds them. Everything below keeps working.
+check(
+  "No campaign is currently running",
+  CAMPAIGNS.length === 0,
+  CAMPAIGNS.length === 0
+    ? "CAMPAIGNS is empty - every placement draws nothing and no slot is visible"
+    : `${CAMPAIGNS.map((c) => c.id).join(", ")} would render. If that is intended, update this check in the same commit.`
+);
+
+for (const placement of Object.values(PLACEMENTS)) {
+  check(
+    `Placement "${placement}" draws nothing`,
+    activeCampaigns(placement).length === 0,
+    "no active campaign, so renderSponsor hides the container"
+  );
+}
+
+// ---- 3. no campaign names a placement that cannot draw ---------------------
+for (const campaign of SHAPE_CHECKED) {
   const unrenderable = campaign.placements.filter((p) => !RENDERED[p] && !DECLARED_ONLY.has(p));
   check(
     `${campaign.id}: every placement it names is real`,
@@ -83,11 +117,11 @@ for (const campaign of CAMPAIGNS) {
   );
 }
 
-// ---- 3. the shape of a campaign --------------------------------------------
+// ---- 4. the shape of a campaign --------------------------------------------
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ids = new Set();
 
-for (const campaign of CAMPAIGNS) {
+for (const campaign of SHAPE_CHECKED) {
   const required = ["id", "sponsor", "headline", "placements", "start"];
   const missing = required.filter((key) => !campaign[key]);
   check(
@@ -161,7 +195,7 @@ for (const campaign of CAMPAIGNS) {
   }
 }
 
-// ---- 4. the date window actually filters -----------------------------------
+// ---- 5. the date window actually filters -----------------------------------
 // Exercised against fixed dates rather than trusting the comparison, because
 // getting this wrong means running a campaign past what a sponsor bought.
 const windowed = {
@@ -203,7 +237,7 @@ check(
   "returns [] rather than throwing"
 );
 
-// ---- 5. the rails cannot cost the game any width ---------------------------
+// ---- 6. the rails cannot cost the game any width ---------------------------
 // The whole justification for the side rails is that they use space the
 // centred content was not using. A rail laid out in the flow, or shown at a
 // width where there is no spare space, breaks that promise - and it breaks it
