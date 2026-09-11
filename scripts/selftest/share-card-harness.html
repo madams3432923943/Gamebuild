@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Share card harness</title>
+<!-- Page for verify-share-card.mjs.
+
+     THE CSP IS COPIED FROM index.html DELIBERATELY, byte for byte. The whole
+     reason the share card is drawn on a canvas rather than by a screenshot
+     library is that the real page's policy allows scripts from esm.sh and
+     nothing else, so a test that drew the card under a permissive policy would
+     not be testing the constraint the design answers.
+
+     WHAT IS NOT COPIED is <script src="js/main.js">. The app boots by loading
+     supabase-js from the CDN, which in a sandboxed CI environment cannot be
+     reached - so booting the app here fills the console with network failures
+     that have nothing to do with the card, and the test's "nothing threw"
+     check becomes noise. The card module has no dependency on the app: it is
+     handed a plain object and returns a canvas. Nothing else is needed to
+     exercise it.
+
+     scripts/verify-csp.mjs covers index.html and admin.html rather than this
+     file; if that policy changes, this copy is stale and the failure shows up
+     here as the card module suddenly being unable to load. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' https://esm.sh;
+  style-src 'self';
+  img-src 'self' data:;
+  font-src 'self';
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://esm.sh;
+  object-src 'none';
+  base-uri 'none';
+  form-action 'none';
+" />
+<!-- NO <style> BLOCK. The policy above is style-src 'self' with no
+     'unsafe-inline', so an inline stylesheet here is refused - and the refusal
+     is a console error, which is exactly what the test's "nothing threw" check
+     reads. A harness that trips the policy it exists to test under reports its
+     own cosmetics as a failure of the card. There is nothing to style: the
+     cards are drawn into detached canvases and never attached. -->
+<p>Share card harness. Nothing to see - the cards are drawn into detached canvases by the test.</p>

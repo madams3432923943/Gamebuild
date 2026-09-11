@@ -47,6 +47,9 @@ import {
 import { countFriends } from "./friends.js";
 import { maybeShowOnboarding } from "./onboarding.js";
 import { renderSponsor, releaseSponsor } from "./ads/placements.js";
+import { drawShareCard, shareCard, saveCard, cardPreviewUrl, FORMATS } from "./sharecard.js";
+import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
+import { displayEntryName } from "./ui/entry-name.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
 import {
@@ -54,7 +57,7 @@ import {
   resolveMode, modeLabel,
 } from "./modes.js";
 import { GENERAL_TIERS } from "./ranks.js";
-import { START_RATING } from "./rating.js";
+import { START_RATING, ratingFor } from "./rating.js";
 import {
   getSession,
   requireSession,
@@ -3242,6 +3245,7 @@ const btnSkipPlayback = document.getElementById("btn-skip-playback");
 const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
+const btnShareResult = document.getElementById("btn-share-result");
 const btnToProfile = document.getElementById("btn-to-profile");
 const btnPlayAgain = document.getElementById("btn-play-again");
 const btnGameHome = document.getElementById("btn-game-home");
@@ -3286,15 +3290,21 @@ const REWARD_ICONS = { rank: "🏆", badge: "🎖️", banner: "🚩" };
 // game that takes ten minutes still diffs against the right baseline.
 let progressBefore = null;
 let rankBefore = null;
+// The per-sport ELO before this game, for the share card's rating line. Read
+// here rather than after the fact because "what did this game change" needs
+// both ends and only one of them still exists once the game is over.
+let ratingBefore = null;
 
 /** Snapshots the profile before a game. Failures are swallowed on purpose -
  * a missing baseline costs a celebration, and nothing else. */
 async function captureProgressBaseline() {
   progressBefore = null;
   rankBefore = null;
+  ratingBefore = null;
   try {
     const profile = await loadProfile();
     progressBefore = snapshotProgress(profile, getSport());
+    ratingBefore = ratingFor(profile.sportRatings, getSport()).rating;
     rankBefore = await loadRankInfo(profile);
   } catch (e) {
     console.error("Couldn't snapshot progress before the game:", e);
@@ -3334,6 +3344,236 @@ async function celebrateProgress() {
   confetti({ count: 70, durationMs: 3400 });
   playFanfare();
 }
+
+// ---- Shareable result card ----
+// The one thing on the post-game screen a player would send to somebody.
+//
+// EVERYTHING ON THE CARD COMES OFF THE RESULT THAT WAS JUST RENDERED. Nothing
+// below computes a score, picks an MVP, re-reads a box score or applies a
+// rating formula: the card is assembled from the same `result` object the
+// scoreboard, the recap and the box score were drawn from, which for an online
+// game is the server's own row. A card that disagreed with the screen behind it
+// would be worse than no card, and the way to guarantee it cannot is to give
+// the drawing code no way to derive anything (see js/sharecard.js).
+
+/** The card for the game on screen, or null before the final whistle. */
+let shareCardData = null;
+
+/** How many roster rows are worth putting on a card. Football drafts twelve
+ * slots; a card listing all of them at a legible size has nothing else on it,
+ * and js/sharecard.js caps it again per format. This is the read-side cap, so
+ * a long roster does not travel through the whole path to be thrown away. */
+const SHARE_ROSTER_ROWS = 12;
+
+/**
+ * Turns the finished game into the flat shape the card draws from.
+ *
+ * The player's OWN NAME rather than the label on screen: an online game labels
+ * your side "You", which reads correctly on the screen you are looking at and
+ * as nothing at all on an image somebody else opens.
+ */
+function buildShareCard({ result, labelB, rosterA, config }) {
+  const theSport = sport();
+  const mvp = result.mvp;
+  return {
+    sportName: theSport.name,
+    sportId: game.sport || getSport(),
+    accent: theSport.theme?.accent || null,
+    modeLabel: modeLabel(config),
+    ranked: !!config.ranked,
+    you: game.nameA || "You",
+    opponent: labelB,
+    scoreFor: result.teamScoreA,
+    scoreAgainst: result.teamScoreB,
+    won: result.winner === "A",
+    overtimePeriods: result.overtimePeriods || 0,
+    mvpName: mvp?.player?.name || null,
+    mvpLine: mvp?.line ? formatMvpStatLine(theSport, mvp.line) : null,
+    // Slot, name and season - the three things an argument about a draft is
+    // ever about. displayEntryName is what the rest of the app calls a drafted
+    // entry, so a football unit reads "Offensive Line" here too rather than
+    // "Baltimore Ravens Offensive Line" at a size nobody can read.
+    roster: rosterSlots(rosterA)
+      .slice(0, SHARE_ROSTER_ROWS)
+      .map((slot) => ({
+        slot: slotLabel(slot),
+        name: displayEntryName(rosterA[slot]),
+        season: rosterA[slot]?.season ?? null,
+      })),
+    // Filled in asynchronously for a ranked game, and left null otherwise.
+    // Null means "no rating line on the card", never "+0".
+    ratingDelta: null,
+    ratingAfter: null,
+  };
+}
+
+/**
+ * Fills in the rating line for a ranked game.
+ *
+ * WHY THIS IS SEPARATE AND ASYNCHRONOUS. The new rating is written server-side
+ * by simulate-match, so the only way to know it is to read the profile back -
+ * a round trip, at the exact moment the final whistle is blowing. Doing it
+ * inline would delay the whole post-game reveal for a line on an image nobody
+ * has asked for yet.
+ *
+ * So the card is usable immediately without it, and this fills it in behind
+ * the scenes. If it has not landed by the time someone taps Share, the card is
+ * drawn without the rating line - which is the honest outcome. A "+0" would be
+ * a number we do not have.
+ */
+async function resolveShareCardRating(card) {
+  if (!card.ranked || ratingBefore === null) return;
+  try {
+    const profile = await loadProfile();
+    const after = ratingFor(profile.sportRatings, card.sportId).rating;
+    // Guarded against the card having been replaced by a newer game while this
+    // was in flight - writing onto a stale object would put one game's rating
+    // change on another game's card.
+    if (shareCardData !== card) return;
+    if (typeof after !== "number" || after === ratingBefore) return;
+    card.ratingAfter = after;
+    card.ratingDelta = after - ratingBefore;
+  } catch (e) {
+    // The card is complete without it. Logged rather than surfaced: nobody
+    // asked for this yet.
+    console.error("Couldn't read the rating change for the share card:", e);
+  }
+}
+
+/** The share dialog: the card as an image, and the two ways out of it. */
+function openShareDialog() {
+  const card = shareCardData;
+  if (!card) return;
+
+  let format = FORMATS.story;
+  let canvas = null;
+
+  const body = document.createElement("div");
+  body.className = "share-dialog";
+
+  const preview = document.createElement("img");
+  preview.className = "share-preview";
+  preview.alt = `Draft Nova result card: ${card.you} ${card.scoreFor}, ${card.opponent} ${card.scoreAgainst}`;
+
+  const status = document.createElement("p");
+  status.className = "share-status hint-text";
+
+  const draw = () => {
+    // drawShareCard also reports where it put each block; only the test needs
+    // that (see scripts/verify-share-card.mjs), so the canvas is all this takes.
+    ({ canvas } = drawShareCard(card, format));
+    // A data: URL, not a blob: one - the page's CSP allows `data:` in img-src
+    // and not `blob:`, so the preview and the download encode the same canvas
+    // two different ways on purpose (see js/sharecard.js).
+    preview.src = cardPreviewUrl(canvas);
+    preview.width = format.width;
+    preview.height = format.height;
+    preview.classList.toggle("share-preview-square", format.id === "square");
+  };
+
+  // The format switch. Two buttons rather than a select: there are two of
+  // them, and the choice is visual.
+  const formats = document.createElement("div");
+  formats.className = "share-formats";
+  formats.setAttribute("role", "radiogroup");
+  formats.setAttribute("aria-label", "Card shape");
+  const formatButtons = [];
+  for (const option of [FORMATS.story, FORMATS.square]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "share-format";
+    btn.textContent = option.label;
+    btn.setAttribute("role", "radio");
+    const paint = () => {
+      for (const [b, o] of formatButtons) {
+        const on = o.id === format.id;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      }
+    };
+    btn.addEventListener("click", () => {
+      if (format.id === option.id) return;
+      format = option;
+      paint();
+      draw();
+      status.textContent = "";
+    });
+    formatButtons.push([btn, option]);
+    formats.appendChild(btn);
+  }
+  for (const [b, o] of formatButtons) b.setAttribute("aria-checked", String(o.id === format.id));
+  formatButtons[0][0].classList.add("active");
+
+  const actions = document.createElement("div");
+  actions.className = "share-actions";
+
+  // SHARE FIRST, because on the device most of these are made on - a phone -
+  // it is the one that reaches Instagram and Discord in one tap. It falls back
+  // to a download on a browser that cannot share a file, so this button always
+  // does something (see shareCard).
+  const shareBtn = document.createElement("button");
+  shareBtn.type = "button";
+  shareBtn.className = "btn btn-primary";
+  shareBtn.textContent = "Share";
+  shareBtn.addEventListener("click", async () => {
+    shareBtn.disabled = true;
+    status.textContent = "Preparing the image…";
+    try {
+      const what = await shareCard(canvas, card, format);
+      track(EVENTS.SHARE_CARD_SHARED, {
+        sport: card.sportId,
+        mode: card.ranked ? "ranked" : "practice",
+        format: format.id,
+        source: "share",
+      });
+      status.textContent = what === "shared" ? "" : "Saved to your downloads.";
+    } catch (e) {
+      console.error("Couldn't share the card:", e);
+      status.textContent = "Couldn't share that. Try Save Image instead.";
+    } finally {
+      shareBtn.disabled = false;
+    }
+  });
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn btn-secondary";
+  saveBtn.textContent = "Save Image";
+  saveBtn.addEventListener("click", () => {
+    saveCard(canvas, card, format);
+    track(EVENTS.SHARE_CARD_SHARED, {
+      sport: card.sportId,
+      mode: card.ranked ? "ranked" : "practice",
+      format: format.id,
+      source: "save",
+    });
+    status.textContent = "Saved to your downloads.";
+  });
+
+  actions.append(shareBtn, saveBtn);
+
+  // Long-press to save is what people actually do on a phone, and saying so
+  // costs one line - the alternative is a person screenshotting the preview.
+  const hint = document.createElement("p");
+  hint.className = "hint-text";
+  hint.textContent = "On a phone you can also press and hold the card to save it.";
+
+  body.append(formats, preview, actions, status, hint);
+  draw();
+
+  // Recorded once per page session per card: opening the dialog twice for the
+  // same game is one card created, and the format switch redraws it without
+  // counting again.
+  trackOnce(
+    EVENTS.SHARE_CARD_CREATED,
+    { sport: card.sportId, mode: card.ranked ? "ranked" : "practice", format: format.id },
+    `share_card_created:${card.you}:${card.scoreFor}-${card.scoreAgainst}:${card.mvpName || ""}`
+  );
+
+  openModal("Share this result", body);
+}
+
+btnShareResult.addEventListener("click", openShareDialog);
 
 // ---- Post-game analysis panel ----
 
@@ -3467,6 +3707,11 @@ function dressStage(homeSide, kitA, kitB) {
 const shotChartEl = document.getElementById("shot-chart");
 
 function resetGameScreen() {
+  // Last game's share card is last game's. Cleared here rather than on the way
+  // out, so the button cannot open a dialog describing a result that is no
+  // longer on screen.
+  shareCardData = null;
+
   // The postgame sponsor slot goes away with everything else a finished game
   // put on this screen. It is filled at the final whistle, so leaving it up
   // would put it over the next game's live scoreboard.
@@ -3485,6 +3730,7 @@ function resetGameScreen() {
     // markers and would otherwise be on screen for however long the next
     // game takes to reach its own final whistle.
     shotChartEl,
+    btnShareResult,
     btnToProfile,
     btnPlayAgain,
     btnGameHome,
@@ -4062,6 +4308,15 @@ function showShotChart(events, labelA, labelB) {
       track(EVENTS.GAME_COMPLETED, props);
       if (config.ranked) track(EVENTS.RANKED_GAME_COMPLETED, props);
       else if (config.id === FRIEND_MODE.id) track(EVENTS.FRIEND_GAME_COMPLETED, props);
+
+      // THE SHARE CARD IS ASSEMBLED FROM THE SAME `result` EVERYTHING ELSE ON
+      // THIS SCREEN WAS DRAWN FROM, here, at the one point where the game is
+      // definitively over. Nothing recomputes: see buildShareCard.
+      shareCardData = buildShareCard({ result, labelB, rosterA, config });
+      // The rating line needs a round trip the reveal must not wait for, so it
+      // fills itself in behind the scenes and the card is drawn without it if
+      // it has not landed.
+      void resolveShareCardRating(shareCardData);
     }
     // Everything still waiting to draw on a game that is over: the queued
     // events, the pending box-score frame, and any timer a celebration owns.
@@ -4203,6 +4458,10 @@ function showShotChart(events, labelA, labelB) {
     if (showShotChart(ledger.events, labelA, labelB)) {
       basketballCourtEl.classList.add("hidden");
     }
+    // Only once there is a card to share. The abandoned path reaches finish()
+    // too and builds one, so this is always true here - but a button that
+    // opened an empty dialog would be the one bug worth being certain about.
+    btnShareResult.classList.toggle("hidden", !shareCardData);
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
     btnGameHome.classList.remove("hidden");

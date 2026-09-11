@@ -9494,3 +9494,76 @@ table.box-table tfoot .box-totals td:nth-child(2) {
     display: flex;
   }
 }
+
+/* ---- Share dialog (js/sharecard.js) ----------------------------------------
+   The card is a 1080x1920 canvas; this is the preview of it inside the shared
+   modal, at whatever size the dialog has. */
+.share-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.share-formats {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.share-format {
+  appearance: none;
+  background: var(--surface-3);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  min-height: 2.25rem;
+}
+
+.share-format.active {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.share-format:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* THE HEIGHT IS THE CONSTRAINT, NOT THE WIDTH. A 9:16 image scaled to the
+   dialog's width is taller than any phone, so the preview would be a thing you
+   scroll rather than a thing you look at. Capping the height and letting the
+   aspect ratio set the width means the whole card is visible at once, which is
+   the only question a preview answers. The intrinsic width/height attributes
+   are set by the renderer, so the ratio comes from the canvas rather than from
+   a number repeated here. */
+.share-preview {
+  display: block;
+  margin: 0 auto;
+  height: auto;
+  width: auto;
+  max-width: 100%;
+  max-height: 46vh;
+  border-radius: var(--radius-inner);
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+@media (max-height: 700px) {
+  .share-preview {
+    max-height: 38vh;
+  }
+}
+
+.share-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.share-status:empty {
+  display: none;
+}
