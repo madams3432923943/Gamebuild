@@ -561,7 +561,7 @@ textarea:focus-visible {
   border-radius: 50%;
   border: 1px solid var(--line);
   color: transparent;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   transition: background var(--motion-fast) var(--ease-out),
               border-color var(--motion-fast) var(--ease-out),
@@ -915,7 +915,13 @@ textarea:focus-visible {
 }
 
 .sport-card-cta-glyph {
-  font-size: 0.85em;
+  /* max(), not a bare 0.85em: 0.85 of the label's 0.95rem is 12.8px at a 16px
+     root and 11.7px once the phone breakpoint scales the root, which puts a
+     glyph under the 12px floor the mobile audit set. The ratio is what the
+     design wants and the token is the bottom of the range, so the rule asks
+     for whichever is larger rather than restating one of them in the other's
+     units. */
+  font-size: max(var(--text-micro), 0.85em);
 }
 
 /* The two reference buttons sit under the card's own button, not inside it:
@@ -2590,8 +2596,8 @@ table.box-table th {
 .icon-action {
   display: inline-grid;
   place-items: center;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0.35rem;
   font-size: 1.05rem;
   line-height: 1;
@@ -4834,7 +4840,7 @@ table.box-table th {
 }
 
 .recap-detail {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   margin-top: 0.25rem;
 }
@@ -5209,7 +5215,7 @@ table.box-table th {
    without competing with a touchdown for attention. */
 .play-card.drive-summary {
   opacity: 0.82;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
 }
 
 /* THE POST-GAME SCORING SUMMARY. Three parts to a row - when, what, and the
@@ -5414,7 +5420,7 @@ table.box-table th {
 .tactic-phase .tactic-head {
   flex: none;
   width: 100%;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   line-height: 1.2;
 }
 
@@ -5536,8 +5542,8 @@ table.box-table th {
 .modal-close {
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 44px;
+  height: 44px;
   margin: -0.5rem -0.5rem -0.5rem 0;
   background: none;
   border: none;
@@ -5758,7 +5764,7 @@ table.box-table th {
 
 .howto-section p {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--muted);
 }
@@ -5908,7 +5914,7 @@ table.box-table th {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -6326,8 +6332,8 @@ table.box-table th {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-inner);
   background: none;
   border: 1px solid transparent;
@@ -6579,9 +6585,11 @@ html {
    recomputing them would have quietly undone that: 0.75rem of 15px is 11.25px.
    So they are re-expressed here to land back on exactly 12 and 13.
 
-   The 44px tap floor is held the same way - see the block below, where it
-   stops being 2.75rem and becomes 44px, because a thumb does not get smaller
-   when the type does. */
+   The 44px tap floor is held the same way: every floor in this file is now
+   written as 44px rather than 2.75rem, because a thumb does not get smaller
+   when the type does. That was the bug this breakpoint shipped with - the
+   floors were in rem, so 44px became 41px in landscape and 40px at 360px,
+   and the selftest audit counted 22 of them on Profile alone. */
 @media (max-width: 700px) {
   html {
     font-size: 93.75%; /* 15px */
@@ -6650,10 +6658,15 @@ html {
     margin-left: 0;
   }
 
-  /* Comfortable thumb targets. IN PIXELS, not 2.75rem: the root font size
-     shrinks at this width (see the html rule further down) and a rem-based
-     floor would shrink with it, taking a 44px target to 41px and then 40px.
-     A thumb is the one thing on the screen that is not smaller on a phone. */
+  /* Comfortable thumb targets. IN PIXELS, not rem: the root font size shrinks
+     at this width (see the html rule further down) and a rem-based floor
+     shrinks with it, taking a 44px target to 41px and then 40px. A thumb is
+     the one thing on the screen that is not smaller on a phone.
+
+     The rest of the floor is set in the block near the bottom of this file
+     that covers landscape as well; it is pinned in pixels for this same
+     reason. Both had to be, and only this one was - the audit found 22
+     controls under the floor on Profile alone once the root came down. */
   .btn,
   .mode-btn,
   .sport-tile,
@@ -6889,8 +6902,8 @@ html {
   }
 
   .nav-utility .nav-tab {
-    min-height: 2.75rem;
-    min-width: 2.75rem;
+    min-height: 44px;
+    min-width: 44px;
     padding: 0.5rem 0.7rem;
     font-size: var(--text-xs);
   }
@@ -7657,7 +7670,7 @@ html {
   }
 
   .draft-body .roster-panel h3 {
-    font-size: 0.82rem;
+    font-size: var(--text-xs);
     margin-bottom: 0.35rem;
   }
 
@@ -7742,7 +7755,7 @@ html {
 .reward-toast-more {
   margin: 0.5rem 0 0;
   padding-left: 1.1rem;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   display: flex;
   flex-direction: column;
@@ -8220,7 +8233,7 @@ html {
 }
 
 .fb-winner {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.03em;
   opacity: 0.8;
@@ -8436,7 +8449,7 @@ table.box-table th:nth-child(2) {
 .profile-account > summary {
   cursor: pointer;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   /* A summary is focusable already; this makes that visible, which the default
@@ -8766,7 +8779,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
    cannot see, and on a colour swatch - where every neighbour is also live -
    the thing being aimed at should be the thing that is hit. */
 @media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
-  /* .btn and .mode-btn had a 2.75rem floor already - inside the
+  /* .btn and .mode-btn had a floor already - inside the
      max-width:700px block, so a sideways phone never got it. Start Draft was
      762px wide and 38px tall in landscape. Listing them here rather than
      widening that block's condition, because the rest of it is genuinely
@@ -8806,20 +8819,20 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   input[type="search"],
   select,
   textarea {
-    min-height: 2.75rem;
+    min-height: 44px;
   }
 
   /* A short label makes a narrow button. "C" came out 42px wide against a
      44px-tall box, and a floor on one axis is not a floor. */
   button.position-btn {
-    min-width: 2.75rem;
+    min-width: 44px;
   }
 
   /* Square, so the floor has to be set on both axes. 2.1rem circles in a
      dense grid were the single most-missed control in the whole audit. */
   .kit-swatch {
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 44px;
+    height: 44px;
   }
 
   /* The header stopped needing to stack into two rows once the destinations
@@ -8917,7 +8930,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--text);
 }
 
