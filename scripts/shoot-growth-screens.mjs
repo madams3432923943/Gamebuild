@@ -322,9 +322,17 @@ async function main() {
         await page.waitForTimeout(800);
         await shoot(page, view, "12-play-screen");
 
-        await page.locator('#mode-toggle [data-id="practice"], #mode-toggle button').first().click();
+        // BY data-mode, NOT BY POSITION. renderChoiceCards stamps the id on
+        // the button; the first card in #mode-toggle is Online Ranked, because
+        // MODES puts the headline mode first. An earlier version of this script
+        // clicked .first() and therefore entered MATCHMAKING against a stub
+        // that never pairs, and the only symptom was a 30-second timeout
+        // waiting for a draft screen that was never coming.
+        await page.locator('#mode-toggle button[data-mode="practice"]').click();
         await page.waitForTimeout(300);
-        const easy = page.locator("#difficulty-toggle button").first();
+        // Easy: the whole squad on screen and no pick clock, which is what
+        // makes the draft quick to drive.
+        const easy = page.locator('#difficulty-toggle button[data-mode="easy"]');
         if (await easy.isVisible().catch(() => false)) {
           await easy.click();
           await page.waitForTimeout(300);
@@ -332,7 +340,21 @@ async function main() {
         await shoot(page, view, "13-play-screen-mode-chosen");
 
         await page.locator("#btn-start-draft").click();
-        await page.locator("#screen-draft:not(.hidden)").waitFor({ state: "visible", timeout: 30000 });
+        const reachedDraft = await page
+          .locator("#screen-draft:not(.hidden)")
+          .waitFor({ state: "visible", timeout: 30000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!reachedDraft) {
+          // Says WHY rather than timing out on a selector. The screen that
+          // fails to appear is never the interesting part; the status line on
+          // the screen you are still stuck on is.
+          const status = (await page.locator("#search-status").textContent().catch(() => "")) || "";
+          const summary = (await page.locator("#launch-summary").textContent().catch(() => "")) || "";
+          throw new Error(
+            `${view.id}: Start Draft did not reach the draft screen. launch summary: "${summary.trim()}" status: "${status.trim()}"`
+          );
+        }
 
         const squadIndex = await loadSquadIndex("nba");
         const deadline = Date.now() + 4 * 60 * 1000;
