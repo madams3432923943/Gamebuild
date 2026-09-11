@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Same policy as index.html, for the same reasons - see the long note
+       there. This page is a second entry point into the same origin, so a
+       weaker policy here would be a weaker policy everywhere: an injection on
+       this page can read the same localStorage session the game uses.
+       scripts/verify-csp.mjs checks both pages against the same rules,
+       including the sha256 of the inline import map below. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://esm.sh 'sha256-Wt3qc8kfJLB7OhSqO1a0r6nu4+rIO+DqNIgTJPJQzQQ=';
+    style-src 'self';
+    img-src 'self' data:;
+    font-src 'self';
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://esm.sh;
+    object-src 'none';
+    base-uri 'none';
+    form-action 'none';
+  " />
+  <!-- An internal tool. robots.txt disallows it as well, but a crawler that
+       ignores robots.txt reads this. -->
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/png" href="assets/brand/draft-nova-icon.png" />
+  <title>Draft Nova — Admin</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+  <header class="admin-top">
+    <div class="admin-brand">
+      <img class="admin-mark" src="assets/brand/draft-nova-icon.png" alt="" />
+      <span>Draft Nova <strong>Admin</strong></span>
+    </div>
+    <div class="admin-top-actions">
+      <span class="admin-generated" id="admin-generated"></span>
+      <button type="button" class="admin-btn" id="admin-refresh">Refresh</button>
+      <a class="admin-btn admin-btn-quiet" href="index.html">Back to the game</a>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <!-- Three states, and only one of them is the dashboard: loading, refused,
+         and the numbers. The refusal is a real state with real copy rather
+         than an empty page, because "I am signed in and see nothing" is
+         indistinguishable from a broken tool. -->
+    <p class="admin-status" id="admin-status">Checking your access…</p>
+    <div id="admin-body" hidden></div>
+  </main>
+
+  <script type="module" src="js/admin/main.js"></script>
+</body>
+</html>

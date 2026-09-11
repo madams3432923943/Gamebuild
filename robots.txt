@@ -8,5 +8,9 @@ Disallow: /data/
 Disallow: /tools/
 Disallow: /scripts/
 Disallow: /db/
+# The internal dashboard. Authorization is enforced server-side (see
+# db/migrations/20260911_03_admin_dashboard.sql) - this line only keeps it out
+# of search results, and is not what protects it.
+Disallow: /admin.html
 
 Sitemap: https://draftnovagame.com/sitemap.xml
