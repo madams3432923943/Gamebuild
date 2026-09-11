@@ -62,7 +62,14 @@
      header, a stat abbreviation - where the letterforms read larger than
      their size. --text-xs is the floor for anything sentence-case. Nothing
      in this file should declare a font-size below --text-micro; if a design
-     seems to need one, the container is too small, not the text. */
+     seems to need one, the container is too small, not the text.
+
+     USE THE TOKEN, NOT ITS CURRENT VALUE. Six rules declared a literal
+     0.75rem - one of them with a comment saying "0.75rem is the 12px floor" -
+     and that arithmetic quietly stopped holding when the phone breakpoint
+     began scaling the root font size. Two others were at 0.62rem and 0.72rem,
+     already under the floor at a 16px root. The token is 12px at every
+     breakpoint by construction; a literal is 12px at exactly one. */
   --text-micro: 0.75rem;   /* 12px */
   --text-xs: 0.8125rem;    /* 13px */
 
@@ -6581,19 +6588,32 @@ html {
   }
 
   :root {
-    --text-micro: 0.8rem;    /* 12px at a 15px root */
-    --text-xs: 0.8667rem;    /* 13px */
+    /* 0.9375 of 16 is exactly 15, so these are exact - but they round up by a
+       hair anyway, for the same reason as the narrow breakpoint below. */
+    --text-micro: 0.8007rem; /* 12.01px at a 15px root */
+    --text-xs: 0.8674rem;    /* 13.01px */
   }
 }
 
 @media (max-width: 400px) {
   html {
-    font-size: 90.6%; /* 14.5px */
+    /* 90.625%, not 90.6%. A PERCENTAGE rather than 14.5px so a reader who has
+       raised their browser's default font size still gets a larger app - a px
+       root silently overrides that preference, which is the accessibility bug
+       this whole block is trying not to introduce. But the percentage has to
+       be exact: 90.6% of 16 is 14.496px, and the floor token below, computed
+       against an assumed 14.5, then landed on 11.9969px. A floor that misses
+       by three thousandths of a pixel is still a floor that misses, and
+       verify-nba-court measures the computed value. */
+    font-size: 90.625%; /* 14.5px */
   }
 
   :root {
-    --text-micro: 0.8276rem; /* 12px at a 14.5px root */
-    --text-xs: 0.8966rem;    /* 13px */
+    /* A HAIR OVER, not exactly on. 12/14.5 is 0.827586…, and rounding a
+       repeating decimal down is how the previous value came out under the
+       line. These round UP, so the floor is cleared rather than grazed. */
+    --text-micro: 0.8285rem; /* 12.01px at a 14.5px root */
+    --text-xs: 0.8975rem;    /* 13.01px */
   }
 }
 
@@ -8847,7 +8867,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.6rem;
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -8888,7 +8908,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 }
 
 .grade-chip-key {
-  font-size: 0.62rem;
+  font-size: var(--text-micro);
   letter-spacing: 0.04em;
   opacity: 0.7;
 }
@@ -8933,7 +8953,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   justify-content: space-between;
   gap: 0.5rem;
   min-height: 1.5rem;
-  font-size: 0.75rem;
+  font-size: var(--text-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 700;
@@ -9053,8 +9073,16 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 }
 
 /* Whose end is whose, over the floor rather than beside it - the label and the
-   shots it names cannot be separated by a line wrap that way. 0.75rem is the
-   12px floor the mobile audit enforces. */
+   shots it names cannot be separated by a line wrap that way.
+ 
+   var(--text-micro), NOT a literal 0.75rem. It said 0.75rem with a comment
+   explaining that this is the 12px floor - which was true at a 16px root and
+   stopped being true the moment the phone breakpoint started scaling the root
+   (10.87px at 14.5px). The token is recomputed at each breakpoint to land back
+   on 12px, so it is the floor by construction rather than by arithmetic
+   somebody has to redo. verify-nba-court caught this one; five more rules in
+   this file had the same literal, two of them already under the floor at a
+   16px root. */
 .bc-halflabels {
   position: absolute;
   inset: 0.35rem 0.5rem auto;
@@ -9062,7 +9090,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   justify-content: space-between;
   gap: 0.5rem;
   pointer-events: none;
-  font-size: 0.75rem;
+  font-size: var(--text-micro);
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -9242,7 +9270,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
-  font-size: 0.75rem;
+  font-size: var(--text-micro);
 }
 
 .bc-stat-team {
@@ -9271,7 +9299,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 
 .bc-stat { display: flex; flex-direction: column; align-items: center; }
 .bc-stat b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text); }
-.bc-stat i { font-style: normal; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.02em; }
+.bc-stat i { font-style: normal; color: var(--muted); font-size: var(--text-micro); letter-spacing: 0.02em; }
 
 /* The post-game chart and its filter. */
 .shot-chart { margin: 0 0 1rem; }
