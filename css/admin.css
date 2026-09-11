@@ -1,0 +1,348 @@
+/* ---- Admin dashboard ----
+   An INTERNAL TOOL, and styled like one on purpose. It shares the game's
+   palette so it is recognisably the same product, and nothing else: no
+   gradients, no shadows, no animation, no card-in-a-card depth scale. The
+   brief was explicit that this should not cost the time the consumer UI costs,
+   and a dashboard's job is to be read at a glance on a laptop at 7am.
+
+   Self-contained rather than importing css/style.css. That file is 9,000 lines
+   of game screens - a draft board, a court, a box score - none of which exists
+   here, and pulling it in would make every change to the game's look a change
+   to this tool as well. The dozen tokens below are copied deliberately; they
+   are the brand, and the brand is the one thing that should match. */
+:root {
+  --bg: #0d1117;
+  --surface-1: #12171f;
+  --surface-2: #171d27;
+  --surface-3: #1d2532;
+  --line: #2a323e;
+  --line-soft: rgba(255, 255, 255, 0.07);
+  --accent: #d9741f;
+  --accent-bright: #ff9d4d;
+  --text: #eef2f8;
+  --muted: #93a1b5;
+  --bad: #e8433d;
+  --radius: 10px;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* ---- Header ---- */
+.admin-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1.25rem;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.05rem;
+}
+
+.admin-brand strong {
+  color: var(--accent-bright);
+}
+
+.admin-mark {
+  height: 1.6rem;
+  width: auto;
+}
+
+.admin-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.admin-generated {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-family: var(--font-mono);
+}
+
+.admin-btn {
+  appearance: none;
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: none;
+  /* 44px thumb target on a phone, which this gets read on more than anyone
+     plans for. */
+  min-height: 2.4rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.admin-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.admin-btn-quiet {
+  color: var(--muted);
+}
+
+/* Visible focus, because this page is driven by keyboard as often as not. */
+.admin-btn:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* ---- Layout ---- */
+.admin-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.admin-status {
+  color: var(--muted);
+  padding: 1.5rem 0;
+}
+
+.admin-status-error {
+  color: var(--bad);
+}
+
+.panel {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.panel-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.panel-note {
+  margin: 0.8rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* The three breakdowns side by side on a laptop, stacking on their own with no
+   breakpoint: auto-fit means the column count follows the space there is. */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+
+.panel-grid .panel {
+  margin-bottom: 0;
+}
+
+/* ---- Figures ---- */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: var(--surface-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.8rem;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+  /* Numbers in a row must line up as numbers, not as text of different
+     widths - which is the whole reason a dashboard uses a mono face. */
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.stat-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+/* ---- Tables ---- */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 400;
+}
+
+.admin-table th {
+  color: var(--text);
+}
+
+.admin-table .num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-table .muted {
+  color: var(--muted);
+}
+
+.admin-table-total th,
+.admin-table-total td {
+  border-bottom: none;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* The funnel's bar column takes whatever is left after the labels and the two
+   number columns, so the bars are as long as the table is wide. */
+.admin-funnel .funnel-bar-cell {
+  width: 55%;
+  padding-right: 1rem;
+}
+
+.funnel-bar {
+  height: 0.7rem;
+  min-width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+}
+
+/* A table is the one thing allowed to be wider than the page, inside its own
+   scroller - the alternative on a phone is a funnel with no labels. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+@media (max-width: 560px) {
+  .admin-main {
+    padding: 0.85rem;
+  }
+
+  .stat-value {
+    font-size: 1.35rem;
+  }
+
+  /* Bars lose their share of a 360px screen before the numbers do. */
+  .admin-funnel .funnel-bar-cell {
+    width: 35%;
+  }
+}
+
+/* ---- Sign-in ----
+   This page is served from 127.0.0.1 and the game from draftnovagame.com, so
+   there is no session to inherit - see the note in js/admin/main.js. */
+.admin-signin {
+  max-width: 22rem;
+  margin: 2rem auto;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-signin h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.admin-signin-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.admin-field input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  /* 16px would stop iOS zooming the field on focus, but this is a desktop tool
+     on localhost and 15px reads better; the trade is deliberate. */
+  min-height: 2.5rem;
+}
+
+.admin-field input:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.admin-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1d0c01;
+  font-weight: 600;
+  justify-content: center;
+}
+
+.admin-signin .admin-status {
+  padding: 0;
+  margin: 0;
+  font-size: 0.8125rem;
+}

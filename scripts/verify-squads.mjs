@@ -65,134 +65,10 @@ function serve(port) {
  * this player is in a squad, because "squad-less" and "in a squad" are two
  * completely different screens and the interesting bugs live in the second one,
  * which no existing harness can reach. */
-const STUB = `
-const USER = { id: "11111111-1111-4111-8111-111111111111", email: "squadtest@ballknowledge.app" };
-const SESSION = { access_token: "t", refresh_token: "r", expires_in: 3600, token_type: "bearer", user: USER };
-const scenario = () => (window.__SQUAD_SCENARIO || "none");
-
-const PROFILE = {
-  id: USER.id, username: "SquadTester", online_wins: 12, online_losses: 4,
-  offline_wins: 3, offline_losses: 2, draft_counts: {}, personal_bests: {},
-  career_totals: {}, team_banners: {}, era_records: {}, equipped_banner: "rookie",
-  equipped_kit: null, equipped_icon: null, featured_badges: [], granted_banners: [],
-  granted_badges: [], granted_icons: [], sport_ratings: {},
-  created_at: new Date("2026-01-01").toISOString(), history: [],
-  highest_scoring_game: null, largest_margin_game: null,
-  triple_double_counts: {}, mvp_counts: {}, mvp_teams: {},
-};
-
-const MATES = [
-  { id: "22222222-2222-4222-8222-222222222222", username: "RunAndGun", online_wins: 40, online_losses: 12 },
-  { id: "33333333-3333-4333-8333-333333333333", username: "PostUp", online_wins: 7, online_losses: 9 },
-];
-
-const SQUAD = {
-  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-  name: "Hardwood Kings", tag: "HWK", emoji: "👑",
-  motto: "Defence travels", visibility: "public", member_cap: 20, rep: 260,
-  created_by: USER.id, created_at: new Date("2026-02-02").toISOString(),
-};
-
-const PUBLIC_SQUADS = [
-  SQUAD,
-  { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "Bench Mob", tag: "BMB", emoji: "🔥",
-    motto: "", visibility: "public", member_cap: 20, rep: 0, created_by: MATES[0].id,
-    created_at: new Date("2026-02-03").toISOString() },
-];
-
-const MEMBER_ROWS = [
-  { squad_id: SQUAD.id, user_id: USER.id, role: "leader", joined_at: "2026-02-02T00:00:00Z" },
-  { squad_id: SQUAD.id, user_id: MATES[0].id, role: "co-leader", joined_at: "2026-02-04T00:00:00Z" },
-  { squad_id: SQUAD.id, user_id: MATES[1].id, role: "member", joined_at: "2026-02-05T00:00:00Z" },
-];
-
-// Deliberately hostile text: the chat and header render through innerHTML, so
-// if escaping ever regresses this turns into a real script tag in the DOM and
-// the check below sees it.
-const MESSAGES = [
-  { id: 1, user_id: MATES[0].id, username: "RunAndGun", body: "first to the gym", created_at: "2026-02-06T10:00:00Z" },
-  { id: 2, user_id: USER.id, username: "SquadTester", body: "<img src=x onerror=alert(1)>", created_at: "2026-02-06T10:01:00Z" },
-];
-
-class Query {
-  constructor(table) { this.table = table; this.filters = {}; this._mutation = false; }
-  select() { return this; }
-  insert() { this._mutation = true; return this; }
-  update() { this._mutation = true; return this; }
-  upsert() { this._mutation = true; return this; }
-  delete() { this._mutation = true; return this; }
-  eq(col, val) { this.filters[col] = val; return this; }
-  neq() { return this; } in(col, vals) { this.filters["in:" + col] = vals; return this; }
-  or(expr) { (window.__OR_FILTERS = window.__OR_FILTERS || []).push(expr); return this; } gt() { return this; } gte() { return this; }
-  lt() { return this; } lte() { return this; } order() { return this; }
-  limit() { return this; } range() { return this; }
-
-  _rows() {
-    if (this._mutation) return [];
-    const t = this.table, f = this.filters;
-    if (t === "profiles") {
-      const all = [PROFILE, ...MATES];
-      if (f.id) return all.filter((p) => p.id === f.id);
-      if (f["in:id"]) return all.filter((p) => f["in:id"].includes(p.id));
-      return all;
-    }
-    if (t === "squad_members") {
-      // A squad-less player still reads OTHER squads' member rows - the RLS
-      // policy exposes them for any PUBLIC squad, which is what makes the
-      // browse list's "3 / 20 members" real. Only this player's own membership
-      // disappears in the "none" scenario. Returning nothing at all here would
-      // have made the browse count untestable and hidden a real regression.
-      const rows = scenario() === "none" ? MEMBER_ROWS.filter((m) => m.user_id !== USER.id) : MEMBER_ROWS;
-      if (f.user_id) return rows.filter((m) => m.user_id === f.user_id);
-      if (f.squad_id) return rows.filter((m) => m.squad_id === f.squad_id);
-      if (f["in:squad_id"]) return rows.filter((m) => f["in:squad_id"].includes(m.squad_id));
-      return rows;
-    }
-    if (t === "squads") {
-      if (f.id) return PUBLIC_SQUADS.filter((s) => s.id === f.id);
-      return PUBLIC_SQUADS;
-    }
-    if (t === "squad_messages") return scenario() === "none" ? [] : MESSAGES.slice().reverse();
-    if (t === "friendships") return [];
-    if (t === "matches") return [];
-    return [];
-  }
-  single() { const r = this._rows(); return Promise.resolve({ data: r[0] ?? null, error: r.length ? null : { message: "no rows" } }); }
-  maybeSingle() { const r = this._rows(); return Promise.resolve({ data: r[0] ?? null, error: null }); }
-  then(res, rej) { return Promise.resolve({ data: this._rows(), error: null }).then(res, rej); }
-}
-
-// Every RPC the squads screen can call, and what it hands back. Recorded so the
-// test can assert the ARGUMENT NAMES the client sends.
-window.__RPC_CALLS = [];
-const RPC = {
-  get_squad_invite_code: "4Q7ZB3",
-  regenerate_squad_invite_code: "9M2XD1",
-  heartbeat_presence: 1,
-};
-
-export function createClient() {
-  return {
-    auth: {
-      getSession: async () => ({ data: { session: SESSION }, error: null }),
-      getUser: async () => ({ data: { user: USER }, error: null }),
-      signInWithPassword: async () => ({ data: { session: SESSION, user: USER }, error: null }),
-      signUp: async () => ({ data: { session: SESSION, user: USER }, error: null }),
-      signOut: async () => ({ error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
-    },
-    from: (table) => new Query(table),
-    rpc: async (name, args) => {
-      window.__RPC_CALLS.push({ name, args: args ? Object.keys(args).sort() : [] });
-      return { data: RPC[name] ?? null, error: null };
-    },
-    functions: { invoke: async () => ({ data: null, error: { message: "stubbed" } }) },
-    channel: () => ({ on: () => ({ subscribe: () => ({}) }), subscribe: () => ({}) }),
-    removeChannel: () => {},
-  };
-}
-export default { createClient };
-`;
+// The fixture lives in its own file now - scripts/shoot-growth-screens.mjs
+// needs the same squad, and two copies of a roster is two rosters that can
+// disagree about what a squad is.
+const STUB = await readFile(path.join(ROOT, "scripts/selftest/squads-stub.js"), "utf8");
 
 const checks = [];
 const check = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS : FAIL, detail });
@@ -278,10 +154,16 @@ try {
       detailShown && header.includes("Hardwood Kings"),
       detailShown ? `header: ${header.replace(/\s+/g, " ").slice(0, 100)}` : "#squads-detail stayed hidden"
     );
+    // THE COUNT IS DERIVED FROM THE FIXTURE, NOT HARDCODED. It was /3\s*\/\s*20/,
+    // which failed the moment the fixture grew two squadmates - a test asserting
+    // the size of its own fixture rather than the behaviour it is checking,
+    // which is "the header shows how full the squad is".
+    const expectedCount = (STUB.match(/squad_id: SQUAD\.id/g) || []).length;
+    const countShown = new RegExp(`${expectedCount}\\s*/\\s*20`).test(header);
     check(
       "The header carries tag, motto and member count",
-      header.includes("HWK") && header.includes("Defence travels") && /3\s*\/\s*20/.test(header),
-      `tag=${header.includes("HWK")} motto=${header.includes("Defence travels")} count=${/3\s*\/\s*20/.test(header)}`
+      header.includes("HWK") && header.includes("Defence travels") && countShown,
+      `tag=${header.includes("HWK")} motto=${header.includes("Defence travels")} count=${countShown} (expected ${expectedCount}/20)`
     );
     // Case-insensitive: the tier name is upper-cased by CSS and innerText
     // reports what is rendered. An earlier version of this check tested the
@@ -391,6 +273,97 @@ try {
     const overflow = await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - window.innerWidth));
     check("The squads screen does not scroll sideways at 360px", overflow === 0, `${overflow}px of horizontal overflow`);
     await page.close();
+  }
+  // ---- 6. the roster sorts, and win rate is honest -------------------------
+  //
+  // The comparators are pure and live in js/squads.js, so they are checked
+  // directly rather than by clicking chips and reading rows - a browser is the
+  // wrong instrument for "does 1-0 outrank 40-10", and that is the question
+  // that matters.
+  //
+  // WIN RATE IS THE ONE THAT GOES WRONG. Sorted naively, one game won is a
+  // 100% win rate above a squadmate who is 40-10. That is not a leaderboard,
+  // and it is the shape of bug that ships because the list looks sorted.
+  {
+    const { ROSTER_SORTS, DEFAULT_ROSTER_SORT, rosterSortById, sortRoster, winRateOf } = await import(
+      path.join(ROOT, "js/squads.js")
+    );
+
+    const ROSTER = [
+      { username: "Zed", joinedAt: "2026-01-01", onlineWins: 1, onlineLosses: 0, rating: { rating: 520, games: 1 } },
+      { username: "Ann", joinedAt: "2026-02-01", onlineWins: 40, onlineLosses: 10, rating: { rating: 700, games: 50 } },
+      { username: "bob", joinedAt: "2026-03-01", onlineWins: 0, onlineLosses: 0, rating: null },
+      { username: "Cara", joinedAt: "2026-04-01", onlineWins: 3, onlineLosses: 7, rating: { rating: 430, games: 10 } },
+    ];
+    const order = (id) => sortRoster(ROSTER, id).map((m) => m.username).join(" > ");
+
+    check(
+      "Every sort the UI offers has a comparator",
+      ROSTER_SORTS.length >= 3 && ROSTER_SORTS.every((s) => s.id && s.label && typeof s.compare === "function"),
+      ROSTER_SORTS.map((s) => s.id).join(", ")
+    );
+
+    check(
+      "An unknown stored sort falls back to the default",
+      rosterSortById("no-such-sort").id === DEFAULT_ROSTER_SORT && rosterSortById(null).id === DEFAULT_ROSTER_SORT,
+      `both resolve to "${DEFAULT_ROSTER_SORT}" - a removed sort cannot strand anyone on a blank roster`
+    );
+
+    check("Rating sorts high to low", order("rating") === "Ann > Zed > Cara > bob", order("rating"));
+    check("Wins sorts high to low", order("wins") === "Ann > Cara > Zed > bob", order("wins"));
+    check("Games sorts high to low", order("games") === "Ann > Cara > Zed > bob", order("games"));
+    check(
+      "Name sorts case-insensitively",
+      order("name") === "Ann > bob > Cara > Zed",
+      `${order("name")} - a lowercase username must not sort after Z`
+    );
+    check("Joined keeps the order this screen always had", order("joined") === "Zed > Ann > bob > Cara", order("joined"));
+
+    // THE ONE THAT MATTERS: Zed is 1-0, a perfect record, and must sit BELOW
+    // Cara's 3-7 because one game is not a win rate.
+    check(
+      "A 100% record over one game does not outrank a real one",
+      order("winrate") === "Ann > Cara > Zed > bob",
+      `${order("winrate")} - Zed is 1-0 and belongs under Cara at 3-7`
+    );
+
+    check(
+      "A member with no games has no win rate",
+      winRateOf({ onlineWins: 0, onlineLosses: 0 }) === null,
+      "null, not 0 - never played and lost everything are different facts"
+    );
+
+    // A roster that reorders itself between renders looks like it is
+    // flickering, and identical records are the case that causes it.
+    const tied = [
+      { username: "Bea", onlineWins: 5, onlineLosses: 5, rating: { rating: 500, games: 10 } },
+      { username: "Abe", onlineWins: 5, onlineLosses: 5, rating: { rating: 500, games: 10 } },
+    ];
+    const once = sortRoster(tied, "rating").map((m) => m.username).join(",");
+    const twice = sortRoster(sortRoster(tied, "rating"), "rating").map((m) => m.username).join(",");
+    check(
+      "Identical records sort stably",
+      once === twice && once === "Abe,Bea",
+      `${once} then ${twice} - every order falls back to username`
+    );
+
+    // sortRoster must not reorder the caller's array: it is the cached roster
+    // the whole screen re-renders from.
+    const source = [...ROSTER];
+    sortRoster(source, "wins");
+    check(
+      "Sorting does not mutate the roster it was given",
+      source.map((m) => m.username).join(",") === ROSTER.map((m) => m.username).join(","),
+      "the screen re-renders from this array; reordering it under the caller would make the sort sticky"
+    );
+
+    // The figure shown per row has to exist for the sorts that need one, or the
+    // reader is asked to trust an order they cannot see.
+    check(
+      "The roster reads sport_ratings, so there is a rating to sort by",
+      (await readFile(path.join(ROOT, "js/squads.js"), "utf8")).includes("equipped_icon, sport_ratings"),
+      "loadSquadRoster selects it on the query that was already running"
+    );
   }
 } catch (e) {
   check("the harness ran", false, e.message);

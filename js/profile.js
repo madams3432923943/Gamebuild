@@ -340,6 +340,16 @@ function normalize(row) {
     // { nba: { rating, wins, losses, games, peak }, nfl: {...} } - one ELO per
     // sport, written only by simulate-match (protect_sport_ratings).
     sportRatings: row.sport_ratings || {},
+    // FIRST RUN, AND THE MISSING CASE IS NOT FALSE.
+    //
+    // The column is `not null default false` and every account that existed
+    // before it shipped was backfilled to true, so a real row answers this
+    // honestly. What is left is a client newer than the database - the column
+    // absent entirely - and there the two mistakes are not equal: reading that
+    // as "not onboarded" would show the welcome modal to every existing player
+    // at once. `=== false` is the only thing that shows it, so undefined and
+    // null both mean leave them alone.
+    hasSeenOnboarding: row.has_seen_onboarding !== false,
   };
 }
 
@@ -349,6 +359,31 @@ export async function loadProfile() {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
   if (error) throw error;
   return normalize(data);
+}
+
+/**
+ * Records that this account has been shown the first-run welcome.
+ *
+ * Written straight to the profile rather than through an RPC because that is
+ * what every other client-owned profile field does (see setEquippedBanner and
+ * friends): the "users manage their own profile" RLS policy scopes the update
+ * to the caller's own row, and none of the tamper triggers guard this column -
+ * correctly, since a player claiming to have read the welcome screen is a
+ * claim about themselves with nothing at stake.
+ *
+ * Throws on failure so the caller can decide. js/onboarding.js swallows it and
+ * keeps a session-local flag, because the alternative - re-showing the welcome
+ * on every screen change because one write failed - is worse than a player who
+ * might see it once more on their next visit.
+ */
+export async function markOnboardingSeen() {
+  const session = await requireSession();
+  const supabase = await getSupabase();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ has_seen_onboarding: true })
+    .eq("id", session.user.id);
+  if (error) throw error;
 }
 
 export async function setUsername(name) {

@@ -43,6 +43,12 @@ const PROFILE = {
   largest_margin_game: null,
   triple_double_counts: {},
   mvp_counts: {},
+  // EXPLICIT, not left to the client's reading of a missing column. The
+  // harness drives a match from the home screen; a first-run welcome modal
+  // over it would block every selector that follows. js/profile.js treats an
+  // absent column as "already onboarded" today, so this is belt and braces -
+  // but the harness must not depend on that choice staying the way it is.
+  has_seen_onboarding: true,
 };
 
 const SESSION = {

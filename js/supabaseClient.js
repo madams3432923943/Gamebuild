@@ -96,10 +96,108 @@ function resolveIdentifier(identifier) {
   return value.includes("@") ? value.toLowerCase() : usernameToEmail(value);
 }
 
-/** Where Supabase should send a recovery link back to - this page, minus any
- * query or hash, so the returning link doesn't stack tokens onto an old one. */
+/** The one production address this game lives at. Anything mailed to a player
+ * has to point here, whatever host the request happened to be made from. */
+export const PRODUCTION_URL = "https://draftnovagame.com/";
+
+/** Whether this page is being served from somewhere that only exists on the
+ * developer's machine. Everything else - the custom domain, the github.io
+ * host, a `www.` that someone typed - is production as far as a mailed link
+ * is concerned. */
+function isLocalHost() {
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "" || host.endsWith(".local");
+}
+
+/**
+ * Where Supabase should send a recovery or confirmation link back to.
+ *
+ * THE PRODUCTION URL, NOT THE CURRENT ONE. This used to be
+ * `location.origin + location.pathname`, which is the right answer for exactly
+ * one host and a silently wrong one for every other way of reaching the same
+ * app. A player who arrives at `www.draftnovagame.com`, or at the
+ * `<user>.github.io/<repo>/` address Pages also serves, or at `.../index.html`
+ * with the filename spelled out, gets a mail whose link goes back to THAT
+ * spelling - and every one of those is a separate entry the project's redirect
+ * allow-list has to carry, or Supabase refuses to mail the link at all. The
+ * failure is a player who asked for a reset and never got one.
+ *
+ * One canonical URL means one allow-list entry to maintain and one link that
+ * is always right. Local development is the deliberate exception: a mail that
+ * pointed at the live site would be useless while testing recovery against a
+ * local server, so localhost keeps sending itself the link.
+ */
 function siteUrl() {
-  return window.location.origin + window.location.pathname;
+  if (isLocalHost()) return window.location.origin + window.location.pathname;
+  return PRODUCTION_URL;
+}
+
+// ---- A recovery link that did not work ------------------------------------
+//
+// A valid link opens the app on a temporary session and fires PASSWORD_RECOVERY
+// (see onPasswordRecovery). An EXPIRED or already-used one does not: Supabase
+// redirects back with the failure in the URL instead -
+//
+//   #error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired
+//
+// and nothing in this app was reading it. The player clicked the link they
+// asked for, landed on the ordinary sign-in screen with no explanation, and had
+// no way to tell "the link is old" from "the reset never worked". Either way
+// they try the same link again, which cannot ever succeed - a reset link is
+// single-use by design.
+//
+// CAPTURED AT MODULE LOAD, deliberately. supabase-js consumes and clears the
+// URL fragment as soon as it is created, so reading it after the first await
+// is a race this would lose intermittently. This runs on import, before the
+// dynamic import of the client can have started.
+
+const authLinkFailure = captureAuthLinkError();
+
+/** The failure carried by the link this page was opened from, or null. */
+export function authLinkError() {
+  return authLinkFailure;
+}
+
+function captureAuthLinkError() {
+  // NO DOCUMENT MEANS NO LINK TO READ. This module is imported by Node for the
+  // verify scripts, where `window` does not exist - and an absent browser is
+  // not a failed recovery link, so reporting one would be a console error on
+  // every run of a passing test.
+  if (typeof window === "undefined") return null;
+  try {
+    // The fragment for the implicit flow, the query string for PKCE. Checking
+    // both costs nothing and means this does not depend on which flow the
+    // project is configured for.
+    const hash = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+    const query = new URLSearchParams(window.location.search || "");
+    const code = hash.get("error_code") || query.get("error_code");
+    const error = hash.get("error") || query.get("error");
+    if (!code && !error) return null;
+
+    // Cleared from the address bar, so a refresh - or a shared URL - does not
+    // replay a failure that has already been reported.
+    if (window.history?.replaceState) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
+    // Every recoverable case has the same remedy: ask for a new link. Saying
+    // so is the whole point - the raw description ("Email link is invalid or
+    // has expired") tells a player what happened and not what to do.
+    if (/expired|invalid/i.test(code || "") || /expired|invalid/i.test(hash.get("error_description") || query.get("error_description") || "")) {
+      return "That link has expired or has already been used - reset links only work once. Enter your email below and tap Forgot password for a fresh one.";
+    }
+    if (error === "access_denied") {
+      return "That link couldn't be used. Enter your email below and tap Forgot password to get a new one.";
+    }
+    // Anything unrecognised is still reported, because a link that silently
+    // does nothing is the failure this exists to remove. The real code goes to
+    // the console rather than onto the screen.
+    console.error("Auth link failed:", code || error, hash.get("error_description") || query.get("error_description") || "");
+    return "That link couldn't be used. Try signing in, or ask for a new reset link.";
+  } catch (e) {
+    console.error("Could not read the auth link result:", e);
+    return null;
+  }
 }
 
 /**
@@ -225,11 +323,29 @@ export async function signIn(identifier, password) {
  * account the mail goes to an address that doesn't exist, which is why the
  * caller warns about exactly that case. */
 export async function requestPasswordReset(identifier) {
-  const supabase = await getSupabase();
   const email = resolveIdentifier(identifier);
+
+  // A USERNAME IS NOT AN ADDRESS, AND MAILING ONE ANYWAY WAS THE BUG.
+  //
+  // resolveIdentifier turns anything without an "@" into the synthetic
+  // <username>@ballknowledge.app the old username-only sign-up minted. For
+  // the handful of legacy accounts that really have that address, nobody can
+  // read the mailbox. For every account created since - which is all of them
+  // now - no such user exists at all. Either way this call "succeeded",
+  // Supabase mailed nothing anybody would ever see, and the player was left
+  // watching an inbox for a message that does not exist.
+  //
+  // So it is not sent. Reset by email works for everyone; this is the one
+  // sentence that says so, and it is returned rather than thrown because it is
+  // an instruction, not a failure.
+  if (isPlaceholderEmail(email)) {
+    return { email, sent: false, placeholder: true };
+  }
+
+  const supabase = await getSupabase();
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: siteUrl() });
   if (error) throw new Error(translateAuthError(error));
-  return { email, placeholder: isPlaceholderEmail(email) };
+  return { email, sent: true, placeholder: false };
 }
 
 /** Sets a new password for the session in hand - either an ordinary signed-in

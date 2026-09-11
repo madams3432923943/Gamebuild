@@ -66,6 +66,49 @@ const modalCloseBtn = document.getElementById("modal-close");
 const modalEl = modalBackdrop.querySelector(".modal");
 let onModalDismiss = null;
 let modalVariant = null;
+// What had focus before the dialog opened, so closing it puts the keyboard
+// back where the player left it rather than at the top of the document.
+let focusBeforeModal = null;
+
+// ---- Focus, which this modal did not manage at all ----
+//
+// The markup has always said role="dialog" aria-modal="true", which is a
+// PROMISE to a screen reader and to a keyboard: focus is inside me, Tab stays
+// inside me, and it goes back where it came from when I close. None of that
+// was true. Opening the position picker left focus on the player card behind
+// the backdrop, so the first Tab walked into the draft board underneath - a
+// list a screen-reader user was being told was not there.
+//
+// Fixed here rather than in any one caller: every dialog in the app goes
+// through openModal, so this is the only place it can be true for all of them.
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** The dialog's focusable controls, in document order, minus anything hidden.
+ * offsetParent is null for a display:none subtree, which is how a modal body
+ * with a collapsed section is skipped without knowing it has one. */
+function focusableInModal() {
+  return [...modalEl.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+}
+
+/** Keeps Tab inside the dialog by wrapping at both ends. */
+function trapTab(e) {
+  if (e.key !== "Tab") return;
+  const items = focusableInModal();
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  // document.activeElement can be the dialog itself (nothing focused yet) or
+  // something outside it entirely, which is the case this exists to correct.
+  if (e.shiftKey && (document.activeElement === first || !modalEl.contains(document.activeElement))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
 
 /**
  * @param options.variant  a modifier class on the dialog itself, for a modal
@@ -83,10 +126,27 @@ export function openModal(title, bodyNode, onDismiss, options = {}) {
   if (modalVariant) modalEl.classList.add(modalVariant);
   onModalDismiss = onDismiss || null;
   modalBackdrop.classList.remove("hidden");
+
+  // AFTER the backdrop is shown, or offsetParent is still null for everything
+  // inside it and focusableInModal() returns an empty list.
+  focusBeforeModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  modalEl.addEventListener("keydown", trapTab);
+  // The first control in the BODY, not the first in the dialog - the close
+  // button is earlier in document order and landing on it would open every
+  // dialog in the app focused on "dismiss me". The close button is the
+  // fallback, so there is no case where focus has nowhere to land.
+  const inBody = focusableInModal().filter((el) => modalBodyEl.contains(el));
+  (inBody[0] || modalCloseBtn).focus();
 }
 
 export function closeModal({ dismissed = false } = {}) {
   modalBackdrop.classList.add("hidden");
+  modalEl.removeEventListener("keydown", trapTab);
+  // Back where it came from. Guarded because the element can have been removed
+  // from the document by whatever the dialog did - a re-render of the screen
+  // behind it - and focusing a detached node silently focuses <body>.
+  if (focusBeforeModal && focusBeforeModal.isConnected) focusBeforeModal.focus();
+  focusBeforeModal = null;
   modalBodyEl.innerHTML = "";
   if (modalVariant) modalEl.classList.remove(modalVariant);
   modalVariant = null;

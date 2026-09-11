@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Content Security Policy in index.html still says what it means to say.
+// The Content Security Policy on every page still says what it means to say.
 //
 // WHY THIS IS A BUILD CHECK AND NOT A BROWSER ONE
 //
@@ -26,7 +26,21 @@ import { fileURLToPath } from "node:url";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const raw = await readFile(path.join(ROOT, "index.html"), "utf8");
+
+// EVERY PAGE IN THE REPOSITORY, not just the game. The admin dashboard is not
+// part of the website any more - it is served from localhost by `npm run
+// admin` - but it is still a page that loads supabase-js and signs somebody
+// in, so it gets the same policy for the same reasons, and it carries its own
+// copy of the inline import map, which means its own hash to rot. Adding a
+// page to this list is the whole cost of keeping it covered.
+const PAGES = ["index.html", "tools/admin/index.html"];
+
+// One list across both pages, so the exit code covers all of it and the
+// summary at the bottom counts the whole run rather than the last page.
+const checks = [];
+const check = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS : FAIL, detail });
+
+console.log(renderSection("Content Security Policy"));
 
 // COMMENTS STRIPPED FIRST, the way scripts/verify-banner-resolution.mjs strips
 // CSS comments before parsing a selector - and for a reason this file learned
@@ -37,78 +51,77 @@ const raw = await readFile(path.join(ROOT, "index.html"), "utf8");
 // "fix" it suggested would have been what actually broke online play.
 //
 // A browser reads elements, not prose. So should this.
-const html = raw.replace(/<!--[\s\S]*?-->/g, "");
+for (const page of PAGES) {
+  const raw = await readFile(path.join(ROOT, page), "utf8");
+  const html = raw.replace(/<!--[\s\S]*?-->/g, "");
 
-const checks = [];
-const check = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS : FAIL, detail });
+  // ---- 1. there is a policy at all -------------------------------------------
+  const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/s);
+  check(`${page} carries a Content-Security-Policy`, !!cspMatch, cspMatch ? "present" : "no CSP meta tag found");
 
-console.log(renderSection("Content Security Policy"));
+  if (cspMatch) {
+    const csp = cspMatch[1].replace(/\s+/g, " ").trim();
 
-// ---- 1. there is a policy at all -------------------------------------------
-const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/s);
-check("index.html carries a Content-Security-Policy", !!cspMatch, cspMatch ? "present" : "no CSP meta tag found");
+    // ---- 2. the escape hatches stay shut -------------------------------------
+    // 'unsafe-hashes' is included deliberately: it is the keyword that would let
+    // inline event handlers back in, which is exactly what js/brand-fallback.js
+    // exists to avoid needing.
+    for (const unsafe of ["'unsafe-inline'", "'unsafe-eval'", "'unsafe-hashes'"]) {
+      check(
+        `${page}: the policy does not use ${unsafe}`,
+        !csp.includes(unsafe),
+        csp.includes(unsafe) ? `found ${unsafe} - the policy is no longer a meaningful defence` : "absent"
+      );
+    }
 
-if (cspMatch) {
-  const csp = cspMatch[1].replace(/\s+/g, " ").trim();
+    // ---- 3. the directives that matter are present ---------------------------
+    for (const directive of ["default-src", "script-src", "connect-src", "object-src", "base-uri"]) {
+      check(`${page}: the policy sets ${directive}`, csp.includes(directive), csp.includes(directive) ? "set" : "missing");
+    }
 
-  // ---- 2. the escape hatches stay shut -------------------------------------
-  // 'unsafe-hashes' is included deliberately: it is the keyword that would let
-  // inline event handlers back in, which is exactly what js/brand-fallback.js
-  // exists to avoid needing.
-  for (const unsafe of ["'unsafe-inline'", "'unsafe-eval'", "'unsafe-hashes'"]) {
-    check(
-      `The policy does not use ${unsafe}`,
-      !csp.includes(unsafe),
-      csp.includes(unsafe) ? `found ${unsafe} - the policy is no longer a meaningful defence` : "absent"
-    );
+    // ---- 4. the import-map hash still matches the import map -----------------
+    const mapMatch = html.match(/<script type="importmap">(.*?)<\/script>/s);
+    if (!mapMatch) {
+      check(`${page}: the import map is present`, false, "no <script type=\"importmap\"> found");
+    } else {
+      const hash = createHash("sha256").update(mapMatch[1]).digest("base64");
+      const expected = `'sha256-${hash}'`;
+      check(
+        `${page}: the CSP hash matches the inline import map`,
+        csp.includes(expected),
+        csp.includes(expected)
+          ? `sha256-${hash.slice(0, 12)}… matches`
+          : `import map hashes to ${expected}, which is not in the policy - the bare-specifier import will be blocked and ONLINE PLAY will fail while the rest of the app keeps working`
+      );
+    }
+
+    // ---- 5. everything the page actually loads is allowed --------------------
+    // A source the page needs and the policy omits is the other silent failure:
+    // it only shows up on the screen that uses it.
+    const needed = [
+      ["https://esm.sh", "script-src", "the supabase-js CDN named in the import map"],
+      ["https://*.supabase.co", "connect-src", "the Supabase REST/auth/functions origin"],
+    ];
+    for (const [source, directive, why] of needed) {
+      const section = csp.split(";").find((d) => d.trim().startsWith(directive)) || "";
+      check(`${page}: ${directive} allows ${source}`, section.includes(source), section.includes(source) ? why : `missing - ${why}`);
+    }
   }
 
-  // ---- 3. the directives that matter are present ---------------------------
-  for (const directive of ["default-src", "script-src", "connect-src", "object-src", "base-uri"]) {
-    check(`The policy sets ${directive}`, csp.includes(directive), csp.includes(directive) ? "set" : "missing");
-  }
+  // ---- 6. no inline event handlers -------------------------------------------
+  // CSP hashes do not cover inline handlers, so one of these anywhere in the page
+  // is either broken under the policy or a reason someone will add
+  // 'unsafe-hashes' and undo it. This is what js/brand-fallback.js replaced.
+  const handlers = [...html.matchAll(/\son(?:click|error|load|change|submit|input|focus|blur|mouse\w+|key\w+)\s*=/gi)];
+  check(
+    `${page} has no inline event handlers`,
+    handlers.length === 0,
+    handlers.length
+      ? `${handlers.length} found (${[...new Set(handlers.map((h) => h[0].trim()))].join(", ")}) - these do not run under the policy; move them into a module the way js/brand-fallback.js did`
+      : "none - handlers live in modules"
+  );
 
-  // ---- 4. the import-map hash still matches the import map -----------------
-  const mapMatch = html.match(/<script type="importmap">(.*?)<\/script>/s);
-  if (!mapMatch) {
-    check("The import map is present", false, "no <script type=\"importmap\"> found");
-  } else {
-    const hash = createHash("sha256").update(mapMatch[1]).digest("base64");
-    const expected = `'sha256-${hash}'`;
-    check(
-      "The CSP hash matches the inline import map",
-      csp.includes(expected),
-      csp.includes(expected)
-        ? `sha256-${hash.slice(0, 12)}… matches`
-        : `import map hashes to ${expected}, which is not in the policy - the bare-specifier import will be blocked and ONLINE PLAY will fail while the rest of the app keeps working`
-    );
-  }
-
-  // ---- 5. everything the page actually loads is allowed --------------------
-  // A source the page needs and the policy omits is the other silent failure:
-  // it only shows up on the screen that uses it.
-  const needed = [
-    ["https://esm.sh", "script-src", "the supabase-js CDN named in the import map"],
-    ["https://*.supabase.co", "connect-src", "the Supabase REST/auth/functions origin"],
-  ];
-  for (const [source, directive, why] of needed) {
-    const section = csp.split(";").find((d) => d.trim().startsWith(directive)) || "";
-    check(`${directive} allows ${source}`, section.includes(source), section.includes(source) ? why : `missing - ${why}`);
-  }
 }
-
-// ---- 6. no inline event handlers -------------------------------------------
-// CSP hashes do not cover inline handlers, so one of these anywhere in the page
-// is either broken under the policy or a reason someone will add
-// 'unsafe-hashes' and undo it. This is what js/brand-fallback.js replaced.
-const handlers = [...html.matchAll(/\son(?:click|error|load|change|submit|input|focus|blur|mouse\w+|key\w+)\s*=/gi)];
-check(
-  "index.html has no inline event handlers",
-  handlers.length === 0,
-  handlers.length
-    ? `${handlers.length} found (${[...new Set(handlers.map((h) => h[0].trim()))].join(", ")}) - these do not run under the policy; move them into a module the way js/brand-fallback.js did`
-    : "none - handlers live in modules"
-);
 
 for (const c of checks) console.log(renderCheck(c));
 const { counts, ok } = summarize(checks);

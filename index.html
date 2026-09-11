@@ -87,7 +87,7 @@
     }
   }
   </script>
-  <link rel="stylesheet" href="css/style.css?v=1128ec7" />
+  <link rel="stylesheet" href="css/style.css?v=3afaf16" />
 </head>
 <body>
   <header class="top-nav">
@@ -140,6 +140,25 @@
       </div>
     </nav>
   </header>
+
+  <!-- SPONSOR RAILS. The columns either side of the centred content, which on a
+       wide desktop are empty space and nothing else.
+
+       OUTSIDE #app-root and position:fixed, deliberately. Putting them in the
+       flow beside the content would make the game's own column narrower on
+       every screen and at every width, which is the wrong trade: the game is
+       the priority and a sponsorship must not cost it a pixel. Fixed rails
+       occupy space that is already unused, and below the width where that space
+       exists they are display:none - not squeezed, not stacked, not scrolled
+       past. See the .sponsor-rail rules in css/style.css.
+
+       Filled by js/ads/placements.js only while the HOME screen is showing, and
+       empty (hidden, no frame, no placeholder) whenever no campaign is running.
+       aria-hidden is NOT set: the content is real and a keyboard user may reach
+       it. It is last in the document so it is also last in the tab order,
+       after the game. -->
+  <div class="sponsor-rail sponsor-rail-left" id="sponsor-rail-left" hidden></div>
+  <div class="sponsor-rail sponsor-rail-right" id="sponsor-rail-right" hidden></div>
 
   <main id="app-root">
     <!-- Screens are toggled via JS by adding/removing .hidden -->
@@ -589,9 +608,19 @@
       <div id="full-box-score" class="hidden"></div>
 
       <div class="game-actions">
+        <!-- Share leads, because this is the moment the result is worth
+             passing on and thirty seconds later it is not. -->
+        <button id="btn-share-result" class="btn btn-secondary hidden" type="button">Share Result</button>
         <button id="btn-to-profile" class="btn btn-secondary hidden">View Profile</button>
         <button id="btn-play-again" class="btn btn-primary hidden">Play Again</button>
       </div>
+
+      <!-- The postgame sponsor slot. BELOW the result, the recap, the MVP, the
+           box score and the actions - everything a player came to this screen
+           for - because an ad above any of those is the reason somebody stops
+           playing. Hidden unless a campaign is actually running for this
+           placement; there is none today, so nothing renders here. -->
+      <div class="sponsor-slot sponsor-slot-postgame" id="sponsor-postgame" hidden></div>
       <button id="btn-game-home" class="btn btn-secondary btn-block game-home-btn hidden" type="button">Return to Home</button>
     </section>
 
@@ -832,7 +861,13 @@
           <div class="card squad-header-card" id="squad-header"></div>
 
           <div class="card">
-            <h3>Roster</h3>
+            <div class="roster-head">
+              <h3>Roster</h3>
+              <!-- How the roster is ordered. Filled by renderRosterSortOptions
+                   from ROSTER_SORTS in js/squads.js, so adding an order is one
+                   object there rather than markup here. -->
+              <div id="squad-roster-sort" class="roster-sorts"></div>
+            </div>
             <div id="squad-roster" class="squad-roster"></div>
           </div>
 
@@ -899,6 +934,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=1128ec7"></script>
+  <script type="module" src="js/main.js?v=3afaf16"></script>
 </body>
 </html>

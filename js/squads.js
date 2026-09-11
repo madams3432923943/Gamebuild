@@ -6,6 +6,10 @@
 // client. This module is just a thin, typed wrapper around those RPCs plus
 // the read paths RLS already allows directly.
 import { getSupabase, requireSession } from "./supabaseClient.js";
+// The rating the squad roster sorts by, and the games threshold that makes a
+// win rate mean something. Both already exist and already mean exactly this
+// elsewhere in the app - see ROSTER_SORTS at the bottom of this file.
+import { overallRating, RANK_GAMES_FLOOR } from "./rating.js";
 
 // Squad Rep: a persistent, Clash-Royale-trophy-style score earned by playing
 // squad-vs-squad TOURNAMENTS together.
@@ -112,7 +116,11 @@ export async function loadSquadRoster(squadId) {
     // roster used to draw a member as a name and a record, which is a database
     // row rather than a person, and the mark they chose for themselves is one
     // more column on a select that already reads this table.
-    .select("id, username, online_wins, online_losses, equipped_icon")
+    // sport_ratings joins equipped_icon on the query that was already
+    // running. It is what the roster is SORTED by (see ROSTER_SORTS below) and
+    // it is one more column on a select that already reads this table - the
+    // alternative was a second round trip per member.
+    .select("id, username, online_wins, online_losses, equipped_icon, sport_ratings")
     .in("id", ids);
   if (profileErr) throw profileErr;
   const byId = new Map(profiles.map((p) => [p.id, p]));
@@ -129,7 +137,140 @@ export async function loadSquadRoster(squadId) {
       // Null is the ordinary state, not an error - it means nothing has been
       // chosen, and equippedIcon() resolves that to the default mark.
       equippedIcon: p ? p.equipped_icon : null,
+      // THE SAME RATING THE PLAYER'S OWN BANNER SHOWS: the games-weighted mean
+      // of their per-sport ELOs (overallRating in js/rating.js), not one
+      // sport's. A squad spans both sports, so ranking its members by
+      // basketball would be ranking half of them by a number they have never
+      // played for. Null until they have a rated game, which is honest - see
+      // ROSTER_SORTS.
+      rating: overallRating(p ? p.sport_ratings : null),
     };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sorting the roster
+// ---------------------------------------------------------------------------
+// A squad roster was join order and nothing else, which answers "who has been
+// here longest" and none of the questions anybody actually asks of a roster:
+// who is best, who plays the most, who is carrying us.
+//
+// THE COMPARATORS LIVE HERE, NOT IN THE RENDERER. js/ui/squads.js draws rows;
+// deciding what order they go in is logic, and CLAUDE.md keeps business logic
+// out of UI rendering. It also means the ordering is testable from Node with no
+// DOM - see scripts/verify-squads.mjs.
+
+/** Online games behind a member's record. The denominator for a win rate, and
+ * the thing that makes one honest. */
+function gamesOf(member) {
+  return (member.onlineWins || 0) + (member.onlineLosses || 0);
+}
+
+/**
+ * A member's win rate, or null when they have not played.
+ *
+ * Null rather than 0: somebody who has never played a ranked game has no win
+ * rate, and drawing them as 0% would rank them below every player who has lost
+ * every game they played. Those are not the same thing.
+ */
+export function winRateOf(member) {
+  const games = gamesOf(member);
+  return games === 0 ? null : (member.onlineWins || 0) / games;
+}
+
+/** Sorts nulls last whatever the direction, then compares. A member with no
+ * rating and no games belongs at the bottom of every leaderboard, not at the
+ * top of the ascending one. */
+function byValueDesc(valueOf) {
+  return (a, b) => {
+    const va = valueOf(a);
+    const vb = valueOf(b);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    return vb - va;
+  };
+}
+
+/**
+ * How a roster can be ordered. `id` is stored in localStorage, so renaming one
+ * silently resets everybody's choice - add, don't rename.
+ *
+ * WIN RATE IS TIERED, AND THAT IS THE WHOLE DIFFICULTY. Sorted naively, a
+ * member who has played one game and won it is a 100% win rate sitting above a
+ * squadmate who is 40-10, which is not a leaderboard, it is a trap. So members
+ * with at least RANK_GAMES_FLOOR online games - the same threshold the rank
+ * ladders already use to decide when a record means something, reused rather
+ * than invented - come first, and everyone else follows. The row shows the
+ * games count either way, so a reader can see which tier they are looking at.
+ */
+export const ROSTER_SORTS = [
+  {
+    id: "rating",
+    label: "Rating",
+    // The headline order, and the default: it is the one number that already
+    // means "how good are you" everywhere else in this app.
+    compare: byValueDesc((m) => m.rating?.rating ?? null),
+  },
+  {
+    id: "winrate",
+    label: "Win rate",
+    compare: (a, b) => {
+      const qualified = (m) => gamesOf(m) >= RANK_GAMES_FLOOR;
+      if (qualified(a) !== qualified(b)) return qualified(a) ? -1 : 1;
+      const rate = byValueDesc(winRateOf)(a, b);
+      // A tie on rate goes to whoever did it over more games, which is the
+      // only thing that can break 3-1 against 30-10.
+      return rate !== 0 ? rate : gamesOf(b) - gamesOf(a);
+    },
+  },
+  {
+    id: "wins",
+    label: "Wins",
+    compare: byValueDesc((m) => m.onlineWins || 0),
+  },
+  {
+    id: "games",
+    label: "Games",
+    // Who actually turns up. Not the same question as who wins, and for a
+    // squad leader deciding who to field, often the more useful one.
+    compare: byValueDesc(gamesOf),
+  },
+  {
+    id: "name",
+    label: "Name",
+    compare: (a, b) => (a.username || "").localeCompare(b.username || "", undefined, { sensitivity: "base" }),
+  },
+  {
+    id: "joined",
+    label: "Joined",
+    // THE ORDER THIS SCREEN HAS ALWAYS USED, kept as an option rather than
+    // replaced. Somebody reads a roster to see who is new.
+    compare: (a, b) => String(a.joinedAt || "").localeCompare(String(b.joinedAt || "")),
+  },
+];
+
+export const DEFAULT_ROSTER_SORT = "rating";
+
+export function rosterSortById(id) {
+  return ROSTER_SORTS.find((s) => s.id === id) || ROSTER_SORTS.find((s) => s.id === DEFAULT_ROSTER_SORT);
+}
+
+/**
+ * A new array in the chosen order. Never sorts in place: the caller's roster is
+ * the cached copy the whole screen re-renders from, and reordering it under
+ * them would make the sort sticky in a way nothing asked for.
+ *
+ * Every order falls back to username so the result is STABLE - two members with
+ * identical records must not swap places between renders, which is what makes
+ * a roster look like it is flickering.
+ */
+export function sortRoster(roster, sortId) {
+  const { compare } = rosterSortById(sortId);
+  return [...roster].sort((a, b) => {
+    const primary = compare(a, b);
+    if (primary !== 0) return primary;
+    return (a.username || "").localeCompare(b.username || "", undefined, { sensitivity: "base" });
   });
 }
 

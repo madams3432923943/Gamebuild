@@ -45,12 +45,18 @@ import {
   allSportRatings,
 } from "./profile.js";
 import { countFriends } from "./friends.js";
+import { maybeShowOnboarding } from "./onboarding.js";
+import { renderSponsor, releaseSponsor } from "./ads/placements.js";
+import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
+import { displayEntryName } from "./ui/entry-name.js";
+import { PLACEMENTS } from "./ads/campaigns.js";
+import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
 import {
   MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
   resolveMode, modeLabel,
 } from "./modes.js";
 import { GENERAL_TIERS } from "./ranks.js";
-import { START_RATING } from "./rating.js";
+import { START_RATING, ratingFor } from "./rating.js";
 import {
   getSession,
   requireSession,
@@ -62,6 +68,7 @@ import {
   updateEmail,
   getAuthUser,
   onPasswordRecovery,
+  authLinkError,
   isPlaceholderEmail,
   USERNAME_PATTERN,
   EMAIL_PATTERN,
@@ -409,10 +416,15 @@ btnAuthForgot.addEventListener("click", async () => {
   btnAuthForgot.disabled = true;
   setAuthStatus("Sending a reset link…");
   try {
-    const { placeholder } = await requestPasswordReset(identifier);
-    if (placeholder) {
+    const { sent } = await requestPasswordReset(identifier);
+    // NOT SENT means the identifier was a username, which has no inbox behind
+    // it - see requestPasswordReset. The old version mailed it anyway and then
+    // said "reset link sent", which is the sentence that made someone watch an
+    // empty inbox. Recovery is by email address, for every account.
+    if (!sent) {
       setAuthStatus(
-        "That's an older username-only account, so there's no inbox to send to. Sign in with your password and add an email on the Profile tab.",
+        "A reset can only be sent to an email address, not a username. Enter the email you signed up with. " +
+          "If your account predates email sign-up, sign in with your password and add one on the Profile tab.",
         "error"
       );
     } else {
@@ -452,12 +464,29 @@ const homeHeaderRefs = {
 
 /** Called once a session exists: loads the profile, shows the app shell, and
  * stamps the display name the game will use for this player. */
-async function enterApp() {
+async function enterApp({ newAccount = false } = {}) {
   navTabs.hidden = false;
   setActiveNav("play");
   showScreen("home");
   await reconcileUsername();
-  await refreshHome();
+  const profile = await refreshHome();
+
+  // DAU/WAU/MAU, and nothing else. One idempotent upsert of (user, today) per
+  // app entry - see markActiveToday. Not awaited: a retention metric has no
+  // business delaying the home screen.
+  void markActiveToday();
+  // A BRAND-NEW ACCOUNT REACHING THE APP, which is not the same moment as the
+  // sign-up form succeeding: with email confirmation on, signUp() returns no
+  // session and the account does not enter anything until the link is clicked
+  // and they sign in, possibly days later. So this fires on either path - the
+  // flag from the sign-up handler, or a profile that has never been onboarded,
+  // which is only ever true on an account's first entry.
+  if (newAccount || !profile?.hasSeenOnboarding) trackOnce(EVENTS.SIGNUP_COMPLETED);
+
+  // THE WELCOME, for an account that has never seen it. Last, so it opens over
+  // a home screen that is already drawn rather than over an empty one, and so
+  // a failure anywhere above cannot take the first-run experience down with it.
+  if (profile) maybeShowOnboarding(profile);
 }
 
 /** Writes the username from the signup metadata onto the profile if the row
@@ -486,6 +515,9 @@ async function reconcileUsername() {
 }
 
 const homeSportCardsEl = document.getElementById("home-sport-cards");
+const sponsorRailLeftEl = document.getElementById("sponsor-rail-left");
+const sponsorRailRightEl = document.getElementById("sponsor-rail-right");
+const sponsorPostgameEl = document.getElementById("sponsor-postgame");
 
 /** The home screen's sport list: one card per sport, and the only way in.
  *
@@ -589,6 +621,11 @@ async function renderHomeSportCards(profile, population = null) {
 
     if (selectable) {
       open.addEventListener("click", () => {
+        // The funnel step, recorded where the CHOICE is made. setSport() is
+        // also called on boot to restore the stored sport, which is not a
+        // player choosing anything - counting it there would make every page
+        // load look like a sport selection.
+        track(EVENTS.SPORT_SELECTED, { sport: s.id });
         setSport(s.id);
         showScreen("play");
       });
@@ -704,8 +741,10 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
 /** Re-reads the profile and repaints the home header. Called on entry and
  * after anything that can change the record (a finished game, a rename). */
 async function refreshHome() {
+  let loaded = null;
   try {
     const profile = await loadProfile();
+    loaded = profile;
     game.nameA = profile.username || "Player";
     // Your kit travels with the session so every stage can dress itself without
     // re-reading the profile mid-match.
@@ -731,6 +770,26 @@ async function refreshHome() {
     game.nameA = "Player";
   }
   signedInAsEl.textContent = game.nameA;
+
+  // THE SPONSOR RAILS. Drawn here because this is the function that draws the
+  // home screen, and they belong to it. Whether they are VISIBLE is a CSS
+  // question and not this function's business - the rails are fixed elements
+  // outside #app-root and only appear on a window wide and tall enough, and
+  // only while the home screen is up (see the .sponsor-rail rules). This just
+  // fills them, and fills them with nothing when no campaign is running, which
+  // leaves them hidden.
+  //
+  // Re-rendering on every return to home is fine and is the point of counting
+  // impressions by visibility rather than by render: renderSponsor replaces the
+  // old observer, and the impression is keyed per campaign per placement per
+  // session, so coming back to this screen ten times is one impression.
+  renderSponsor(sponsorRailLeftEl, PLACEMENTS.HOME_RAIL_LEFT);
+  renderSponsor(sponsorRailRightEl, PLACEMENTS.HOME_RAIL_RIGHT);
+
+  // RETURNED so a caller that has just triggered this read does not trigger a
+  // second one. enterApp needs the profile for the first-run check, and the
+  // alternative was loadProfile() twice on the first screen of every visit.
+  return loaded;
 }
 
 btnAuthSubmit.addEventListener("click", async () => {
@@ -791,7 +850,7 @@ btnAuthSubmit.addEventListener("click", async () => {
       }
       await setUsername(username);
       inputAuthPassword.value = "";
-      await enterApp();
+      await enterApp({ newAccount: true });
     } catch (e) {
       setAuthStatus(e.message || "That didn't work. Try again.", "error");
     } finally {
@@ -979,6 +1038,10 @@ function renderChoiceCards(container, entries, selectedId, onSelect) {
 
 function renderModeCards() {
   renderChoiceCards(modeToggleEl, Object.values(MODES), selectedMode, (id) => {
+    // On the click, not on the render: renderModeCards() runs again on every
+    // selection and on every return to the Play screen, and an event fired
+    // from a render is an event fired by the app rather than by the player.
+    track(EVENTS.MODE_SELECTED, { mode: id, sport: getSport() });
     selectedMode = id;
     renderModeCards();
     renderDifficultyCards();
@@ -998,6 +1061,7 @@ function renderDifficultyCards() {
     DIFFICULTY_IDS.map((id) => difficultyById(id)),
     selectedDifficulty,
     (id) => {
+      track(EVENTS.PRACTICE_DIFFICULTY_SELECTED, { difficulty: id, sport: getSport() });
       selectedDifficulty = id;
       try {
         localStorage.setItem(DIFFICULTY_KEY, id);
@@ -1285,6 +1349,11 @@ async function endOnlineSearch(message) {
 
 async function startOnlineSearch() {
   onlineSearchActive = true;
+  // The search, not each poll of it. joinQueue is called every
+  // ONLINE_QUEUE_POLL_MS for up to two minutes - roughly sixty calls for one
+  // search - so recording the RPC would measure the poll interval rather than
+  // player intent. This is the only line that runs once per search.
+  track(EVENTS.RANKED_QUEUE_JOINED, { sport: getSport(), era: getEra() });
   btnStartDraft.disabled = true;
   btnCancelSearch.classList.remove("hidden");
   searchStatusEl.classList.remove("hidden");
@@ -1307,6 +1376,7 @@ async function startOnlineSearch() {
     while (onlineSearchActive) {
       const res = await joinQueue(getSport(), getEra());
       if (res.status === "matched") {
+        track(EVENTS.RANKED_MATCH_FOUND, { sport: getSport(), era: getEra() });
         await enterOnlineMatch(res.match_id);
         return;
       }
@@ -1903,6 +1973,16 @@ function startDraft() {
   poolSearch.value = "";
   hideDraftGrade();
   captureProgressBaseline();
+  // A DRAFT HAS BEGUN. One of the two places this can be true - the other is
+  // enterOnlineMatch, which is how a ranked or friend draft starts - and the
+  // mode is carried on the event so the funnel splits without a second one.
+  const started = matchConfig();
+  track(EVENTS.DRAFT_STARTED, {
+    sport: getSport(),
+    mode: started.id,
+    difficulty: started.difficulty || undefined,
+    era: game.era,
+  });
   showScreen("draft");
   advanceDraft();
 }
@@ -2306,6 +2386,11 @@ function showDraftGrade(roster, opts = {}) {
 function renderDraftComplete() {
   cleanupPickTimer();
   const draft = game.draft;
+  track(EVENTS.DRAFT_COMPLETED, {
+    sport: getSport(),
+    mode: matchConfig().id,
+    difficulty: matchConfig().difficulty || undefined,
+  });
   draftRoundLabel.textContent = "Draft complete";
   squadBannerTeam.textContent = "Rosters set";
   squadBannerDecade.textContent = "";
@@ -2508,6 +2593,15 @@ async function enterOnlineMatch(matchId) {
   // hidden board, ranked roster, authoritative server - with `ranked: false`,
   // which is the single fact that keeps it off the ladder.
   game.modeConfig = match.is_friendly ? { ...FRIEND_MODE, difficulty: null } : resolveMode("ranked");
+
+  // The online half of draft_started. Keyed on the match id rather than fired
+  // outright: enterOnlineMatch is also how a player RECONNECTS to a match
+  // already in progress, and a dropped connection is not a second draft.
+  trackOnce(
+    EVENTS.DRAFT_STARTED,
+    { sport: match.sport || getSport(), mode: game.modeConfig.id, era: match.era },
+    `draft_started:${matchId}`
+  );
 
   // THE MATCH DECIDES THE SPORT, not whatever this client last had selected.
   //
@@ -2936,6 +3030,15 @@ async function beginOnlineStrategyPhase(match) {
   const o = game.online;
   if (!o) return;
 
+  // Once per match. This runs from the match watcher, which fires on every
+  // row change and can re-enter the strategy phase on a reconnect - the
+  // reason trackOnce takes a key.
+  trackOnce(
+    EVENTS.DRAFT_COMPLETED,
+    { sport: getSport(), mode: matchConfig().id },
+    `draft_completed:${o.matchId}`
+  );
+
   draftRoundLabel.textContent = "Draft complete";
   squadBannerTeam.textContent = "Rosters set";
   squadBannerDecade.textContent = "";
@@ -3141,6 +3244,9 @@ const btnSkipPlayback = document.getElementById("btn-skip-playback");
 const recapHeadlineEl = document.getElementById("recap-headline");
 const recapDetailEl = document.getElementById("recap-detail");
 const fullBoxScore = document.getElementById("full-box-score");
+const btnShareResult = document.getElementById("btn-share-result");
+// Read off the markup rather than repeated here, so the label has one home.
+const SHARE_BUTTON_LABEL = btnShareResult.textContent;
 const btnToProfile = document.getElementById("btn-to-profile");
 const btnPlayAgain = document.getElementById("btn-play-again");
 const btnGameHome = document.getElementById("btn-game-home");
@@ -3185,15 +3291,21 @@ const REWARD_ICONS = { rank: "🏆", badge: "🎖️", banner: "🚩" };
 // game that takes ten minutes still diffs against the right baseline.
 let progressBefore = null;
 let rankBefore = null;
+// The per-sport ELO before this game, for the share card's rating line. Read
+// here rather than after the fact because "what did this game change" needs
+// both ends and only one of them still exists once the game is over.
+let ratingBefore = null;
 
 /** Snapshots the profile before a game. Failures are swallowed on purpose -
  * a missing baseline costs a celebration, and nothing else. */
 async function captureProgressBaseline() {
   progressBefore = null;
   rankBefore = null;
+  ratingBefore = null;
   try {
     const profile = await loadProfile();
     progressBefore = snapshotProgress(profile, getSport());
+    ratingBefore = ratingFor(profile.sportRatings, getSport()).rating;
     rankBefore = await loadRankInfo(profile);
   } catch (e) {
     console.error("Couldn't snapshot progress before the game:", e);
@@ -3233,6 +3345,274 @@ async function celebrateProgress() {
   confetti({ count: 70, durationMs: 3400 });
   playFanfare();
 }
+
+// ---- Shareable result card ----
+// The one thing on the post-game screen a player would send to somebody.
+//
+// EVERYTHING ON THE CARD COMES OFF THE RESULT THAT WAS JUST RENDERED. Nothing
+// below computes a score, picks an MVP, re-reads a box score or applies a
+// rating formula: the card is assembled from the same `result` object the
+// scoreboard, the recap and the box score were drawn from, which for an online
+// game is the server's own row. A card that disagreed with the screen behind it
+// would be worse than no card, and the way to guarantee it cannot is to give
+// the drawing code no way to derive anything (see js/sharecard.js).
+
+/** The card for the game on screen, or null before the final whistle. */
+let shareCardData = null;
+
+/** How many roster rows are worth putting on a card. Football drafts twelve
+ * slots; a card listing all of them at a legible size has nothing else on it,
+ * and js/sharecard.js caps it again per format. This is the read-side cap, so
+ * a long roster does not travel through the whole path to be thrown away. */
+const SHARE_ROSTER_ROWS = 12;
+
+/**
+ * Turns the finished game into the flat shape the card draws from.
+ *
+ * The player's OWN NAME rather than the label on screen: an online game labels
+ * your side "You", which reads correctly on the screen you are looking at and
+ * as nothing at all on an image somebody else opens.
+ */
+function buildShareCard({ result, labelB, rosterA, config }) {
+  const theSport = sport();
+  const mvp = result.mvp;
+  return {
+    sportName: theSport.name,
+    sportId: game.sport || getSport(),
+    accent: theSport.theme?.accent || null,
+    modeLabel: modeLabel(config),
+    ranked: !!config.ranked,
+    you: game.nameA || "You",
+    opponent: labelB,
+    scoreFor: result.teamScoreA,
+    scoreAgainst: result.teamScoreB,
+    won: result.winner === "A",
+    overtimePeriods: result.overtimePeriods || 0,
+    mvpName: mvp?.player?.name || null,
+    mvpLine: mvp?.line ? formatMvpStatLine(theSport, mvp.line) : null,
+    // Slot, name and season - the three things an argument about a draft is
+    // ever about. displayEntryName is what the rest of the app calls a drafted
+    // entry, so a football unit reads "Offensive Line" here too rather than
+    // "Baltimore Ravens Offensive Line" at a size nobody can read.
+    roster: rosterSlots(rosterA)
+      .slice(0, SHARE_ROSTER_ROWS)
+      .map((slot) => ({
+        slot: slotLabel(slot),
+        name: displayEntryName(rosterA[slot]),
+        season: rosterA[slot]?.season ?? null,
+      })),
+    // Filled in asynchronously for a ranked game, and left null otherwise.
+    // Null means "no rating line on the card", never "+0".
+    ratingDelta: null,
+    ratingAfter: null,
+  };
+}
+
+/**
+ * Fills in the rating line for a ranked game.
+ *
+ * WHY THIS IS SEPARATE AND ASYNCHRONOUS. The new rating is written server-side
+ * by simulate-match, so the only way to know it is to read the profile back -
+ * a round trip, at the exact moment the final whistle is blowing. Doing it
+ * inline would delay the whole post-game reveal for a line on an image nobody
+ * has asked for yet.
+ *
+ * So the card is usable immediately without it, and this fills it in behind
+ * the scenes. If it has not landed by the time someone taps Share, the card is
+ * drawn without the rating line - which is the honest outcome. A "+0" would be
+ * a number we do not have.
+ */
+async function resolveShareCardRating(card) {
+  if (!card.ranked || ratingBefore === null) return;
+  try {
+    const profile = await loadProfile();
+    const after = ratingFor(profile.sportRatings, card.sportId).rating;
+    // Guarded against the card having been replaced by a newer game while this
+    // was in flight - writing onto a stale object would put one game's rating
+    // change on another game's card.
+    if (shareCardData !== card) return;
+    if (typeof after !== "number" || after === ratingBefore) return;
+    card.ratingAfter = after;
+    card.ratingDelta = after - ratingBefore;
+  } catch (e) {
+    // The card is complete without it. Logged rather than surfaced: nobody
+    // asked for this yet.
+    console.error("Couldn't read the rating change for the share card:", e);
+  }
+}
+
+/**
+ * The card renderer, fetched on first use.
+ *
+ * A DYNAMIC IMPORT, like the sports' own presentation modules. This is ~20KB of
+ * canvas drawing code that matters only once a game is over and only if
+ * somebody taps Share - so it has no business being in the boot payload, which
+ * scripts/verify-startup-performance.mjs holds to a budget. The module is
+ * cached after the first open, so the second card costs nothing.
+ */
+let shareCardModule = null;
+function loadShareCard() {
+  if (!shareCardModule) shareCardModule = import("./sharecard.js");
+  return shareCardModule;
+}
+
+/** The share dialog: the card as an image, and the two ways out of it. */
+async function openShareDialog() {
+  const card = shareCardData;
+  if (!card) return;
+
+  btnShareResult.disabled = true;
+  let sharecard;
+  try {
+    sharecard = await loadShareCard();
+  } catch (e) {
+    // Never silent, and never a dead button: the only thing that can fail here
+    // is the module fetch, and saying so is more use than a click that does
+    // nothing.
+    console.error("Couldn't load the share card renderer:", e);
+    btnShareResult.disabled = false;
+    btnShareResult.textContent = "Share unavailable";
+    return;
+  }
+  btnShareResult.disabled = false;
+  const { drawShareCard, shareCard, saveCard, cardPreviewUrl, loadBrandMark, FORMATS } = sharecard;
+
+  // THE LOCKUP, AWAITED BEFORE THE FIRST DRAW. A canvas cannot draw an image
+  // that has not decoded, so a card drawn while it was still loading would ship
+  // without the logo and the redraw on a format switch would suddenly have it -
+  // the same card, two different brands. It resolves to null on failure and the
+  // card falls back to the wordmark in text.
+  const brandMark = await loadBrandMark();
+
+  let format = FORMATS.story;
+  let canvas = null;
+
+  const body = document.createElement("div");
+  body.className = "share-dialog";
+
+  const preview = document.createElement("img");
+  preview.className = "share-preview";
+  preview.alt = `Draft Nova result card: ${card.you} ${card.scoreFor}, ${card.opponent} ${card.scoreAgainst}`;
+
+  const status = document.createElement("p");
+  status.className = "share-status hint-text";
+
+  const draw = () => {
+    // drawShareCard also reports where it put each block; only the test needs
+    // that (see scripts/verify-share-card.mjs), so the canvas is all this takes.
+    ({ canvas } = drawShareCard(card, format, { brandMark }));
+    // A data: URL, not a blob: one - the page's CSP allows `data:` in img-src
+    // and not `blob:`, so the preview and the download encode the same canvas
+    // two different ways on purpose (see js/sharecard.js).
+    preview.src = cardPreviewUrl(canvas);
+    preview.width = format.width;
+    preview.height = format.height;
+    preview.classList.toggle("share-preview-square", format.id === "square");
+  };
+
+  // The format switch. Two buttons rather than a select: there are two of
+  // them, and the choice is visual.
+  const formats = document.createElement("div");
+  formats.className = "share-formats";
+  formats.setAttribute("role", "radiogroup");
+  formats.setAttribute("aria-label", "Card shape");
+  const formatButtons = [];
+  for (const option of [FORMATS.story, FORMATS.square]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "share-format";
+    btn.textContent = option.label;
+    btn.setAttribute("role", "radio");
+    const paint = () => {
+      for (const [b, o] of formatButtons) {
+        const on = o.id === format.id;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      }
+    };
+    btn.addEventListener("click", () => {
+      if (format.id === option.id) return;
+      format = option;
+      paint();
+      draw();
+      status.textContent = "";
+    });
+    formatButtons.push([btn, option]);
+    formats.appendChild(btn);
+  }
+  for (const [b, o] of formatButtons) b.setAttribute("aria-checked", String(o.id === format.id));
+  formatButtons[0][0].classList.add("active");
+
+  const actions = document.createElement("div");
+  actions.className = "share-actions";
+
+  // SHARE FIRST, because on the device most of these are made on - a phone -
+  // it is the one that reaches Instagram and Discord in one tap. It falls back
+  // to a download on a browser that cannot share a file, so this button always
+  // does something (see shareCard).
+  const shareBtn = document.createElement("button");
+  shareBtn.type = "button";
+  shareBtn.className = "btn btn-primary";
+  shareBtn.textContent = "Share";
+  shareBtn.addEventListener("click", async () => {
+    shareBtn.disabled = true;
+    status.textContent = "Preparing the image…";
+    try {
+      const what = await shareCard(canvas, card, format);
+      track(EVENTS.SHARE_CARD_SHARED, {
+        sport: card.sportId,
+        mode: card.ranked ? "ranked" : "practice",
+        format: format.id,
+        source: "share",
+      });
+      status.textContent = what === "shared" ? "" : "Saved to your downloads.";
+    } catch (e) {
+      console.error("Couldn't share the card:", e);
+      status.textContent = "Couldn't share that. Try Save Image instead.";
+    } finally {
+      shareBtn.disabled = false;
+    }
+  });
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn btn-secondary";
+  saveBtn.textContent = "Save Image";
+  saveBtn.addEventListener("click", () => {
+    saveCard(canvas, card, format);
+    track(EVENTS.SHARE_CARD_SHARED, {
+      sport: card.sportId,
+      mode: card.ranked ? "ranked" : "practice",
+      format: format.id,
+      source: "save",
+    });
+    status.textContent = "Saved to your downloads.";
+  });
+
+  actions.append(shareBtn, saveBtn);
+
+  // Long-press to save is what people actually do on a phone, and saying so
+  // costs one line - the alternative is a person screenshotting the preview.
+  const hint = document.createElement("p");
+  hint.className = "hint-text";
+  hint.textContent = "On a phone you can also press and hold the card to save it.";
+
+  body.append(formats, preview, actions, status, hint);
+  draw();
+
+  // Recorded once per page session per card: opening the dialog twice for the
+  // same game is one card created, and the format switch redraws it without
+  // counting again.
+  trackOnce(
+    EVENTS.SHARE_CARD_CREATED,
+    { sport: card.sportId, mode: card.ranked ? "ranked" : "practice", format: format.id },
+    `share_card_created:${card.you}:${card.scoreFor}-${card.scoreAgainst}:${card.mvpName || ""}`
+  );
+
+  openModal("Share this result", body);
+}
+
+btnShareResult.addEventListener("click", openShareDialog);
 
 // ---- Post-game analysis panel ----
 
@@ -3366,6 +3746,23 @@ function dressStage(homeSide, kitA, kitB) {
 const shotChartEl = document.getElementById("shot-chart");
 
 function resetGameScreen() {
+  // Last game's share card is last game's. Cleared here rather than on the way
+  // out, so the button cannot open a dialog describing a result that is no
+  // longer on screen.
+  shareCardData = null;
+  // And the button goes back to saying what it does. Without this, one failed
+  // module fetch left it reading "Share unavailable" for the rest of the
+  // session - including on the next game, where it would have worked.
+  btnShareResult.disabled = false;
+  btnShareResult.textContent = SHARE_BUTTON_LABEL;
+
+  // The postgame sponsor slot goes away with everything else a finished game
+  // put on this screen. It is filled at the final whistle, so leaving it up
+  // would put it over the next game's live scoreboard.
+  releaseSponsor(sponsorPostgameEl);
+  sponsorPostgameEl.replaceChildren();
+  sponsorPostgameEl.hidden = true;
+
   for (const el of [
     finalBanner,
     gameRecapEl,
@@ -3377,6 +3774,7 @@ function resetGameScreen() {
     // markers and would otherwise be on screen for however long the next
     // game takes to reach its own final whistle.
     shotChartEl,
+    btnShareResult,
     btnToProfile,
     btnPlayAgain,
     btnGameHome,
@@ -3652,6 +4050,19 @@ function playOutResult({ result, labelA, labelB, rosterA, rosterB, minutesA, min
   // running totals, folded from the events already revealed - see THE LIVE
   // LEDGER in each sport's playback module. The authoritative result sits
   // untouched in `result` and is read only at the final whistle.
+  // EVERY MODE ROUTES THROUGH HERE, which is why the last two funnel events
+  // are recorded in this function rather than three times over in the offline,
+  // ranked and friendly paths. A simulation has started; the result is already
+  // decided and is about to be played out.
+  {
+    const config = matchConfig();
+    track(EVENTS.SIMULATION_STARTED, {
+      sport: game.sport || getSport(),
+      mode: config.id,
+      difficulty: config.difficulty || undefined,
+    });
+  }
+
   const periodsSoFar = [];
   let runningA = 0;
   let runningB = 0;
@@ -3917,6 +4328,40 @@ function showShotChart(events, labelA, labelB) {
   function finish(silent = false) {
     if (finished) return;
     finished = true;
+
+    // A GAME WAS COMPLETED. Recorded here, behind the same `finished` guard
+    // that stops the result being written twice, so an abandoned game settled
+    // by cleanupPlayback counts exactly once and a game watched to the whistle
+    // also counts exactly once.
+    //
+    // WHY game_completed FIRES FOR EVERY MODE AND THE OTHER TWO DO NOT. The
+    // admin aggregates read online games out of `matches`, which is
+    // authoritative, and only union the PRACTICE ones in from this event - so
+    // game_completed carries `mode` to let them be told apart. The ranked and
+    // friendly events are for the funnel, where "how many people finished a
+    // ranked game" is a question about people rather than about matches.
+    {
+      const config = matchConfig();
+      const props = {
+        sport: game.sport || getSport(),
+        mode: config.id,
+        difficulty: config.difficulty || undefined,
+        won: result.winner === "A",
+        margin: Math.abs(result.teamScoreA - result.teamScoreB),
+      };
+      track(EVENTS.GAME_COMPLETED, props);
+      if (config.ranked) track(EVENTS.RANKED_GAME_COMPLETED, props);
+      else if (config.id === FRIEND_MODE.id) track(EVENTS.FRIEND_GAME_COMPLETED, props);
+
+      // THE SHARE CARD IS ASSEMBLED FROM THE SAME `result` EVERYTHING ELSE ON
+      // THIS SCREEN WAS DRAWN FROM, here, at the one point where the game is
+      // definitively over. Nothing recomputes: see buildShareCard.
+      shareCardData = buildShareCard({ result, labelB, rosterA, config });
+      // The rating line needs a round trip the reveal must not wait for, so it
+      // fills itself in behind the scenes and the card is drawn without it if
+      // it has not landed.
+      void resolveShareCardRating(shareCardData);
+    }
     // Everything still waiting to draw on a game that is over: the queued
     // events, the pending box-score frame, and any timer a celebration owns.
     // One of those firing after the whistle lands on the next game's feed, or
@@ -4057,9 +4502,20 @@ function showShotChart(events, labelA, labelB) {
     if (showShotChart(ledger.events, labelA, labelB)) {
       basketballCourtEl.classList.add("hidden");
     }
+    // Only once there is a card to share. The abandoned path reaches finish()
+    // too and builds one, so this is always true here - but a button that
+    // opened an empty dialog would be the one bug worth being certain about.
+    btnShareResult.classList.toggle("hidden", !shareCardData);
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
     btnGameHome.classList.remove("hidden");
+
+    // The postgame sponsor slot, revealed with the exit buttons rather than
+    // before them: it sits below the result, the recap, the MVP and the box
+    // score, and it appears at the same moment as everything else that means
+    // the game is over. Renders nothing today - no campaign names this
+    // placement - so the slot stays hidden and the layout is unchanged.
+    renderSponsor(sponsorPostgameEl, PLACEMENTS.POSTGAME);
 
     // The payoff. A win gets the horn, the confetti and the fanfare; a loss
     // gets the horn and a flat two-note fall, because losing shouldn't be
@@ -5686,6 +6142,24 @@ initBrandFallbacks();
 // existing session; a Supabase/CDN failure here must not leave a blank page,
 // so any error falls through to the sign-in screen.
 (async () => {
+  // A LINK THAT DID NOT WORK IS REPORTED BEFORE ANYTHING ELSE.
+  //
+  // An expired or already-used recovery link redirects back here with the
+  // failure in the URL and no session, which is indistinguishable from an
+  // ordinary cold visit - so it used to land on the sign-in screen saying
+  // nothing, and the player's only move was to click the dead link again. The
+  // failure is captured at module load (see authLinkError) because supabase-js
+  // clears the fragment as soon as it initialises.
+  //
+  // Checked FIRST: if there is no session, this is why, and there is nothing
+  // to gain from asking the network before saying so.
+  const linkError = authLinkError();
+  if (linkError) {
+    showAuthScreen("signin");
+    setAuthStatus(linkError, "error");
+    return;
+  }
+
   try {
     const session = await getSession();
     if (session) {
