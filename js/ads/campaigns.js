@@ -87,7 +87,12 @@ export const CAMPAIGNS = [
     sponsor: "Draft Nova",
     headline: "Sponsorship available",
     body: "This slot reaches people mid-draft, deciding between eras. Reach us and it's yours.",
-    cta: "business@draftnovagame.com",
+    // NOT THE ADDRESS ITSELF. "business@draftnovagame.com" is 26 characters
+    // and the side rail is 160px wide, so it cannot fit on one line at any
+    // legible size - it rendered as "business@draftn / ovagame.com", broken
+    // mid-word, which reads as a layout bug rather than as an invitation. The
+    // mailto carries the address; the button says what it does.
+    cta: "Get in touch",
     href: "mailto:business@draftnovagame.com",
     placements: [PLACEMENTS.HOME_RAIL_LEFT, PLACEMENTS.HOME_RAIL_RIGHT],
     start: "2026-09-11",
