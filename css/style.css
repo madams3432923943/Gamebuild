@@ -9294,3 +9294,203 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   0%, 96% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* ---- Sponsor inventory (js/ads/) --------------------------------------------
+   Slots that look designed rather than bolted on, and that cost the game
+   nothing when they are empty or when there is no room for them.
+
+   THE RAILS ARE FIXED AND OUTSIDE THE CONTENT COLUMN. #app-root is
+   max-width:1100px centred, so on a wide desktop there is genuinely unused
+   space either side of it and nothing else. Laying the rails out IN the flow -
+   a three-column grid - would narrow the game's own column at every width to
+   make room for something that is empty most of the time. Fixed rails use only
+   space that was already empty, so the draft board, the court and the box score
+   are byte-for-byte the same width they have always been.
+
+   THE BREAKPOINT IS ARITHMETIC, NOT TASTE. The content is 1100px wide, a rail
+   is 160px, and it needs 24px of clearance from the content and 16px from the
+   window edge. Two rails therefore need 1100 + 2*(160 + 24 + 16) = 1500px
+   before either may appear. Below that they are display:none: not narrowed, not
+   stacked under the content, not a horizontal scrollbar. The game is the
+   priority, and on a phone there is no version of a side banner that is not a
+   worse phone.
+
+   Height-gated too. A rail taller than the window has no scroll of its own
+   (it is fixed), so on a short landscape laptop the bottom of the card would
+   simply be unreachable. Below 560px of height it does not appear. */
+.sponsor-rail {
+  display: none;
+}
+
+/* ONLY WHILE THE HOME SCREEN IS SHOWING, and said in CSS rather than
+   coordinated in JS. The rails are fixed and live outside #app-root, so
+   without this they would hang beside the draft board, the court and the box
+   score - every screen in the app. Screens are toggled by a `.hidden` class on
+   a section, so `body:has()` reads which one is up and the rails follow it.
+   Structurally impossible for a rail to appear over a game, rather than
+   dependent on every navigation path remembering to hide one. */
+@media (min-width: 1500px) and (min-height: 560px) {
+  body:has(#screen-home:not(.hidden)) .sponsor-rail {
+    display: block;
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 160px;
+    /* Above the page wash, below the modal backdrop and the celebration
+       layer - a sponsor slot must never sit over a dialog. */
+    z-index: 1;
+  }
+
+  /* calc from the centre outwards, so the rails stay pinned to the content
+     column rather than to the window as it widens. */
+  body:has(#screen-home:not(.hidden)) .sponsor-rail-left {
+    right: calc(50% + (1100px / 2) + 24px);
+  }
+
+  body:has(#screen-home:not(.hidden)) .sponsor-rail-right {
+    left: calc(50% + (1100px / 2) + 24px);
+  }
+}
+
+/* The postgame slot is in the flow and full width - it is under everything the
+   player came for, so it has room to be a normal card. */
+.sponsor-slot {
+  margin: 1rem 0 0;
+}
+
+.sponsor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 0.9rem;
+  box-shadow: var(--shadow-card);
+}
+
+/* A house slot reads as ours: the accent edge is the same one the app uses for
+   its own surfaces, so it does not impersonate a third party. */
+.sponsor-house {
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+/* SAID OUT LOUD. Small, but never invisible: a placement that does not
+   announce itself is the thing that makes people distrust a site. */
+.sponsor-kicker {
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sponsor-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* A creative of any shape fits the slot without pushing it around, and a
+     1x1 or a wildly tall image cannot stretch the rail. */
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: var(--radius-inner);
+}
+
+.sponsor-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.sponsor-headline {
+  color: var(--accent-bright);
+  font-weight: 700;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+
+.sponsor-body {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.sponsor-cta {
+  margin-top: 0.2rem;
+  align-self: flex-start;
+  max-width: 100%;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 0.4rem 0.7rem;
+  color: var(--text);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  /* A campaign's CTA can be an email address, which has no spaces to wrap at -
+     so it breaks rather than widening the rail and overflowing the window. */
+  overflow-wrap: anywhere;
+}
+
+.sponsor-cta:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.sponsor-cta:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* The postgame slot is wider than a rail, so its card puts the words in one
+   column and the CTA beside them instead of stacking four lines down the
+   middle of the screen, which reads as an afterthought.
+
+   Every child is placed BY NAME. An auto-placed grid child is how a layout
+   silently breaks when someone adds a line to the card: .sponsor-name was
+   omitted from an earlier version of these areas and landed wherever the
+   auto-placement algorithm felt like putting it. */
+@media (min-width: 620px) {
+  .sponsor-slot-postgame .sponsor-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "kicker   cta"
+      "name     cta"
+      "headline cta"
+      "body     cta";
+    align-items: center;
+    column-gap: 1.25rem;
+    row-gap: 0.15rem;
+  }
+
+  .sponsor-slot-postgame .sponsor-kicker {
+    grid-area: kicker;
+  }
+
+  .sponsor-slot-postgame .sponsor-name {
+    grid-area: name;
+  }
+
+  .sponsor-slot-postgame .sponsor-headline {
+    grid-area: headline;
+  }
+
+  .sponsor-slot-postgame .sponsor-body {
+    grid-area: body;
+  }
+
+  .sponsor-slot-postgame .sponsor-cta {
+    grid-area: cta;
+    margin-top: 0;
+    /* Centred across the rows the words occupy rather than pinned to one of
+       them. */
+    align-self: center;
+  }
+
+  /* An image goes back to stacking: it has nowhere to sit in the grid above
+     without squeezing the words, and a creative is the thing a sponsor is
+     paying for. */
+  .sponsor-slot-postgame .sponsor-card:has(.sponsor-image) {
+    display: flex;
+  }
+}

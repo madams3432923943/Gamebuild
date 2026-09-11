@@ -46,6 +46,8 @@ import {
 } from "./profile.js";
 import { countFriends } from "./friends.js";
 import { maybeShowOnboarding } from "./onboarding.js";
+import { renderSponsor, releaseSponsor } from "./ads/placements.js";
+import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
 import {
   MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
@@ -511,6 +513,9 @@ async function reconcileUsername() {
 }
 
 const homeSportCardsEl = document.getElementById("home-sport-cards");
+const sponsorRailLeftEl = document.getElementById("sponsor-rail-left");
+const sponsorRailRightEl = document.getElementById("sponsor-rail-right");
+const sponsorPostgameEl = document.getElementById("sponsor-postgame");
 
 /** The home screen's sport list: one card per sport, and the only way in.
  *
@@ -763,6 +768,22 @@ async function refreshHome() {
     game.nameA = "Player";
   }
   signedInAsEl.textContent = game.nameA;
+
+  // THE SPONSOR RAILS. Drawn here because this is the function that draws the
+  // home screen, and they belong to it. Whether they are VISIBLE is a CSS
+  // question and not this function's business - the rails are fixed elements
+  // outside #app-root and only appear on a window wide and tall enough, and
+  // only while the home screen is up (see the .sponsor-rail rules). This just
+  // fills them, and fills them with nothing when no campaign is running, which
+  // leaves them hidden.
+  //
+  // Re-rendering on every return to home is fine and is the point of counting
+  // impressions by visibility rather than by render: renderSponsor replaces the
+  // old observer, and the impression is keyed per campaign per placement per
+  // session, so coming back to this screen ten times is one impression.
+  renderSponsor(sponsorRailLeftEl, PLACEMENTS.HOME_RAIL_LEFT);
+  renderSponsor(sponsorRailRightEl, PLACEMENTS.HOME_RAIL_RIGHT);
+
   // RETURNED so a caller that has just triggered this read does not trigger a
   // second one. enterApp needs the profile for the first-run check, and the
   // alternative was loadProfile() twice on the first screen of every visit.
@@ -3446,6 +3467,13 @@ function dressStage(homeSide, kitA, kitB) {
 const shotChartEl = document.getElementById("shot-chart");
 
 function resetGameScreen() {
+  // The postgame sponsor slot goes away with everything else a finished game
+  // put on this screen. It is filled at the final whistle, so leaving it up
+  // would put it over the next game's live scoreboard.
+  releaseSponsor(sponsorPostgameEl);
+  sponsorPostgameEl.replaceChildren();
+  sponsorPostgameEl.hidden = true;
+
   for (const el of [
     finalBanner,
     gameRecapEl,
@@ -4178,6 +4206,13 @@ function showShotChart(events, labelA, labelB) {
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
     btnGameHome.classList.remove("hidden");
+
+    // The postgame sponsor slot, revealed with the exit buttons rather than
+    // before them: it sits below the result, the recap, the MVP and the box
+    // score, and it appears at the same moment as everything else that means
+    // the game is over. Renders nothing today - no campaign names this
+    // placement - so the slot stays hidden and the layout is unchanged.
+    renderSponsor(sponsorPostgameEl, PLACEMENTS.POSTGAME);
 
     // The payoff. A win gets the horn, the confetti and the fanfare; a loss
     // gets the horn and a flat two-note fall, because losing shouldn't be
