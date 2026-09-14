@@ -339,6 +339,9 @@ function openHowToPlay(sportId = activeSportId()) {
 const navTabs = document.getElementById("nav-tabs");
 const authHeading = document.getElementById("auth-heading");
 const authSubheading = document.getElementById("auth-subheading");
+const authPitch = document.getElementById("auth-pitch");
+const authPitchLine = document.getElementById("auth-pitch-line");
+const authPitchSteps = document.getElementById("auth-pitch-steps");
 const inputAuthEmail = document.getElementById("input-auth-email");
 const inputAuthIdentifier = document.getElementById("input-auth-identifier");
 const inputAuthUsername = document.getElementById("input-auth-username");
@@ -370,6 +373,16 @@ function setAuthStatus(message, kind) {
 function renderAuthMode() {
   const isSignup = authMode === "signup";
   const isRecover = authMode === "recover";
+
+  // The pitch above the heading. A returning player does not need to be sold
+  // the game they already have an account for, and someone resetting a
+  // password is mid-task - so the long version is Create Account's alone.
+  authPitch.hidden = isRecover;
+  authPitchSteps.hidden = !isSignup;
+  authPitchLine.textContent = isSignup
+    ? "Draft players across NBA and NFL eras, build your lineup, set your strategy, " +
+      "and compete to see whose team wins. Free to play, no app to install."
+    : "Draft across NBA and NFL eras, set your strategy, and see whose team wins.";
 
   fieldAuthEmail.hidden = !isSignup;
   fieldAuthUsername.hidden = !isSignup;
