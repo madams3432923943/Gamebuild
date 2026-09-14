@@ -134,22 +134,22 @@ async function main() {
       // its 2.3MB was a static import - the budget was 3.5MB and the measured
       // boot was 3548KB, roughly 1% of headroom. NBA now loads on demand like
       // NFL, so the floor is the app itself and the budget is set against that
-      // instead. Raising this number is how the regression would hide, so it
-      // is argued for here rather than nudged:
+      // instead: ~1.3MB measured, 1.5MB allowed. Raising this number back up is
+      // how the regression would hide, so it should be argued for, not nudged.
       //
-      // 1.5MB was set against ~1.2MB of app code. App code has since grown to
-      // 1535KB and the budget was down to 1.4KB of headroom - close enough
-      // that the next four-kilobyte copy change failed this check, which is
-      // not the thing it was written to catch. The datasets it IS written to
-      // catch have their own named assertions above and below; neither moves.
-      // 1.6MB restores roughly the headroom the 1.5MB figure originally had.
+      // It was nudged once, to 1.6MB, when a four-kilobyte copy change to the
+      // sign-in screen ran into 1,481 bytes of remaining headroom. That was the
+      // wrong move and it has been reverted: football's engine, units, recap,
+      // draftgrade and botdraft were being downloaded before a sport had been
+      // chosen, and deferring them the way the datasets were deferred took
+      // ~231KB off boot - sixty times what the copy change added. See
+      // loadSimulation in js/sports/nfl/index.js.
       //
-      // The next time this is tight, do not raise it again: ~220KB of that
-      // boot is football's engine, tactics, units, draftgrade, botdraft and
-      // recap, statically imported before a sport has been chosen. Defer those
-      // the way the datasets were deferred and the number goes down, not up.
-      title: "Boot payload stays under 1.6MB",
-      ok: bootBytes < 1.6 * 1024 * 1024,
+      // What is left is the app shell plus both sports' registry, constants and
+      // tactics. If this gets tight again, the next lever is that pair of
+      // constants files, not this number.
+      title: "Boot payload stays under 1.5MB",
+      ok: bootBytes < 1.5 * 1024 * 1024,
       detail: `${kb(bootBytes)} across ${bootFiles.length} files (basketball's dataset is ${kb(sumBytes(nbaOnBoot))} of it)`,
     });
     checks.push({
