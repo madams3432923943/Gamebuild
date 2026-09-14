@@ -2629,10 +2629,16 @@ async function enterOnlineMatch(matchId) {
     applyTheme(sport());
     await ensureSportData(match.sport);
   }
-  // Whatever sport this match is, its stage has to be loaded before the game
-  // screen draws one. Outside the branch above because a match in the sport
-  // already selected still needs it - setSport() is the only other loader, and
-  // a deep link into a challenge never goes through it.
+  // Whatever sport this match is, its DATA and its stage have to be loaded
+  // before the game screen draws one. Outside the branch above because a match
+  // in the sport already selected still needs both - setSport() is the only
+  // other loader, it only runs when a sport TILE is tapped, and a deep link
+  // into a challenge never goes through it. The branch above covers a player
+  // who had the other sport open; this covers the one who did not.
+  //
+  // Idempotent: preload() hands back its settled promise, so the common path
+  // where the branch already awaited this costs one microtask.
+  await ensureSportData(match.sport || getSport());
   await sport().presentation.load?.();
   // The bracket is the match's too, for the same reason - the draft board reads
   // it off game.era, and an era id is only unique within one sport.

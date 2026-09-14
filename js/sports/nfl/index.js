@@ -54,12 +54,89 @@ function loaded() {
   }
 }
 
+/**
+ * THE SIMULATION ITSELF, ON DEMAND - the same treatment the datasets got, one
+ * level up, and the same one basketball already gives its engine.
+ *
+ * engine.js is 115KB and constants.js another 28KB behind it; with units,
+ * recap, draftgrade and botdraft it came to ~231KB that every visitor
+ * downloaded to look at a sign-in form. None of it can run before a roster
+ * exists, and a roster cannot exist before football has been chosen - which is
+ * exactly when preload() runs.
+ *
+ * The hooks are ASSIGNED ONTO the registry object rather than reached through
+ * a promise, so nothing downstream changed: every consumer still reads
+ * sport().simulate and sport().gradeDraft exactly as before.
+ */
+let simulationReady = null;
+
+function loadSimulation() {
+  simulationReady ||= Promise.all([
+    import("./engine.js"),
+    import("./units.js"),
+    import("./recap.js"),
+    import("./draftgrade.js"),
+    import("./botdraft.js"),
+  ])
+    .then(([engine, units, recap, draftgrade, botdraft]) => {
+      Object.assign(NFL, {
+        computeDatasetStats: () =>
+          (loaded(), (ratingCtx ||= engine.computeDatasetStats(NFL_PLAYERS, NFL_UNITS))),
+        simulate: (rosterA, rosterB, stats, opts) => engine.simulate(rosterA, rosterB, stats, opts),
+        rate: (entry, ctx) => units.rateEntry(entry, ctx ?? NFL.computeDatasetStats()),
+        highlights: recap.HIGHLIGHTS,
+        buildRecap: (result, rosterA, rosterB, labelA, labelB) =>
+          recap.buildRecap(result, rosterA, rosterB, labelA, labelB),
+        buildGameScript: recap.buildGameScript,
+        buildPostGameAnalysis: (result, side) => recap.buildPostGameAnalysis(result, side),
+        gradeDraft: (roster, ctx, opts) =>
+          draftgrade.draftGrade(roster, ctx ?? NFL.computeDatasetStats(), opts),
+        draftAnalysis: (roster, oppRoster, ctx, forfeits) =>
+          draftgrade.draftGrade(roster, ctx ?? NFL.computeDatasetStats(), {
+            forfeits: Array.isArray(forfeits) ? forfeits : [],
+            oppRoster,
+          }),
+        botDraftPlan: botdraft.botDraftPlan,
+      });
+      return NFL;
+    })
+    .catch((error) => {
+      // A failed load must not leave a permanently poisoned promise.
+      simulationReady = null;
+      throw error;
+    });
+  return simulationReady;
+}
+
+/**
+ * Calling a simulation hook before preload() is a PROGRAMMING ERROR, and says
+ * so rather than returning undefined.
+ *
+ * Same reasoning as loaded() above: a hook that is quietly undefined until a
+ * promise resolves gives the caller "is not a function" from three frames away,
+ * or - for the ones that are read rather than called - a plausible-looking
+ * nothing. Every hook below is replaced wholesale by loadSimulation().
+ */
+function notLoaded(hook) {
+  return () => {
+    throw new Error(
+      `NFL.${hook}() was called before football's simulation was loaded. ` +
+        `Await NFL.preload() (or ensureSportData("nfl")) first.`
+    );
+  };
+}
+
 async function preload() {
-  if (NFL_PLAYERS && NFL_UNITS) return;
+  if (NFL_PLAYERS && NFL_UNITS && simulationReady) return;
   if (!loading) {
+    // The pool is assigned only once the SIMULATION has arrived too, which is
+    // what keeps dataReady() honest: js/main.js:174 reads it to decide whether
+    // warmDatasetStats may call computeDatasetStats, and a data-ready sport
+    // whose engine is still in flight would walk straight into a stub.
     loading = Promise.all([
       fetchDataset("nfl-players"),
       fetchDataset("nfl-units"),
+      loadSimulation(),
     ]).then(([players, units]) => {
       NFL_PLAYERS = players;
       NFL_UNITS = units;
@@ -72,17 +149,25 @@ async function preload() {
   }
   return loading;
 }
-import { computeDatasetStats, simulate } from "./engine.js";
 import { datasetVersion } from "../../lib/dataset-version.js";
 import { fetchDataset } from "../../lib/dataset.js";
+import { isUnit, unitLabel } from "./entry.js";
 
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
 let ratingCtx = null;
-import { isUnit, unitLabel, rateEntry } from "./units.js";
-import { buildRecap, buildGameScript, buildPostGameAnalysis, HIGHLIGHTS } from "./recap.js";
-import { draftGrade } from "./draftgrade.js";
-import { botDraftPlan } from "./botdraft.js";
+/* engine.js, units.js, recap.js, draftgrade.js and botdraft.js are NOT
+ * imported here - see loadSimulation below. Between them and constants.js
+ * behind them they are ~231KB, and with no build step a static import bills
+ * every visitor for football's simulation before they have chosen a sport.
+ *
+ * tactics.js STAYS, and has to: js/main.js seeds strategy.tactic at module
+ * scope from sport().tacticById(sport().defaultTactic), which runs at boot for
+ * anyone whose stored sport is football - before anything has awaited
+ * preload(). Deferring it would be a blank screen on boot for exactly the
+ * players this change is for. It rides along inside the lazy bundle anyway,
+ * since engine.js and recap.js both import it, so keeping it static costs
+ * nothing beyond its own 25KB. Basketball keeps its tactics static too. */
 import {
   OFFENSIVE_PLANS, DEFENSIVE_PLANS, STRATEGY_GROUPS, DEFAULT_STRATEGY,
   planFor, normalizeStrategy, plansFor, randomStrategy, formatStrategy,
@@ -359,6 +444,11 @@ export const NFL = {
   // Play's DEF - with nothing eligible. The draft filled its skill positions
   // and then hung with two slots open and no legal pick on the board.
   preload,
+  // True only when the SIMULATION is here too, not just the pool - preload()
+  // assigns the arrays after both have landed. js/main.js reads this to decide
+  // whether to warm the rating index on an idle callback, and a football that
+  // reported ready with its engine still in flight would walk that warm-up
+  // straight into a notLoaded stub.
   dataReady: () => NFL_PLAYERS !== null && NFL_UNITS !== null,
   isLoaded: () => !!(NFL_PLAYERS && NFL_UNITS),
   players: () => (loaded(), [...NFL_PLAYERS, ...NFL_UNITS]),
@@ -384,8 +474,8 @@ export const NFL = {
   // index - thousands of full sorts on one click, which froze the tab hard
   // enough that Quick Play never appeared. The dataset is generated and
   // immutable at runtime, so one build lasts the session.
-  computeDatasetStats: () => (loaded(), (ratingCtx ||= computeDatasetStats(NFL_PLAYERS, NFL_UNITS))),
-  simulate: (rosterA, rosterB, stats, opts) => simulate(rosterA, rosterB, stats, opts),
+  computeDatasetStats: notLoaded("computeDatasetStats"),
+  simulate: notLoaded("simulate"),
 
   // Football has no minutes. Everyone on a drafted roster plays every snap of
   // his side of the ball - there is no rotation to decide and no bench to
@@ -395,7 +485,14 @@ export const NFL = {
   defaultMinutes: () => ({}),
   botMinutes: () => ({}),
   // Units line up against units - nobody to assign.
-  highlights: HIGHLIGHTS,
+  // ASSIGNED LAZILY by loadSimulation() from recap.js. This is the pre-load
+  // value, and it is the one hook here that does not throw: js/main.js reads it
+  // as `(sport().highlights || []).map(...)`, and a stub is a function, so
+  // `|| []` would hand the stub straight to .map and surface the failure inside
+  // the recap feed rather than at the call. [] is unreachable in practice - the
+  // feed runs post-game, long after preload() - and highlights is a required
+  // VALUE on the contract, not a required function. Same as basketball's.
+  highlights: [],
   usesMatchups: false,
   defaultMatchups: () => ({}),
 
@@ -407,7 +504,7 @@ export const NFL = {
   // same position or in the same unit group, so a quarterback and a secondary
   // are comparable - see js/sports/nfl/units.js for why percentile rather than
   // an invented rating.
-  rate: (entry, ctx) => rateEntry(entry, ctx ?? NFL.computeDatasetStats()),
+  rate: notLoaded("rate"),
   // Strips the ordinal so WR1/WR2/WR3 all resolve to WR - a receiver's data
   // says "WR", not "WR2", and without this every numbered slot would reject
   // every player eligible for it. Same rule NBA uses; it only looked like an
@@ -573,7 +670,7 @@ export const NFL = {
    *
    * It is still nothing but pick quality: no difficulty here reaches a rating,
    * the RNG, or anything the simulation reads. */
-  botDraftPlan,
+  botDraftPlan: notLoaded("botDraftPlan"),
 
   /** Is this drafted entry a UNIT rather than a person?
    *
@@ -585,7 +682,7 @@ export const NFL = {
   isUnit,
 
   /** A drafted unit, named for a screen that already says which team it is.
-   * See unitLabel in units.js. */
+   * See unitLabel in entry.js. */
   unitLabel,
   // Lineup order, not draft order. Object.keys() hands back the order the
   // slots were FILLED, so a roster drafted WR-first printed its box score
@@ -607,14 +704,13 @@ export const NFL = {
   // Narrative and grading. Stubs live in the sibling files named below; these
   // throw for the same reason the simulation stubs do - a recap that returned
   // empty prose would look like a working game with nothing to say.
-  buildRecap: (result, rosterA, rosterB, labelA, labelB) =>
-    buildRecap(result, rosterA, rosterB, labelA, labelB),
+  buildRecap: notLoaded("buildRecap"),
   // Passed through, not re-wrapped. The wrapper took only the first argument
   // and dropped the two team names behind it, so football's final line read
   // "undefined and undefined finish level at 15.94". NBA hands the function
   // over directly, which is why only football lost the names.
-  buildGameScript,
-  buildPostGameAnalysis: (result, side) => buildPostGameAnalysis(result, side),
+  buildGameScript: notLoaded("buildGameScript"),
+  buildPostGameAnalysis: notLoaded("buildPostGameAnalysis"),
   // Named gradeDraft because that is what shared code calls (js/main.js).
   // NFL exposed it as draftGrade and would have thrown the moment a football
   // draft finished - caught by scripts/verify-sport-contract.mjs, which exists
@@ -625,7 +721,7 @@ export const NFL = {
   // Third argument is shared code's OPTIONS OBJECT ({ oppRoster, forfeits }),
   // not a bare array - draftGrade normalises both, and must, because
   // draftAnalysis below passes the array.
-  gradeDraft: (roster, ctx, opts) => draftGrade(roster, ctx ?? NFL.computeDatasetStats(), opts),
+  gradeDraft: notLoaded("gradeDraft"),
   // Football's counterpart to basketball's counterplay read: how your roster
   // stacks against theirs, slot by slot.
   //
@@ -633,11 +729,7 @@ export const NFL = {
   // silently discarded and the "counterplay read" was the solo draft grade a
   // second time. It is passed through now, in the options shape draftGrade
   // normalises - which is also why draftGrade grew opponentRoster().
-  draftAnalysis: (roster, oppRoster, ctx, forfeits) =>
-    draftGrade(roster, ctx ?? NFL.computeDatasetStats(), {
-      forfeits: Array.isArray(forfeits) ? forfeits : [],
-      oppRoster,
-    }),
+  draftAnalysis: notLoaded("draftAnalysis"),
   shotLine: () => null,
   formatShotLine: () => "",
 

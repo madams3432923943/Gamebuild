@@ -98,12 +98,14 @@ export function activeSport() {
 }
 
 /**
- * Makes sure a sport's dataset is in memory.
+ * Makes sure a sport is usable: its dataset AND its simulation in memory.
  *
- * A sport whose data is small enough to ship on boot declares no `preload` and
- * this resolves immediately; football declares one because its dataset is
- * larger than the rest of the app combined. Shared code awaits this rather
- * than knowing which sports are heavy.
+ * The name says "data" and meant only that once. Both live sports now defer
+ * their engine, rating model, recap and draft grading alongside their pool -
+ * they are needed in the same places at the same times, so they ride one
+ * lifecycle rather than two. A sport light enough to ship whole on boot
+ * declares no `preload` and this resolves immediately. Shared code awaits this
+ * rather than knowing which sports are heavy.
  */
 export async function ensureSportData(id) {
   const sport = sportById(id);

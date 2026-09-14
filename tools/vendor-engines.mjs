@@ -62,6 +62,10 @@ export const VENDORED = [
   ["js/sports/nfl/constants.js", "supabase/functions/simulate-match/sports/nfl/constants.js"],
   ["js/sports/nfl/tactics.js", "supabase/functions/simulate-match/sports/nfl/tactics.js"],
   ["js/sports/nfl/units.js", "supabase/functions/simulate-match/sports/nfl/units.js"],
+  // units.js re-exports these two rather than defining them - see the header of
+  // js/sports/nfl/entry.js - so the server needs the file behind the re-export
+  // or its units.js imports from nothing.
+  ["js/sports/nfl/entry.js", "supabase/functions/simulate-match/sports/nfl/entry.js"],
   ["js/lib/seeded-rng.js", null], // see below
 ];
 
