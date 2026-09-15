@@ -199,6 +199,54 @@ for (const row of offence) {
   teamGames.get(key).add(String(row.week));
 }
 
+/**
+ * FRANCHISES THAT MOVED, in the one direction this build needs.
+ *
+ * The weekly stats files normalise every team to its CURRENT abbreviation -
+ * the 2006 Raiders are "LV" there - but games.csv records the abbreviation in
+ * use at the time, so the same team is "OAK". Joining the two without this
+ * silently loses three franchises' points allowed for the years they played
+ * under the old name: 20 seasons of Raiders, 17 of Chargers, 16 of Rams, each
+ * one landing as "no data" rather than as an error.
+ */
+const RELOCATED = { OAK: "LV", SD: "LAC", STL: "LA" };
+const gamesTeam = (abbr) => TEAMS[RELOCATED[abbr] || abbr] || null;
+
+/**
+ * Points allowed per team per season - the number every fan judges a defence
+ * by, and the one thing the per-player files genuinely cannot provide.
+ *
+ * Regular season only, matching SEASON_TYPE above: a defence that reached
+ * January faced more good offences, and counting those games would penalise it
+ * for being good enough to get there.
+ */
+const pointsAllowed = new Map();
+{
+  const path = join(SEASON_DIR, "games.csv");
+  if (!existsSync(path)) {
+    console.error(`No ${path}. Run: node tools/fetch-nfl-seasons.mjs`);
+    process.exit(1);
+  }
+  for (const row of parseCsv(readFileSync(path, "utf8"))) {
+    const season = num(row.season);
+    if (!eraOf(season) || row.game_type !== SEASON_TYPE) continue;
+    // A game still to be played carries empty scores. num() would read those
+    // as a 0-0 final and quietly credit both defences with a shutout, so the
+    // row is skipped rather than defaulted - the 2026 rows in this file are
+    // exactly that case.
+    if (row.home_score === "" || row.away_score === "") continue;
+    for (const [side, foe] of [["home", "away"], ["away", "home"]]) {
+      const team = gamesTeam(row[`${side}_team`]);
+      if (!team) continue;
+      const key = `${team}|${season}`;
+      const acc = pointsAllowed.get(key) || { points: 0, games: 0 };
+      acc.points += num(row[`${foe}_score`]);
+      acc.games += 1;
+      pointsAllowed.set(key, acc);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Individuals: QB / RB / WR / TE
 // ---------------------------------------------------------------------------
@@ -221,7 +269,16 @@ for (const row of offence) {
       season,
       posGames: {},
       games: 0,
-      sums: { pass_yds: 0, pass_td: 0, ints: 0, rush_yds: 0, rush_td: 0, rec: 0, rec_yds: 0, rec_td: 0, fum: 0, sacked: 0, carries: 0, targets: 0, comp: 0, att: 0 },
+      sums: {
+        pass_yds: 0, pass_td: 0, ints: 0, rush_yds: 0, rush_td: 0, rec: 0, rec_yds: 0,
+        rec_td: 0, fum: 0, sacked: 0, carries: 0, targets: 0, comp: 0, att: 0,
+        // Added because TARGETS ARE UNUSABLE BEFORE 2009 (see the validity note
+        // at ypt below) and efficiency had nothing else to stand on. These are
+        // the columns that ARE complete across all 26 seasons - checked, not
+        // assumed: in 2006, the worst year for targets, first downs and EPA are
+        // populated at the same rate as in 2021.
+        first_downs: 0, epa: 0, explosive: 0,
+      },
     });
   }
   const rec = players.get(key);
@@ -268,6 +325,34 @@ for (const row of offence) {
   // needs the denominator.
   s.comp += num(row.completions);
   s.att += num(row.attempts);
+  // A first down is the unit of football that actually matters: it keeps a
+  // drive alive, which is what the simulation models. Summed across all three
+  // ways of gaining one so a back who converts on the ground and a receiver who
+  // converts through the air are measured on the same thing.
+  s.first_downs +=
+    num(row.passing_first_downs) + num(row.rushing_first_downs) + num(row.receiving_first_downs);
+  // Expected points added: the league's own answer to "how much was that
+  // worth", already adjusted for down, distance and field position. It is the
+  // single best efficiency measure in this file and it needs no denominator,
+  // which is precisely why it survives the seasons where targets do not.
+  s.epa += num(row.passing_epa) + num(row.rushing_epa) + num(row.receiving_epa);
+  // Explosive plays. Yardage totals cannot tell a back who broke four long runs
+  // from one who was handed the ball forty times for three yards each, and the
+  // engine's big-play model cares about the difference.
+  s.explosive += num(row.rushing_20) + num(row.receiving_20);
+}
+
+/**
+ * Whether this player-season's target count can be believed.
+ *
+ * A reception is a completed target, so targets can never be fewer than
+ * receptions. When they are, the source is incomplete rather than describing a
+ * bad receiver, and every rate built on it is meaningless. A player with no
+ * catches at all has nothing to check and nothing to gain, so he fails too and
+ * simply carries no target-derived numbers.
+ */
+function validTargets(sums) {
+  return sums.targets > 0 && sums.rec > 0 && sums.targets >= sums.rec;
 }
 
 const playerRows = [...players.values()]
@@ -295,19 +380,56 @@ const playerRows = [...players.values()]
       // Efficiency, not volume - a back averaging 5.2 a carry on 8 carries is
       // a different player from one averaging 3.4 on 22, and per-game yards
       // alone cannot tell them apart.
-      ypc: p.sums.carries > 0 ? r2(p.sums.rush_yds / p.sums.carries) : 0,
-      ypt: p.sums.targets > 0 ? r2(p.sums.rec_yds / p.sums.targets) : 0,
+      ypc: p.sums.carries > 0 ? r2(p.sums.rush_yds / p.sums.carries) : null,
+      /**
+       * YARDS PER TARGET, OR null - never 0.
+       *
+       * nflverse's target column is unusable from 2003 to 2008. It is present
+       * but almost entirely zero: in 2006, 17,199 of 17,214 rows read 0, and
+       * 3,578 of the 3,591 rows with a catch claim fewer targets than
+       * receptions - which cannot happen, since a reception IS a target.
+       *
+       * Emitting 0 for those seasons was a silent failure in both directions.
+       * Where targets were absent, a receiver was scored as though every pass
+       * thrown at him gained nothing, which is what put LaDainian Tomlinson's
+       * 31-touchdown 2006 below replacement on efficiency. Where a handful of
+       * targets survived, the division exploded: Tiki Barber's 465 receiving
+       * yards over the 10 targets the file admits to reads as 46.5 yards a
+       * target, six times the best real figure in the dataset, and that alone
+       * made him the highest-rated back in the game.
+       *
+       * null says "not known", which the rating can handle by leaving the term
+       * out. 0 says "known to be terrible", which it cannot tell apart from a
+       * real 0. Guarded on the ARITHMETIC IMPOSSIBILITY rather than on a year
+       * range, so a season nflverse fixes later starts working with no change
+       * here, and a season that breaks in a new way is caught the same way.
+       */
+      ypt: validTargets(p.sums) ? r2(p.sums.rec_yds / p.sums.targets) : null,
       // Passing efficiency. comp_pct and ypa are the two halves of "how well
       // did he throw it" that yardage alone hides.
-      comp_pct: p.sums.att > 0 ? r3(p.sums.comp / p.sums.att) : 0,
-      ypa: p.sums.att > 0 ? r2(p.sums.pass_yds / p.sums.att) : 0,
+      comp_pct: p.sums.att > 0 ? r3(p.sums.comp / p.sums.att) : null,
+      ypa: p.sums.att > 0 ? r2(p.sums.pass_yds / p.sums.att) : null,
+      // Sacks taken. Summed since the move to stats_player and then dropped on
+      // the floor here for just as long - the one column the build measured and
+      // never emitted. A quarterback who gets rid of it and one who eats eight
+      // a game were indistinguishable to the rating.
+      sacked_pg: r2(per("sacked")),
+      // Drive-sustaining and drive-winning production, both era-complete.
+      // These carry the efficiency signal in the years ypt cannot.
+      fd_pg: r2(per("first_downs")),
+      epa_pg: r2(per("epa")),
+      explosive_pg: r2(per("explosive")),
       // ROLE. Whether he was the starter, which per-game yardage cannot say: a
       // back with 60 carries in a season was somebody's backup, and handing him
       // a bell-cow's workload should not produce a bell-cow's line. Kept as
       // per-game touches rather than season totals so a man who started seven
       // games reads as a starter for those seven.
       car_pg: r1(per("carries")),
-      tgt_pg: r1(per("targets")),
+      // Same validity test as ypt. This one feeds ROLE rather than efficiency,
+      // and a receiver reported at 0.6 targets a game reads as a man his own
+      // team never threw to - so a broken season would regress every genuine
+      // starter in it toward replacement level.
+      tgt_pg: validTargets(p.sums) ? r1(per("targets")) : null,
       att_pg: r1(per("att")),
     };
   });
@@ -614,6 +736,27 @@ for (const u of units.values()) {
     row.pd = per("pd");
     row.ff = per("ff");
     row.td = per("td");
+    /**
+     * Points allowed per game, by the whole defence.
+     *
+     * SHARED BY ALL FOUR GROUPS ON A TEAM, deliberately and unavoidably: the
+     * scoreboard does not say which unit gave it up. That is why the rating
+     * weights it modestly rather than leading with it - a heavy shared term
+     * would pull a team's line, linebackers, corners and safeties toward one
+     * number and undo the per-axis matchup model that exists to tell them
+     * apart (see DEFENSIVE_RESPONSIBILITIES in js/sports/nfl/units.js).
+     *
+     * Divided by the games GAMES.CSV counted, not by the team's games in the
+     * stats file. They agree, but the points and the divisor should come from
+     * the same source, or a team whose two files disagree gets a per-game
+     * average built from neither.
+     *
+     * null rather than 0 when a season is missing, for the same reason as ypt:
+     * zero points allowed is the best defensive season imaginable, and it must
+     * not be what "we have no data" looks like.
+     */
+    const pa = pointsAllowed.get(`${u.team}|${u.season}`);
+    row.pa_pg = pa && pa.games > 0 ? r2(pa.points / pa.games) : null;
   }
   unitRows.push(row);
 }

@@ -11,6 +11,10 @@
 //   https://github.com/nflverse/nflverse-data/releases/download/stats_player/
 //     stats_player_week_YYYY.csv     one file: offence, defence and kicking
 //
+// PLUS ONE FILE THAT IS NOT A SEASON. Points allowed is a property of a game,
+// not of a player, so it is not in those files at all and comes from nflverse's
+// other repository as a single games.csv covering every year. See fetchGames.
+//
 // MIGRATED from the older `player_stats` release, which published three files
 // per season (player_stats_, player_stats_def_, player_stats_kicking_). That
 // release is frozen: it serves 2000-2024 and has no 2025, so a season could no
@@ -36,6 +40,12 @@ import { fileURLToPath } from "url";
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(here, "seasons-nfl");
 const BASE = "https://github.com/nflverse/nflverse-data/releases/download/stats_player";
+
+// Final scores, from nflverse's OTHER repository. The weekly stats releases
+// carry players; this carries games, and there is no release asset equivalent -
+// the only published location is the file in the repo.
+const GAMES_URL = "https://github.com/nflverse/nfldata/raw/master/data/games.csv";
+const GAMES_FILE = "games.csv";
 
 // 2000 rather than 1999, because the eras are plain decades and a single
 // orphan 1999 season belongs to none of them. nflverse has nothing earlier -
@@ -76,6 +86,33 @@ async function fetchOne(year) {
   return { name, status: "downloaded", bytes: text.length };
 }
 
+/**
+ * Final scores for every game, which the per-player files cannot give.
+ *
+ * Points allowed is the number every fan judges a defence by, and it is a
+ * property of a GAME rather than of any player, so it lives in a different
+ * nflverse repository from the weekly stats: one file covering every season
+ * rather than one file per season.
+ *
+ * Reconstructing it from the player files was the alternative and was
+ * rejected. The scoring columns are all there - touchdowns, field goals,
+ * extra points, two-point conversions, safeties, defensive and return
+ * touchdowns - but summing them means re-deriving a number the league already
+ * publishes, and being wrong about any one of those columns produces a plausible
+ * score rather than an error. See "Never fabricate statistics" in CLAUDE.md.
+ */
+async function fetchGames() {
+  const dest = join(OUT_DIR, GAMES_FILE);
+  if (!force && existsSync(dest) && statSync(dest).size > 0) return { name: GAMES_FILE, status: "cached" };
+
+  const res = await fetch(GAMES_URL);
+  if (!res.ok) throw new Error(`${GAMES_FILE}: HTTP ${res.status}`);
+
+  const text = await res.text();
+  writeFileSync(dest, text);
+  return { name: GAMES_FILE, status: "downloaded", bytes: text.length };
+}
+
 const summary = { downloaded: 0, cached: 0, missing: 0, bytes: 0 };
 
 for (let year = from; year <= to; year++) {
@@ -86,8 +123,13 @@ for (let year = from; year <= to; year++) {
   process.stdout.write(`\r  ${year}…`);
 }
 
+const games = await fetchGames();
+summary[games.status] += 1;
+summary.bytes += games.bytes || 0;
+
 console.log(
   `\nseasons ${from}-${to}: ${summary.downloaded} downloaded, ${summary.cached} cached, ` +
     `${summary.missing} missing (${(summary.bytes / 1e6).toFixed(1)} MB fetched)`
 );
+console.log(`  ${GAMES_FILE}: ${games.status}`);
 console.log(`  -> ${OUT_DIR}`);

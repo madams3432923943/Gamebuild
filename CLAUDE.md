@@ -121,11 +121,12 @@ per-sport hook added for football blanked the basketball draft board. See
   quarter-variance range come from `tools/calibrate-*.mjs`. Re-run after any engine
   or gamestyle change, variance first, then gamestyles.
 - **`data/` is data, not code — don't read or search it.** Three generated JSON
-  files totalling 7MB: `nba-players.json` (10,290 rows, 2.3MB),
-  `nfl-players.json` (9,456 rows, 2.6MB) and `nfl-units.json` (4,975 rows,
+  files totalling 7.6MB: `nba-players.json` (10,290 rows, 2.2MB),
+  `nfl-players.json` (9,456 rows, 3.2MB) and `nfl-units.json` (4,975 rows,
   2.2MB). The count in this note used to read "2,542 rows (516 KB)", which was
   four times short and years stale — a reason to state a shape rather than a
-  size. Open one only when changing gameplay or the simulation and you actually
+  size. Football's file grew from 2.6MB when the rating started reading first
+  downs, EPA, explosive plays and sacks taken. Open one only when changing gameplay or the simulation and you actually
   need a player's numbers; never while writing app code.
   Nothing imports them directly: Node goes through `data/load.mjs`, the browser
   through `js/lib/dataset.js`, and that is what made converting them from ES

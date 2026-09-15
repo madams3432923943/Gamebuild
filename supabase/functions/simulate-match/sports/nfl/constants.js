@@ -172,8 +172,26 @@ export const SCORING_LIFT = 1.0;
  * after each defensive axis started multiplying its own gameplan mod. Quick
  * Play moves furthest because one drafted DEF unit answers all four axes there,
  * so the axis term amplifies whatever that single pick is.
+ *
+ * 0.029 -> -0.058 and -0.198 -> -0.241 is the NEXT re-measurement, after the
+ * rating moved to per-season z-scores and defensive units began to carry
+ * points allowed. Both of those lift defences relative to offences at the
+ * drafted end of the board - measured slot by slot, cornerbacks gained 0.096
+ * and defensive lines 0.051 while quarterbacks lost 0.018 - so the average
+ * matchup is no longer offence-favoured and the baseline has to say so.
+ * Leaving it stale showed up exactly where the note above predicts: yards per
+ * play fell to 5.58 and yards per drive to 30.9, both just under the floor
+ * scripts/verify-nfl-realism.mjs holds them to.
+ *
+ * The harness that produced these is in this commit's scratch work and was
+ * validated before it was trusted: run against the PREVIOUS rating it returns
+ * 0.039 and -0.202, reproducing the two numbers above to within sampling
+ * noise. It replicates edge()'s own inputs - offAdj = off * mine.off,
+ * defAdj = def * theirs.def * mean(swing(axis, AXIS_SWING)) - over 440 drafted
+ * rosters of each shape under balanced plans. The axis term is not optional:
+ * omitting it moves the ranked answer by about 0.11.
  */
-export const EDGE_BASELINE = { ranked: 0.029, quickPlay: -0.198 };
+export const EDGE_BASELINE = { ranked: -0.058, quickPlay: -0.241 };
 
 /** Points by scoring type. A touchdown is six; what comes after it is played
  * out rather than folded in - see the conversion constants below. */
@@ -375,8 +393,19 @@ export const MIN_RATED_GAMES = 6;
  *
  * What changed underneath it earlier: `edge` subtracts EDGE_BASELINE, so this
  * number no longer moves the scoreboard as a side effect. It is the first
- * version of this constant that controls only what its name says. */
-export const TALENT_PARITY = 1.29;
+ * version of this constant that controls only what its name says.
+ *
+ * 1.29 -> 1.53 is the re-solve after the rating moved to per-season z-scores
+ * and defensive units gained points allowed. It went UP for a reason that is
+ * not "turning the knob further": removing the old top-end clamp gave the
+ * rating back its resolution at the top of the board, so the gap between two
+ * drafted rosters is now a smaller number than it was for the same difference
+ * in talent, and parity is the conversion factor on that gap. The verification
+ * run reports 77.6% at a gap of 0.1, an 11.59 mean margin and 48.0% one-score
+ * games against references of 11.5 and 45% - so the game it produces is the
+ * same game, reached from a different scale. Still under the 1.6 ceiling the
+ * paragraph above defends. */
+export const TALENT_PARITY = 1.53;
 
 /**
  * The floor under a drive-quality multiplier.

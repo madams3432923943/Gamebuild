@@ -30,14 +30,35 @@ const fail = (msg) => {
 // ---- Shape -----------------------------------------------------------------
 
 const ERAS = new Set(["2000s", "2010s", "2020s"]);
-const numeric = (row, keys) => keys.filter((k) => row[k] !== undefined && !Number.isFinite(row[k]));
+/**
+ * A field is well-formed if it is a finite number or an explicit null.
+ *
+ * null is MEANINGFUL here, not sloppiness: a derived rate whose denominator the
+ * source never recorded says "not known" rather than picking a plausible zero
+ * (see the ypt note in tools/build-nfl-data.mjs). What this still catches is
+ * everything that made nulls worth introducing - NaN, Infinity, a string that
+ * survived a parse, an object - any of which would reach the rating as a real
+ * value and be silently wrong.
+ */
+const numeric = (row, keys) =>
+  keys.filter((k) => row[k] !== undefined && row[k] !== null && !Number.isFinite(row[k]));
+
+/** Fields that may be null, and the ones that may NOT. A counting stat is
+ * always known - a man either gained those yards or did not - so a null there
+ * is a build bug, not missing data. */
+const NULLABLE = new Set(["ypc", "ypt", "comp_pct", "ypa", "tgt_pg", "pa_pg"]);
+const wronglyNull = (row, keys) =>
+  keys.filter((k) => row[k] === null && !NULLABLE.has(k));
 
 console.log(`players: ${PLAYERS.length}   units: ${UNITS.length}`);
 
 for (const p of PLAYERS) {
   if (!ERAS.has(p.era)) fail(`${p.name}: unknown era ${p.era}`);
-  const bad = numeric(p, ["pass_yds", "rush_yds", "rec_yds", "ypc", "ypt", "games"]);
+  const keys = ["pass_yds", "rush_yds", "rec_yds", "ypc", "ypt", "games"];
+  const bad = numeric(p, keys);
   if (bad.length) fail(`${p.name}: non-numeric ${bad.join(", ")}`);
+  const nulled = wronglyNull(p, keys);
+  if (nulled.length) fail(`${p.name}: unexpected null ${nulled.join(", ")}`);
   if (!p.pos || !p.pos.length) fail(`${p.name}: no position`);
 }
 
