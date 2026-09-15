@@ -97,7 +97,8 @@
     "verify:analytics": "node scripts/verify-analytics.mjs",
     "verify:onboarding": "node scripts/verify-onboarding.mjs",
     "verify:admin": "node scripts/verify-admin-dashboard.mjs",
-    "admin": "node scripts/serve-admin.mjs"
+    "admin": "node scripts/serve-admin.mjs",
+    "calibrate:nfl-gradecurve": "node tools/calibrate-nfl-gradecurve.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2"
