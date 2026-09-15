@@ -101,22 +101,22 @@ export const OFFENSIVE_PLANS = [
   { id: "ground-control", icon: "🐏", name: "Ground Control",
     blurb: "Run it, shorten the game, take the air out of the ball.",
     up: ["+2 Rushing", "+2 Ball Control"], down: ["-2 Explosive Plays", "-1 Comeback Ability"],
-    mods: { off: 1.070, explosive: 0.88, redZone: 1.20, security: 1.14, protection: 1.10, runShare: 1.50, pace: 0.96, fg: 1.00 } },
+    mods: { off: 1.064, explosive: 0.88, redZone: 1.20, security: 1.14, protection: 1.10, runShare: 1.50, pace: 0.96, fg: 1.00 } },
 
   { id: "west-coast", icon: "📋", name: "West Coast",
     blurb: "Short, accurate, keep the chains moving and the quarterback clean.",
     up: ["+2 Short Passing", "+2 Pass Protection"], down: ["-2 Deep Passing"],
-    mods: { off: 1.090, explosive: 0.82, redZone: 0.98, security: 1.10, protection: 1.14, runShare: 0.90, pace: 1.02, fg: 1.00 } },
+    mods: { off: 1.089, explosive: 0.82, redZone: 0.98, security: 1.10, protection: 1.14, runShare: 0.90, pace: 1.02, fg: 1.00 } },
 
   { id: "vertical-attack", icon: "🚀", name: "Vertical Attack",
     blurb: "Take the top off. Your quarterback will get hit.",
     up: ["+2 Deep Passing", "+2 Big Plays"], down: ["-2 Pass Protection", "-1 Ball Security"],
-    mods: { off: 1.038, explosive: 1.15, redZone: 1.00, security: 0.82, protection: 0.76, runShare: 0.55, pace: 1.04, fg: 1.00 } },
+    mods: { off: 1.042, explosive: 1.15, redZone: 1.00, security: 0.82, protection: 0.76, runShare: 0.55, pace: 1.04, fg: 1.00 } },
 
   { id: "power-red-zone", icon: "🎯", name: "Power Red Zone",
     blurb: "Grind it out inside the twenty. Touchdowns, not field goals.",
     up: ["+2 Red Zone Conversion", "+1 Rushing"], down: ["-1 Field Goal Reliance", "-1 Explosive Plays"],
-    mods: { off: 1.039, explosive: 0.92, redZone: 1.16, security: 1.03, protection: 1.02, runShare: 1.25, pace: 0.96, fg: 0.94 } },
+    mods: { off: 1.041, explosive: 0.92, redZone: 1.16, security: 1.03, protection: 1.02, runShare: 1.25, pace: 0.96, fg: 0.94 } },
 ];
 
 /** How you defend. */
@@ -129,22 +129,22 @@ export const DEFENSIVE_PLANS = [
   { id: "blitz-pressure", icon: "💥", name: "Blitz Pressure",
     blurb: "Send pressure, leave the corners on an island.",
     up: ["+2 Pass Rush", "+2 Sacks"], down: ["-2 Coverage", "-1 Big Play Prevention"],
-    mods: { def: 1.004, takeaway: 1.14, passRush: 1.40, coverage: 0.78, runDef: 0.94, explosivePrevention: 0.88 } },
+    mods: { def: 0.996, takeaway: 1.14, passRush: 1.40, coverage: 0.78, runDef: 0.94, explosivePrevention: 0.88 } },
 
   { id: "run-wall", icon: "🧱", name: "Run Wall",
     blurb: "Wall off the run. Nothing through the middle.",
     up: ["+2 Run Defense", "+1 Defense"], down: ["-1 Coverage", "-1 Takeaways"],
-    mods: { def: 0.989, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
+    mods: { def: 0.981, takeaway: 0.98, passRush: 1.00, coverage: 0.92, runDef: 1.22, explosivePrevention: 1.00 } },
 
   { id: "ball-hawks", icon: "🦅", name: "Ball Hawks",
     blurb: "Chase the ball. Miss more tackles doing it.",
     up: ["+2 Interceptions", "+2 Forced Turnovers"], down: ["-2 Run Defense", "-1 Big Play Prevention"],
-    mods: { def: 1.027, takeaway: 1.42, passRush: 1.00, coverage: 1.08, runDef: 0.78, explosivePrevention: 0.94 } },
+    mods: { def: 1.030, takeaway: 1.42, passRush: 1.00, coverage: 1.08, runDef: 0.78, explosivePrevention: 0.94 } },
 
   { id: "keep-it-in-front", icon: "🚧", name: "Keep It in Front",
     blurb: "Give up the short stuff. Nothing goes over your head.",
     up: ["+2 Big Play Prevention", "+1 Coverage"], down: ["-2 Takeaways", "-1 Pass Rush"],
-    mods: { def: 1.015, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
+    mods: { def: 1.026, takeaway: 0.86, passRush: 0.90, coverage: 1.07, runDef: 1.00, explosivePrevention: 1.15 } },
 ];
 
 /**

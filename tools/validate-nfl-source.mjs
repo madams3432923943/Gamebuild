@@ -26,12 +26,25 @@ const requiredHeaders = {
     "season", "week", "season_type", "player_display_name", "position", "team",
     "passing_yards", "passing_interceptions", "sacks_suffered",
     "def_tackles_solo", "def_sacks", "fg_att",
+    // Efficiency columns the rating now depends on. They are checked here
+    // because their ABSENCE is silent: a missing EPA column reads as a league
+    // of replacement-level players rather than as a broken download.
+    "rushing_first_downs", "receiving_first_downs",
+    "rushing_epa", "receiving_epa", "passing_epa",
   ],
+  // Final scores, for points allowed. One file, every season.
+  games: ["season", "game_type", "home_team", "home_score", "away_team", "away_score"],
 };
 
-function kindFor() {
-  return "weekly";
+/** Weekly stats are one file per season and say so in their name; games.csv
+ * spans every season and carries no year. The manifest records which is which
+ * so this does not have to guess from the filename twice. */
+function kindFor(file) {
+  return file.kind || (Number.isInteger(file.season) ? "weekly" : "games");
 }
+
+/** Only the per-season files have to exist for every season. */
+const SEASONAL_KINDS = ["weekly"];
 
 const seen = new Map();
 for (const file of manifest.files) {
@@ -45,21 +58,26 @@ for (const file of manifest.files) {
 
   const firstLine = bytes.toString("utf8", 0, Math.min(bytes.length, 32768)).split(/\r?\n/, 1)[0];
   const headers = new Set(firstLine.split(",").map((value) => value.replace(/^"|"$/g, "")));
-  const kind = kindFor(file.name);
+  const kind = kindFor(file);
   for (const required of requiredHeaders[kind]) {
     if (!headers.has(required)) throw new Error(`${file.name} is missing required column ${required}`);
   }
 
+  if (kind === "games") continue;
   if (!Number.isInteger(file.season)) throw new Error(`Season missing from ${file.name}`);
   const seasonKinds = seen.get(file.season) || new Set();
   seasonKinds.add(kind);
   seen.set(file.season, seasonKinds);
 }
 
+if (!manifest.files.some((file) => kindFor(file) === "games")) {
+  throw new Error("Missing games.csv in the NFL source manifest. Run npm run data:nfl:fetch.");
+}
+
 const expectedSeasons = [...new Set(manifest.seasons)].sort((a, b) => a - b);
 for (const season of expectedSeasons) {
   const kinds = seen.get(season) || new Set();
-  for (const required of Object.keys(requiredHeaders)) {
+  for (const required of SEASONAL_KINDS) {
     if (!kinds.has(required)) throw new Error(`Season ${season} is missing ${required} data`);
   }
 }

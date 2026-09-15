@@ -1,7 +1,15 @@
 // Turning NFL player and unit rows into comparable 0..1 ratings.
-// Defensive units are normalized metric-by-metric within position group and
-// era so a scheme choice, season length, or missing optional field cannot turn
-// a legitimate defense into an automatic F.
+//
+// Everything is normalized metric-by-metric within position group and SEASON,
+// so a scheme choice, a season length, a scoring era or a missing optional
+// field cannot turn a legitimate player or defence into an automatic F. Season
+// rather than era because the gaps in this dataset sit mid-decade - see
+// seasonKey.
+//
+// A rating is a z-score - how far above his own league a man stood - mapped
+// onto 0..1 through a tanh whose span is solved per group so every group's
+// best season reaches the same ceiling. overallFromZ turns the same z into the
+// 0-99 number the draft board shows.
 
 import { MIN_RATED_GAMES, FORFEIT_PENALTY } from "./constants.js";
 
@@ -31,11 +39,33 @@ import { isUnit } from "./entry.js";
 // percentiled against his position; the third decides how far to trust the
 // other two.
 
+/**
+ * PRODUCTION, in yards-equivalent. Every coefficient is fantasy-standard
+ * scoring converted to yards at that format's own exchange rate - 1 point per
+ * 10 rushing or receiving yards, 1 per 25 passing - so nothing here is an
+ * invented number:
+ *
+ *   touchdown        6 pts -> 60 yards   (4 pts -> 100 passing yards)
+ *   interception    -2 pts -> -50 passing yards
+ *   lost fumble     -2 pts -> -20 yards
+ *   reception     half PPR -> 2.5 yards
+ *
+ * THE TOUCHDOWN WEIGHTS USED TO BE A THIRD OF THIS - 18 yards for a rushing
+ * score, 14 for a receiving one - while the fumble weight was already exactly
+ * fantasy-correct at -20. That mismatch is what let Tiki Barber's 2006 rate as
+ * the best back in the game: scoring five times all year cost him 4.3% of his
+ * composite, so 2,127 yards carried him past LaDainian Tomlinson's 31
+ * touchdowns in the same season.
+ *
+ * Efficiency and drive-sustaining work are NOT here. They are rates, they
+ * belong in EFFICIENCY below, and folding them in would count the same yards
+ * twice - the mistake NON_DEFENSIVE_UNIT_COMPOSITES.OL had to have removed.
+ */
 const COMPOSITES = {
-  QB: (r) => n(r.pass_yds) + 22 * n(r.pass_td) - 26 * n(r.ints) + 0.9 * n(r.rush_yds) + 14 * n(r.rush_td),
-  RB: (r) => n(r.rush_yds) + 18 * n(r.rush_td) + 0.7 * n(r.rec_yds) + 14 * n(r.rec_td) - 20 * n(r.fum),
-  WR: (r) => n(r.rec_yds) + 20 * n(r.rec_td) + 2.5 * n(r.rec) - 18 * n(r.fum),
-  TE: (r) => n(r.rec_yds) + 20 * n(r.rec_td) + 2.5 * n(r.rec) - 18 * n(r.fum),
+  QB: (r) => n(r.pass_yds) + 100 * n(r.pass_td) - 50 * n(r.ints) + 0.9 * n(r.rush_yds) + 60 * n(r.rush_td),
+  RB: (r) => n(r.rush_yds) + 60 * n(r.rush_td) + 0.7 * n(r.rec_yds) + 47 * n(r.rec_td) - 20 * n(r.fum),
+  WR: (r) => n(r.rec_yds) + 60 * n(r.rec_td) + 2.5 * n(r.rec) - 18 * n(r.fum),
+  TE: (r) => n(r.rec_yds) + 60 * n(r.rec_td) + 2.5 * n(r.rec) - 18 * n(r.fum),
 };
 
 /** One term of the NFL's passer rating, which caps each component at 2.375. */
@@ -62,20 +92,101 @@ export function passerRating(r) {
   ) * 100;
 }
 
-/** How good he was per touch, as opposed to how many touches he got. */
+/**
+ * A number the source actually recorded, or null.
+ *
+ * n() coerces null to 0, which is right for a counting stat - a man who scored
+ * no touchdowns scored zero - and catastrophic for a derived rate, where the
+ * data build now writes null to mean "the denominator was never recorded"
+ * (see tools/build-nfl-data.mjs). Scoring that as 0 is the difference between
+ * "we don't know how many yards a target he averaged" and "he averaged none".
+ */
+function known(value) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/** A rate whose denominator may be zero or unrecorded. */
+function per(numerator, denominator) {
+  const top = known(numerator);
+  const bottom = known(denominator);
+  if (top === null || bottom === null || bottom <= 0) return null;
+  return top / bottom;
+}
+
+/**
+ * HOW GOOD HE WAS PER TOUCH, as several independent readings rather than one
+ * number, because any single one of them can be missing.
+ *
+ * Each term returns null when the source cannot answer it, and ratePlayer
+ * averages whichever terms survive. That is the whole reason this is a list:
+ * nflverse's target column is unusable from 2003 to 2008, and the previous
+ * single-expression version multiplied straight through it, so a third of the
+ * dataset was rated on a denominator that did not exist.
+ *
+ * EPA, first-down rate and explosive-play rate were added precisely because
+ * they are complete for every season this game covers - verified against the
+ * raw files, in the worst target year, not assumed - so a receiver in 2006 is
+ * still measured on something real.
+ */
 const EFFICIENCY = {
-  QB: (r) => passerRating(r),
-  // Carrying and catching, weighted the way a back is actually used.
-  RB: (r) => (n(r.ypc) > 0 ? n(r.ypc) : 0) + 0.35 * n(r.ypt),
-  // Yards per target is the receiver's equivalent of yards per carry; catch
-  // rate separates a man who was thrown at well from one who caught what came.
-  WR: (r) => n(r.ypt) + 3 * catchRate(r),
-  TE: (r) => n(r.ypt) + 3 * catchRate(r),
+  QB: {
+    // The league's own passer rating: the number every fan already reads a
+    // quarterback by, and four judgements (accuracy, yards per throw, scoring,
+    // giving it away) for the price of one.
+    passer: (r) => passerRating(r),
+    // Expected points added per dropback - already adjusted for down, distance
+    // and field position, which passer rating is not.
+    epa: (r) => per(r.epa_pg, n(r.att_pg) + n(r.sacked_pg)),
+    // Sacks taken, as a share of dropbacks. Negated because taking them is the
+    // bad outcome. This column was summed by the build for years and never
+    // emitted, so a quarterback who got rid of it and one who ate eight a game
+    // scored identically.
+    sacks: (r) => {
+      const rate = per(r.sacked_pg, n(r.att_pg) + n(r.sacked_pg));
+      return rate === null ? null : -rate;
+    },
+  },
+  RB: {
+    ypc: (r) => known(r.ypc),
+    ypt: (r) => known(r.ypt),
+    epa: (r) => per(r.epa_pg, rbTouches(r)),
+    // Moving the chains, which yardage alone hides: four yards on 3rd-and-3 is
+    // a different play from four on 3rd-and-8.
+    firstDowns: (r) => per(r.fd_pg, rbTouches(r)),
+    explosive: (r) => per(r.explosive_pg, rbTouches(r)),
+  },
+  WR: receiverEfficiency(),
+  TE: receiverEfficiency(),
 };
 
-function catchRate(r) {
-  const tgt = n(r.tgt_pg);
-  return tgt > 0 ? Math.min(1.5, n(r.rec) / tgt) : 0;
+/** Carries plus catches - what a back actually touched the ball on.
+ *
+ * Named for the position rather than just `touches` because roleConfidence
+ * below declares a local of that name, and a module-level function quietly
+ * shadowed inside one function is a trap for whoever edits it next. */
+function rbTouches(r) {
+  return n(r.car_pg) + n(r.rec);
+}
+
+/** Receivers and tight ends are measured identically; the pools they are
+ * measured AGAINST are what separate them. */
+function receiverEfficiency() {
+  return {
+    // Yards per reception needs no target data, so unlike ypt it survives every
+    // season. It cannot tell a possession receiver from a decoy on its own,
+    // which is what the other four terms are for.
+    ypr: (r) => per(r.rec_yds, r.rec),
+    ypt: (r) => known(r.ypt),
+    catchRate: (r) => {
+      const rate = per(r.rec, r.tgt_pg);
+      return rate === null ? null : Math.min(1.5, rate);
+    },
+    epa: (r) => per(r.epa_pg, r.rec),
+    firstDowns: (r) => per(r.fd_pg, r.rec),
+    explosive: (r) => per(r.explosive_pg, r.rec),
+  };
 }
 
 /**
@@ -90,15 +201,41 @@ function catchRate(r) {
  */
 const STARTER_TOUCHES = { QB: 26, RB: 16, WR: 6, TE: 4 };
 
+/**
+ * The same workload measured in CATCHES, for the seasons with no target data.
+ *
+ * Roughly a starter's share at the catch rates those positions actually run,
+ * so the two scales describe the same player. Without this, every receiver
+ * from 2003 to 2008 fell through to the "unknown, so trust him fully" branch
+ * below - which is right for a genuinely missing column and wrong here, because
+ * receptions ARE recorded in those years. It would have handed a man with one
+ * catch a game the same trust as a number one.
+ */
+const STARTER_CATCHES = { WR: 4, TE: 2.8 };
+
 export function roleConfidence(r, pos) {
-  const touches =
-    pos === "QB" ? n(r.att_pg)
-    : pos === "RB" ? n(r.car_pg) + 0.5 * n(r.tgt_pg)
-    : n(r.tgt_pg);
-  const full = STARTER_TOUCHES[pos] || 1;
-  // Older rows predate car_pg/tgt_pg/att_pg. Absent role data must not silently
-  // mean "backup" - it means "unknown", and unknown is full trust, exactly as
-  // it behaved before this existed.
+  let touches;
+  let full = STARTER_TOUCHES[pos] || 1;
+
+  if (pos === "QB") {
+    touches = n(r.att_pg);
+  } else if (pos === "RB") {
+    // Carries carry this on their own; targets only refine it, so a null one
+    // costs nothing.
+    touches = n(r.car_pg) + 0.5 * (known(r.tgt_pg) ?? 0);
+  } else {
+    const targets = known(r.tgt_pg);
+    if (targets === null && STARTER_CATCHES[pos]) {
+      touches = n(r.rec);
+      full = STARTER_CATCHES[pos];
+    } else {
+      touches = targets ?? 0;
+    }
+  }
+
+  // Older rows predate car_pg/tgt_pg/att_pg entirely. Absent role data must not
+  // silently mean "backup" - it means "unknown", and unknown is full trust,
+  // exactly as it behaved before this existed.
   if (!touches) return 1;
   return Math.max(0, Math.min(1, touches / full));
 }
@@ -269,10 +406,6 @@ function canonicalGroup(row) {
   return "";
 }
 
-function eraKey(row) {
-  const season = Number(row?.season);
-  return Number.isFinite(season) ? String(Math.floor(season / 10) * 10) : "all";
-}
 
 /**
  * How much of a unit's measured quality to believe, from how many men were
@@ -298,52 +431,114 @@ function depthFactor(depth) {
   return Math.min(1, 0.72 + 0.056 * value);
 }
 
-function lowerBound(sorted, value) {
-  let lo = 0;
-  let hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (sorted[mid] < value) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+/**
+ * SEASON, not era, is what a player is measured against.
+ *
+ * Era buckets are plain decades, and the holes in this dataset do not respect
+ * them: nflverse's target column fails from 2003 to 2008, which is six of the
+ * ten seasons in the 2000s bucket. Normalising per era would leave that bucket
+ * 57% blind and 43% sighted, and the few corrupt rows that survived would
+ * percentile ABOVE the genuinely elite ones - measured, before this was
+ * written: a broken 46.5 yards per target scored .984 against the era while a
+ * real 11.0 scored .976. Per season, a season the source could not measure
+ * simply has every player tied, which is what "no information" should look
+ * like.
+ */
+function seasonKey(row) {
+  const season = Number(row?.season);
+  return Number.isFinite(season) ? String(season) : "all";
 }
 
-function upperBound(sorted, value) {
-  let lo = 0;
-  let hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (sorted[mid] <= value) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
+/**
+ * How far above his own season a player stood, in standard deviations.
+ *
+ * A z-score rather than a percentile because DOMINANCE HAS A SIZE. Percentile
+ * only ranks: with about 110 backs in a season the best one scores .9955 and
+ * the fourth best .9950, so twenty-six seasons produce twenty-six
+ * indistinguishable leaders and the draft board's top five is decided by float
+ * noise. A z-score says LaDainian Tomlinson's 2006 was +3.6 and a merely good
+ * season was +1.5, which is the difference the draft is actually about.
+ */
+function zScore(stats, value) {
+  if (!stats || !(stats.sd > 0) || !Number.isFinite(value)) return 0;
+  return (value - stats.mean) / stats.sd;
 }
 
-// Tie-aware midrank percentile. An all-zero unavailable metric is neutral 0.5
-// instead of incorrectly rating every row as elite.
-function percentile(sorted, value) {
-  if (!sorted || sorted.length === 0) return 0.5;
-  const low = lowerBound(sorted, value);
-  const high = upperBound(sorted, value);
-  return (low + high) / (2 * sorted.length);
+/** Mean and standard deviation of one pool, in the shape zScore wants. */
+function distribution(values) {
+  const usable = (values || []).filter((v) => Number.isFinite(v));
+  if (!usable.length) return { mean: 0, sd: 0, count: 0 };
+  const mean = usable.reduce((sum, v) => sum + v, 0) / usable.length;
+  const variance = usable.reduce((sum, v) => sum + (v - mean) ** 2, 0) / usable.length;
+  return { mean, sd: Math.sqrt(variance), count: usable.length };
 }
 
-const clamp = (v) => {
-  if (v <= 0.06) return 0.06;
-  if (v < 0.92) return v;
-  return 0.92 + (v - 0.92) * (0.05 / 0.08);
-};
+/**
+ * The 0.94 the per-group spans are solved against, and where 0.97 comes from.
+ *
+ * tanh never reaches 1, so a ceiling has to be chosen rather than hit. 0.94 of
+ * the way puts every group's best season at 0.97 - high enough to read as
+ * perfect, short enough that the map stays strictly monotonic there and two
+ * great seasons never tie.
+ */
+const CEILING_TANH = 0.94;
+const CEILING_Z = Math.atanh(CEILING_TANH);
+
+/**
+ * A z-score on the 0..1 scale the rest of the game speaks.
+ *
+ * THIS REPLACES A HARD CLAMP that compressed everything above the 92nd
+ * percentile into 0.92-0.97. That clamp put 476 entries into five rating
+ * points and tied four different offensive lines at exactly 0.9674 - not
+ * because they were equal, but because the scale had run out of room where the
+ * draft is actually decided.
+ *
+ * tanh gives that back: smooth, so no two seasons tie; strictly monotonic, so
+ * nothing clips; bounded, so the result is always a legal rating. Above all it
+ * is CENTRED ON 0.5, which is not decoration - engine.js's swing() is
+ * `1 + amount * (rating - 0.5)` and constants.js says of it "CENTRED ON 1 IS
+ * THE WHOLE DESIGN". A rating whose mean drifted off 0.5 would move every
+ * calibrated number in the simulation.
+ */
+function ratingFromZ(z, span) {
+  if (!(span > 0)) return 0.5;
+  return 0.5 + 0.5 * Math.tanh(z / span);
+}
+
+/**
+ * The floor, and the only clamping left.
+ *
+ * ratingFromZ cannot leave 0..1 on its own, but the trust and role discounts
+ * applied after it are plain arithmetic and can. The floor is a football
+ * statement rather than a numerical one: the worst man in this dataset still
+ * played in the NFL, and a rating of 0 would multiply him out of the
+ * simulation entirely.
+ */
+function bounded(v) {
+  if (!Number.isFinite(v)) return 0.5;
+  return Math.max(0.06, Math.min(1, v));
+}
+
+/**
+ * MADDEN-STYLE OVERALL, for display only.
+ *
+ * The engine needs 0.5-centred; a player reading "0.83" needs a translation.
+ * Anchored so an average season is 70 and each group's best is 99, which is
+ * the scale every football player already has in their head. Nothing in the
+ * simulation reads this - it exists so the draft board can say 99 without the
+ * engine having to.
+ */
+export function overallFromZ(z, span) {
+  if (!(span > 0)) return 70;
+  const scaled = Math.tanh(z / span) / CEILING_TANH;
+  return Math.max(40, Math.min(99, Math.round(70 + 29 * scaled)));
+}
 
 function metricNames(group) {
   const responsibilities = DEFENSIVE_RESPONSIBILITIES[group] || {};
   return [...new Set(Object.values(responsibilities).flat())];
 }
 
-function pushDistribution(target, group, era, metric, value) {
-  (((target[group] ||= {})[era] ||= {})[metric] ||= []).push(value);
-  (((target[group].all ||= {})[metric]) ||= []).push(value);
-}
 
 /** How many snaps this unit was on the field for, as far as the dataset can
  * say. Tackles are the proxy - see DEFENSIVE_EXPOSURE. Floored at one so a row
@@ -372,9 +567,30 @@ function defensiveRate(row, metric, ctx) {
   );
 }
 
+/** A season's pool for one group, created on demand. */
+function seasonBucket(ctx, group, season) {
+  const byGroup = (ctx.seasons[group] ||= {});
+  return (byGroup[season] ||= { production: [], efficiency: {}, metrics: {}, pointsAllowed: [] });
+}
+
+/** Collapse a bucket's raw value arrays into mean/sd, in place. */
+function summariseBucket(bucket) {
+  const out = { production: distribution(bucket.production), efficiency: {}, metrics: {}, pointsAllowed: distribution(bucket.pointsAllowed) };
+  for (const [term, values] of Object.entries(bucket.efficiency)) out.efficiency[term] = distribution(values);
+  for (const [metric, values] of Object.entries(bucket.metrics)) out.metrics[metric] = distribution(values);
+  return out;
+}
+
 export function buildRatingContext(players, units) {
   const ctx = {
-    players: {}, units: {}, efficiency: {}, defensiveMetrics: {},
+    // Per GROUP, per SEASON: the mean and standard deviation of everything a
+    // rating is built from. Replaces the flat all-time pools that made a 2006
+    // back compete against 2024 - see seasonKey above for why season rather
+    // than era.
+    seasons: {},
+    // Per group, the tanh span that puts that group's best season at the
+    // ceiling. Solved below, not authored.
+    spans: {},
     // The pooled event-per-tackle rate of each group, which every unit's own
     // rate is shrunk toward. Built in its own pass BEFORE any rate is taken,
     // because a shrinkage target computed from a subset of the rows it is used
@@ -393,43 +609,119 @@ export function buildRatingContext(players, units) {
     }
   }
 
-  for (const row of players) {
+  for (const row of players || []) {
     for (const pos of row.pos || []) {
       const composite = COMPOSITES[pos];
       if (!composite || n(row.games) < MIN_RATED_GAMES) continue;
-      (ctx.players[pos] ||= []).push(composite(row));
-      // Efficiency is percentiled against the same pool as production, so the
-      // two halves of a rating are on one scale and can be averaged.
-      const eff = EFFICIENCY[pos]?.(row);
-      if (eff != null && Number.isFinite(eff)) (ctx.efficiency[pos] ||= []).push(eff);
+      const bucket = seasonBucket(ctx, pos, seasonKey(row));
+      bucket.production.push(composite(row));
+      for (const [term, read] of Object.entries(EFFICIENCY[pos] || {})) {
+        const value = read(row);
+        // A term the source could not answer contributes NOTHING to the pool it
+        // would otherwise be measured against. Pushing a 0 here would drag the
+        // mean down and then score the very rows that are missing it as though
+        // they were merely bad at it.
+        if (value !== null && Number.isFinite(value)) (bucket.efficiency[term] ||= []).push(value);
+      }
     }
   }
 
-  for (const row of units) {
+  for (const row of units || []) {
     const group = canonicalGroup(row);
     if (n(row.games) < MIN_RATED_GAMES) continue;
+    const bucket = seasonBucket(ctx, group, seasonKey(row));
 
     if (DEFENSIVE_GROUPS.has(group)) {
-      const era = eraKey(row);
       for (const metric of metricNames(group)) {
-        pushDistribution(ctx.defensiveMetrics, group, era, metric, defensiveRate(row, metric, ctx));
+        (bucket.metrics[metric] ||= []).push(defensiveRate(row, metric, ctx));
       }
+      // Negated so that, like every other metric here, MORE IS BETTER. A
+      // defence that gave up fewer points should come out above one that gave
+      // up more, and leaving the sign alone would invert exactly that.
+      const pa = known(row.pa_pg);
+      if (pa !== null) bucket.pointsAllowed.push(-pa);
       continue;
     }
 
     const composite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
-    if (composite) (ctx.units[group] ||= []).push(composite(row));
+    if (composite) bucket.production.push(composite(row));
   }
 
-  for (const bucket of [ctx.players, ctx.units, ctx.efficiency]) {
-    for (const key of Object.keys(bucket)) bucket[key].sort((a, b) => a - b);
+  for (const [group, bySeason] of Object.entries(ctx.seasons)) {
+    for (const season of Object.keys(bySeason)) bySeason[season] = summariseBucket(bySeason[season]);
+    ctx.seasons[group] = bySeason;
   }
-  for (const group of Object.values(ctx.defensiveMetrics)) {
-    for (const era of Object.values(group)) {
-      for (const values of Object.values(era)) values.sort((a, b) => a - b);
-    }
+
+  // SOLVE the per-group spans, second pass, now that every distribution exists.
+  //
+  // One shared span cannot work: the groups have very different tail lengths.
+  // Tight ends reach +4.3 standard deviations and offensive lines only +2.0,
+  // so a span that put Tony Gonzalez at the ceiling left the best line in the
+  // game rated 86 - which is not a statement about offensive line play, it is
+  // the tail length leaking into the rating.
+  const peak = {};
+  for (const row of [...(players || []), ...(units || [])]) {
+    const group = ratingGroup(row);
+    if (!group || n(row.games) < MIN_RATED_GAMES) continue;
+    const z = rawZ(row, ctx, group);
+    if (!Number.isFinite(z)) continue;
+    if (!(group in peak) || z > peak[group]) peak[group] = z;
+  }
+  for (const [group, best] of Object.entries(peak)) {
+    // A group whose best season is not above its own mean has no spread worth
+    // stretching; 1 leaves the map as a plain tanh rather than dividing by ~0.
+    ctx.spans[group] = best > 0 ? Math.max(best, 0.5) / CEILING_Z : 1;
   }
   return ctx;
+}
+
+/** Which pool an entry is rated inside - his position, or his unit's group. */
+function ratingGroup(row) {
+  const group = canonicalGroup(row);
+  if (group) return group;
+  return (row?.pos || []).find((pos) => COMPOSITES[pos]) || "";
+}
+
+/**
+ * How far above his own season an entry stood, BEFORE any trust or role
+ * discount - the quantity the spans are solved against and the ratings are
+ * built from.
+ */
+function rawZ(row, ctx, group = ratingGroup(row)) {
+  const stats = ctx?.seasons?.[group]?.[seasonKey(row)];
+  if (!stats) return 0;
+  if (DEFENSIVE_GROUPS.has(group)) return defensiveZ(row, ctx, group, stats);
+
+  const composite = COMPOSITES[group];
+  if (composite) {
+    const production = zScore(stats.production, composite(row));
+    const efficiency = efficiencyZ(row, group, stats);
+    const weight = EFFICIENCY_WEIGHT[group] ?? 0;
+    // No efficiency term survived, so production carries the whole rating
+    // rather than being averaged against a fabricated average. This is the
+    // "unknown is not zero" rule at the level of the whole half.
+    if (efficiency === null) return production;
+    return production * (1 - weight) + efficiency * weight;
+  }
+
+  const unitComposite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
+  return unitComposite ? zScore(stats.production, unitComposite(row)) : 0;
+}
+
+/** The mean of whichever efficiency terms this row can actually answer, in
+ * standard deviations. null when it can answer none. */
+function efficiencyZ(row, pos, stats) {
+  let total = 0;
+  let count = 0;
+  for (const [term, read] of Object.entries(EFFICIENCY[pos] || {})) {
+    const value = read(row);
+    if (value === null || !Number.isFinite(value)) continue;
+    const dist = stats.efficiency?.[term];
+    if (!dist || !(dist.sd > 0)) continue;
+    total += zScore(dist, value);
+    count += 1;
+  }
+  return count ? total / count : null;
 }
 
 /** How much of a rating is efficiency rather than raw production.
@@ -448,16 +740,7 @@ export function ratePlayer(row, ctx) {
   const pos = (row.pos || []).find((p) => COMPOSITES[p]);
   if (!pos) return 0.5;
 
-  const production = percentile(ctx.players[pos], COMPOSITES[pos](row));
-  const eff = EFFICIENCY[pos]?.(row);
-  const effPool = ctx.efficiency?.[pos];
-  // No efficiency pool means a dataset built before these fields existed. Fall
-  // back to production alone rather than to 0.5, which would flatten every
-  // player onto the same rating.
-  const raw =
-    eff != null && Number.isFinite(eff) && effPool?.length
-      ? production * (1 - EFFICIENCY_WEIGHT[pos]) + percentile(effPool, eff) * EFFICIENCY_WEIGHT[pos]
-      : production;
+  const raw = ratingFromZ(rawZ(row, ctx, pos), ctx?.spans?.[pos]);
 
   // Two separate reasons to distrust a line, and they pull toward DIFFERENT
   // places, which is why they are applied separately.
@@ -472,20 +755,72 @@ export function ratePlayer(row, ctx) {
   // average. Regressing it to the middle is what left an 8.6-carry backup
   // rating within three points of a 19-carry starter.
   const gamesTrust = Math.min(1, Math.max(0, n(row.games)) / MIN_RATED_GAMES);
-  const known = 0.5 + (raw - 0.5) * gamesTrust;
+  const sampled = 0.5 + (raw - 0.5) * gamesTrust;
   const role = roleConfidence(row, pos);
-  return clamp(REPLACEMENT_LEVEL + (known - REPLACEMENT_LEVEL) * role);
+  return bounded(REPLACEMENT_LEVEL + (sampled - REPLACEMENT_LEVEL) * role);
 }
 
-function defensiveMetricPercentile(row, group, metric, ctx) {
-  const byGroup = ctx.defensiveMetrics?.[group];
-  if (!byGroup) return 0.5;
-  const era = eraKey(row);
-  const eraDistribution = byGroup[era]?.[metric];
-  const fallback = byGroup.all?.[metric];
-  const distribution = eraDistribution?.length >= 8 ? eraDistribution : fallback;
-  if (!distribution?.length) return 0.5;
-  return percentile(distribution, defensiveRate(row, metric, ctx));
+/**
+ * How much of a defensive unit's rating is points allowed.
+ *
+ * THE SCOREBOARD DOES NOT SAY WHICH UNIT GAVE IT UP, so this same number goes
+ * to a team's line, linebackers, corners and safeties alike. That is honest -
+ * they did all play - but it is also why the weight is minority rather than
+ * dominant. The engine matches offence against defence one axis at a time so
+ * that a front that gets home and a secondary that covers do different things
+ * to the opponent (see DEFENSIVE_RESPONSIBILITIES); a heavy shared term would
+ * pull all four groups on a team toward one number and rebuild exactly the
+ * single generic defensive rating that model exists to replace.
+ *
+ * It is also the noisiest signal here: points allowed is contaminated by the
+ * offence's turnovers and by special teams, and the clean version - points
+ * allowed adjusted for where drives started - needs play-by-play data this
+ * pipeline does not load. A minority weight is the honest home for a number
+ * that is both indispensable and impure.
+ */
+const POINTS_ALLOWED_WEIGHT = 0.27;
+
+/** One metric in standard deviations against the same group in the same
+ * season. */
+function defensiveMetricZ(row, group, metric, ctx, stats) {
+  const dist = stats?.metrics?.[metric];
+  if (!dist || !(dist.sd > 0)) return 0;
+  return zScore(dist, defensiveRate(row, metric, ctx));
+}
+
+/**
+ * The axis spans, fixed rather than solved.
+ *
+ * The per-group spans stretch each group's BEST season to the ceiling, which
+ * is what the draft board wants and what an axis must not have: the engine
+ * multiplies by `1 + AXIS_SWING * (axis - 0.5)`, so stretching an axis would
+ * silently change how hard matchups swing. 1.5 keeps the spread of these
+ * values close to the percentiles they replace (a standard normal through
+ * tanh(z/1.5) has a standard deviation near 0.30, against 0.289 for the
+ * uniform percentiles) - so AXIS_SWING keeps meaning what it was solved to
+ * mean.
+ */
+const AXIS_SPAN = 1.5;
+
+/** A defensive unit's overall standing, in standard deviations: what it did on
+ * its own responsibilities, blended with what its whole defence conceded. */
+function defensiveZ(row, ctx, group, stats) {
+  const responsibilities = DEFENSIVE_RESPONSIBILITIES[group];
+  if (!responsibilities) return 0;
+
+  const axes = [];
+  for (const metrics of Object.values(responsibilities)) {
+    const values = metrics.map((metric) => defensiveMetricZ(row, group, metric, ctx, stats));
+    if (values.length) axes.push(values.reduce((sum, value) => sum + value, 0) / values.length);
+  }
+  const own = axes.length ? axes.reduce((sum, value) => sum + value, 0) / axes.length : 0;
+
+  const pa = known(row.pa_pg);
+  const paStats = stats?.pointsAllowed;
+  // A season with no score data rates on its own play alone rather than being
+  // blended against an assumed-average defence.
+  if (pa === null || !paStats || !(paStats.sd > 0)) return own;
+  return own * (1 - POINTS_ALLOWED_WEIGHT) + zScore(paStats, -pa) * POINTS_ALLOWED_WEIGHT;
 }
 
 /** Component scores used by both simulation grading and the visible draft
@@ -496,22 +831,27 @@ export function defensiveUnitComponents(row, ctx) {
   const responsibilities = DEFENSIVE_RESPONSIBILITIES[group];
   if (!responsibilities) return null;
 
+  const stats = ctx?.seasons?.[group]?.[seasonKey(row)];
   const components = {};
   for (const [name, metrics] of Object.entries(responsibilities)) {
-    const values = metrics.map((metric) => defensiveMetricPercentile(row, group, metric, ctx));
-    components[name] = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0.5;
+    const values = metrics.map((metric) => defensiveMetricZ(row, group, metric, ctx, stats));
+    const mean = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+    // Back onto 0..1 for the engine and the draft explanation, on the FIXED
+    // axis span rather than the group's stretched one - see AXIS_SPAN.
+    components[name] = ratingFromZ(mean, AXIS_SPAN);
   }
   return { group, components };
 }
 
 function rateDefensiveUnit(row, ctx) {
-  const detail = defensiveUnitComponents(row, ctx);
-  if (!detail) return 0.5;
-  const values = Object.values(detail.components);
-  const raw = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0.5;
+  const group = canonicalGroup(row);
+  const stats = ctx?.seasons?.[group]?.[seasonKey(row)];
+  if (!DEFENSIVE_RESPONSIBILITIES[group] || !stats) return 0.5;
+
+  const rated = ratingFromZ(defensiveZ(row, ctx, group, stats), ctx?.spans?.[group]);
   const trust = n(row.games) >= MIN_RATED_GAMES ? 1 : Math.max(0, n(row.games)) / MIN_RATED_GAMES;
-  const withSample = 0.5 + (raw - 0.5) * trust;
-  return clamp(0.5 + (withSample - 0.5) * depthFactor(row.depth));
+  const withSample = 0.5 + (rated - 0.5) * trust;
+  return bounded(0.5 + (withSample - 0.5) * depthFactor(row.depth));
 }
 
 /**
@@ -544,11 +884,11 @@ export function rateUnit(row, ctx) {
   if (DEFENSIVE_GROUPS.has(group)) return rateDefensiveUnit(row, ctx);
   const composite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
   if (!composite) return 0.5;
-  const raw = percentile(ctx.units[group], composite(row));
+  const rated = ratingFromZ(rawZ(row, ctx, group), ctx?.spans?.[group]);
   const trust = n(row.games) >= MIN_RATED_GAMES ? 1 : Math.max(0, n(row.games)) / MIN_RATED_GAMES;
-  const withSample = 0.5 + (raw - 0.5) * trust;
+  const withSample = 0.5 + (rated - 0.5) * trust;
   const depth = DEPTH_IS_NOT_QUALITY.has(group) ? 1 : depthFactor(row.depth);
-  return clamp(0.5 + (withSample - 0.5) * depth);
+  return bounded(0.5 + (withSample - 0.5) * depth);
 }
 
 /**
@@ -611,7 +951,7 @@ export function defensiveUnitAxis(entry, axis, ctx) {
   if (raw == null) return rateUnit(entry, ctx);
   const trust = n(entry.games) >= MIN_RATED_GAMES ? 1 : Math.max(0, n(entry.games)) / MIN_RATED_GAMES;
   const withSample = 0.5 + (raw - 0.5) * trust;
-  return clamp(0.5 + (withSample - 0.5) * depthFactor(entry.depth));
+  return bounded(0.5 + (withSample - 0.5) * depthFactor(entry.depth));
 }
 
 /**
@@ -641,4 +981,35 @@ export function defensiveAxisStrength(roster, axis, ctx, forfeits) {
 export function rateEntry(entry, ctx) {
   if (!entry) return 0;
   return isUnit(entry) ? rateUnit(entry, ctx) : ratePlayer(entry, ctx);
+}
+
+/**
+ * The 0-99 Overall the draft board shows.
+ *
+ * DISPLAY ONLY - nothing in the simulation reads this. The engine needs a
+ * 0.5-centred 0..1 rating (see ratingFromZ) and a player needs a number he
+ * already knows how to read, and those are different jobs. Deriving both from
+ * the same z-score is what keeps them from disagreeing: a man who rates higher
+ * always shows higher.
+ *
+ * Trust and role are applied here as they are to the rating, so a backup with
+ * one glorious afternoon does not read 99. They are applied in Z SPACE - the
+ * discount is on how far above his league he stood - because applying them to
+ * the 0-99 number instead would drag a below-average player UP toward 70.
+ */
+export function overallFor(entry, ctx) {
+  if (!entry) return 40;
+  const group = ratingGroup(entry);
+  if (!group) return 70;
+
+  let z = rawZ(entry, ctx, group);
+  const games = Math.max(0, n(entry.games));
+  z *= Math.min(1, games / MIN_RATED_GAMES);
+
+  if (isUnit(entry)) {
+    if (!DEPTH_IS_NOT_QUALITY.has(group)) z *= depthFactor(entry.depth);
+  } else {
+    z *= roleConfidence(entry, group);
+  }
+  return overallFromZ(z, ctx?.spans?.[group]);
 }

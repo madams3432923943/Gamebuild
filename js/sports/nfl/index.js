@@ -79,11 +79,13 @@ function loadSimulation() {
     import("./botdraft.js"),
   ])
     .then(([engine, units, recap, draftgrade, botdraft]) => {
+      ratingApi = units;
       Object.assign(NFL, {
         computeDatasetStats: () =>
           (loaded(), (ratingCtx ||= engine.computeDatasetStats(NFL_PLAYERS, NFL_UNITS))),
         simulate: (rosterA, rosterB, stats, opts) => engine.simulate(rosterA, rosterB, stats, opts),
         rate: (entry, ctx) => units.rateEntry(entry, ctx ?? NFL.computeDatasetStats()),
+        overall: (entry, ctx) => units.overallFor(entry, ctx ?? NFL.computeDatasetStats()),
         highlights: recap.HIGHLIGHTS,
         buildRecap: (result, rosterA, rosterB, labelA, labelB) =>
           recap.buildRecap(result, rosterA, rosterB, labelA, labelB),
@@ -156,6 +158,15 @@ import { isUnit, unitLabel } from "./entry.js";
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
 let ratingCtx = null;
+
+/** units.js once loadSimulation has it, null before.
+ *
+ * cardStats() needs overallFor() but runs at module scope, and units.js is one
+ * of the ~231KB of simulation this file deliberately does not import until a
+ * sport is chosen. Holding the module here lets the card ask for an Overall
+ * when it can and leave the number off when it cannot, rather than either
+ * throwing on a stub or forcing football's simulation onto every visitor. */
+let ratingApi = null;
 /* engine.js, units.js, recap.js, draftgrade.js and botdraft.js are NOT
  * imported here - see loadSimulation below. Between them and constants.js
  * behind them they are ~231KB, and with no build step a static import bills
@@ -505,6 +516,11 @@ export const NFL = {
   // are comparable - see js/sports/nfl/units.js for why percentile rather than
   // an invented rating.
   rate: notLoaded("rate"),
+  /** The same standing as rate(), on the 0-99 scale the draft board shows.
+   * Football's own, not a contract hook: basketball rates through a different
+   * function entirely (engine.impact) and has no equivalent, so putting this on
+   * the shared contract would oblige it to invent one. */
+  overall: notLoaded("overall"),
   // Strips the ordinal so WR1/WR2/WR3 all resolve to WR - a receiver's data
   // says "WR", not "WR2", and without this every numbered slot would reject
   // every player eligible for it. Same rule NBA uses; it only looked like an
@@ -623,12 +639,29 @@ export const NFL = {
    * rather than a column, which is what the unit member names need. */
   cardStats: (p) => {
     const n = (v, d = 1) => (Number(v) || 0).toFixed(d);
+    /**
+     * OVERALL FIRST, on every card, because it is the one number that compares
+     * across positions.
+     *
+     * A quarterback's passing yards and a secondary's interceptions are not on
+     * the same scale and never can be, so a board of raw stat lines cannot
+     * answer "which of these two picks is better" - which is the only question
+     * the draft actually asks. 0-99 is the scale every football player already
+     * carries in their head.
+     *
+     * Omitted rather than shown as a dash when units.js has not loaded: this
+     * runs at module scope and football's simulation arrives later (see
+     * ratingApi). A card one pair shorter is honest; "— OVR" would read as a
+     * broken player.
+     */
+    const ovr = ratingApi ? ratingApi.overallFor(p, NFL.computeDatasetStats()) : null;
+    const rating = Number.isFinite(ovr) ? [{ value: ovr, label: "OVR" }] : [];
     if (p.group) {
       // Lead with a name you know. "Cornerbacks" is a slot; "Sherman,
       // Maxwell" is the pick - and since any member's name claims the unit,
       // showing them is also showing what you are allowed to type.
       const known = (p.members || []).slice(0, 2).map((m) => m.name).join(", ");
-      const head = known ? [{ value: known, label: "" }] : [];
+      const head = known ? [{ value: known, label: "" }, ...rating] : [...rating];
       const depth = { value: p.depth, label: "deep" };
       if (p.group === "ST") {
         return [...head, depth,
@@ -647,16 +680,19 @@ export const NFL = {
     }
     const pos = (p.pos || [])[0];
     if (pos === "QB") {
-      return [{ value: n(p.pass_yds, 0), label: "pass yds" },
+      return [...rating,
+              { value: n(p.pass_yds, 0), label: "pass yds" },
               { value: n(p.pass_td, 1), label: "TD" },
               { value: n(p.ints, 1), label: "INT" }];
     }
     if (pos === "RB") {
-      return [{ value: n(p.rush_yds, 0), label: "rush yds" },
+      return [...rating,
+              { value: n(p.rush_yds, 0), label: "rush yds" },
               { value: n(p.rush_td), label: "TD" },
               { value: n(p.rec), label: "rec" }];
     }
-    return [{ value: n(p.rec), label: "rec" },
+    return [...rating,
+            { value: n(p.rec), label: "rec" },
             { value: n(p.rec_yds, 0), label: "yds" },
             { value: n(p.rec_td), label: "TD" }];
   },
