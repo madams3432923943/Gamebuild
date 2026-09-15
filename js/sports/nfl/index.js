@@ -153,7 +153,7 @@ async function preload() {
 }
 import { datasetVersion } from "../../lib/dataset-version.js";
 import { fetchDataset } from "../../lib/dataset.js";
-import { isUnit, unitLabel } from "./entry.js";
+import { isUnit, unitLabel, lineupRank } from "./entry.js";
 
 /** Built once, on first use. See NFL.computeDatasetStats below for why this
  * cannot be rebuilt per call. */
@@ -188,15 +188,7 @@ import {
  * below. They are 42KB that only a game screen needs, and with no build step a
  * static import bills every visitor for them. */
 
-/** The order a football roster is READ in, which is not the order it is
- * drafted in. Offense before defense, and inside offense the skill positions
- * in depth-chart order - a box score that opens on a wide receiver reads as a
- * bug even when every number in it is right. Covers both roster shapes: Quick
- * Play's bare WR and ranked's WR1/WR2/WR3. */
-const LINEUP_ORDER = [
-  "QB", "RB", "WR", "WR1", "WR2", "WR3", "TE", "FLEX", "OL",
-  "DL", "LB", "CB", "S", "DEF", "ST",
-];
+
 
 // The football career, rung by rung - the counterpart to basketball's ladder
 // in js/sports/nba/index.js, and deliberately built on the SAME percentile
@@ -399,7 +391,8 @@ export const NFL = {
   // reason `att`, `carries` and `fga` are: these keys become PERSONAL BESTS,
   // and a record for most interceptions thrown is a trophy for being bad.
   lineKeys: ["comp", "att", "pass_yds", "pass_tds", "carries", "rush_yds", "rush_tds",
-             "rec", "rec_yds", "rec_tds", "ints", "ints_thrown", "fumbles", "sacks", "fgs", "fga"],
+             "rec", "rec_yds", "rec_tds", "ints", "ints_thrown", "fumbles", "fumbles_lost",
+             "sacks", "fgs", "fga"],
 
   // Placeholders, and honestly so: no NFL game has been simulated, so every
   // one of these reads as a dash on the profile. They are declared now because
@@ -552,7 +545,12 @@ export const NFL = {
     // Sacks belong here for the same reason they now carry MVP weight: a pass
     // rush that got there six times had NOTHING to say on the MVP card, and
     // formatMvpStatLine reads this list to build it.
-    ["ints", "INT"], ["fumbles", "FUM"], ["sacks", "SACK"], ["fgs", "FG"],
+    // TWO KEYS, ONE LABEL, deliberately. `fumbles` is fumbles FORCED and only
+    // ever lands on a defensive unit; `fumbles_lost` is the offence putting it
+    // on the ground. "2 FUM" is the right thing to read on either row, because
+    // who the player is says which one it means, and formatMvpStatLine looks
+    // these up by KEY rather than by label so the two cannot collide.
+    ["ints", "INT"], ["fumbles", "FUM"], ["fumbles_lost", "FUM"], ["sacks", "SACK"], ["fgs", "FG"],
   ],
 
   /**
@@ -585,6 +583,9 @@ export const NFL = {
       columns: [
         ["comp", "COMP"], ["att", "ATT"], ["pass_yds", "PASS"], ["pass_tds", "PTD"],
         ["ints_thrown", "INT"],
+        // A strip-sack is a turnover as surely as a pick is. Without this the
+        // quarterback's row said he never lost one.
+        ["fumbles_lost", "FUM"],
         // He runs too, and on a scrambler that is a third of his game.
         ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
       ],
@@ -592,7 +593,7 @@ export const NFL = {
         (Number(line.pass_yds) || 0) + (Number(line.rush_yds) || 0) +
         100 * ((Number(line.pass_tds) || 0) + (Number(line.rush_tds) || 0)) -
         // Ordering only - nothing here changes the simulation.
-        50 * (Number(line.ints_thrown) || 0),
+        50 * ((Number(line.ints_thrown) || 0) + (Number(line.fumbles_lost) || 0)),
     },
     {
       key: "offense",
@@ -603,6 +604,9 @@ export const NFL = {
           (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0)],
         ["carries", "CAR"], ["rush_yds", "RUSH"], ["rush_tds", "RTD"],
         ["rec", "REC"], ["rec_yds", "RECYD"], ["rec_tds", "RECTD"],
+        // WHO IS PUTTING IT ON THE GROUND. Last, because it is the one column
+        // here a player hopes is empty.
+        ["fumbles_lost", "FUM"],
       ],
       // Total yards first, touchdowns as the tie-break - scaled so a score is
       // worth a hundred yards rather than swamping the yardage entirely. No
@@ -610,7 +614,9 @@ export const NFL = {
       // is rushing plus receiving for the same reason.
       rank: (line) =>
         (Number(line.rush_yds) || 0) + (Number(line.rec_yds) || 0) +
-        100 * ((Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0)),
+        100 * ((Number(line.rush_tds) || 0) + (Number(line.rec_tds) || 0)) -
+        // Ordering only, matching how the passing table already prices a pick.
+        50 * (Number(line.fumbles_lost) || 0),
     },
     {
       key: "defense",
@@ -728,11 +734,9 @@ export const NFL = {
   // disappearing.
   orderedRosterSlots: (roster) => {
     const filled = Object.keys(roster).filter((s) => roster[s]);
-    const rank = (slot) => {
-      const i = LINEUP_ORDER.indexOf(slot);
-      return i === -1 ? LINEUP_ORDER.length : i;
-    };
-    return filled.sort((a, b) => rank(a) - rank(b) || filled.indexOf(a) - filled.indexOf(b));
+    return filled.sort(
+      (a, b) => lineupRank(a) - lineupRank(b) || filled.indexOf(a) - filled.indexOf(b)
+    );
   },
   minutesRangeFor: () => ({ min: 0, max: 0 }),
   rotationBudget: 0,
