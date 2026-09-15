@@ -23,6 +23,31 @@
 // always did - worth caring about, since engine.js is vendored to the Edge
 // Function and every edit to it has to be copied across.
 
+/**
+ * The order a football roster is READ in, which is not the order it is drafted
+ * in. Offense before defense, and inside offense the skill positions in
+ * depth-chart order - a box score that opens on a wide receiver reads as a bug
+ * even when every number in it is right. Covers both roster shapes: Quick
+ * Play's bare WR and ranked's WR1/WR2/WR3.
+ *
+ * IT LIVES HERE RATHER THAN IN ./index.js because the draft grade needs it too,
+ * and index.js dynamically imports draftgrade.js - so a static import back the
+ * other way would close a cycle. This file is already the home for the things
+ * shared UI needs that are not simulation, and a reading order is exactly that.
+ * The alternative was a second list in draftgrade.js, which is the kind of
+ * duplicate that stays right for about a month.
+ */
+export const LINEUP_ORDER = [
+  "QB", "RB", "WR", "WR1", "WR2", "WR3", "TE", "FLEX", "OL",
+  "DL", "LB", "CB", "S", "DEF", "ST",
+];
+
+/** Anything not in LINEUP_ORDER sorts to the end rather than disappearing. */
+export const lineupRank = (slot) => {
+  const i = LINEUP_ORDER.indexOf(slot);
+  return i === -1 ? LINEUP_ORDER.length : i;
+};
+
 export const isUnit = (entry) => typeof entry?.group === "string";
 
 /**

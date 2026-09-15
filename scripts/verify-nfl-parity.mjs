@@ -65,7 +65,8 @@ const ctxEdge = edgeStats(players, units);
 
 const LINE_KEYS = [
   "comp", "att", "pass_yds", "pass_tds", "rush_yds", "rush_tds", "carries",
-  "targets", "sacked", "rec", "rec_yds", "rec_tds", "ints", "fumbles", "sacks", "fgs", "fga", "td", "pts",
+  "targets", "sacked", "rec", "rec_yds", "rec_tds", "ints", "fumbles", "fumbles_lost",
+  "sacks", "fgs", "fga", "td", "pts",
 ];
 const TEAM_KEYS = [
   "passYards", "rushYards", "totalYards", "firstDowns", "turnovers",

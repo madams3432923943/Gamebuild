@@ -6,6 +6,7 @@ import {
   OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, GRADE_WEIGHTS, GRADE_BREAKPOINTS,
 } from "./constants.js";
 import { rateEntry, unitLabel, isUnit, overallFor } from "./units.js";
+import { lineupRank } from "./entry.js";
 import { matchupNotes } from "../../matchups.js";
 import { statNote, adviceNote, gridNote } from "../../gradenotes.js";
 
@@ -257,7 +258,37 @@ function letterForScore(score) {
  * already use, which is directly comparable between the two teams and needs no
  * curve to be honest. The overall grade keeps the letter it has always had.
  */
-const gradeOutOf100 = (value) => Math.round(100 * value);
+/**
+ * THE HEADLINE NUMBER FOR ONE SIDE, on the same scale as the chips under it.
+ *
+ * This was `Math.round(100 * sideScore)` - the engine's 0..1 rating, which
+ * tanh-compresses everything toward 50 - while the per-slot chips below it were
+ * moved to the 0-99 Overall the draft board shows. Two rulers on one card, and
+ * the arithmetic could not be made to work by anybody reading it: a defense of
+ * DL 59, LB 74, CB 52 and S 77 printed as 43. It was reported exactly that way,
+ * as "how does the math work".
+ *
+ * So the header is now literally the weighted mean of the numbers printed
+ * underneath it, using the same slot weights sideScore uses. A reader can add
+ * up the chips and arrive at the header, which is the only version of this that
+ * can survive being checked.
+ *
+ * IT DOES NOT MOVE THE GRADE. The letter comes from constructionScore, which
+ * stays on the 0..1 rating scale and is untouched by any of this - only what is
+ * printed changes.
+ */
+function sideOutOf100(roster, weights, ctx) {
+  let total = 0;
+  let weight = 0;
+  for (const [slot, w] of Object.entries(weights)) {
+    const entry = entryForSlot(roster, slot);
+    if (!entry) continue;
+    total += w * overallFor(entry, ctx);
+    weight += w;
+  }
+  // No filled slot on this side: say nothing rather than print a confident 0.
+  return weight > 0 ? Math.round(total / weight) : null;
+}
 
 /**
  * WHAT A DRAFTED OFFENSE RATES MINUS WHAT A DRAFTED DEFENSE RATES.
@@ -547,8 +578,8 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const penalty = forfeits.length * 0.05;
   const score = Math.max(0, raw - penalty);
   const letter = letterForScore(score);
-  const offenseGrade = gradeOutOf100(offense);
-  const defenseGrade = gradeOutOf100(defense);
+  const offenseGrade = sideOutOf100(roster, OFFENSE_WEIGHTS, ctx);
+  const defenseGrade = sideOutOf100(roster, DEFENSE_WEIGHTS, ctx);
   // Declared here rather than beside its first use: the grid tones below read
   // it, and a `const` used above its declaration is a crash rather than a
   // hoisted undefined.
@@ -604,6 +635,19 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // is a table the eye has to parse rather than two shapes it can compare.
   const gridFor = (weights) =>
     Object.keys(weights)
+      // DEPTH-CHART ORDER, NOT WEIGHT ORDER. OFFENSE_WEIGHTS is written heaviest
+      // first - QB, WR1, RB, OL, TE, WR2, WR3 - which is the right order for a
+      // weighted mean and a baffling one to read: the receivers come out split
+      // either side of the back and the line. Nobody looking at the card can see
+      // that the sequence means "how much this slot matters", so it reads as
+      // scrambled. lineupRank is the order football is already read in
+      // everywhere else in this sport (see js/sports/nfl/entry.js), so the grid
+      // now matches the box score and the roster panel rather than inventing a
+      // third order.
+      //
+      // Ordering only: sideScore sums over these same weights and a sum does not
+      // care what order it is taken in, so no number moves.
+      .sort((a, b) => lineupRank(a) - lineupRank(b))
       .map((slot) => ({ slot, entry: entryForSlot(roster, slot) }))
       .filter(({ entry }) => entry)
       .map(({ slot, entry }) => {
@@ -641,11 +685,15 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   const offenseGrid = gridFor(OFFENSE_WEIGHTS);
   const defenseGrid = gridFor(DEFENSE_WEIGHTS);
   if (offenseGrid.length) {
-    notes.push(gridNote("Offense", offenseGrid, pct(offense),
+    // THE SAME NUMBER AS THE CARD HEADER, and the same scale as the chips it
+    // sits over. `pct(offense)` was rateEntry*100 while the chips beside it were
+    // 0-99 Overalls, so this heading read 80 above a row averaging 89 - the
+    // third place on one card where two rulers were being mixed.
+    notes.push(gridNote("Offense", offenseGrid, `${offenseGrade}`,
       lean >= 0 ? "good" : "neutral"));
   }
   if (defenseGrid.length) {
-    notes.push(gridNote("Defense", defenseGrid, pct(defense),
+    notes.push(gridNote("Defense", defenseGrid, `${defenseGrade}`,
       lean < 0 ? "good" : "neutral"));
   }
 
@@ -704,8 +752,8 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
       offense: oppOffense,
       defense: oppDefense,
       letter: letterForScore(oppScore),
-      offenseGrade: gradeOutOf100(oppOffense),
-      defenseGrade: gradeOutOf100(oppDefense),
+      offenseGrade: sideOutOf100(oppRoster, OFFENSE_WEIGHTS, ctx),
+      defenseGrade: sideOutOf100(oppRoster, DEFENSE_WEIGHTS, ctx),
     };
     // The one comparative clause that survives, because it is built from the
     // aggregates above rather than from any pick of theirs: which side of the
