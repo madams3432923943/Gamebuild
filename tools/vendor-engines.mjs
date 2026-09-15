@@ -62,6 +62,10 @@ export const VENDORED = [
   ["js/sports/nfl/constants.js", "supabase/functions/simulate-match/sports/nfl/constants.js"],
   ["js/sports/nfl/tactics.js", "supabase/functions/simulate-match/sports/nfl/tactics.js"],
   ["js/sports/nfl/units.js", "supabase/functions/simulate-match/sports/nfl/units.js"],
+  // The fourth-down decision model. engine.js imports it to decide what a
+  // stalled drive does, so an online game without it would either fail to load
+  // or - worse - fall back to different football from the offline one.
+  ["js/sports/nfl/fourthdown.js", "supabase/functions/simulate-match/sports/nfl/fourthdown.js"],
   // units.js re-exports these two rather than defining them - see the header of
   // js/sports/nfl/entry.js - so the server needs the file behind the re-export
   // or its units.js imports from nothing.

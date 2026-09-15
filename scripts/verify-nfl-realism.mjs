@@ -45,7 +45,11 @@
 
 import { NFL } from "../js/sports/nfl/index.js";
 import { rateEntry } from "../js/sports/nfl/units.js";
-import { FG_RANGE_YARD } from "../js/sports/nfl/constants.js";
+import {
+  FG_RANGE_YARD, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER, TWO_POINT_POSSESSIONS,
+  DRIVES_PER_TEAM,
+} from "../js/sports/nfl/constants.js";
+import { situationFor, twoPointWindow } from "../js/sports/nfl/fourthdown.js";
 import { setActiveSport } from "../js/sports/index.js";
 import { DraftState } from "../js/draft.js";
 
@@ -610,7 +614,25 @@ console.log(
 // it was not a decision the engine got wrong - it was a decision the engine
 // could not make, because the conversion was folded into the touchdown as
 // 6.94 points. Measure the decision itself, not the scoreboard it produces.
-const CHART_MARGINS = [-2, -5, -10, -16, 1, 4, 5, 12];
+// IMPORTED, not restated. This list used to be copied here, so the chart had
+// two sources of truth and a change to the real one could leave the test
+// asserting the old behaviour - passing while the game did something else.
+const CHART_MARGINS = TWO_POINT_MARGINS;
+
+/** The chart now fires on POSSESSIONS remaining rather than on the quarter
+ * alone, so the test has to ask the same question the engine asks. */
+const inChartWindow = (drive, driveIndex, drivesPerTeam) =>
+  twoPointWindow(
+    situationFor({
+      // Two drives per possession pair, which is how the engine walks them.
+      possessionIndex: Math.floor(driveIndex / 2),
+      possessions: drivesPerTeam,
+      margin: 0,
+      quarter: drive.quarter,
+    }),
+    TWO_POINT_CHART_QUARTER,
+    TWO_POINT_POSSESSIONS
+  );
 let touchdowns = 0;
 let twoPointTries = 0;
 let onChart = 0;
@@ -654,7 +676,7 @@ for (let i = 0; i < 400; i++) {
     }
     before[drive.team] += drive.points;
   });
-  for (const drive of result.drives) {
+  result.drives.forEach((drive, index) => {
     // Nobody punts from field-goal range. The outcome is drawn before the
     // drive is placed on the field, so a drive labelled "punt" could be handed
     // an end spot in the opponent's half - 11% of punts were, some from inside
@@ -668,7 +690,7 @@ for (let i = 0; i < 400; i++) {
       touchdowns += 1;
       if (!drive.conversion) missingConversion += 1;
       const marginAfterSix = live[drive.team] + 6 - live[drive.team === "A" ? "B" : "A"];
-      if (drive.quarter >= 4 && CHART_MARGINS.includes(marginAfterSix)) {
+      if (inChartWindow(drive, index, DRIVES_PER_TEAM) && CHART_MARGINS.includes(marginAfterSix)) {
         onChart += 1;
         if (drive.conversion?.type === "two") onChartWentForTwo += 1;
       }
@@ -678,11 +700,11 @@ for (let i = 0; i < 400; i++) {
         // scoreboard. One that is not reads as a bug rather than as a call,
         // because the reasoning behind an off-chart try is invisible from
         // outside - which is exactly how it was reported.
-        if (!(drive.quarter >= 4 && CHART_MARGINS.includes(marginAfterSix))) offChartTwoPointers += 1;
+        if (!(inChartWindow(drive, index, DRIVES_PER_TEAM) && CHART_MARGINS.includes(marginAfterSix))) offChartTwoPointers += 1;
       }
     }
     live[drive.team] += drive.points;
-  }
+  });
   if (live.A !== result.teamScoreA || live.B !== result.teamScoreB) unreconciled += 1;
 
   // A sack is one event with two halves: a cost to the quarterback and a

@@ -2,9 +2,10 @@
 // against an absolute - the point is whether you drafted well from the squads
 // you were offered, which is the only thing you controlled.
 
-import { OFFENSE_WEIGHTS, DEFENSE_WEIGHTS } from "./constants.js";
-import { rateEntry, unitLabel, isUnit } from "./units.js";
-import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
+import {
+  OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, GRADE_WEIGHTS, GRADE_BREAKPOINTS,
+} from "./constants.js";
+import { rateEntry, unitLabel, isUnit, overallFor } from "./units.js";
 import { matchupNotes } from "../../matchups.js";
 import { statNote, adviceNote, gridNote } from "../../gradenotes.js";
 
@@ -57,30 +58,168 @@ const MATCHUPS = [
   { mine: "QB", theirs: "DEF", label: "QB", against: "defense" },
 ];
 
-/** Units identify themselves with `group` (DL/LB/CB/S/OL/ST), while players
- * expose `pos`. The old curve sampled only `pos`, so defensive unit slots had
- * no candidate pool and the resulting curve was not representative of an NFL
- * draft. Keep one eligibility rule for both shapes. */
-function eligibleForSlot(entry, slot) {
-  const wanted = canonicalSlot(slot);
-  if (!entry) return false;
-  if (String(entry.group || "").toUpperCase() === wanted) return true;
-  return (entry.pos || []).some((pos) => String(pos).toUpperCase() === wanted);
+/**
+ * THE SCORE A LETTER IS READ FROM - and it is no longer just talent.
+ *
+ * It used to be `(offense + defense) / 2`: two weighted means of slot ratings,
+ * averaged. That is a fine measure of how good your players are and a poor one
+ * of how well you drafted, and the difference is the whole point of a grade.
+ * A roster with a 96 running back, a 91 receiver and a 43 offensive line was
+ * scored as though the line barely happened - OL carries 0.10 of the offense,
+ * so 0.43 against 0.95 moved the final number by 0.026 - and it graded A+ on a
+ * card whose own scouting line called the line the soft spot. The grade
+ * contradicted the analysis printed beside it.
+ *
+ * Four terms now, and talent is the smallest of them. This is the shape
+ * basketball already uses (see js/sports/nba/draftgrade.js, whose comment
+ * argues that "picked the highest overall player available" is the habit the
+ * grade exists to argue with); football simply never got it.
+ *
+ *   talent   what the old score was, kept because it still matters
+ *   floor    the WORST unit on the roster - a hole is not averaged away
+ *   balance  offense against defense, so half a team is not a whole grade
+ *   spread   top-heaviness: elite skill players hiding four holes
+ *
+ * `floor` and `spread` come from scoutingGroups(), which already scores the
+ * nine real football units and already, correctly, found the offensive line.
+ * The grade now reads the same thing the scouting sentence does.
+ */
+function constructionScore(roster, ctx, offense, defense) {
+  const talent = (offense + defense) / 2;
+  const groups = scoutingGroups(roster, ctx).filter((g) => g.side !== "special");
+
+  // A roster with nothing to measure keeps the old behaviour rather than
+  // inventing a construction score out of no units.
+  if (!groups.length) return talent;
+
+  const ratings = groups.map((g) => g.rating);
+  const floor = Math.min(...ratings);
+  const ceiling = Math.max(...ratings);
+
+
+  // CONSTRUCTION SUBTRACTS FROM TALENT; IT DOES NOT ADD TO IT, and the first
+  // version of this got that wrong. Written as four weighted terms summed
+  // together, a roster that is uniformly terrible collects full marks for
+  // balance and for having no spread - so the Easy bot, whose rosters are bad
+  // at everything equally, outscored the Medium bot, whose identity is a good
+  // offense and a deliberately soft defense. Being evenly bad is not
+  // construction. Talent sets the level and construction takes away from it.
+  const w = GRADE_WEIGHTS;
+
+  // A HOLE, measured against an absolute. SOFT_SPOT is scoutingAdjective's own
+  // boundary between "average" and "thin" (see its table), so the grade and
+  // the sentence printed beside it are reading the same line in the sand -
+  // which is exactly what was not true when a card said "weakness: offensive
+  // line" underneath an A+.
+  // DEPTH AND BREADTH, because one hole and four are not the same roster and
+  // the worst unit alone cannot tell them apart. The reported roster had a
+  // weak quarterback, line, front and secondary - four soft spots - and a
+  // measure that read only its worst scored it as though it had one.
+  //
+  // MEASURED AT BOTH LEVELS, and it has to be. A scouting group is a BLEND:
+  // "passing attack" is 62% quarterback and 38% receivers, so the reported
+  // roster's 53 quarterback came out as a 65 group behind two good targets and
+  // never registered as a hole at all. Slots see him; groups see the unit he
+  // plays in. Both are true and neither is enough alone.
+  const deepest = Math.max(...ratings.map((r) => shortfall(r)));
+  const spotty = slotShortfall(roster, ctx);
+  const hole = deepest * 0.45 + spotty * 0.55;
+
+  // Offense against defense, from the structural gap between them rather than
+  // from zero - see DRAFTED_SIDE_BASELINE. A little lean is normal and costs
+  // nothing; half a team costs plenty.
+  const lean = Math.abs(offense - defense - DRAFTED_SIDE_BASELINE);
+  const imbalance = Math.max(0, lean - LEAN_TOLERANCE);
+
+  // Top-heaviness. Some spread is every roster; a chasm between the best unit
+  // and the worst is a roster built on three names.
+  const chasm = Math.max(0, (ceiling - floor) - SPREAD_TOLERANCE);
+
+  // SCALES TALENT, rather than being subtracted from it. Subtracting drove bad
+  // rosters straight through zero and piled them up on the floor - a fifth of
+  // the reference population scored exactly 0.000, so D and F shared a
+  // breakpoint and neither could be told from the other. A multiplier cannot
+  // annihilate: a poor roster that is at least coherent still outscores a poor
+  // roster full of holes, which is the comparison the bottom of the scale is
+  // for.
+  const penalty = Math.min(
+    MAX_CONSTRUCTION_PENALTY,
+    w.floor * hole + w.balance * imbalance + w.spread * chasm
+  );
+  return Math.max(0, Math.min(1, talent * (1 - penalty)));
 }
 
-/** The grade curve for this dataset, built once. Fixed cutoffs were the old
- * approach and they drift the moment the data changes. Memoised on the rating
- * context so it costs one pass per session. */
-function curveFor(ctx, slots) {
-  if (!ctx.__gradeCurve) {
-    const all = ctx.__allEntries || [];
-    ctx.__gradeCurve = sampleRosterScores(
-      slots,
-      (slot) => all.filter((entry) => eligibleForSlot(entry, slot)),
-      (roster) => (sideScore(roster, OFFENSE_WEIGHTS, ctx) + sideScore(roster, DEFENSE_WEIGHTS, ctx)) / 2
-    );
+/** How far below the soft-spot line a rating sits, as a share of it. */
+function shortfall(rating) {
+  return Math.max(0, SOFT_SPOT - rating) / SOFT_SPOT;
+}
+
+/**
+ * The roster's holes AT SLOT LEVEL, weighted by how much each slot matters.
+ *
+ * POSITIONAL IMPORTANCE IS THE POINT. A weak quarterback is 0.40 of an offense
+ * and a weak third receiver is 0.07 of it, so they are not the same mistake
+ * and a grade should not price them the same. The slot weights already encode
+ * that judgement for the talent score; this reads them again to decide how
+ * much each hole costs.
+ *
+ * Both sides are measured and averaged, so a roster cannot hide four defensive
+ * holes behind seven offensive slots.
+ */
+function slotShortfall(roster, ctx) {
+  const sideHole = (weights) => {
+    let total = 0;
+    let weight = 0;
+    for (const [slot, w] of Object.entries(weights)) {
+      const entry = entryForSlot(roster, slot);
+      if (!entry) continue;
+      total += w * shortfall(rateEntry(entry, ctx));
+      weight += w;
+    }
+    return weight > 0 ? total / weight : 0;
+  };
+  return (sideHole(OFFENSE_WEIGHTS) + sideHole(DEFENSE_WEIGHTS)) / 2;
+}
+
+/** Where "average" stops and "thin" starts, borrowed from scoutingAdjective so
+ * the grade and the scouting sentence cannot disagree about what a hole is.
+ *
+ * 0.58 is that table's "solid" floor, not its "average" floor, because these
+ * are DRAFTED rosters. You pick from the top of a squad, so a unit that rates
+ * merely average against the whole dataset is a soft spot on a drafted team -
+ * which is exactly what the offensive line in the reported game was. */
+const SOFT_SPOT = 0.58;
+/** How far a roster may lean before the lean is a fault rather than a shape. */
+const LEAN_TOLERANCE = 0.10;
+/** How far the best unit may be clear of the worst before it reads as holes. */
+const SPREAD_TOLERANCE = 0.35;
+/** The most construction can cost. A badly built roster is still a roster, and
+ * a grade that can reach zero has stopped discriminating at exactly the end
+ * where the worst drafts need telling apart. */
+const MAX_CONSTRUCTION_PENALTY = 0.7;
+
+/**
+ * The letter, from breakpoints SOLVED against real drafts.
+ *
+ * The old curve sampled 240 rosters drawn UNIFORMLY from every eligible entry
+ * in the dataset and took percentiles against that. A draft does not produce
+ * uniform rosters - it produces good ones - so a real roster sat in the top
+ * few percent of that distribution almost by construction, and graded A or A+
+ * for it. That is how both teams in the reported game scored A+ on 68/62 and
+ * 70/63.
+ *
+ * The breakpoints now come from tools/calibrate-nfl-gradecurve.mjs, which
+ * drafts real bot rosters and reports what they score. Three things follow:
+ * the reference is what drafts actually produce; there is no import cycle to
+ * dodge (js/draft.js is imported by a tool, not by a sport module); and the
+ * 240-roster curve build that verify-startup-performance.mjs budgets 1.5s for
+ * is gone entirely.
+ */
+function letterForScore(score) {
+  for (const [floor, letter] of GRADE_BREAKPOINTS) {
+    if (score >= floor) return letter;
   }
-  return ctx.__gradeCurve;
+  return "F";
 }
 
 /**
@@ -404,11 +543,10 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
 
   // Both halves count equally. A roster that drafted a superb offense and
   // ignored its defense has drafted half a team, not a great full roster.
-  const raw = (offense + defense) / 2;
+  const raw = constructionScore(roster, ctx, offense, defense);
   const penalty = forfeits.length * 0.05;
   const score = Math.max(0, raw - penalty);
-  const slots = Object.keys(OFFENSE_WEIGHTS).concat(Object.keys(DEFENSE_WEIGHTS));
-  const letter = curveLetter(score, curveFor(ctx, slots));
+  const letter = letterForScore(score);
   const offenseGrade = gradeOutOf100(offense);
   const defenseGrade = gradeOutOf100(defense);
   // Declared here rather than beside its first use: the grid tones below read
@@ -469,10 +607,16 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
       .map((slot) => ({ slot, entry: entryForSlot(roster, slot) }))
       .filter(({ entry }) => entry)
       .map(({ slot, entry }) => {
-        const rating = rateEntry(entry, ctx);
+        // THE SAME NUMBER THE DRAFT BOARD SHOWED. These chips printed
+        // `rateEntry * 100` - the engine's 0..1 scale, which tanh-compresses
+        // everything toward 50 - while the board printed overallFor's 0-99,
+        // anchored at 70 for an average season. The same player read 43 here
+        // and 66 there, on two screens a player sees within a minute of each
+        // other. Nothing about the layout changes; the number stops lying.
+        const overall = overallFor(entry, ctx);
         return {
           key: slot,
-          value: pct(rating),
+          value: `${overall}`,
           // Only the ends are coloured. Tinting every chip by its rating turns
           // the block into a heat map, which reads as decoration rather than as
           // a verdict - the same reason a stat row colours its value and not
@@ -485,7 +629,12 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
           // is a unit that wins its matchup, 0.45 is one that loses it, and in
           // between is a unit that turns up. A roster can legitimately show
           // eleven green chips or none.
-          tone: rating >= 0.70 ? "good" : rating <= 0.45 ? "bad" : "neutral",
+          //
+          // Moved onto the 0-99 scale with the value above. 0.70 and 0.45 on
+          // the old scale are 83 and 63 on this one, which is what keeps the
+          // colours meaning what they meant rather than what the numbers now
+          // look like.
+          tone: overall >= 83 ? "good" : overall <= 63 ? "bad" : "neutral",
         };
       });
 
@@ -544,12 +693,17 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
     const oppForfeits = forfeitList(forfeitsOrOpts?.oppForfeits);
     const oppOffense = sideScore(oppRoster, OFFENSE_WEIGHTS, ctx);
     const oppDefense = sideScore(oppRoster, DEFENSE_WEIGHTS, ctx);
-    const oppScore = Math.max(0, (oppOffense + oppDefense) / 2 - oppForfeits.length * 0.05);
+    // SCORED THE SAME WAY AS YOURS. Two letters printed side by side have to
+    // come from one formula, or the comparison the card invites is not one.
+    const oppScore = Math.max(
+      0,
+      constructionScore(oppRoster, ctx, oppOffense, oppDefense) - oppForfeits.length * 0.05
+    );
     opponent = {
       score: oppScore,
       offense: oppOffense,
       defense: oppDefense,
-      letter: curveLetter(oppScore, curveFor(ctx, slots)),
+      letter: letterForScore(oppScore),
       offenseGrade: gradeOutOf100(oppOffense),
       defenseGrade: gradeOutOf100(oppDefense),
     };

@@ -98,8 +98,12 @@ import {
   TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
+  TWO_POINT_POSSESSIONS,
   AXIS_SWING, QB_SWING, FIELD_POSITION_SWING, FIELD_POSITION_MIN, FIELD_POSITION_MAX,
 } from "./constants.js";
+import {
+  situationFor, fourthDownCall, mustScoreTouchdown, twoPointWindow, DRIVE_LIVES_ON,
+} from "./fourthdown.js";
 import {
   buildRatingContext, rateEntry, isUnit, defensiveAxisStrength, DEFENSIVE_AXES,
 } from "./units.js";
@@ -609,8 +613,16 @@ function pickTakeawayMan(entry, kindOfTakeaway, rand) {
  * @param margin the score difference AFTER the six points, from the scoring
  *   team's side - which is the number the chart is written in terms of.
  */
-function runConversion(margin, quarter, rand) {
-  const chart = quarter >= TWO_POINT_CHART_QUARTER && TWO_POINT_MARGINS.includes(margin);
+function runConversion(margin, quarter, rand, situation = null) {
+  // POSSESSIONS, not just the quarter. The chart's whole argument is that the
+  // arithmetic has run out - "this makes it a field goal game" is a claim
+  // about a game with a known number of drives left in it. Gating on the
+  // quarter alone treated a touchdown on the first possession of the fourth,
+  // with four drives still to play, exactly like one on the last.
+  const inWindow = situation
+    ? twoPointWindow(situation, TWO_POINT_CHART_QUARTER, TWO_POINT_POSSESSIONS)
+    : quarter >= TWO_POINT_CHART_QUARTER;
+  const chart = inWindow && TWO_POINT_MARGINS.includes(margin);
   // The roll happens either way, so the random stream does not depend on
   // whether the chart fired - which keeps a replay of the same seed identical
   // however the baseline rate is set.
@@ -632,10 +644,16 @@ function describeConversion(conversion) {
 /** One team's drive. Returns the record the UI animates and the field position
  * the opponent inherits.
  *
- * @param margin this team's score minus the opponent's, entering the drive.
- *   Only the conversion decision reads it; a drive itself does not care.
+ * @param situation the game state this drive is played in - margin,
+ *   possessions left, estimated clock. Built by situationFor(); see
+ *   js/sports/nfl/fourthdown.js. It USED to be two booleans derived from the
+ *   possession index, and the drive was told only whether it was allowed to
+ *   punt. That is why a team down 24 punted in the third quarter and a team
+ *   down 1 could not punt in the fourth: the index flipped, the score never
+ *   entered into it.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, mustScore = false, margin = 0, lastChance = false, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5) {
+  const margin = situation.margin;
   // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
   // the defense you are running into. A style that only helped its owner would
   // make the opponent's choice invisible, which is half the decision gone.
@@ -665,8 +683,21 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   // BEFORE the last one - there, kicking to cut a two-score deficit to five is
   // a call a coach really makes. On the last possession of the game it is not
   // a call at all.
-  const mustTouchdown = lastChance && margin < -POINTS.fieldGoal;
-  let outcome = driveOutcome(mult, rand, mustScore, mustTouchdown);
+  //
+  // GENERALISED from `lastChance && margin < -3`, which was the right idea in
+  // far too narrow a window: it fired only on the very last possession of the
+  // game, so a team down eight with two drives left still kicked three. The
+  // test is now whether a field goal can close the gap in the possessions that
+  // actually remain - the same reasoning, computed rather than hardcoded.
+  const mustTouchdown = mustScoreTouchdown(situation);
+  // The punt share is NOT redistributed here any more. A stalled drive is a
+  // fourth down, and what happens on a fourth down is decided below, once the
+  // ball has been placed and the distance is known - which is the only point
+  // at which the call can actually be made.
+  let outcome = driveOutcome(mult, rand, false, mustTouchdown);
+  // What the fourth-down model decided, kept so the drive record can explain
+  // itself rather than the reader inferring it from the outcome string.
+  let fourthDown = null;
 
   // Ball Hawks and Blitz Brigade turn stops into takeaways; Ground & Pound's
   // ball control resists them. Applied as a re-roll of a stop rather than as
@@ -724,7 +755,72 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   // Rounded, because the drive record rounds before anyone sees it: an
   // unrounded 61.6 is out of range by this test and a punt from the 62 on the
   // screen, which is the same complaint in a smaller font.
-  if (outcome === "punt" && Math.round(endYard) >= FG_RANGE_YARD) outcome = "fieldGoal";
+  //
+  // THE CALL ITSELF. This branch used to be one rule - a stalled drive inside
+  // field-goal range becomes a kick - and that rule was right as far as it
+  // went. It is now the whole fourth-down decision: kick, go, or punt, decided
+  // from the distance, the spot, the score, and how many possessions are left
+  // to do anything about it. See js/sports/nfl/fourthdown.js.
+  //
+  // A "punt" outcome is exactly a drive that stalled, which is exactly a
+  // fourth down. A "turnover" is not - nobody chooses an interception - so it
+  // is left alone.
+  if (outcome === "punt") {
+    // A DRIVE CAN FACE MORE THAN ONE FOURTH DOWN. Converting one and stalling
+    // again later is an ordinary way for a drive to go, and resolving only the
+    // first put the punt team back on the field for teams that had just shown
+    // they were not punting - 22 punts while trailing by 14 or more. Capped,
+    // because a drive that keeps converting is a drive that scores, and the
+    // cap keeps the loop honest rather than letting it walk the field.
+    //
+    // TWO, not three. driveYards already modelled a full stalled drive before
+    // the fourth down was reached, so every extra trip round this loop adds
+    // yards on top of yards that were already counted. At three the drafted
+    // back's median line reached 111 against the 110 the realism harness holds
+    // him to - which is the harness catching a double-count, not a bell-cow.
+    for (let attempt = 0; attempt < 2 && outcome === "punt"; attempt++) {
+      const call = fourthDownCall({ endYard, situation, rand });
+      fourthDown = call;
+      if (call.action === "fieldGoal") {
+        outcome = "fieldGoal";
+      } else if (call.action === "go") {
+        if (rand() < call.odds) {
+          if (rand() < DRIVE_LIVES_ON) {
+            outcome = mustTouchdown || rand() < DRIVE_OUTCOMES.touchdown /
+              (DRIVE_OUTCOMES.touchdown + DRIVE_OUTCOMES.fieldGoal)
+              ? "touchdown" : "fieldGoal";
+            // Where a scoring drive finishes is not where the fourth down was,
+            // so the spot is redrawn for its new ending.
+            endYard = Math.max(1, Math.min(100, startYard + driveYards(outcome, startYard, mult, rand)));
+          } else {
+            // Converted, then stalled again further downfield. Stays a punt
+            // for now and goes round again, which is where the next fourth
+            // down gets decided on the new spot.
+            //
+            // The ball moves the DISTANCE THAT WAS CONVERTED plus a little,
+            // not a flat chunk. A flat 8-20 yards here was worth about two
+            // extra yards a game to the drafted running back, which pushed his
+            // median line over the bell-cow bound the realism harness holds.
+            endYard = Math.max(1, Math.min(FG_RANGE_YARD + 6, endYard + call.toGo + rand() * 3));
+            outcome = "punt";
+          }
+        } else {
+          outcome = "downs";
+        }
+      } else {
+        break; // punt, and meant it
+      }
+    }
+    // NOBODY PUNTS FROM FIELD-GOAL RANGE - still true, and now it has to be
+    // re-stated after the loop rather than before it. A drive that converted a
+    // fourth down and stalled again can end up past midfield, and a team that
+    // will not kick (because three points do not help it) would otherwise
+    // punt from inside the opponent's 40. A team that must have seven does not
+    // punt there either: it goes, and a stop is a stop on downs.
+    if (outcome === "punt" && Math.round(endYard) >= FG_RANGE_YARD) {
+      outcome = mustTouchdown ? "downs" : "fieldGoal";
+    }
+  }
   let points = 0;
   let scorer = null;
   let scorerSlot = null;
@@ -771,7 +867,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       who = pickScorer(roster, kind, rand);
     }
     points = POINTS.touchdown;
-    conversion = runConversion(margin + POINTS.touchdown, quarter, rand);
+    conversion = runConversion(margin + POINTS.touchdown, quarter, rand, situation);
     points += conversion.points;
     scorer = who ? who.entry.name : null;
     scorerSlot = who?.slot ?? null;
@@ -816,6 +912,14 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
   const to = Math.round(endYard);
   const plays = buildPlays(from, to, outcome, kind, scorerSlot, roster, rand, {
     runShare: mine.runShare,
+    // HOW FAST THIS TEAM IS PLAYING, which until now nothing ever asked.
+    // `pace` is a gameplan mod averaged across both teams once before kickoff
+    // and never read again, so a team protecting a four-point lead with three
+    // minutes left huddled at exactly the speed of the team chasing it -
+    // measured, 173 seconds a drive against 176. Draining the clock is half of
+    // what a lead is FOR, and a game where nobody does it is missing the most
+    // recognisable thing about the end of a close one.
+    clockPace: clockPaceFor(situation),
     // A SACK IS A MATCHUP: their front against your line, and a quarterback who
     // gets rid of it. All three were missing - this read the two gameplans and
     // nothing else, so drafting Dallas's 2016 line bought no protection and
@@ -843,6 +947,11 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
     // against a thin line puts the quarterback on the floor.
     drive: { team: side, quarter, startYard: from, endYard: to,
              outcome, points, scorer, scorerSlot, credit, kind, takeaway, conversion, text,
+             // The fourth down this drive died on, when it died on one, and
+             // what was decided. Carried so a test - or a reader asking why
+             // the punt team came out - can see the call rather than infer it
+             // from the outcome. null when the drive never reached one.
+             fourthDown,
              plays },
     nextStart: nextStart(outcome, endYard),
   };
@@ -1142,6 +1251,33 @@ function pickBySlotWeight(items, rand) {
  * that matters here: both teams' possession has to add up to about sixty
  * minutes, because that is how long a football game is. */
 const PLAY_SECONDS = { run: 38, shortPass: 32, deepPass: 30, incompletion: 6, sack: 36 };
+
+/**
+ * How long this team takes between snaps, given the scoreboard.
+ *
+ * A team with the lead late runs the play clock down; a team chasing goes to
+ * the sideline and hurries. Both are ordinary football and neither existed -
+ * see the note at the call site.
+ *
+ * Bounded either way, because this stretches or squeezes real seconds and the
+ * total still has to add up to a football game: scripts/verify-nfl-realism.mjs
+ * holds both sides' possession to 54-66 minutes between them. It also applies
+ * only when the game is late enough for the clock to be an argument; a
+ * second-quarter lead is not a reason to milk anything.
+ */
+function clockPaceFor(situation) {
+  if (!situation || situation.possessionsLeft > CLOCK_AWARE_POSSESSIONS) return 1;
+  const margin = situation.margin;
+  if (margin === 0) return 1;
+  const urgency = Math.min(1, (CLOCK_AWARE_POSSESSIONS - situation.possessionsLeft + 1) /
+    CLOCK_AWARE_POSSESSIONS);
+  return margin > 0 ? 1 + CLOCK_SWING * urgency : 1 - CLOCK_SWING * urgency;
+}
+
+/** How late "late" is, in possessions, for clock management to switch on. */
+const CLOCK_AWARE_POSSESSIONS = 4;
+/** The most a lead slows a team down, or a deficit speeds one up. */
+const CLOCK_SWING = 0.22;
 
 /** How much of a drive is snaps that gained nothing - incompletions and
  * sacks. Carved out of the play count rather than added to it, so the count
@@ -1670,7 +1806,7 @@ function buildPlays(startYard, endYard, outcome, kind, scorerSlot, roster, rand,
       endYard: Math.round(last ? endYard : yard),
       gain: Math.round(gain),
       firstDown: gotFirst && !last,
-      seconds: PLAY_SECONDS[type] || 35,
+      seconds: Math.round((PLAY_SECONDS[type] || 35) * (plan.clockPace ?? 1)),
       // Slots, not names: the roster is what turns a slot into a person, and
       // storing the name here would duplicate it into a second place that can
       // fall out of step.
@@ -2040,16 +2176,23 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     const quarter = Math.min(4, Math.floor((i / possessions) * 4) + 1);
     // Second half flips who opens, so each side receives exactly one half.
     const receiver = quarter <= 2 ? firstHalfReceiver : other(firstHalfReceiver);
-    // The last pair of possessions is when punting stops being free.
-    const late = i >= possessions - 2;
     for (const side of [receiver, other(receiver)]) {
       const foe = other(side);
+      // THE SITUATION, built fresh per drive from the running score. This
+      // replaces two booleans derived from the possession index - `late` and a
+      // last-possession flag - which between them could say only "may this
+      // team punt". They could not say by how much it was losing, how many
+      // drives it had left, or what the clock read, so every call from the
+      // opening kickoff to the two-minute warning was the same call.
+      const situation = situationFor({
+        possessionIndex: i,
+        possessions,
+        margin: live[side] - live[foe],
+        quarter,
+      });
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods,
-                         late && live[side] < live[foe],
-                         live[side] - live[foe],
-                         i === possessions - 1 && live[side] < live[foe], tuning,
+                         cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
                          cfg[foe].axes, cfg[side].qb);
       drives.push(r.drive);
@@ -2102,11 +2245,22 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
       const foe = other(side);
       // In overtime a trailing team has no next possession to punt for. This
       // is the case that was reported: down three, and the offense punted.
+      //
+      // Expressed as a SITUATION like every other drive, rather than as the
+      // two booleans this used to pass positionally. One possession left and
+      // no clock to speak of is exactly what overtime is, and saying it that
+      // way means the fourth-down model reaches the same conclusion here as it
+      // does at the end of regulation - without overtime needing its own rule.
       const margin = side === "A" ? teamScoreA - teamScoreB : teamScoreB - teamScoreA;
-      const trailing = margin < 0;
+      const situation = situationFor({
+        possessionIndex: possessions,
+        possessions,
+        margin,
+        quarter,
+      });
       const r = runDrive(ctx, side, cfg[side].off, cfg[foe].def, cfg[side].roster,
                          cfg[foe].roster, start[side], quarter, rand,
-                         cfg[side].mods, cfg[foe].mods, trailing, margin, trailing, tuning,
+                         cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
                          cfg[foe].axes, cfg[side].qb);
       drives.push(r.drive);

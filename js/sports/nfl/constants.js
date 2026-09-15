@@ -249,8 +249,153 @@ export const TWO_POINT_BASELINE_RATE = 0;
  */
 export const TWO_POINT_MARGINS = [-2, -5, -10, -16, 1, 4, 5, 12];
 
-/** The quarter from which the chart above starts applying. */
+/** The quarter from which the chart above starts applying.
+ *
+ * KEPT AS A FLOOR, not as the test. The chart now fires on POSSESSIONS
+ * REMAINING (see TWO_POINT_POSSESSIONS), because a quarter is not a unit of
+ * urgency: a touchdown on the first drive of the fourth still has four
+ * possessions of arithmetic left in it, and the chart's whole argument is that
+ * the arithmetic has run out. The quarter test remains so the chart can never
+ * fire in the first half, however few possessions a slow-paced game has left. */
 export const TWO_POINT_CHART_QUARTER = 4;
+
+/** How many possessions must remain for the two-point chart to mean anything.
+ *
+ * Two: your own next drive and theirs. Past that, "this makes it a field goal
+ * game" is a claim about a game with too much left in it to plan that far. */
+export const TWO_POINT_POSSESSIONS = 2;
+
+/**
+ * HOW MUCH OF A DRAFT GRADE IS HOW YOU BUILT THE ROSTER, rather than how good
+ * its best players are.
+ *
+ * These are PENALTIES against a talent score, not shares of a weighted mean.
+ * Summing four terms instead gave a uniformly terrible roster full marks for
+ * balance and for having no spread, and the Easy bot outscored the Medium bot
+ * for it. Talent sets the level; construction takes away from it.
+ *
+ * Construction outweighs talent in effect, which is the point. The grade
+ * exists to argue with
+ * "take the highest-rated name on the board", and a grade that is a weighted
+ * mean of slot ratings cannot argue with it - it IS it. Basketball reached
+ * this conclusion first (js/sports/nba/draftgrade.js weights balance 0.42
+ * against talent 0.23); football's grade was 100% talent until now, which is
+ * why a roster with a 96 running back and a 43 offensive line graded A+ on a
+ * card that called the line its soft spot.
+ *
+ * Sums to 1, so the score stays on the 0-1 scale verify-mode-rules.mjs asserts
+ * the difficulty ladder on.
+ */
+export const GRADE_WEIGHTS = {
+  /** How much a hole costs. The largest, because a hole is the thing a grade
+   * should notice first and an average is exactly the operation that hides
+   * one. A roster whose worst unit is at zero loses this much outright. */
+  floor: 0.42,
+  /** How much drafting half a team costs. */
+  balance: 0.45,
+  /** How much a chasm between the best unit and the worst costs. */
+  spread: 0.35,
+};
+
+/**
+ * Score floors for each letter, in descending order.
+ *
+ * SOLVED by tools/calibrate-nfl-gradecurve.mjs against rosters that real bot
+ * drafts produce, not against random assemblies from the dataset - which is
+ * what the old runtime curve sampled, and why nearly every real draft landed
+ * in its top few percent and graded A+.
+ *
+ * Re-run that tool after any change to GRADE_WEIGHTS, to the slot weights, to
+ * units.js, or to the dataset - all of them move where a draft scores. Solved
+ * over 450 rosters drafted across the full skill range.
+ */
+export const GRADE_BREAKPOINTS = [
+  [0.74, "A+"], [0.69, "A"], [0.64, "A-"],
+  [0.54, "B+"], [0.45, "B"], [0.36, "B-"],
+  [0.30, "C+"], [0.26, "C"], [0.24, "C-"],
+  [0.22, "D+"], [0.19, "D"], [0.00, "F"],
+];
+
+/**
+ * FOURTH DOWN, AS A DECISION.
+ *
+ * None of this existed. A drive ending short of the sticks drew the label
+ * "punt" from a fixed chart and the only correction was a field-goal rule, so
+ * the punt team came out at every score, every spot and every point of the
+ * game at the same rate. Measured over 120 simulated games before this was
+ * written: a trailing team punted 47 times in the third quarter - down as much
+ * as 24 - and could not punt in the fourth AT ALL, because the one situational
+ * flag the engine had removed the punt branch entirely. The behaviour flipped
+ * at a possession index rather than sliding with the situation.
+ */
+
+/**
+ * How often a fourth down is converted, by yards to go. Real NFL rates, which
+ * are far higher than most viewers expect - going for it on 4th-and-1 is close
+ * to a coin flip in the offense's favour, not a gamble.
+ *
+ * Indexed by distance, clamped at both ends. The curve is what makes
+ * 4th-and-2 and 4th-and-15 different decisions rather than the same one, which
+ * a model built on score and time alone cannot do.
+ */
+export const FOURTH_DOWN_CONVERSION_BY_DISTANCE = [
+  /* 0 */ 0.70, /* 1 */ 0.68, /* 2 */ 0.60, /* 3 */ 0.55, /* 4 */ 0.51,
+  /* 5 */ 0.48, /* 6 */ 0.44, /* 7 */ 0.41, /* 8 */ 0.38, /* 9 */ 0.36,
+  /* 10 */ 0.35, /* 11 */ 0.32, /* 12 */ 0.30, /* 13 */ 0.28, /* 14 */ 0.27,
+  /* 15+ */ 0.25,
+];
+
+/**
+ * What distance a stalled drive stalled AT.
+ *
+ * The engine decides a drive's ending before it narrates the downs inside it
+ * (see buildPlays), so the fourth down a team faces has to be drawn rather
+ * than read. These are real fourth-down distance frequencies: most are short,
+ * because a drive that reaches fourth down has usually just failed on third
+ * and medium rather than gone backwards.
+ *
+ * Weighted pairs of [yards, share]; shares sum to 1.
+ */
+export const FOURTH_DOWN_DISTANCES = [
+  [1, 0.21], [2, 0.15], [3, 0.12], [4, 0.10], [5, 0.09],
+  [6, 0.07], [7, 0.06], [8, 0.05], [10, 0.07], [13, 0.05], [17, 0.03],
+];
+
+/**
+ * How much a drive that converts on fourth down still has to do to score.
+ *
+ * Converting extends the drive; it does not award points. This is the share of
+ * converted fourth downs that go on to put something on the board, and it is
+ * deliberately well under 1 - the old FOURTH_DOWN_CONVERSION constant folded
+ * these two together into a single 0.34 and could therefore never be checked
+ * against either real number on its own.
+ */
+export const FOURTH_DOWN_DRIVE_LIVES = 0.52;
+
+/**
+ * How hard a losing team is willing to push, and how much a winning team
+ * protects. Multiplies the go-for-it threshold.
+ *
+ * Aggression rises with the deficit and as possessions run out, CONTINUOUSLY -
+ * there is no cliff at a score or a clock reading. A team down four scores
+ * with the ball and eight possessions left is playing a normal game; the same
+ * team with two possessions left is not.
+ */
+export const FOURTH_DOWN_AGGRESSION = {
+  /** Baseline willingness on a neutral fourth down, before situation. Matches
+   * roughly how often real teams go for it in the first three quarters. */
+  base: 0.05,
+  /** Added per score the team trails by, once the possessions left make that
+   * deficit urgent. */
+  perScoreBehind: 0.30,
+  /** Subtracted per score the team LEADS by. A team protecting a lead punts,
+   * takes the points, and does not hand over a short field. */
+  perScoreAhead: 0.22,
+  /** How sharply urgency climbs as possessions run out: the multiplier is
+   * scaled by scoresNeeded / possessionsLeft, capped here so a hopeless game
+   * does not produce nonsense. */
+  urgencyCap: 3.0,
+};
 
 /**
  * How much each roster slot feeds the offense rating. Sums to 1.
@@ -394,6 +539,26 @@ export const MIN_RATED_GAMES = 6;
  * What changed underneath it earlier: `edge` subtracts EDGE_BASELINE, so this
  * number no longer moves the scoreboard as a side effect. It is the first
  * version of this constant that controls only what its name says.
+ *
+ * IT STAYS AT 1.53 AFTER THE FOURTH-DOWN MODEL, and the solver disagrees.
+ * Re-run with situational fourth downs in, tools/calibrate-nfl-variance.mjs
+ * returns 1.60 - exactly the PARITY_CEILING above - because the model does
+ * what it was built to do: a trailing team now converts fourth downs instead
+ * of punting, so it comes back more often and the mean margin falls to 9.5
+ * against the real league's 11.5, with 57% of games inside one score against
+ * 45%. The solver reaches for parity to widen those margins again and runs
+ * straight into the ceiling.
+ *
+ * Taking 1.60 would be doing the thing the paragraph above says not to do:
+ * pinning the constant at the value its own note calls the point where a
+ * bottom-tier quarterback stops being rated and starts being erased, in order
+ * to undo a comeback rate that is the feature working. 1.53 passes all eleven
+ * checks in scripts/verify-nfl-talent-response.mjs, including the one that
+ * matters here - a clearly better roster still wins 66-90% of the time. So the
+ * tighter margins are recorded as a known consequence rather than calibrated
+ * away, and the ceiling is left doing its job.
+ *
+ * The quarter-variance range below re-solved to the values it already had.
  *
  * 1.29 -> 1.53 is the re-solve after the rating moved to per-season z-scores
  * and defensive units gained points allowed. It went UP for a reason that is
