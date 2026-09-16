@@ -6823,10 +6823,189 @@ html {
 
 /* A box score is genuinely wider than a phone. Let it scroll inside its own
    frame rather than squeezing columns to nothing. Recent Games used to need
-   this too and no longer does - it is a list of match rows now, not a table. */
+   this too and no longer does - it is a list of match rows now, not a table.
+
+   The scroll now happens on .box-scroll INSIDE this element (built by
+   renderFullBoxScore, so the game screen and the stored-game modal get the
+   same one). This stays as a backstop for any other wide thing rendered here
+   and costs nothing: with the inner element taking the overflow, this one
+   never has any. */
 #full-box-score {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ---- A SIDEWAYS SCROLL THAT ANNOUNCES ITSELF ------------------------------
+
+   Phones and Macs paint OVERLAY scrollbars: nothing is drawn until a scroll is
+   already underway, and then it fades. For a panel whose whole problem is that
+   the reader does not know it scrolls, that is precisely backwards - the bar
+   appears only to people who have already guessed. A football box score at
+   390px is about 580px wide, so five of its columns live past the right edge
+   with nothing on screen suggesting they exist.
+
+   Giving `scrollbar-color` any value other than `auto` is what opts the
+   element out of overlay scrollbars: every engine that understands the
+   property then draws a bar that is always there and takes layout space.
+   That, and not the colour, is the point of setting it.
+
+   THE TWO MECHANISMS ARE MUTUALLY EXCLUSIVE, which is why one of them is
+   behind @supports. Blink and WebKit both IGNORE the ::-webkit-scrollbar
+   pseudo-elements on any element that also sets scrollbar-width or
+   scrollbar-color, so writing both on one selector does not belt-and-brace
+   anything - it silently drops the fallback in exactly the browsers that would
+   have used it. The standard properties lead; the pseudo-elements are the
+   fallback for engines too old to have them.
+
+   .scroll-x is deliberately generic. The play feed and the squads table are
+   the same shape and can take it as-is; the box score's own pieces below are
+   the only part that knows it is a box score. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) rgba(255, 255, 255, 0.11);
+}
+
+@supports not (scrollbar-color: red blue) {
+  .scroll-x::-webkit-scrollbar {
+    /* Turns off the overlay scrollbar in older WebKit - iOS in particular,
+       where it is otherwise invisible until a scroll is already underway. */
+    -webkit-appearance: none;
+    height: 7px;
+  }
+
+  .scroll-x::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.11);
+    border-radius: 99px;
+  }
+
+  .scroll-x::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 99px;
+  }
+}
+
+/* The drawn stand-in for an overlay scrollbar.
+
+   Hidden until bindScrollAffordance MEASURES that the browser's own bar takes
+   no layout space - see needsRail() there. Where a real scrollbar is coming
+   this never appears, because two bars under one table is worse than either
+   alone and only one of them can be dragged. */
+.scroll-rail {
+  height: 6px;
+  margin: 0.4rem 0 1.25rem;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.11);
+  overflow: hidden;
+}
+
+/* Collapsed rather than display:none, and the BOTTOM margin is kept. The rail
+   carries the gap between one table and the next heading (see .box-scroll
+   below), and display:none takes an element's margins with it - so hiding it
+   the obvious way closed that gap on every desktop, which is exactly where the
+   rail is hidden. */
+.scroll-rail:not(.is-shown) {
+  height: 0;
+  margin-top: 0;
+  background: none;
+}
+
+.scroll-rail-thumb {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  /* The sport's accent, because this is the app's colour for "you can do
+     something here". A grey bar on a dark panel is the one thing a reader's
+     eye is trained to skip. */
+  background: var(--accent);
+  /* Width and transform are written by paintRail on every scroll. No
+     transition: the thumb is a readout of the finger currently on the table,
+     and a readout that lags its input reads as a broken one. */
+}
+
+/* Per-table frames, one under each heading. The gap between tables moves OUT
+   of the table and onto the rail below: left on the table it sits INSIDE the
+   scroll frame, which pushes the bar 1.25rem clear of the last row it belongs
+   to and reads as floating between two tables. */
+.box-scroll {
+  margin-bottom: 0;
+}
+
+.box-scroll > table.box-table {
+  margin-bottom: 0;
+}
+
+/* A div with tabindex is a focus stop, and a focus stop with no focus ring is
+   a keyboard user losing their place. */
+.scroll-x:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* The hint. A sentence can say "there is more" but never "this much more",
+   which is why it accompanies the bar rather than replacing it. */
+.box-scroll-hint {
+  /* Hidden by default and revealed only when a table actually overflows - see
+     the rule below. A hint promising more stats beside a table with nothing to
+     its right is worse than no hint, because the next one is not believed
+     either. Hidden-by-default is also the right failure mode if the script
+     never runs: no hint, scrollbar still there. */
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  margin: 0 0 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent-bright);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+/* Shown while there is somewhere to go, and retired once the reader has run to
+   the far right - at that point they have demonstrably found the mechanism and
+   the pill is just taking up a line.
+
+   The flag is set by bindScrollAffordance on the element that OWNS the render,
+   which is the hint's parent. A sibling selector cannot do this job: there are
+   six scroll frames on a football box score and the hint is adjacent to none
+   of them. */
+.has-offscreen-columns > .box-scroll-hint {
+  display: flex;
+}
+
+.hint-arrow {
+  /* Nudged rather than animated by default: an arrow that slides is the clearer
+     signal, and it is also a thing moving on screen for the entire time a box
+     score is open, which is a cost this pays only where motion is welcome. */
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hint-arrow {
+    animation: hint-nudge 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes hint-nudge {
+  0%, 60%, 100% { transform: translateX(0); }
+  30% { transform: translateX(3px); }
+}
+
+/* One of these two words is always wrong for the device in front of the table,
+   so CSS picks. Touch is the default because the overlay-scrollbar problem this
+   whole block exists for is worst on a phone. */
+.hint-pointer { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .hint-touch { display: none; }
+  .hint-pointer { display: inline; }
 }
 
 /* The frames a box score is rendered into, named so the rules further down
