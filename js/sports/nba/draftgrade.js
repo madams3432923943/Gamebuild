@@ -580,9 +580,15 @@ function headlineFor(metrics, strong, weak) {
     // efficiently" because efficiency was the only thing that roster did at
     // all. The flattering form needs the roster to be good in general, not just
     // to have one number above the others.
-    return metrics.talent >= 0.45 && best >= 0.7
-      ? `${capitalize(strong.strong)}, but ${weak.weak} - that is where they will aim.`
-      : `${capitalize(weak.weak)} - and nothing else on this roster fixes that.`;
+    if (metrics.talent >= 0.45 && best >= 0.7) {
+      return `${capitalize(strong.strong)}, but ${weak.weak} - that is where they will aim.`;
+    }
+    // ONE REAL STRENGTH AND LITTLE ELSE. Without this branch a roster rating
+    // 100 for spacing and under 40 for everything else was told that "nothing
+    // else on this roster fixes that" - with the 100 printed two rows below, in
+    // the grid, contradicting it.
+    if (best >= STRENGTH) return `${capitalize(strong.strong)} - and not much else.`;
+    return `${capitalize(weak.weak)} - and nothing else on this roster fixes that.`;
   }
   if (worst >= 0.6 && best >= 0.75) {
     return "No holes anywhere - nothing on this roster is a soft spot.";
