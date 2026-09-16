@@ -258,7 +258,36 @@ async function main() {
     checks.push({
       title: "Grading the first finished football roster is not a freeze (< 1.5s)",
       ok: gradeMs != null && gradeMs < 1500,
-      detail: gradeMs == null ? "could not be measured" : `${gradeMs}ms to build the curve and grade`,
+      detail: gradeMs == null ? "could not be measured" : `${gradeMs}ms to grade`,
+    });
+
+    // BASKETBALL PAYS THE SAME COST AT THE SAME MOMENT, and it was the sport
+    // this budget was NOT measuring. Its grade reads what a drafted-calibre
+    // player averages straight off the pool (measureBaseline in
+    // js/sports/nba/draftgrade.js) - a sort and a pass over 10,290 rows,
+    // memoised on the stats object, landing on the first graded roster exactly
+    // as the old curve build did. Cheap now; a budget is what keeps it that
+    // way when somebody adds a tenth capability.
+    const nbaGradeMs = await page.evaluate(async () => {
+      const { NBA } = await import("/js/sports/nba/index.js");
+      await NBA.preload();
+      const ctx = NBA.computeDatasetStats();
+      const rows = NBA.playersInEra(NBA.players(), NBA.defaultEra);
+      const roster = {};
+      for (const slot of NBA.slots.ranked) {
+        const base = NBA.basePosition(slot);
+        const hit = rows.find((p) => !base || (p.pos || []).includes(base));
+        if (hit) roster[slot] = hit;
+      }
+      const t0 = performance.now();
+      NBA.gradeDraft(roster, ctx, { oppRoster: roster, forfeits: [] });
+      return Math.round(performance.now() - t0);
+    }).catch(() => null);
+
+    checks.push({
+      title: "Grading the first finished basketball roster is not a freeze (< 1.5s)",
+      ok: nbaGradeMs != null && nbaGradeMs < 1500,
+      detail: nbaGradeMs == null ? "could not be measured" : `${nbaGradeMs}ms to grade`,
     });
 
     await context.close();

@@ -413,3 +413,121 @@ export const MAX_TEAM_SCORE = 190;
 export const MAX_OT_PERIODS = 4;
 // Overtime periods are shorter than a full quarter (5 real minutes vs 12).
 export const OT_LENGTH_SCALE = 5 / 12;
+
+// ---------------------------------------------------------------------------
+// Draft grading
+//
+// WHY THE GRADE'S NUMBERS LIVE HERE, beside the simulation's own. Football put
+// GRADE_WEIGHTS and GRADE_BREAKPOINTS in its constants for the same reason:
+// they are solved constants, not code, and a solved constant belongs where the
+// rest of this sport's solved constants are. Nothing in the engine reads them.
+// ---------------------------------------------------------------------------
+
+/**
+ * WHERE A CAPABILITY STOPS BEING A CAPABILITY.
+ *
+ * Every read in the draft grade is a RATIO against what a DRAFTED-CALIBRE
+ * player averages - the dataset's top quartile by impact, measured rather than
+ * picked (see measureBaseline in ./draftgrade.js). 1.0 is "as much of it as the
+ * players a squad roll actually offers".
+ *
+ * THE REFERENCE POPULATION IS THE WHOLE TRICK, and getting it wrong is what the
+ * old grade did. Measured against the dataset's MEAN - every player who ever
+ * appeared in eleven games - a hard bot's roster reads 1.2 to 1.9x on every
+ * category and an easy bot's reads 0.8 to 1.0, so nearly every real roster
+ * pinned the top of the scale and the grade could not tell good drafts apart.
+ * Against what a drafted player looks like, the same rosters spread 0.42 to
+ * 1.26 and the spans below have something to separate.
+ *
+ * Measured over 60 bot drafts at the three difficulties: half of a drafted
+ * player's output is a slot you wasted, and 1.1x is more than the draft
+ * reliably offers.
+ */
+export const CAPABILITY_FLOOR = 0.5;
+export const CAPABILITY_CEILING = 1.1;
+
+/**
+ * The same span for TALENT, against what a top-15% player in the dataset rates.
+ *
+ * ONE BASELINE FOR STARTERS AND BENCH, deliberately. Reading the bench against
+ * a lower "reserve" band made the two numbers incomparable, and they are printed
+ * side by side on the card: a bench rated against reserves scored 1.2 while the
+ * starters it outrated scored 0.8. Same ruler, or the rows lie about which half
+ * of the roster is better.
+ */
+export const TALENT_FLOOR = 0.35;
+export const TALENT_CEILING = 0.95;
+
+export const CAPABILITY_SOFT_SPOT = 0.45;
+
+/** How far the best capability may sit clear of the worst before the roster
+ * reads as three strengths hiding four holes rather than as a shape. */
+export const CAPABILITY_SPREAD_TOLERANCE = 0.4;
+
+/**
+ * How much of a roster's impact its two best players may carry before it is a
+ * two-man team, as a MULTIPLE of an even split.
+ *
+ * Expressed as a multiple because roster shape varies by mode (5, 6 or 10
+ * slots - see the note on RANKED_SLOTS). Two of five players carrying 55% of a
+ * team is ordinary; two of ten carrying 55% is a roster with eight passengers,
+ * and a tolerance written as a flat share cannot tell those apart.
+ */
+export const TOP_HEAVY_TOLERANCE = 1.45;
+
+/**
+ * What each fault costs, as a share subtracted from the roster's talent.
+ *
+ * CONSTRUCTION SCALES TALENT; IT DOES NOT ADD TO IT. Summed as weighted terms,
+ * a roster that is uniformly poor collects full marks for balance and for
+ * having no spread - so being evenly bad would outscore having an identity.
+ * Football learned this the expensive way and recorded it in the comment above
+ * its own constructionScore; basketball reads the same lesson here rather than
+ * relearning it.
+ */
+export const GRADE_WEIGHTS = {
+  /** A capability the roster simply does not have. The largest, because it is
+   * the thing a grade should notice first and an average is exactly the
+   * operation that hides one. */
+  hole: 0.46,
+  /** A starting position with nobody behind it. Those starters play all 48 and
+   * fatigueFactor() charges them for it. */
+  coverage: 0.26,
+  /** A roster carried by two players. */
+  topHeavy: 0.3,
+  /** A chasm between what the roster does best and what it does worst. */
+  spread: 0.26,
+};
+
+/** The most construction can cost. A badly built roster is still a roster, and
+ * a score that can reach zero has stopped telling the worst drafts apart at
+ * exactly the end where that is the whole job. */
+export const MAX_CONSTRUCTION_PENALTY = 0.7;
+
+/** What a slot costs when the pick clock filled it rather than the drafter -
+ * about a third of a letter each, subtracted after construction. */
+export const FORFEIT_GRADE_PENALTY = 0.05;
+
+/**
+ * Score floors for each letter, in descending order.
+ *
+ * SOLVED by tools/calibrate-nba-gradecurve.mjs against rosters real bot drafts
+ * produce, not against random assemblies from the dataset. The old grade curved
+ * against uniform samples from the dataset, and a draft does not produce
+ * uniform rosters - it produces good ones - so a real roster sat in the top few
+ * percent of that distribution almost by construction and collected an A or an
+ * A+ for it. A roster with 81 talent, 74 balance, no cover at point guard and a
+ * 41% hole at small forward was graded A+ on a live screen; that report is what
+ * this replaces.
+ *
+ * Re-run that tool after any change to GRADE_WEIGHTS, to the capability spans
+ * above, or to the dataset - every one of them moves where a draft scores.
+ * Solved over 400 rosters drafted across the full skill range.
+ */
+export const GRADE_BREAKPOINTS = [
+  [0.74, "A+"], [0.65, "A"], [0.56, "A-"],
+  [0.47, "B+"], [0.34, "B"], [0.23, "B-"],
+  [0.16, "C+"], [0.12, "C"], [0.09, "C-"],
+  [0.07, "D+"], [0.06, "D"], [0.05, "D-"],
+  [0.00, "F"],
+];

@@ -231,10 +231,12 @@ function letterForScore(score) {
  * the overall one is. It was written that way first and it does not work, for
  * a reason worth recording so nobody writes it again.
  *
- * js/gradecurve.js samples a curve by drawing UNIFORMLY from every eligible
- * entry in the dataset - its header says it "samples rosters the way a draft
- * actually produces them", and that is the one thing it does not do. Measured
- * over 80 bot drafts against the shipped data:
+ * The runtime curve this used to lean on sampled by drawing UNIFORMLY from
+ * every eligible entry in the dataset - it claimed to sample "rosters the way a
+ * draft actually produces them", and that was the one thing it did not do. It
+ * is gone now (basketball was its last caller), but the asymmetry it exposed is
+ * still the reason the two halves are numbers. Measured over 80 bot drafts
+ * against the shipped data:
  *
  *   drafted offense   0.496     a uniformly sampled offense   ~0.49
  *   drafted defense   0.691     a uniformly sampled defense   ~0.50
