@@ -368,19 +368,33 @@ export function buildRecap(result, rosterA, rosterB, labelA, labelB, shotsA, sho
     defenseLine = `${star.text}${coldSide}.`;
   }
 
-  const sentences = [];
-  if (turningPoint) sentences.push(turningPoint);
-  if (defenseLine) sentences.push(defenseLine);
-  if (bits.length > 0) sentences.push(`${winName} finished with ${bits.join(" and ")}.`);
-  // Don't name the same player three sentences running - the recap should
-  // read like a report, not a chant.
-  if (mvpSentence && mvpName !== namedSoFar && (!star || mvpName !== star.name)) {
-    sentences.push(mvpSentence);
-  }
-  sentences.push(missing);
-  if (shooting) sentences.push(shooting);
+  // TWO SENTENCES, RANKED - and it used to be up to six.
+  //
+  // Every one of those sentences was true and worth writing, which is how the
+  // paragraph got to six of them: a turning point, a defensive night, a
+  // statistical edge, an MVP, what the loser lacked, a shooting line. Read as a
+  // block under a scoreboard it was reported as "a lot of words im not gonna
+  // read", and that is the correct reading - a recap nobody finishes has told
+  // nobody anything, so five good sentences are worth less than two.
+  //
+  // The order below is the ranking, best first. The turning point leads because
+  // it is the only sentence that makes a result feel like a game rather than a
+  // total; the generic "never found an answer" is last because it is the line
+  // that gets written when there was nothing specific to say.
+  const specificMiss = missing !== `${loseName} never found an answer.` ? missing : "";
+  const candidates = [
+    turningPoint,
+    specificMiss,
+    defenseLine,
+    bits.length > 0 ? `${winName} finished with ${bits.join(" and ")}.` : "",
+    // Don't name the same player twice running - the recap should read like a
+    // report, not a chant.
+    mvpSentence && mvpName !== namedSoFar && (!star || mvpName !== star.name) ? mvpSentence : "",
+    shooting,
+    missing,
+  ].filter(Boolean);
 
-  return { headline, detail: sentences.join(" ") };
+  return { headline, detail: candidates.slice(0, 2).join(" ") };
 }
 
 // ---------------------------------------------------------------------------
@@ -683,8 +697,13 @@ export function buildWhyBreakdown(result, ctx = {}) {
   return {
     won,
     title: won ? "Why You Won" : "Why You Lost",
-    reasons: reasons.slice(0, 5),
-    coaching: coaching.slice(0, 4),
+    // THREE AND TWO, down from five and four. `reasons` is already ranked by how
+    // much each thing cost, so the fourth and fifth lines were the ones that
+    // mattered least - and they were what turned a verdict into a list nobody
+    // reads to the bottom of. The numbers behind the ones that were cut are all
+    // still on the box score for anyone who wants them.
+    reasons: reasons.slice(0, 3),
+    coaching: coaching.slice(0, 2),
     tacticName: ctx.tacticA ? tacticById(ctx.tacticA).name : null,
   };
 }
