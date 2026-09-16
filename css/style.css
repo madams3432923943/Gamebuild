@@ -268,7 +268,7 @@ button, input {
   border: 1px solid transparent;
   color: var(--muted);
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   /* The 44px touch floor is held at the phone breakpoints, which is where
@@ -444,7 +444,9 @@ button, input {
 }
 
 .field-row label {
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem - see the note on .empty-note. A form label is the
+     last thing that should be the one unreadable line on the screen. */
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -2547,7 +2549,10 @@ table.box-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1.25rem;
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem - see the note on .empty-note. This is the table
+     the selftest caught: every cell on the post-game box score read 11.9px
+     once the phone breakpoint scaled the app out another notch. */
+  font-size: var(--text-xs);
   font-family: var(--font-mono);
 }
 
@@ -3498,7 +3503,12 @@ table.box-table th {
 
 .empty-note {
   color: var(--muted);
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem. 0.85rem cleared the 12px readable floor only
+     because of what the root font size happened to be; it went under the
+     moment the phone breakpoint scaled the app out another notch. The token
+     is re-expressed at each breakpoint to land on 13.01px whatever the root
+     is, which is the whole reason it exists. */
+  font-size: var(--text-xs);
   font-style: italic;
 }
 
@@ -3610,7 +3620,7 @@ table.box-table th {
 
 .auth-status {
   margin-top: 0.75rem;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--accent-bright);
   text-align: center;
 }
@@ -3681,7 +3691,7 @@ table.box-table th {
   padding: 0.5rem 1.15rem;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -5915,7 +5925,7 @@ table.box-table th {
   color: var(--text);
   padding: 0.7rem 0.6rem;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
@@ -6021,7 +6031,8 @@ table.box-table th {
   background: var(--surface-2);
   color: var(--muted);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem - see the note on .empty-note. */
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: border-color var(--motion-fast) var(--ease-out),
               color var(--motion-fast) var(--ease-out),
@@ -6157,12 +6168,12 @@ table.box-table th {
 .squad-card-tag {
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 
 .squad-card-motto {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   margin: 0.35rem 0;
 }
 
@@ -6407,7 +6418,7 @@ table.box-table th {
   border-radius: 8px;
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   padding: 0.5rem 0.6rem;
   resize: vertical;
 }
@@ -6748,10 +6759,16 @@ html {
    home screen fit the identity banner, one heading and a single sport card,
    and reaching the second sport meant scrolling.
 
-   93.75% (15px) at phone widths and 90.6% (14.5px) on a narrow one. Chosen
-   rather than eyeballed: below about 90% the app stops looking smaller and
-   starts looking like a desktop site on a phone, which is the failure this
-   is one step away from.
+   90.625% (14.5px) at phone widths and 87.5% (14px) on a narrow one - one
+   notch out from the 93.75%/90.625% this shipped with, because the home screen
+   still read as tight on a 390px handset: the identity banner, the heading and
+   ONE sport card filled the viewport, and the second sport was below the fold.
+
+   87.5% is the floor, and it is a floor rather than a starting point. Below
+   about 87% the app stops reading as a smaller version of itself and starts
+   reading as a desktop site shrunk onto a phone - the failure this is now one
+   step away from. Anything that still does not fit at 14px is a layout problem
+   in that screen, not another notch here.
 
    THE TYPE FLOOR IS HELD IN PIXELS THROUGH IT. --text-micro and --text-xs are
    the 12px and 13px bottoms of the range, measured in the mobile baseline
@@ -6767,36 +6784,40 @@ html {
    and the selftest audit counted 22 of them on Profile alone. */
 @media (max-width: 700px) {
   html {
-    font-size: 93.75%; /* 15px */
+    /* A PERCENTAGE, not 14.5px, for the same reason as the narrow breakpoint
+       below: a px root silently overrides a reader who has raised their
+       browser's default font size, which is the accessibility bug this whole
+       block is trying not to introduce. */
+    font-size: 90.625%; /* 14.5px */
   }
 
   :root {
-    /* 0.9375 of 16 is exactly 15, so these are exact - but they round up by a
-       hair anyway, for the same reason as the narrow breakpoint below. */
-    --text-micro: 0.8007rem; /* 12.01px at a 15px root */
-    --text-xs: 0.8674rem;    /* 13.01px */
+    /* A HAIR OVER, not exactly on. 12/14.5 is 0.827586..., and rounding a
+       repeating decimal down is how an earlier value came out under the line.
+       These round UP, so the floor is cleared rather than grazed. */
+    --text-micro: 0.8285rem; /* 12.01px at a 14.5px root */
+    --text-xs: 0.8975rem;    /* 13.01px */
   }
 }
 
 @media (max-width: 400px) {
   html {
-    /* 90.625%, not 90.6%. A PERCENTAGE rather than 14.5px so a reader who has
-       raised their browser's default font size still gets a larger app - a px
-       root silently overrides that preference, which is the accessibility bug
-       this whole block is trying not to introduce. But the percentage has to
-       be exact: 90.6% of 16 is 14.496px, and the floor token below, computed
-       against an assumed 14.5, then landed on 11.9969px. A floor that misses
-       by three thousandths of a pixel is still a floor that misses, and
-       verify-nba-court measures the computed value. */
-    font-size: 90.625%; /* 14.5px */
+    /* A PERCENTAGE rather than 14px, as above. And an EXACT one: an earlier
+       revision wrote 90.6% for 14.5px, which is really 14.496px, and the floor
+       token computed against the assumed 14.5 then landed on 11.9969px. A
+       floor that misses by three thousandths of a pixel is still a floor that
+       misses, and verify-nba-court measures the computed value. 87.5% of 16 is
+       exactly 14. */
+    font-size: 87.5%; /* 14px */
   }
 
   :root {
-    /* A HAIR OVER, not exactly on. 12/14.5 is 0.827586…, and rounding a
-       repeating decimal down is how the previous value came out under the
-       line. These round UP, so the floor is cleared rather than grazed. */
-    --text-micro: 0.8285rem; /* 12.01px at a 14.5px root */
-    --text-xs: 0.8975rem;    /* 13.01px */
+    /* A HAIR OVER, not exactly on. 12/14 is 0.857142..., and rounding a
+       repeating decimal down is how an earlier value came out under the line.
+       These round UP, so the floor is cleared rather than grazed - which
+       verify-nba-court measures directly, on the half-court labels. */
+    --text-micro: 0.8580rem; /* 12.01px at a 14px root */
+    --text-xs: 0.9295rem;    /* 13.01px */
   }
 }
 
@@ -7293,7 +7314,7 @@ html {
   column-gap: 1.2rem;
   row-gap: 0.15rem;
   align-content: start;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -7841,7 +7862,7 @@ html {
   }
 
   .why-reasons {
-    font-size: 0.85rem;
+    font-size: var(--text-xs);
   }
 
   .rank-ladder-row {
@@ -8336,7 +8357,7 @@ html {
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text);
 }
@@ -9094,7 +9115,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   letter-spacing: 0;
   color: var(--text);
 }
