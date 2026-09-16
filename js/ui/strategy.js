@@ -52,6 +52,14 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     const { min, max } = activeSport().minutesRangeFor(slot);
     const bench = activeSport().isBenchSlot(slot) || slot === "6TH";
 
+    // ONE ELEMENT PER PLAYER, holding the row and the slider that belongs to
+    // it. They used to be two siblings of #rotation-grid, which was fine while
+    // the grid was a single column and wrong the moment it became two: a
+    // reflowing grid put a player's name in one column and his minutes slider
+    // in the other. The pairing is now structural rather than positional.
+    const cell = document.createElement("div");
+    cell.className = "rotation-cell";
+
     const row = document.createElement("div");
     row.className = "rotation-row" + (bench ? " rotation-bench" : " rotation-starter");
 
@@ -79,8 +87,8 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     });
 
     rows.push({ slider, value });
-    container.appendChild(row);
-    container.appendChild(slider);
+    cell.append(row, slider);
+    container.appendChild(cell);
   }
 
   sync();
