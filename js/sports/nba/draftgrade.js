@@ -258,6 +258,11 @@ function rosterCapabilities(roster, datasetStats) {
   return out;
 }
 
+/** Where a capability stops being ordinary and becomes something the roster is
+ * built on. The mirror of CAPABILITY_SOFT_SPOT, and the other half of what the
+ * card considers worth a chip. */
+const STRENGTH = 0.75;
+
 /** How far below the soft-spot line a capability sits, as a share of it. */
 const shortfall = (value) => Math.max(0, CAPABILITY_SOFT_SPOT - value) / CAPABILITY_SOFT_SPOT;
 
@@ -424,17 +429,40 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     always.push(statNote("Bench", pct(metrics.benchTalent), metrics.benchTalent >= 0.5 ? "good" : "bad"));
   }
 
-  // THE WHOLE BOARD, AS CHIPS. The grid is what lets the card say "no shooting
-  // AND no rim protection" without spending a row on each - and it is the
-  // reason the letter and the analysis can no longer disagree, because the
-  // reader can see every number the letter was computed from.
-  const entries = CAPABILITIES.filter((c) => c.key in metrics.capabilities).map((c) => ({
-    key: c.label,
-    value: pct(metrics.capabilities[c.key]),
-    tone: metrics.capabilities[c.key] >= 0.6 ? "good" : metrics.capabilities[c.key] <= CAPABILITY_SOFT_SPOT ? "bad" : "neutral",
-  }));
-  if (entries.length) {
-    always.push(gridNote("Roster", entries, pct(metrics.talent), metrics.talent >= 0.6 ? "good" : "neutral"));
+  // WHAT IS NOTABLE, AS CHIPS - not all nine.
+  //
+  // Printing every capability was the obvious thing and it was too much: nine
+  // chips is a wall, and a reader scanning a wall for the small number is doing
+  // the work the card exists to do for them. Most of those chips were also
+  // saying nothing - a capability sitting in the middle of the range is the
+  // absence of news.
+  //
+  // So the grid keeps the ones with a verdict attached: what this roster cannot
+  // do, and what it is genuinely good at, worst first. The overall number stays
+  // in the heading, so the letter is still checkable against something.
+  const notable = CAPABILITIES
+    .filter((c) => c.key in metrics.capabilities)
+    .map((c) => ({ cap: c, value: metrics.capabilities[c.key] }))
+    // THE WEAKEST IS ALWAYS IN, notable or not. The headline names it, and a
+    // card that says "there aren't enough points here" above a grid listing
+    // only the roster's strengths has gone back to contradicting itself - which
+    // is the fault this whole grade was rewritten for. Everything else has to
+    // have a verdict attached to earn a chip.
+    .filter(({ cap, value }) =>
+      cap.key === metrics.weakest || value <= CAPABILITY_SOFT_SPOT || value >= STRENGTH)
+    .sort((a, b) => a.value - b.value)
+    .slice(0, 5);
+  if (notable.length) {
+    always.push(gridNote(
+      "Roster",
+      notable.map(({ cap, value }) => ({
+        key: cap.label,
+        value: pct(value),
+        tone: value >= STRENGTH ? "good" : "bad",
+      })),
+      pct(metrics.talent),
+      metrics.talent >= 0.6 ? "good" : "neutral"
+    ));
   }
 
   // A pick the clock made is the one thing here the player can see they did
@@ -505,10 +533,15 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     // Numbers, then the clauses about them, each capped - see the NFL grade for
     // the same reasoning. Eleven notes is a screen; six rows and two clauses is
     // a card.
+    // FIVE ROWS AND ONE CLAUSE. It was six and two, and the card that produced
+    // was reported as "super detailed" - which it was: nine chips, six rows and
+    // two sentences is a screen, not a verdict. The cap is the only thing
+    // keeping a card that now knows nine things about a roster from saying all
+    // nine. What survives is ranked, not truncated arbitrarily - see `optional`.
     reasons: [
       ...always,
-      ...optional.filter(Boolean).slice(0, Math.max(0, 6 - always.length)),
-      ...[...keyAdvice, ...advice].slice(0, 2).map(adviceNote),
+      ...optional.filter(Boolean).slice(0, Math.max(0, 5 - always.length)),
+      ...[...keyAdvice, ...advice].slice(0, 1).map(adviceNote),
     ],
     metrics,
     forfeits,
@@ -547,9 +580,15 @@ function headlineFor(metrics, strong, weak) {
     // efficiently" because efficiency was the only thing that roster did at
     // all. The flattering form needs the roster to be good in general, not just
     // to have one number above the others.
-    return metrics.talent >= 0.45 && best >= 0.7
-      ? `${capitalize(strong.strong)}, but ${weak.weak} - that is where they will aim.`
-      : `${capitalize(weak.weak)} - and nothing else on this roster fixes that.`;
+    if (metrics.talent >= 0.45 && best >= 0.7) {
+      return `${capitalize(strong.strong)}, but ${weak.weak} - that is where they will aim.`;
+    }
+    // ONE REAL STRENGTH AND LITTLE ELSE. Without this branch a roster rating
+    // 100 for spacing and under 40 for everything else was told that "nothing
+    // else on this roster fixes that" - with the 100 printed two rows below, in
+    // the grid, contradicting it.
+    if (best >= STRENGTH) return `${capitalize(strong.strong)} - and not much else.`;
+    return `${capitalize(weak.weak)} - and nothing else on this roster fixes that.`;
   }
   if (worst >= 0.6 && best >= 0.75) {
     return "No holes anywhere - nothing on this roster is a soft spot.";

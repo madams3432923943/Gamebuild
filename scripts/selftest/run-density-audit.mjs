@@ -222,10 +222,18 @@ function requestedSports() {
 }
 
 /** `--label=before` keeps two runs apart, which is the whole point of running
- * this twice. Without it the second run overwrites the evidence for the first. */
+ * this twice. Without it the second run overwrites the evidence for the first.
+ *
+ * THE SPORTS ARE PART OF THE NAME TOO, and leaving them out cost a run. Two
+ * invocations of `--label=v2-final`, one per sport, wrote the same
+ * `v2-final.json` in the same commit's directory, and the football leg silently
+ * replaced the basketball one - a report that says 42 rows where 91 were
+ * measured, which is exactly the kind of quietly-wrong evidence this whole tool
+ * exists to replace. The sports it actually drove go in the filename. */
 function runLabel() {
   const arg = process.argv.find((a) => a.startsWith("--label="));
-  return arg ? arg.slice("--label=".length) : "run";
+  const label = arg ? arg.slice("--label=".length) : "run";
+  return `${label}-${requestedSports().join("-")}`;
 }
 
 async function main() {
