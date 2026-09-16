@@ -7276,51 +7276,58 @@ html {
    js/gradenotes.js for the measurements and js/main.js gradeNoteRow for the
    markup. No bullet glyphs: a row with its value flush right does not need
    one, and the padding it cost is width the numbers now use. */
-/* TWO COLUMNS WHERE THERE IS WIDTH FOR THEM. Six rows and two clauses stacked
-   one per line made the card 270px tall on a laptop while half of its width sat
-   empty, and that card is the thing between the squad banner and the rotation
-   the player has come to set. A grid that reflows by column count keeps one
-   column on a phone, where a row's label and value already fill the line.
+/* ONE COLUMN, LEFT ALIGNED, and both halves of that are the fix for the same
+   complaint: "too messy, only want like 5 things all left aligned".
 
-   Advice spans the full width: a clause is the one note allowed words, and
-   words in a half-width column wrap to four lines. */
+   It was a two-column reflowing grid, which paired rows up across a 1280px card
+   and put four numbers at four different horizontal positions. Two columns of
+   short rows does not read as a denser list; it reads as a scattered one.
+
+   The card is short enough now (see NOTE_BUDGET in js/sports/nba/draftgrade.js)
+   that one column costs nothing it was buying. */
 .draft-grade-reasons {
   margin: 0;
   padding-left: 0;
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  column-gap: 1.2rem;
-  row-gap: 0.15rem;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   font-size: 0.85rem;
   color: var(--muted);
 }
 
-.draft-grade-reasons > .grade-advice,
 .draft-grade-reasons > .grade-grid {
-  grid-column: 1 / -1;
+  width: 100%;
 }
 
-/* Label left, value right, and NEITHER MAY WRAP - that is the whole promise of
-   the row. A label long enough to collide with its value truncates, which is a
-   failure a designer can see, rather than reflowing the card silently. */
+/* LABEL AND VALUE TOGETHER, ON THE LEFT, and NEITHER MAY WRAP.
+   
+   This was `justify-content: space-between` with a dotted leader - the scorecard
+   device, where a label sits at one edge and its number at the other. It works
+   on a narrow card and falls apart on a wide one: at 1280px the numbers ended up
+   four inches from the words they belonged to, and with the rows in two columns
+   they landed at four different horizontal positions. The card read as scattered
+   even though every row was correct.
+   
+   Left-aligned there is no gap to carry the eye across, so the leader goes too.
+   A label long enough to collide with its value still truncates, which is a
+   failure a designer can see rather than one that reflows the card silently. */
 .grade-note.grade-stat {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 0.6rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
   white-space: nowrap;
-  /* The dotted rule that carries the eye across the gap - the same device a
-     scorecard uses, and it makes a two-column row readable without a border
-     per line. */
-  border-bottom: 1px dotted rgba(255, 255, 255, 0.08);
-  padding-bottom: 0.15rem;
+  padding-bottom: 0.1rem;
 }
 
 .grade-note-label {
   overflow: hidden;
   text-overflow: ellipsis;
+  /* A fixed column so five values line up under each other rather than
+     stepping in and out with the length of the word beside them. */
+  flex: 0 0 auto;
+  min-width: 7.5rem;
 }
 
 .grade-note-value {
@@ -10157,5 +10164,71 @@ table.box-table tfoot .box-totals td:nth-child(2) {
      gives it because the rosters underneath are a scroll away either way. */
   .pool-list {
     max-height: min(52vh, 460px);
+  }
+}
+
+/* ---- 3. SCREENS WITH ROOM TO SPARE ---------------------------------------
+   The third tier, and the one the two above left out.
+
+   The block up at `max-height: 880px` takes size AWAY from a short laptop. The
+   base sizes are what a 900-1000px window gets. Neither says anything about a
+   1920x1080 monitor, where the draft board finished a comfortable pass still
+   using about two thirds of the height available to it - reported as the board
+   reading small while drafting, which it was: ten roster rows, a search box and
+   a pool list, laid out for a screen 300px shorter than the one showing them.
+
+   So the board grows into the room rather than leaving it empty. Deliberately
+   ONLY the draft screen and only its own components: this is the screen a
+   player stares at for ten rounds, and the one place where a few pixels a row
+   compound into something worth seeing. Both sports get it - football's twelve
+   slots use the space as readily as basketball's ten - because a sport-scoped
+   size rule is exactly the "per-sport identity outside the theme tokens" that
+   CLAUDE.md keeps out of this stylesheet. */
+@media (min-width: 1200px) and (min-height: 960px) {
+  .squad-banner {
+    padding: 0.75rem 1rem;
+  }
+
+  .squad-banner-team {
+    font-size: clamp(1.4rem, 2.2vw, 1.75rem);
+  }
+
+  .squad-banner-decade {
+    font-size: 1.15rem;
+  }
+
+  .position-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* The rows a drafter reads all game. Ten of them at 0.44rem is 54px more
+     panel than at 0.38rem, which this screen has and was not using. */
+  .draft-body .roster-slot {
+    padding: 0.44rem 0.65rem;
+    margin-bottom: 0.32rem;
+    font-size: 0.94rem;
+  }
+
+  .draft-body .roster-panel {
+    padding: 1rem 0.95rem;
+  }
+
+  .draft-body .roster-panel h3 {
+    font-size: 0.98rem;
+  }
+
+  .draft-pool-panel {
+    padding: 1rem;
+  }
+
+  /* The pool is the thing being read, so it takes the largest share of what is
+     left: more names on screen AND each one easier to read. */
+  .pool-list {
+    max-height: min(62vh, 640px);
+  }
+
+  #pool-search {
+    font-size: 1.02rem;
   }
 }
