@@ -43,6 +43,7 @@ import {
 import NBA from "../js/sports/nba/index.js";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 import { loadDataset } from "../data/load.mjs";
+import { QUARTERS_PER_GAME, OT_LENGTH_SCALE } from "../js/sports/nba/constants.js";
 
 const PLAYERS = await loadDataset("nba-players");
 const GAMES = Number(process.env.PACE_GAMES || 120);
@@ -244,11 +245,39 @@ const spanRoster = roster();
 const spanResult = simulateGame(spanRoster, roster(), stats);
 const spanTimeline = buildPlaybackTimeline(spanResult.shotEvents);
 const spans = spanTimeline.periods.map((p) => periodSpan(spanTimeline, p.period));
+
+/**
+ * AN OVERTIME PERIOD IS NOT A QUARTER, and this check used to insist it was.
+ *
+ * The band was a flat 8-22s for every period, which is right for a regulation
+ * quarter and wrong for overtime: OT is five real minutes against a quarter's
+ * twelve (OT_LENGTH_SCALE in js/sports/nba/constants.js), so it carries about
+ * 5/12 of the events and takes about 5/12 of the time. Measured over 3,000 runs
+ * of this exact scenario, 1.3% of games reached overtime and EVERY ONE of them
+ * failed - 38 overtime games, 38 failures, nothing else. The simulation here is
+ * unseeded, so it was a one-in-seventy-seven red build that said nothing about
+ * the code, which is the worst kind of test to leave in a gate.
+ *
+ * Scaled rather than skipped. A check that exempts the case it cannot handle
+ * stops watching it; this one now asserts that overtime is paced like the
+ * shorter period it is, which is a thing that could genuinely break.
+ */
+const periodBand = (index) =>
+  index < QUARTERS_PER_GAME
+    ? { min: 8000, max: 22000 }
+    : { min: 8000 * OT_LENGTH_SCALE, max: 22000 * OT_LENGTH_SCALE };
+const spanFaults = spans.filter((span, i) => {
+  const band = periodBand(i);
+  return !(span > band.min && span < band.max);
+});
 add(
   "Every period reports a span, and four of them fill the minute",
-  spans.length > 0 && spans.every((s) => s > 8000 && s < 22000),
+  spans.length > 0 && spanFaults.length === 0,
   `periods run ${spans.map((s) => `${(s / 1000).toFixed(1)}s`).join(", ")} - four quarters of 13-14 seconds ` +
-    `is what a one-minute game is made of`
+    `is what a one-minute game is made of` +
+    (spans.length > QUARTERS_PER_GAME
+      ? `, and an overtime period about ${(OT_LENGTH_SCALE * 100).toFixed(0)}% of one`
+      : "")
 );
 add(
   "The band is the one the app asks for",
