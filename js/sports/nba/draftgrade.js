@@ -3,112 +3,373 @@
 //
 // The point is feedback you can act on. A box score tells you that you lost;
 // a grade tells you that the roster was always going to lose, and why - "B+
-// because your defense is elite but your shooting held you back". Getting
-// that BEFORE the game is what turns the next draft into a decision instead
-// of a repeat.
+// because your defense is elite but nobody can create a shot". Getting that
+// BEFORE the game is what turns the next draft into a decision instead of a
+// repeat.
 //
-// The grade is deliberately built on the same numbers the simulation itself
-// uses (constructionMetrics/rosterTilt in engine.js), so it is a real
-// prediction rather than a decoration. If the grade says your bench is thin,
-// the engine is about to charge you for a thin bench.
+// WHAT CHANGED, AND WHY THE OLD GRADE HAD TO GO
+//
+// It read four numbers - balance, coverage, versatility, talent - summed them
+// with weights, and took a PERCENTILE against 240 rosters sampled uniformly
+// from the dataset. Both halves were wrong in the same direction.
+//
+// The percentile first, because it is the larger fault and football already
+// fixed it (see the note above GRADE_BREAKPOINTS in ./constants.js). A draft
+// does not produce uniform rosters; it produces good ones, because a drafter
+// picks the best name a rolled squad offers and so does the bot. A real roster
+// therefore sat in the top few percent of a random-assembly distribution almost
+// by construction and collected an A or an A+ for doing nothing in particular.
+// The reported screen graded A+ on 81 talent, 74 balance, no cover at point
+// guard and a 41% hole at small forward - a letter and an analysis, printed
+// two inches apart, disagreeing about the same roster.
+//
+// The four numbers second. `versatility` was the share of the bench listed at
+// more than one position, and the shipped dataset lists exactly one position
+// for 10,289 of its 10,290 rows - so it was 0 for essentially every roster ever
+// drafted, and a seventh of the score was a constant. `balance` read the
+// weakest of four broad categories and nothing read what those categories are
+// made of: a roster could have no shooting, no rim protection and no secondary
+// creator and score full marks for "scoring" on the strength of two volume
+// scorers.
+//
+// So the grade now reads CAPABILITIES - the things a basketball team either has
+// or does not - and scores construction the way football does: talent sets the
+// level and what is missing takes away from it. A roster of great players built
+// badly is priced as exactly that.
 
-import { constructionMetrics, rosterTilt, impact } from "./engine.js";
-import { isBenchSlot, orderedRosterSlots, basePosition, RANKED_SLOTS } from "./constants.js";
-import { letterFor as curveLetter, sampleRosterScores } from "../../gradecurve.js";
+import { impact, rosterTilt } from "./engine.js";
+import {
+  isBenchSlot,
+  orderedRosterSlots,
+  basePosition,
+  STARTER_SLOTS,
+  CAPABILITY_FLOOR,
+  CAPABILITY_CEILING,
+  TALENT_FLOOR,
+  TALENT_CEILING,
+  CAPABILITY_SOFT_SPOT,
+  CAPABILITY_SPREAD_TOLERANCE,
+  TOP_HEAVY_TOLERANCE,
+  GRADE_WEIGHTS,
+  MAX_CONSTRUCTION_PENALTY,
+  FORFEIT_GRADE_PENALTY,
+  GRADE_BREAKPOINTS,
+} from "./constants.js";
 import { matchupNotes } from "../../matchups.js";
-import { statNote, adviceNote } from "../../gradenotes.js";
+import { statNote, adviceNote, gridNote } from "../../gradenotes.js";
 
-// Weighted toward how the roster is BUILT rather than how good its players
-// are. Talent still counts - a grade that ignored it would call a squad of
-// scrubs perfect for being evenly bad - but it is the smallest term, because
-// "picked the highest overall player available" is the habit this grade
-// exists to argue with.
-const WEIGHTS = { balance: 0.42, coverage: 0.22, versatility: 0.13, talent: 0.23 };
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// Cut points, highest first. Tuned so an average roster lands in the C+/B-
-// range and A+ genuinely requires balance, depth and versatility together.
-const GRADES = [
-  { min: 0.94, letter: "A+" },
-  { min: 0.87, letter: "A" },
-  { min: 0.81, letter: "A-" },
-  { min: 0.75, letter: "B+" },
-  { min: 0.68, letter: "B" },
-  { min: 0.61, letter: "B-" },
-  { min: 0.54, letter: "C+" },
-  { min: 0.46, letter: "C" },
-  { min: 0.38, letter: "C-" },
-  { min: 0.3, letter: "D+" },
-  { min: 0.22, letter: "D" },
-  { min: 0.12, letter: "D-" },
-  { min: 0, letter: "F" },
+/** True shooting, or null for a row with no shooting profile.
+ *
+ * NULL RATHER THAN A PLAUSIBLE DEFAULT. Some seasons in the dataset carry no
+ * attempt columns at all, and scoring those players as league-average shooters
+ * would be exactly the silent failure CLAUDE.md names - a believable number
+ * standing in for a fact nobody has. They are left out of the mean instead, and
+ * a roster where NOBODY has a shooting profile simply does not get the row. */
+function trueShooting(player) {
+  const fga = Number(player?.fga);
+  if (!Number.isFinite(fga) || fga <= 0) return null;
+  const fta = Number(player.fta) || 0;
+  return player.ppg / (2 * (fga + 0.44 * fta));
+}
+
+/** Three-pointers made a game: the volume and the accuracy together, which is
+ * what spacing actually is. A 42% shooter who takes one a game stretches
+ * nobody's defense, and neither does a 28% shooter who takes eight. */
+function spacing(player) {
+  const tpa = Number(player?.tpa);
+  const tpp = Number(player?.tpp);
+  if (!Number.isFinite(tpa) || !Number.isFinite(tpp)) return null;
+  return tpa * tpp;
+}
+
+/** Ball security: assists per turnover.
+ *
+ * RAW TURNOVERS ARE A USAGE STATISTIC, NOT A FAULT, and reading them as one
+ * inverted the whole category. Measured over 60 bot drafts, a hard bot's roster
+ * scored 0.03 on "care" and an easy bot's scored 0.96 - because good players
+ * handle the ball more and therefore lose it more. The card was telling the best
+ * rosters in the game that they gave the ball away. A ratio asks the question
+ * that was meant: how much does this roster produce for what it gives up. */
+function ballSecurity(player) {
+  const tov = Number(player?.tov);
+  if (!Number.isFinite(tov) || tov <= 0) return null;
+  return player.apg / tov;
+}
+
+/** Shot creation: scoring plus the passing that produces someone else's. The
+ * 1.5 on assists is not a points conversion - it is the weighting that stops a
+ * pure volume scorer from reading as a creator, which is the distinction the
+ * "no one to create" complaint is about. */
+const creation = (player) => player.ppg + 1.5 * player.apg;
+
+/**
+ * THE THINGS A BASKETBALL TEAM EITHER HAS OR DOES NOT.
+ *
+ * Eight reads, each a per-player quantity the dataset actually carries. They
+ * are deliberately narrower than the four categories the old grade used: a
+ * roster with two volume scorers and no shooting, no passing and no rim
+ * protection scored full marks for "scoring" and the card never mentioned the
+ * other three.
+ *
+ * `label` is a chip on the card and has to stay chip-short - see gridNote in
+ * js/gradenotes.js for the measurements behind that.
+ */
+const CAPABILITIES = [
+  { key: "scoring", label: "Score", of: (p) => p.ppg,
+    strong: "your scoring is elite", weak: "there aren't enough points here" },
+  { key: "efficiency", label: "Eff", of: trueShooting,
+    strong: "you score efficiently", weak: "your shots are hard ones" },
+  { key: "spacing", label: "Space", of: spacing,
+    strong: "the floor is wide open", weak: "nobody stretches the floor" },
+  { key: "playmaking", label: "Pass", of: (p) => p.apg,
+    strong: "the ball moves", weak: "there's no one to create" },
+  { key: "security", label: "Care", of: ballSecurity,
+    strong: "you look after the ball", weak: "you give the ball away" },
+  { key: "rebounding", label: "Reb", of: (p) => p.rpg,
+    strong: "you own the glass", weak: "nobody rebounds" },
+  { key: "rimProtection", label: "Rim", of: (p) => p.bpg,
+    strong: "the rim is protected", weak: "the rim is unguarded" },
+  { key: "perimeter", label: "Ball D", of: (p) => p.spg,
+    strong: "you hound the ball", weak: "you can't pressure the ball" },
+  // Read off the roster's two best rather than off everybody - see
+  // rosterCapabilities. A team needs someone who can get a shot, not five
+  // players who are all a bit above average at it.
+  { key: "creation", label: "Create", of: creation, topTwo: true,
+    strong: "you have a go-to scorer", weak: "there's no one to go to" },
 ];
 
-const CATEGORY_WORDS = {
-  scoring: { strong: "your scoring is elite", weak: "your shooting held you back" },
-  rebounding: { strong: "you own the glass", weak: "nobody rebounds" },
-  playmaking: { strong: "the ball moves", weak: "there's no one to create" },
-  defense: { strong: "your defense is elite", weak: "you can't get a stop" },
-};
-
-/** Fixed cutoffs, kept only as the fallback when no curve can be built.
+/** Anyone who is not one of the five who start.
  *
- * GRADES was the whole story until the dataset changed four times - per-season
- * rows, a squad trim, that trim removed, a contributor filter. Each shifted
- * what an average roster scores and the letters drifted with it: forty rosters
- * graded D- to C+, with no A and no F. Everybody failing tells a drafter
- * nothing. The curve in js/gradecurve.js is derived from the data instead. */
-function letterFor(score) {
-  return (GRADES.find((g) => score >= g.min) || GRADES[GRADES.length - 1]).letter;
-}
+ * THE 6TH MAN IS A RESERVE and `isBenchSlot` does not think so - it matches the
+ * BENCH slots a Ranked roster has, and the legacy 6-man shape spells its one
+ * reserve "6TH". Reading it as a starter gave that shape six starters and no
+ * bench. Every other module that has to make this distinction spells it the same
+ * way (see renderRotationPicker in js/ui/strategy.js). */
+const isReserve = (slot) => isBenchSlot(slot) || slot === "6TH";
 
-/** Scores a roster EXACTLY as gradeDraft does, for curve sampling. Sampling a
- * different formula is worse than not sampling at all - the first attempt
- * weighted a `value` metric that does not exist and graded every roster F,
- * because the curve and the score were measuring different things. */
-function rawScore(roster, datasetStats) {
-  const m = constructionMetrics(roster, datasetStats);
-  if (!m.hasBench) {
-    return (
-      (WEIGHTS.balance * m.balance + WEIGHTS.talent * m.talent) /
-      (WEIGHTS.balance + WEIGHTS.talent)
-    );
-  }
-  return (
-    WEIGHTS.balance * m.balance +
-    WEIGHTS.coverage * m.coverage +
-    WEIGHTS.versatility * m.versatility +
-    WEIGHTS.talent * m.talent
-  );
-}
+/** A starter is on the floor about twice as long as a reserve, so a roster read
+ * that averaged all ten equally would let five good bench players paper over a
+ * bad starting five. The weights are a proxy for minutes, not the rotation the
+ * player is about to set - the grade is handed out before that exists. */
+const slotWeight = (slot) => (isReserve(slot) ? 0.45 : 1);
 
-function curveFor(datasetStats) {
-  if (datasetStats.__gradeCurve === undefined) {
+/**
+ * WHAT AN AVERAGE PLAYER IS, MEASURED OFF THE DATASET IN PLAY.
+ *
+ * Every capability is a ratio against one of these, so the grade means the same
+ * thing after a dataset change as before it - which is the property the old
+ * fixed cutoffs kept losing - and which the percentile curve that replaced them
+ * lost again, by making the same argument and then answering it with the wrong
+ * reference population (uniform samples of the dataset, not drafted rosters).
+ *
+ * Memoised on the stats object, because it is a full pass over ten thousand
+ * rows and the answer only changes when the data does.
+ */
+function baselineFor(datasetStats) {
+  if (datasetStats.__nbaGradeBaseline === undefined) {
     const all = datasetStats.__allEntries || [];
-    datasetStats.__gradeCurve = all.length
-      ? sampleRosterScores(
-          RANKED_SLOTS,
-          (slot) => all.filter((p) => isBenchSlot(slot) || (p.pos || []).includes(basePosition(slot))),
-          (roster) => rawScore(roster, datasetStats)
-        )
-      : null;
+    datasetStats.__nbaGradeBaseline = all.length ? measureBaseline(all) : null;
   }
-  return datasetStats.__gradeCurve;
+  return datasetStats.__nbaGradeBaseline;
 }
 
-/** The one player a rotation should be built around who isn't a starter -
- * "players who deserved more minutes should be recognized". Only flagged when
- * he genuinely outclasses the weakest starter, since a bench that's merely
- * decent isn't news. */
-function benchStandout(roster) {
-  const slots = orderedRosterSlots(roster);
-  const bench = slots.filter((slot) => isBenchSlot(slot) || slot === "6TH");
-  const starters = slots.filter((slot) => !isBenchSlot(slot) && slot !== "6TH");
-  if (bench.length === 0 || starters.length === 0) return null;
+function measureBaseline(players) {
+  const mean = (xs) => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null);
 
-  const best = bench.reduce((a, b) => (impact(roster[a]) >= impact(roster[b]) ? a : b));
-  const worstStarter = starters.reduce((a, b) => (impact(roster[a]) <= impact(roster[b]) ? a : b));
-  if (impact(roster[best]) <= impact(roster[worstStarter]) * 1.15) return null;
-  return { slot: best, player: roster[best], overSlot: worstStarter, overPlayer: roster[worstStarter] };
+  // THE TOP QUARTILE BY IMPACT - "what a drafted player looks like" - and NOT
+  // the dataset's mean. The mean includes every deep reserve who ever appeared
+  // in eleven games, and a drafted roster clears it on every category by
+  // construction: measured over 60 bot drafts, even an EASY bot's roster came
+  // out at 0.8-1.0x the mean and a hard bot's at 1.2-1.9x, so the scale
+  // saturated and good drafts could not be told from great ones. Against this
+  // reference the same rosters spread 0.42 to 1.26.
+  const byImpact = [...players].sort((a, b) => impact(b) - impact(a));
+  const drafted = byImpact.slice(0, Math.max(1, Math.round(byImpact.length * 0.25)));
+
+  const means = {};
+  for (const cap of CAPABILITIES) {
+    means[cap.key] = mean(drafted.map(cap.of).filter((v) => Number.isFinite(v)));
+  }
+
+  // THE CREATOR BASELINE IS THE TOP DECILE, because the roster side of this
+  // ratio is a roster's own two best. Comparing a team's best creator against
+  // the average of every rotation player in the pool would rate every roster
+  // ever drafted as elite at it.
+  const creators = players.map(creation).filter(Number.isFinite).sort((a, b) => b - a);
+  const decile = creators.slice(0, Math.max(1, Math.round(creators.length * 0.1)));
+  means.creation = mean(decile);
+
+  // ONE TALENT BASELINE for both halves of the roster - see TALENT_FLOOR in
+  // ./constants.js for why the two-band version had to go.
+  const rated = byImpact.map(impact).filter(Number.isFinite);
+  const top = rated.slice(0, Math.max(1, Math.round(rated.length * 0.15)));
+  return { means, player: mean(top) || 1 };
+}
+
+/** A ratio onto the 0-1 the grade works in. See CAPABILITY_FLOOR. */
+const normalize = (ratio) =>
+  clamp((ratio - CAPABILITY_FLOOR) / (CAPABILITY_CEILING - CAPABILITY_FLOOR), 0, 1);
+
+/**
+ * Every capability this roster can actually be read for, 0-1.
+ *
+ * A capability whose baseline the dataset cannot supply is OMITTED rather than
+ * scored 0.5. A missing value that defaults to something plausible is the
+ * silent failure CLAUDE.md names, and this one has a history: `versatility` was
+ * 0 for every roster ever drafted because the dataset does not carry second
+ * positions, and a seventh of the grade was a constant nobody could see.
+ */
+function rosterCapabilities(roster, datasetStats) {
+  const baseline = baselineFor(datasetStats);
+  if (!baseline) return {};
+  const slots = orderedRosterSlots(roster);
+  const out = {};
+
+  for (const cap of CAPABILITIES) {
+    const base = baseline.means[cap.key];
+    if (!Number.isFinite(base) || base <= 0) continue;
+
+    let value;
+    if (cap.topTwo) {
+      const best = slots
+        .map((slot) => cap.of(roster[slot]))
+        .filter(Number.isFinite)
+        .sort((a, b) => b - a)
+        .slice(0, 2);
+      if (!best.length) continue;
+      value = best.reduce((s, v) => s + v, 0) / best.length;
+    } else {
+      let total = 0;
+      let weight = 0;
+      for (const slot of slots) {
+        const v = cap.of(roster[slot]);
+        if (!Number.isFinite(v)) continue;
+        total += slotWeight(slot) * v;
+        weight += slotWeight(slot);
+      }
+      if (weight <= 0) continue;
+      value = total / weight;
+    }
+
+    out[cap.key] = normalize(value / base);
+  }
+  return out;
+}
+
+/** How far below the soft-spot line a capability sits, as a share of it. */
+const shortfall = (value) => Math.max(0, CAPABILITY_SOFT_SPOT - value) / CAPABILITY_SOFT_SPOT;
+
+/**
+ * Everything the grade reads, in one pass.
+ *
+ * Deliberately NOT engine.js's constructionMetrics. That function feeds
+ * constructionFactor, which multiplies team points during a simulation, and it
+ * is vendored into the Edge Function for parity - so every change to what a
+ * GRADE reads would be a change to what the SERVER simulates. The two questions
+ * are different anyway: the engine asks how a roster performs, this asks how
+ * well it was built.
+ */
+export function gradeMetrics(roster, datasetStats) {
+  const slots = orderedRosterSlots(roster);
+  const starters = slots.filter((slot) => !isReserve(slot));
+  const bench = slots.filter(isReserve);
+  const hasBench = bench.length > 0;
+  // COVERAGE IS ONLY A DECISION SOME ROSTER SHAPES HAVE. Charging "four of five
+  // positions have no cover" against a 6-man roster with exactly one reserve
+  // marks it down for a shape it was dealt - the same mistake the old grade
+  // made in reverse when it capped every Quick Play draft at a C for having no
+  // depth to grade. Derived from the roster, never assumed.
+  const gradesCoverage = bench.length >= STARTER_SLOTS.length;
+  const baseline = baselineFor(datasetStats);
+  const capabilities = rosterCapabilities(roster, datasetStats);
+  const keys = Object.keys(capabilities);
+
+  // Which starting positions have a second body behind them. Read off the
+  // bench players' own listed positions rather than off slot names, because a
+  // bench slot has no position of its own - BENCH3 is a draft-order accident.
+  const covered = new Set();
+  for (const slot of bench) {
+    for (const pos of roster[slot]?.pos || []) {
+      if (STARTER_SLOTS.includes(pos)) covered.add(pos);
+    }
+  }
+  const uncovered = gradesCoverage ? STARTER_SLOTS.filter((pos) => !covered.has(pos)) : [];
+
+  const mean = (list) => (list.length ? list.reduce((s, v) => s + v, 0) / list.length : 0);
+  const talentOf = (group, base) =>
+    group.length && base > 0
+      ? clamp((mean(group.map((slot) => impact(roster[slot]))) / base - TALENT_FLOOR) /
+          (TALENT_CEILING - TALENT_FLOOR), 0, 1)
+      : 0;
+
+  const starterTalent = baseline ? talentOf(starters, baseline.player) : 0;
+  const benchTalent = baseline && hasBench ? talentOf(bench, baseline.player) : 0;
+  const talent = hasBench ? 0.68 * starterTalent + 0.32 * benchTalent : starterTalent;
+
+  // A TWO-MAN TEAM, as a multiple of an even split rather than a flat share -
+  // see TOP_HEAVY_TOLERANCE for why roster shape makes the flat version
+  // meaningless.
+  const rated = slots.map((slot) => impact(roster[slot])).filter(Number.isFinite).sort((a, b) => b - a);
+  const total = rated.reduce((s, v) => s + v, 0);
+  const topTwoShare = total > 0 ? rated.slice(0, 2).reduce((s, v) => s + v, 0) / total : 0;
+  const evenSplit = rated.length ? 2 / rated.length : 1;
+  const topHeavy = clamp(
+    (topTwoShare - evenSplit * TOP_HEAVY_TOLERANCE) / Math.max(1e-6, 1 - evenSplit * TOP_HEAVY_TOLERANCE),
+    0,
+    1
+  );
+
+  const values = keys.map((k) => capabilities[k]);
+  const worstKey = keys.length ? keys.reduce((a, b) => (capabilities[a] <= capabilities[b] ? a : b)) : null;
+  const bestKey = keys.length ? keys.reduce((a, b) => (capabilities[a] >= capabilities[b] ? a : b)) : null;
+
+  // DEPTH AND BREADTH, because one hole and four are not the same roster and
+  // the worst capability alone cannot tell them apart - the same split
+  // football's constructionScore makes, and for the same reported reason.
+  const deepest = values.length ? Math.max(...values.map(shortfall)) : 0;
+  const spread = values.length ? mean(values.map(shortfall)) : 0;
+  const hole = 0.45 * deepest + 0.55 * spread;
+  const chasm = values.length
+    ? Math.max(0, Math.max(...values) - Math.min(...values) - CAPABILITY_SPREAD_TOLERANCE)
+    : 0;
+  const coverGap = gradesCoverage ? uncovered.length / STARTER_SLOTS.length : 0;
+
+  const penalty = Math.min(
+    MAX_CONSTRUCTION_PENALTY,
+    GRADE_WEIGHTS.hole * hole +
+      GRADE_WEIGHTS.coverage * coverGap +
+      GRADE_WEIGHTS.topHeavy * topHeavy +
+      GRADE_WEIGHTS.spread * chasm
+  );
+
+  return {
+    capabilities,
+    talent,
+    starterTalent,
+    benchTalent,
+    hasBench,
+    gradesCoverage,
+    uncovered,
+    topHeavy,
+    topTwoShare,
+    hole,
+    chasm,
+    penalty,
+    weakest: worstKey,
+    strongest: bestKey,
+    // The construction score itself: talent, scaled by what is missing.
+    score: clamp(talent * (1 - penalty), 0, 1),
+  };
+}
+
+/** The letter, from breakpoints solved against real drafts. */
+function letterForScore(score) {
+  for (const [floor, letter] of GRADE_BREAKPOINTS) {
+    if (score >= floor) return letter;
+  }
+  return "F";
 }
 
 /**
@@ -123,117 +384,95 @@ function benchStandout(roster) {
  * @returns {{letter, score, headline, reasons: string[], metrics}}
  */
 export function gradeDraft(roster, datasetStats, opts = {}) {
-  const metrics = constructionMetrics(roster, datasetStats);
+  const metrics = gradeMetrics(roster, datasetStats);
   const forfeits = (opts.forfeits || []).filter((slot) => roster[slot]);
 
-  let score =
-    WEIGHTS.balance * metrics.balance +
-    WEIGHTS.coverage * metrics.coverage +
-    WEIGHTS.versatility * metrics.versatility +
-    WEIGHTS.talent * metrics.talent;
+  // Forfeits are a draft failure, not a simulation one, so the grade says so as
+  // well. Subtracted after construction rather than folded into it: a pick the
+  // clock made is not a thing the roster does badly, it is a pick nobody made.
+  const score = Math.max(0, metrics.score - FORFEIT_GRADE_PENALTY * forfeits.length);
+  const letter = letterForScore(score);
 
-  // A roster with no bench never had a depth decision to make, so grading it
-  // on depth would cap every Quick Play draft at a C no matter how well it
-  // was drafted. Re-weight onto what it could actually control.
-  if (!metrics.hasBench) {
-    score =
-      (WEIGHTS.balance * metrics.balance + WEIGHTS.talent * metrics.talent) /
-      (WEIGHTS.balance + WEIGHTS.talent);
-  }
-
-  // Forfeits are a draft failure, not a simulation one, so the grade says so
-  // as well - a third of a letter each.
-  score = Math.max(0, score - 0.07 * forfeits.length);
-
-  // Percentile against what could actually have been drafted from this data,
-  // falling back to the fixed bands only if no curve exists.
-  const curve = curveFor(datasetStats);
-  const letter = curve ? curveLetter(score, curve) : letterFor(score);
   // ROWS AND CLAUSES, NOT SENTENCES. Measured on a real bot draft these ran
   // 54-91 characters each, seven of them, on a card body about 27 characters
   // wide on a phone. See js/gradenotes.js.
-  const reasons = [];
-  // See the NFL grade for why there are two: only two clauses fit on the card,
-  // and a clause naming the opponent beats a restatement of the rows above it.
+  // THREE BUCKETS, BECAUSE THE CARD CANNOT HOLD EVERYTHING and what it drops
+  // matters. `always` is the reading of the roster itself; `optional` is
+  // everything else, IN PRIORITY ORDER, and gets whatever rows are left. A flat
+  // list appended in the order the code happens to compute things put the
+  // opponent matchup rows last, so the two most useful rows on the card - where
+  // they beat you, where you beat them - were the two the cap cut off.
+  const always = [];
+  const optional = [];
+  // Only two clauses fit on the card, and a clause naming the opponent beats a
+  // restatement of the rows above it - so opponent advice is collected
+  // separately and goes first.
   const keyAdvice = [];
   const advice = [];
 
-  const strong = CATEGORY_WORDS[metrics.strongest];
-  const weak = CATEGORY_WORDS[metrics.weakest];
-  let headline;
-  if (metrics.balance >= 0.8 && metrics.coverage >= 0.99) {
-    headline = "No holes anywhere - every position backed up and nothing to attack.";
-  } else if (strong && weak && metrics.strongest !== metrics.weakest) {
-    headline = `${capitalize(strong.strong)}, but ${weak.weak}.`;
-  } else if (weak) {
-    headline = `${capitalize(weak.weak)}.`;
-  } else {
-    headline = "A serviceable roster with no strong identity.";
-  }
+  const strong = CAPABILITIES.find((c) => c.key === metrics.strongest);
+  const weak = CAPABILITIES.find((c) => c.key === metrics.weakest);
+  const headline = headlineFor(metrics, strong, weak);
 
   const pct = (value) => `${Math.round(100 * value)}`;
-  reasons.push(statNote("Talent", pct(metrics.talent), metrics.talent >= 0.6 ? "good" : "bad"));
-  reasons.push(statNote("Balance", pct(metrics.balance), metrics.balance >= 0.6 ? "good" : "bad"));
-
+  always.push(statNote("Starters", pct(metrics.starterTalent), metrics.starterTalent >= 0.6 ? "good" : "bad"));
   if (metrics.hasBench) {
-    // The count as a row, the consequence as a clause. "No cover at SG - that
-    // starter has to play the whole game and tires late" packed both into 72
-    // characters and neither survived the wrap.
+    // BESIDE THE STARTERS, ON THE SAME RULER. This is what the rotation nudge
+    // was reaching for and said as an instruction: how much the roster drops
+    // when the second unit comes on. As a row it is a fact about the team the
+    // player built, not a demand that they rebuild it.
+    always.push(statNote("Bench", pct(metrics.benchTalent), metrics.benchTalent >= 0.5 ? "good" : "bad"));
+  }
+
+  // THE WHOLE BOARD, AS CHIPS. The grid is what lets the card say "no shooting
+  // AND no rim protection" without spending a row on each - and it is the
+  // reason the letter and the analysis can no longer disagree, because the
+  // reader can see every number the letter was computed from.
+  const entries = CAPABILITIES.filter((c) => c.key in metrics.capabilities).map((c) => ({
+    key: c.label,
+    value: pct(metrics.capabilities[c.key]),
+    tone: metrics.capabilities[c.key] >= 0.6 ? "good" : metrics.capabilities[c.key] <= CAPABILITY_SOFT_SPOT ? "bad" : "neutral",
+  }));
+  if (entries.length) {
+    always.push(gridNote("Roster", entries, pct(metrics.talent), metrics.talent >= 0.6 ? "good" : "neutral"));
+  }
+
+  // A pick the clock made is the one thing here the player can see they did
+  // wrong, so it outranks every other optional row.
+  if (forfeits.length > 0) {
+    optional.push(statNote(
+      "Clock drafted",
+      forfeits.length <= 3 ? forfeits.join(", ") : `${forfeits.length} picks`,
+      "bad"
+    ));
+    advice.push("Picks that ran out of clock cost you a letter.");
+  }
+
+  const uncovered = [];
+  if (metrics.gradesCoverage && metrics.uncovered.length > 0) {
     const short = metrics.uncovered.length <= 2
       ? metrics.uncovered.join(", ")
       : `${metrics.uncovered.length} spots`;
-    reasons.push(
-      metrics.uncovered.length === 0
-        ? statNote("Bench cover", "complete", "good")
-        : statNote("No cover at", short, "bad")
-    );
-    if (metrics.uncovered.length > 0) {
-      advice.push("Those starters play all 48 and tire late.");
-    }
-
-    // ONLY WHEN THE DATA CAN ANSWER IT. Versatility is the share of the bench
-    // listed at more than one position, and the shipped dataset lists exactly
-    // one position for 10,289 of its 10,290 rows - so the metric was 0 for
-    // essentially every roster ever drafted, and the card told every player
-    // their bench was "specialists" and that it "all covers the same spot".
-    // Neither was a reading of their draft; both were a reading of the
-    // dataset's shape, which is not something a drafter can do anything about.
-    //
-    // The predicate is the ROSTER's own players rather than a dataset-wide
-    // flag, because that is what makes the row come back on its own the day a
-    // dataset carries real multi-position listings: if nobody here is listed
-    // anywhere but one spot, a bench of one-position players is not a fact
-    // about the bench. This does NOT touch the metric or the grade - the
-    // letter is a percentile against rosters scored the same way, so a term
-    // that is 0 for every roster cancels out of it entirely.
-    const positionsAreRecorded = orderedRosterSlots(roster).some(
-      (slot) => (roster[slot]?.pos || []).length > 1
-    );
-    if (positionsAreRecorded) {
-      reasons.push(statNote(
-        "Bench spread",
-        metrics.versatility >= 0.6 ? "versatile" : metrics.versatility <= 0.25 ? "specialists" : "mixed",
-        metrics.versatility >= 0.6 ? "good" : metrics.versatility <= 0.25 ? "bad" : "neutral"
-      ));
-      if (metrics.versatility <= 0.25) {
-        advice.push("Your bench all covers the same spot.");
-      }
-    }
+    uncovered.push(statNote("No cover at", short, "bad"));
+    advice.push("Those starters play all 48 and tire late.");
+  } else if (metrics.gradesCoverage) {
+    uncovered.push(statNote("Bench cover", "complete", "good"));
   }
 
-  if (metrics.talent >= 0.75 && metrics.balance <= 0.45) {
-    advice.push("Best available is not the same as best fit.");
+  const carried = [];
+  if (metrics.topHeavy > 0.25) {
+    carried.push(statNote("Top two carry", `${Math.round(100 * metrics.topTwoShare)}%`, "bad"));
+    advice.push("Two players are carrying this roster.");
   }
 
+  const matchups = [];
   if (opts.oppRoster) {
     // Two readings of the same board, and they answer different questions.
     // counterRead is about SHAPE - "they are big, you are small" - which is
     // what the simulation's counterFactor actually multiplies by. The matchup
     // lines are about PEOPLE, and they are the ones a drafter can act on:
     // knowing their small forward eats yours tells you where to send help.
-    const mine = rosterTilt(roster, datasetStats);
-    const theirs = rosterTilt(opts.oppRoster, datasetStats);
-    const read = counterRead(mine, theirs);
+    const read = counterRead(rosterTilt(roster, datasetStats), rosterTilt(opts.oppRoster, datasetStats));
     if (read) keyAdvice.push(read);
 
     for (const note of matchupNotes(roster, opts.oppRoster, {
@@ -241,36 +480,23 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
       // "SF", not "SF2" - the bench slot's number is a roster-shape detail,
       // and a row about a position should name the position.
       label: basePosition,
-      // STARTERS ONLY, and this fixes two things at once.
-      //
-      // basePosition RETURNS NULL FOR A BENCH SLOT and the old prose
-      // interpolated it straight into the sentence, so the card really did
-      // read "Their null Damian Lillard has an advantageous matchup against
-      // your null Clark Kellogg." That was the visible half.
-      //
-      // The invisible half is that the read was meaningless there anyway. A
-      // bench is deliberately not position-locked (see STARTER_SLOTS in
-      // ./constants.js), so BENCH1 is a draft-order accident - my BENCH1 does
-      // not guard theirs, and comparing the two compares nothing. Basketball's
-      // matchups are real between starters, which is where this now looks.
-      slots: orderedRosterSlots(roster).filter((slot) => !isBenchSlot(slot)),
+      // STARTERS ONLY. A bench is deliberately not position-locked (see
+      // STARTER_SLOTS in ./constants.js), so BENCH1 is a draft-order accident:
+      // my BENCH1 does not guard theirs, and comparing the two compares
+      // nothing. basePosition also returns null for a bench slot, which the old
+      // prose interpolated straight into the sentence - the card really did
+      // read "Their null Damian Lillard".
+      slots: orderedRosterSlots(roster).filter((slot) => !isReserve(slot)),
     })) {
       if (note.kind === "advice") keyAdvice.push(note.text);
-      else reasons.push(note);
+      else matchups.push(note);
     }
   }
 
-  if (forfeits.length > 0) {
-    // Naming the slots is useful when it's one or two you can go and think
-    // about; at ten it's a wall of BENCH3, BENCH4, BENCH5 saying nothing the
-    // count didn't already say.
-    reasons.push(statNote(
-      "Clock drafted",
-      forfeits.length <= 3 ? forfeits.join(", ") : `${forfeits.length} picks`,
-      "bad"
-    ));
-    advice.push("Picks that ran out of clock cost you a letter.");
-  }
+  // The worst matchup first - the one you can still do something about with a
+  // rotation, a gameplan or a defensive assignment - then what the roster
+  // cannot cover, then your own best matchup, then the two-man-team read.
+  optional.push(matchups[0], ...uncovered, ...matchups.slice(1), ...carried);
 
   return {
     letter,
@@ -280,12 +506,58 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     // the same reasoning. Eleven notes is a screen; six rows and two clauses is
     // a card.
     reasons: [
-      ...reasons.slice(0, 6),
+      ...always,
+      ...optional.filter(Boolean).slice(0, Math.max(0, 6 - always.length)),
       ...[...keyAdvice, ...advice].slice(0, 2).map(adviceNote),
     ],
     metrics,
     forfeits,
   };
+}
+
+/**
+ * THE HEADLINE HAS TO AGREE WITH THE LETTER.
+ *
+ * "You own the glass, but there's no one to create" printed under an A+ is the
+ * complaint that started this work, and it was not a wording problem - the
+ * letter and the sentence were reading different things. They read the same
+ * capabilities now, so the only way to keep them consistent is to let the
+ * SEVERITY of what is missing choose the sentence: a roster with a genuine hole
+ * says so first, and a roster with nothing missing is allowed to say that.
+ */
+function headlineFor(metrics, strong, weak) {
+  const worst = weak ? metrics.capabilities[weak.key] : 1;
+  const best = strong ? metrics.capabilities[strong.key] : 0;
+  if (!strong || !weak) return "A serviceable roster with no strong identity.";
+
+  const deep = CAPABILITY_SOFT_SPOT * 0.6;
+  const holes = Object.values(metrics.capabilities).filter((v) => v <= deep).length;
+
+  // THREE HOLES IS NOT ONE HOLE, and naming only the worst of them reads as a
+  // roster with a single fixable flaw. A card that says "there aren't enough
+  // points here" about a roster that also cannot pass, protect the rim or
+  // create a shot has told the player about a fifth of what is wrong.
+  if (holes >= 3) return `${capitalize(weak.weak)}, and it is not the only hole.`;
+
+  if (worst <= deep) {
+    // A hole this deep is the story. WHICH story depends on the rest of the
+    // roster, though, and the first version of this got that wrong twice: it
+    // told a roster strong at eight things out of nine that "nothing else on
+    // this roster fixes that", and it opened a D- card with "you score
+    // efficiently" because efficiency was the only thing that roster did at
+    // all. The flattering form needs the roster to be good in general, not just
+    // to have one number above the others.
+    return metrics.talent >= 0.45 && best >= 0.7
+      ? `${capitalize(strong.strong)}, but ${weak.weak} - that is where they will aim.`
+      : `${capitalize(weak.weak)} - and nothing else on this roster fixes that.`;
+  }
+  if (worst >= 0.6 && best >= 0.75) {
+    return "No holes anywhere - nothing on this roster is a soft spot.";
+  }
+  if (strong.key !== weak.key && best >= 0.55) {
+    return `${capitalize(strong.strong)}, but ${weak.weak}.`;
+  }
+  return `${capitalize(weak.weak)}.`;
 }
 
 /** The counterplay sentence: did this roster attack the opponent's shape or
@@ -314,17 +586,34 @@ function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** The rotation nudge that goes with a grade: who on the bench earned real
- * minutes. Separate from gradeDraft so the rotation screen can show it at the
- * moment it's actionable. */
-export function rotationHint(roster) {
-  const standout = benchStandout(roster);
-  if (!standout) return null;
-  // AN INSTRUCTION, NOT AN OBSERVATION. This used to read "Trae Young came off
-  // your bench better than Michael Finley at SF - he's worth real minutes",
-  // which is 90 characters and seven lines on a phone to say one thing the
-  // player can do. Naming both men keeps it checkable against the roster panel
-  // right beside it.
-  const surname = (player) => String(player?.name || "").split(/\s+/).pop();
-  return `Start ${surname(standout.player)} over ${surname(standout.overPlayer)} at ${standout.overSlot}.`;
+/**
+ * WHY THIS RETURNS NOTHING, AND IS STILL HERE.
+ *
+ * It used to read "Start Irving over Malone at PF" - the best bench player
+ * named against the weakest starter - and it was shown on the screen where the
+ * player sets their rotation, under a card grading the roster they had just
+ * finished building. Two things were wrong with it.
+ *
+ * The small one: a drafted roster's positions are not a decision the rotation
+ * screen can revisit. Malone is at PF because he was drafted into PF; that
+ * screen assigns MINUTES, so "start him over" named a control that does not
+ * exist on it.
+ *
+ * The larger one is the whole point of a post-draft analysis. The player has
+ * already made their choices by the time they see this card. An analysis exists
+ * to tell them what those choices ADD UP TO - where the lineup they picked is
+ * strong, where an opponent will aim at it - not to re-make decisions that are
+ * already locked. Everything this sentence was reaching for is now on the card
+ * as a reading of the roster they actually built: the bench's own rating sits
+ * beside the starters' as a row, and the capability grid says what the lineup
+ * can and cannot do.
+ *
+ * The hook stays because js/main.js and the sport contract both call it, and
+ * because football answers it the same way for the same reason (see
+ * js/sports/nfl/index.js). A sport with a genuinely actionable rotation nudge
+ * may fill it in again; a sport without one returns null rather than inventing
+ * an instruction.
+ */
+export function rotationHint() {
+  return null;
 }

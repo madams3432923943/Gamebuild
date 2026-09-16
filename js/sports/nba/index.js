@@ -77,7 +77,11 @@ function loadSimulation() {
         computeDatasetStats: (players) => {
           const pool = players ?? loadedPlayers();
           const ctx = engine.computeDatasetStats(pool);
-          // For the grade curve to sample real rosters - see js/gradecurve.js.
+          // THE POOL ITSELF, for the draft grade. It reads what a
+          // drafted-calibre player averages straight off these rows (see
+          // measureBaseline in ./draftgrade.js) rather than being handed a
+          // number somebody typed - which is what keeps a letter meaning the
+          // same thing after the dataset changes.
           ctx.__allEntries = pool;
           return ctx;
         },

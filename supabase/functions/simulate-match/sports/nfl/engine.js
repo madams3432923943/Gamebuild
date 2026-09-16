@@ -112,7 +112,7 @@ import { composedModsFor, affinityRevealFor } from "./tactics.js";
 export function computeDatasetStats(players, units) {
   const ctx = buildRatingContext(players, units);
   // Kept so the draft grade can sample real rosters to build its curve
-  // without re-reading the dataset. See js/gradecurve.js.
+  // without re-reading the dataset.
   ctx.__allEntries = [...(players || []), ...(units || [])];
   return ctx;
 }
