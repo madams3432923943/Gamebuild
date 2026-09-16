@@ -140,11 +140,20 @@ const CAPABILITIES = [
     strong: "you have a go-to scorer", weak: "there's no one to go to" },
 ];
 
+/** Anyone who is not one of the five who start.
+ *
+ * THE 6TH MAN IS A RESERVE and `isBenchSlot` does not think so - it matches the
+ * BENCH slots a Ranked roster has, and the legacy 6-man shape spells its one
+ * reserve "6TH". Reading it as a starter gave that shape six starters and no
+ * bench. Every other module that has to make this distinction spells it the same
+ * way (see renderRotationPicker in js/ui/strategy.js). */
+const isReserve = (slot) => isBenchSlot(slot) || slot === "6TH";
+
 /** A starter is on the floor about twice as long as a reserve, so a roster read
  * that averaged all ten equally would let five good bench players paper over a
  * bad starting five. The weights are a proxy for minutes, not the rotation the
  * player is about to set - the grade is handed out before that exists. */
-const slotWeight = (slot) => (isBenchSlot(slot) ? 0.45 : 1);
+const slotWeight = (slot) => (isReserve(slot) ? 0.45 : 1);
 
 /**
  * WHAT AN AVERAGE PLAYER IS, MEASURED OFF THE DATASET IN PLAY.
@@ -264,9 +273,15 @@ const shortfall = (value) => Math.max(0, CAPABILITY_SOFT_SPOT - value) / CAPABIL
  */
 export function gradeMetrics(roster, datasetStats) {
   const slots = orderedRosterSlots(roster);
-  const starters = slots.filter((slot) => !isBenchSlot(slot));
-  const bench = slots.filter((slot) => isBenchSlot(slot));
+  const starters = slots.filter((slot) => !isReserve(slot));
+  const bench = slots.filter(isReserve);
   const hasBench = bench.length > 0;
+  // COVERAGE IS ONLY A DECISION SOME ROSTER SHAPES HAVE. Charging "four of five
+  // positions have no cover" against a 6-man roster with exactly one reserve
+  // marks it down for a shape it was dealt - the same mistake the old grade
+  // made in reverse when it capped every Quick Play draft at a C for having no
+  // depth to grade. Derived from the roster, never assumed.
+  const gradesCoverage = bench.length >= STARTER_SLOTS.length;
   const baseline = baselineFor(datasetStats);
   const capabilities = rosterCapabilities(roster, datasetStats);
   const keys = Object.keys(capabilities);
@@ -280,7 +295,7 @@ export function gradeMetrics(roster, datasetStats) {
       if (STARTER_SLOTS.includes(pos)) covered.add(pos);
     }
   }
-  const uncovered = hasBench ? STARTER_SLOTS.filter((pos) => !covered.has(pos)) : [];
+  const uncovered = gradesCoverage ? STARTER_SLOTS.filter((pos) => !covered.has(pos)) : [];
 
   const mean = (list) => (list.length ? list.reduce((s, v) => s + v, 0) / list.length : 0);
   const talentOf = (group, base) =>
@@ -319,7 +334,7 @@ export function gradeMetrics(roster, datasetStats) {
   const chasm = values.length
     ? Math.max(0, Math.max(...values) - Math.min(...values) - CAPABILITY_SPREAD_TOLERANCE)
     : 0;
-  const coverGap = hasBench ? uncovered.length / STARTER_SLOTS.length : 0;
+  const coverGap = gradesCoverage ? uncovered.length / STARTER_SLOTS.length : 0;
 
   const penalty = Math.min(
     MAX_CONSTRUCTION_PENALTY,
@@ -335,6 +350,7 @@ export function gradeMetrics(roster, datasetStats) {
     starterTalent,
     benchTalent,
     hasBench,
+    gradesCoverage,
     uncovered,
     topHeavy,
     topTwoShare,
@@ -380,7 +396,14 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   // ROWS AND CLAUSES, NOT SENTENCES. Measured on a real bot draft these ran
   // 54-91 characters each, seven of them, on a card body about 27 characters
   // wide on a phone. See js/gradenotes.js.
-  const reasons = [];
+  // THREE BUCKETS, BECAUSE THE CARD CANNOT HOLD EVERYTHING and what it drops
+  // matters. `always` is the reading of the roster itself; `optional` is
+  // everything else, IN PRIORITY ORDER, and gets whatever rows are left. A flat
+  // list appended in the order the code happens to compute things put the
+  // opponent matchup rows last, so the two most useful rows on the card - where
+  // they beat you, where you beat them - were the two the cap cut off.
+  const always = [];
+  const optional = [];
   // Only two clauses fit on the card, and a clause naming the opponent beats a
   // restatement of the rows above it - so opponent advice is collected
   // separately and goes first.
@@ -392,9 +415,13 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   const headline = headlineFor(metrics, strong, weak);
 
   const pct = (value) => `${Math.round(100 * value)}`;
-  reasons.push(statNote("Starters", pct(metrics.starterTalent), metrics.starterTalent >= 0.6 ? "good" : "bad"));
+  always.push(statNote("Starters", pct(metrics.starterTalent), metrics.starterTalent >= 0.6 ? "good" : "bad"));
   if (metrics.hasBench) {
-    reasons.push(statNote("Bench", pct(metrics.benchTalent), metrics.benchTalent >= 0.5 ? "good" : "bad"));
+    // BESIDE THE STARTERS, ON THE SAME RULER. This is what the rotation nudge
+    // was reaching for and said as an instruction: how much the roster drops
+    // when the second unit comes on. As a row it is a fact about the team the
+    // player built, not a demand that they rebuild it.
+    always.push(statNote("Bench", pct(metrics.benchTalent), metrics.benchTalent >= 0.5 ? "good" : "bad"));
   }
 
   // THE WHOLE BOARD, AS CHIPS. The grid is what lets the card say "no shooting
@@ -407,24 +434,38 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     tone: metrics.capabilities[c.key] >= 0.6 ? "good" : metrics.capabilities[c.key] <= CAPABILITY_SOFT_SPOT ? "bad" : "neutral",
   }));
   if (entries.length) {
-    reasons.push(gridNote("Roster", entries, pct(metrics.talent), metrics.talent >= 0.6 ? "good" : "neutral"));
+    always.push(gridNote("Roster", entries, pct(metrics.talent), metrics.talent >= 0.6 ? "good" : "neutral"));
   }
 
-  if (metrics.hasBench && metrics.uncovered.length > 0) {
+  // A pick the clock made is the one thing here the player can see they did
+  // wrong, so it outranks every other optional row.
+  if (forfeits.length > 0) {
+    optional.push(statNote(
+      "Clock drafted",
+      forfeits.length <= 3 ? forfeits.join(", ") : `${forfeits.length} picks`,
+      "bad"
+    ));
+    advice.push("Picks that ran out of clock cost you a letter.");
+  }
+
+  const uncovered = [];
+  if (metrics.gradesCoverage && metrics.uncovered.length > 0) {
     const short = metrics.uncovered.length <= 2
       ? metrics.uncovered.join(", ")
       : `${metrics.uncovered.length} spots`;
-    reasons.push(statNote("No cover at", short, "bad"));
+    uncovered.push(statNote("No cover at", short, "bad"));
     advice.push("Those starters play all 48 and tire late.");
-  } else if (metrics.hasBench) {
-    reasons.push(statNote("Bench cover", "complete", "good"));
+  } else if (metrics.gradesCoverage) {
+    uncovered.push(statNote("Bench cover", "complete", "good"));
   }
 
+  const carried = [];
   if (metrics.topHeavy > 0.25) {
-    reasons.push(statNote("Top two carry", `${Math.round(100 * metrics.topTwoShare)}%`, "bad"));
+    carried.push(statNote("Top two carry", `${Math.round(100 * metrics.topTwoShare)}%`, "bad"));
     advice.push("Two players are carrying this roster.");
   }
 
+  const matchups = [];
   if (opts.oppRoster) {
     // Two readings of the same board, and they answer different questions.
     // counterRead is about SHAPE - "they are big, you are small" - which is
@@ -445,21 +486,17 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
       // nothing. basePosition also returns null for a bench slot, which the old
       // prose interpolated straight into the sentence - the card really did
       // read "Their null Damian Lillard".
-      slots: orderedRosterSlots(roster).filter((slot) => !isBenchSlot(slot)),
+      slots: orderedRosterSlots(roster).filter((slot) => !isReserve(slot)),
     })) {
       if (note.kind === "advice") keyAdvice.push(note.text);
-      else reasons.push(note);
+      else matchups.push(note);
     }
   }
 
-  if (forfeits.length > 0) {
-    reasons.push(statNote(
-      "Clock drafted",
-      forfeits.length <= 3 ? forfeits.join(", ") : `${forfeits.length} picks`,
-      "bad"
-    ));
-    advice.push("Picks that ran out of clock cost you a letter.");
-  }
+  // The worst matchup first - the one you can still do something about with a
+  // rotation, a gameplan or a defensive assignment - then what the roster
+  // cannot cover, then your own best matchup, then the two-man-team read.
+  optional.push(matchups[0], ...uncovered, ...matchups.slice(1), ...carried);
 
   return {
     letter,
@@ -469,7 +506,8 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     // the same reasoning. Eleven notes is a screen; six rows and two clauses is
     // a card.
     reasons: [
-      ...reasons.slice(0, 6),
+      ...always,
+      ...optional.filter(Boolean).slice(0, Math.max(0, 6 - always.length)),
       ...[...keyAdvice, ...advice].slice(0, 2).map(adviceNote),
     ],
     metrics,
@@ -491,13 +529,25 @@ function headlineFor(metrics, strong, weak) {
   const worst = weak ? metrics.capabilities[weak.key] : 1;
   const best = strong ? metrics.capabilities[strong.key] : 0;
   if (!strong || !weak) return "A serviceable roster with no strong identity.";
-  if (worst <= CAPABILITY_SOFT_SPOT * 0.6) {
+
+  const deep = CAPABILITY_SOFT_SPOT * 0.6;
+  const holes = Object.values(metrics.capabilities).filter((v) => v <= deep).length;
+
+  // THREE HOLES IS NOT ONE HOLE, and naming only the worst of them reads as a
+  // roster with a single fixable flaw. A card that says "there aren't enough
+  // points here" about a roster that also cannot pass, protect the rim or
+  // create a shot has told the player about a fifth of what is wrong.
+  if (holes >= 3) return `${capitalize(weak.weak)}, and it is not the only hole.`;
+
+  if (worst <= deep) {
     // A hole this deep is the story. WHICH story depends on the rest of the
-    // roster, though, and the first version of this got that wrong: it told a
-    // roster that was strong at eight things out of nine that "nothing else on
-    // this roster fixes that", which reads as a verdict on the whole draft
-    // rather than on the one thing missing from it - and sat under an A-.
-    return best >= 0.7
+    // roster, though, and the first version of this got that wrong twice: it
+    // told a roster strong at eight things out of nine that "nothing else on
+    // this roster fixes that", and it opened a D- card with "you score
+    // efficiently" because efficiency was the only thing that roster did at
+    // all. The flattering form needs the roster to be good in general, not just
+    // to have one number above the others.
+    return metrics.talent >= 0.45 && best >= 0.7
       ? `${capitalize(strong.strong)}, but ${weak.weak} - that is where they will aim.`
       : `${capitalize(weak.weak)} - and nothing else on this roster fixes that.`;
   }
