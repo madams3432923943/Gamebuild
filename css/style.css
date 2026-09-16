@@ -9084,10 +9084,14 @@ table.box-table tfoot .box-totals td:nth-child(2) {
    its parent's, so dimming this heading to 0.65 and then trying to restore the
    score inside it is impossible - the value would have been stuck at 65% too.
    Setting a muted colour on the caption leaves the number free to use its own. */
+/* LEFT ALIGNED, like the stat rows above it. It was space-between across the
+   whole card, which left the side's score stranded a hundred and fifty pixels
+   from the chips it is the total of - the same fault the rows had, in the one
+   place that still had it. */
 .grade-grid-label {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.6rem;
   font-size: var(--text-micro);
   letter-spacing: 0.06em;
@@ -9109,12 +9113,16 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .grade-grid-value.grade-good { color: #06d6a0; }
 .grade-grid-value.grade-bad { color: var(--buzzer); }
 
-/* auto-fill rather than a fixed count: seven offensive slots and four
-   defensive ones share this, and on a wide card both should use the width
-   they have instead of one being padded to the other's shape. */
+/* PACKED LEFT AT A FIXED TRACK WIDTH, not stretched across the container.
+   With `minmax(3.1rem, 1fr)` the tracks divided the whole card, so seven
+   offensive chips filled seven of ten tracks and stopped two thirds of the way
+   across - a ragged right edge that changed position depending on how many
+   slots a side has. Fixed tracks make a chip the same size on both rows and let
+   the group end where its chips end. */
 .grade-grid-chips {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr));
+  grid-template-columns: repeat(auto-fill, 3.4rem);
+  justify-content: start;
   gap: 0.25rem;
 }
 
