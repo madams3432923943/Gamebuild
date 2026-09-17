@@ -11,6 +11,7 @@ import { activeSport } from "../sports/index.js";
 import { slotLabel, rosterSlots } from "./roster-slots.js";
 import { displayEntryName } from "./entry-name.js";
 import { roundStat } from "./format.js";
+import { bindScrollAffordance } from "./scroll-affordance.js";
 
 /**
  * The MVP card: who decided the game, and the numbers that say so.
@@ -182,6 +183,36 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   );
 }
 
+/** The opening tag of one table's scroll frame.
+ *
+ * ONE PER TABLE, not one around the lot. A single frame around every table
+ * puts its scrollbar at the bottom of an element three screens tall, which is
+ * to say nowhere anyone will see it - and a scrollbar nobody sees is the
+ * problem this is meant to solve, not the solution. A frame per table puts the
+ * bar directly under the table it belongs to. They are scrolled in lockstep by
+ * bindScrollAffordance, so the columns still line up across the two teams.
+ *
+ * tabindex, because a div that scrolls is not focusable on its own in Chrome -
+ * so the arrow keys, which are the only way to reach these columns without a
+ * mouse or a thumb, had nothing to act on. role and label so it is announced
+ * as the region it is rather than as a stray focus stop.
+ */
+function scrollFrameOpen(label) {
+  return `<div class="box-scroll scroll-x" tabindex="0" role="group" ` +
+         `aria-label="${escapeHtml(String(label))} box score, scrolls sideways">`;
+}
+
+/** The closing tag of a scroll frame, plus the rail drawn under it.
+ *
+ * The rail is shown only where the browser's own scrollbar is an overlay and
+ * would therefore never be seen - bindScrollAffordance measures that and
+ * decides. It is aria-hidden because it says nothing a screen reader has not
+ * already been told by the frame's own role and label; it is a picture of the
+ * scroll position, for eyes. */
+function scrollFrameClose() {
+  return `</div><div class="scroll-rail" aria-hidden="true"><span class="scroll-rail-thumb"></span></div>`;
+}
+
 /**
  * One team's box score, split into the groups the sport declares.
  *
@@ -209,6 +240,8 @@ function boxGroupTables(roster, box, teamLabel, final, mvpName = null) {
       : slots;
     html +=
       `<div class="box-group-label">${escapeHtml(group.label)}</div>` +
+      // Each table carries its own scroll frame - see scrollFrame() above.
+      scrollFrameOpen(group.label) +
       `<table class="box-table"><thead><tr><th>Slot</th><th>Player</th>` +
       group.columns.map(([, head]) => `<th>${head}</th>`).join("") +
       `</tr></thead><tbody>`;
@@ -216,7 +249,7 @@ function boxGroupTables(roster, box, teamLabel, final, mvpName = null) {
       html += boxRow(slotLabel(slot), roster[slot], box[slot], null, null, group.columns, false, [],
                      !!mvpName && roster[slot]?.name === mvpName);
     }
-    html += "</tbody></table>";
+    html += "</tbody></table>" + scrollFrameClose();
   }
   return html;
 }
@@ -234,7 +267,9 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final, mvpName 
   // two different facts that happen to coincide for basketball.
   const splits = sport.splitColumns || [];
   let html =
-    `<div class="team-heading">${teamLabel}</div><table class="box-table"><thead><tr>` +
+    `<div class="team-heading">${teamLabel}</div>` +
+    scrollFrameOpen(teamLabel) +
+    `<table class="box-table"><thead><tr>` +
     `<th>Slot</th><th>Player</th>` +
     (showMinutes ? `<th>MIN</th>` : "") +
     columns.map(([, head]) => `<th>${head}</th>`).join("") +
@@ -263,7 +298,7 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final, mvpName 
   // summary of the table and not another player in it - which is also what
   // lets it stay put if the table is ever made scrollable vertically.
   html += `<tfoot>${boxTotalsRow(roster, box, columns, showMinutes, splits, shotLines, minutesMap)}</tfoot>`;
-  html += "</table>";
+  html += "</table>" + scrollFrameClose();
   return html;
 }
 
@@ -273,9 +308,33 @@ function boxTable(roster, box, teamLabel, shotLines, minutesMap, final, mvpName 
 export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, boxB, labelB, shotsA, shotsB, minutesA, minutesB, final = false, mvp = null) {
   const mvpA = mvp && mvp.side === "A" ? mvp.name : null;
   const mvpB = mvp && mvp.side === "B" ? mvp.name : null;
+  // How far along the reader had scrolled, BEFORE the markup under them is
+  // replaced. A live box score repaints on an animation frame, and a fresh
+  // element starts at scrollLeft 0 - so without this, a reader who scrolled
+  // out to the right during a game was dragged back to the Slot column within
+  // about 16ms, every time. The columns this change exists to advertise were
+  // unreachable until the final whistle.
+  const wasAt = container.querySelector(".box-scroll")?.scrollLeft || 0;
+  // The scroll frames are built by boxTable itself, one per table, so the game
+  // screen and the stored-game modal get identical ones. That matters because
+  // the two hosts disagree about what the caller hands us: the game screen
+  // passes #full-box-score, which is itself a frame, and the modal passes a
+  // detached div appended into .modal-body afterwards. There is no element a
+  // caller could point at that is the scroll container in both cases.
+  // The word depends on the pointer, and CSS is what knows which one is in
+  // front of the table - so both are emitted and one is shown. "Swipe" on a
+  // desktop and "Scroll" on a phone are each wrong in the way that makes a
+  // reader distrust the next hint too.
+  const verb = `<span class="hint-touch">Swipe</span><span class="hint-pointer">Scroll</span>`;
   container.innerHTML =
+    `<div class="box-scroll-hint" aria-hidden="true">${verb} to see every column<span class="hint-arrow">\u2192</span></div>` +
     boxTable(rosterA, boxA, labelA, shotsA, minutesA, final, mvpA) +
     boxTable(rosterB, boxB, labelB, shotsB, minutesB, final, mvpB);
+  const scrollers = [...container.querySelectorAll(".box-scroll")];
+  if (wasAt) for (const panel of scrollers) panel.scrollLeft = wasAt;
+  // Bound to the CONTAINER, not to the scrollers: those are new elements on
+  // every repaint. See the note in scroll-affordance.js.
+  bindScrollAffordance(container, scrollers);
 }
 
 /**

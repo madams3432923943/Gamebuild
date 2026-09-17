@@ -268,7 +268,7 @@ button, input {
   border: 1px solid transparent;
   color: var(--muted);
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   /* The 44px touch floor is held at the phone breakpoints, which is where
@@ -444,7 +444,9 @@ button, input {
 }
 
 .field-row label {
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem - see the note on .empty-note. A form label is the
+     last thing that should be the one unreadable line on the screen. */
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -2547,7 +2549,10 @@ table.box-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1.25rem;
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem - see the note on .empty-note. This is the table
+     the selftest caught: every cell on the post-game box score read 11.9px
+     once the phone breakpoint scaled the app out another notch. */
+  font-size: var(--text-xs);
   font-family: var(--font-mono);
 }
 
@@ -3498,7 +3503,12 @@ table.box-table th {
 
 .empty-note {
   color: var(--muted);
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem. 0.85rem cleared the 12px readable floor only
+     because of what the root font size happened to be; it went under the
+     moment the phone breakpoint scaled the app out another notch. The token
+     is re-expressed at each breakpoint to land on 13.01px whatever the root
+     is, which is the whole reason it exists. */
+  font-size: var(--text-xs);
   font-style: italic;
 }
 
@@ -3610,7 +3620,7 @@ table.box-table th {
 
 .auth-status {
   margin-top: 0.75rem;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--accent-bright);
   text-align: center;
 }
@@ -3681,7 +3691,7 @@ table.box-table th {
   padding: 0.5rem 1.15rem;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -5915,7 +5925,7 @@ table.box-table th {
   color: var(--text);
   padding: 0.7rem 0.6rem;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
@@ -6021,7 +6031,8 @@ table.box-table th {
   background: var(--surface-2);
   color: var(--muted);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  /* --text-xs, not 0.85rem - see the note on .empty-note. */
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: border-color var(--motion-fast) var(--ease-out),
               color var(--motion-fast) var(--ease-out),
@@ -6157,12 +6168,12 @@ table.box-table th {
 .squad-card-tag {
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 
 .squad-card-motto {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   margin: 0.35rem 0;
 }
 
@@ -6407,7 +6418,7 @@ table.box-table th {
   border-radius: 8px;
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   padding: 0.5rem 0.6rem;
   resize: vertical;
 }
@@ -6748,10 +6759,16 @@ html {
    home screen fit the identity banner, one heading and a single sport card,
    and reaching the second sport meant scrolling.
 
-   93.75% (15px) at phone widths and 90.6% (14.5px) on a narrow one. Chosen
-   rather than eyeballed: below about 90% the app stops looking smaller and
-   starts looking like a desktop site on a phone, which is the failure this
-   is one step away from.
+   90.625% (14.5px) at phone widths and 87.5% (14px) on a narrow one - one
+   notch out from the 93.75%/90.625% this shipped with, because the home screen
+   still read as tight on a 390px handset: the identity banner, the heading and
+   ONE sport card filled the viewport, and the second sport was below the fold.
+
+   87.5% is the floor, and it is a floor rather than a starting point. Below
+   about 87% the app stops reading as a smaller version of itself and starts
+   reading as a desktop site shrunk onto a phone - the failure this is now one
+   step away from. Anything that still does not fit at 14px is a layout problem
+   in that screen, not another notch here.
 
    THE TYPE FLOOR IS HELD IN PIXELS THROUGH IT. --text-micro and --text-xs are
    the 12px and 13px bottoms of the range, measured in the mobile baseline
@@ -6767,45 +6784,228 @@ html {
    and the selftest audit counted 22 of them on Profile alone. */
 @media (max-width: 700px) {
   html {
-    font-size: 93.75%; /* 15px */
-  }
-
-  :root {
-    /* 0.9375 of 16 is exactly 15, so these are exact - but they round up by a
-       hair anyway, for the same reason as the narrow breakpoint below. */
-    --text-micro: 0.8007rem; /* 12.01px at a 15px root */
-    --text-xs: 0.8674rem;    /* 13.01px */
-  }
-}
-
-@media (max-width: 400px) {
-  html {
-    /* 90.625%, not 90.6%. A PERCENTAGE rather than 14.5px so a reader who has
-       raised their browser's default font size still gets a larger app - a px
-       root silently overrides that preference, which is the accessibility bug
-       this whole block is trying not to introduce. But the percentage has to
-       be exact: 90.6% of 16 is 14.496px, and the floor token below, computed
-       against an assumed 14.5, then landed on 11.9969px. A floor that misses
-       by three thousandths of a pixel is still a floor that misses, and
-       verify-nba-court measures the computed value. */
+    /* A PERCENTAGE, not 14.5px, for the same reason as the narrow breakpoint
+       below: a px root silently overrides a reader who has raised their
+       browser's default font size, which is the accessibility bug this whole
+       block is trying not to introduce. */
     font-size: 90.625%; /* 14.5px */
   }
 
   :root {
-    /* A HAIR OVER, not exactly on. 12/14.5 is 0.827586…, and rounding a
-       repeating decimal down is how the previous value came out under the
-       line. These round UP, so the floor is cleared rather than grazed. */
+    /* A HAIR OVER, not exactly on. 12/14.5 is 0.827586..., and rounding a
+       repeating decimal down is how an earlier value came out under the line.
+       These round UP, so the floor is cleared rather than grazed. */
     --text-micro: 0.8285rem; /* 12.01px at a 14.5px root */
     --text-xs: 0.8975rem;    /* 13.01px */
   }
 }
 
+@media (max-width: 400px) {
+  html {
+    /* A PERCENTAGE rather than 14px, as above. And an EXACT one: an earlier
+       revision wrote 90.6% for 14.5px, which is really 14.496px, and the floor
+       token computed against the assumed 14.5 then landed on 11.9969px. A
+       floor that misses by three thousandths of a pixel is still a floor that
+       misses, and verify-nba-court measures the computed value. 87.5% of 16 is
+       exactly 14. */
+    font-size: 87.5%; /* 14px */
+  }
+
+  :root {
+    /* A HAIR OVER, not exactly on. 12/14 is 0.857142..., and rounding a
+       repeating decimal down is how an earlier value came out under the line.
+       These round UP, so the floor is cleared rather than grazed - which
+       verify-nba-court measures directly, on the half-court labels. */
+    --text-micro: 0.8580rem; /* 12.01px at a 14px root */
+    --text-xs: 0.9295rem;    /* 13.01px */
+  }
+}
+
 /* A box score is genuinely wider than a phone. Let it scroll inside its own
    frame rather than squeezing columns to nothing. Recent Games used to need
-   this too and no longer does - it is a list of match rows now, not a table. */
+   this too and no longer does - it is a list of match rows now, not a table.
+
+   The scroll now happens on .box-scroll INSIDE this element (built by
+   renderFullBoxScore, so the game screen and the stored-game modal get the
+   same one). This stays as a backstop for any other wide thing rendered here
+   and costs nothing: with the inner element taking the overflow, this one
+   never has any. */
 #full-box-score {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ---- A SIDEWAYS SCROLL THAT ANNOUNCES ITSELF ------------------------------
+
+   Phones and Macs paint OVERLAY scrollbars: nothing is drawn until a scroll is
+   already underway, and then it fades. For a panel whose whole problem is that
+   the reader does not know it scrolls, that is precisely backwards - the bar
+   appears only to people who have already guessed. A football box score at
+   390px is about 580px wide, so five of its columns live past the right edge
+   with nothing on screen suggesting they exist.
+
+   Giving `scrollbar-color` any value other than `auto` is what opts the
+   element out of overlay scrollbars: every engine that understands the
+   property then draws a bar that is always there and takes layout space.
+   That, and not the colour, is the point of setting it.
+
+   THE TWO MECHANISMS ARE MUTUALLY EXCLUSIVE, which is why one of them is
+   behind @supports. Blink and WebKit both IGNORE the ::-webkit-scrollbar
+   pseudo-elements on any element that also sets scrollbar-width or
+   scrollbar-color, so writing both on one selector does not belt-and-brace
+   anything - it silently drops the fallback in exactly the browsers that would
+   have used it. The standard properties lead; the pseudo-elements are the
+   fallback for engines too old to have them.
+
+   .scroll-x is deliberately generic. The play feed and the squads table are
+   the same shape and can take it as-is; the box score's own pieces below are
+   the only part that knows it is a box score. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) rgba(255, 255, 255, 0.11);
+}
+
+@supports not (scrollbar-color: red blue) {
+  .scroll-x::-webkit-scrollbar {
+    /* Turns off the overlay scrollbar in older WebKit - iOS in particular,
+       where it is otherwise invisible until a scroll is already underway. */
+    -webkit-appearance: none;
+    height: 7px;
+  }
+
+  .scroll-x::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.11);
+    border-radius: 99px;
+  }
+
+  .scroll-x::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 99px;
+  }
+}
+
+/* The drawn stand-in for an overlay scrollbar.
+
+   Hidden until bindScrollAffordance MEASURES that the browser's own bar takes
+   no layout space - see needsRail() there. Where a real scrollbar is coming
+   this never appears, because two bars under one table is worse than either
+   alone and only one of them can be dragged. */
+.scroll-rail {
+  height: 6px;
+  margin: 0.4rem 0 1.25rem;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.11);
+  overflow: hidden;
+}
+
+/* Collapsed rather than display:none, and the BOTTOM margin is kept. The rail
+   carries the gap between one table and the next heading (see .box-scroll
+   below), and display:none takes an element's margins with it - so hiding it
+   the obvious way closed that gap on every desktop, which is exactly where the
+   rail is hidden. */
+.scroll-rail:not(.is-shown) {
+  height: 0;
+  margin-top: 0;
+  background: none;
+}
+
+.scroll-rail-thumb {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  /* The sport's accent, because this is the app's colour for "you can do
+     something here". A grey bar on a dark panel is the one thing a reader's
+     eye is trained to skip. */
+  background: var(--accent);
+  /* Width and transform are written by paintRail on every scroll. No
+     transition: the thumb is a readout of the finger currently on the table,
+     and a readout that lags its input reads as a broken one. */
+}
+
+/* Per-table frames, one under each heading. The gap between tables moves OUT
+   of the table and onto the rail below: left on the table it sits INSIDE the
+   scroll frame, which pushes the bar 1.25rem clear of the last row it belongs
+   to and reads as floating between two tables. */
+.box-scroll {
+  margin-bottom: 0;
+}
+
+.box-scroll > table.box-table {
+  margin-bottom: 0;
+}
+
+/* A div with tabindex is a focus stop, and a focus stop with no focus ring is
+   a keyboard user losing their place. */
+.scroll-x:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* The hint. A sentence can say "there is more" but never "this much more",
+   which is why it accompanies the bar rather than replacing it. */
+.box-scroll-hint {
+  /* Hidden by default and revealed only when a table actually overflows - see
+     the rule below. A hint promising more stats beside a table with nothing to
+     its right is worse than no hint, because the next one is not believed
+     either. Hidden-by-default is also the right failure mode if the script
+     never runs: no hint, scrollbar still there. */
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  margin: 0 0 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent-bright);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+/* Shown while there is somewhere to go, and retired once the reader has run to
+   the far right - at that point they have demonstrably found the mechanism and
+   the pill is just taking up a line.
+
+   The flag is set by bindScrollAffordance on the element that OWNS the render,
+   which is the hint's parent. A sibling selector cannot do this job: there are
+   six scroll frames on a football box score and the hint is adjacent to none
+   of them. */
+.has-offscreen-columns > .box-scroll-hint {
+  display: flex;
+}
+
+.hint-arrow {
+  /* Nudged rather than animated by default: an arrow that slides is the clearer
+     signal, and it is also a thing moving on screen for the entire time a box
+     score is open, which is a cost this pays only where motion is welcome. */
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hint-arrow {
+    animation: hint-nudge 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes hint-nudge {
+  0%, 60%, 100% { transform: translateX(0); }
+  30% { transform: translateX(3px); }
+}
+
+/* One of these two words is always wrong for the device in front of the table,
+   so CSS picks. Touch is the default because the overlay-scrollbar problem this
+   whole block exists for is worst on a phone. */
+.hint-pointer { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .hint-touch { display: none; }
+  .hint-pointer { display: inline; }
 }
 
 /* The frames a box score is rendered into, named so the rules further down
@@ -7274,17 +7474,20 @@ html {
    characters - so each wrapped to three or four lines and the verdict arrived
    as a paragraph. A fact is a row now and only advice carries words; see
    js/gradenotes.js for the measurements and js/main.js gradeNoteRow for the
-   markup. No bullet glyphs: a row with its value flush right does not need
-   one, and the padding it cost is width the numbers now use. */
-/* ONE COLUMN, LEFT ALIGNED, and both halves of that are the fix for the same
-   complaint: "too messy, only want like 5 things all left aligned".
+   markup.
 
-   It was a two-column reflowing grid, which paired rows up across a 1280px card
-   and put four numbers at four different horizontal positions. Two columns of
-   short rows does not read as a denser list; it reads as a scattered one.
+   ONE COLUMN, LEFT ALIGNED, which is the fix for a later complaint about the
+   same card: "too messy, only want like 5 things all left aligned". It was a
+   two-column reflowing grid, which paired rows up across a 1280px card and put
+   four numbers at four different horizontal positions. Two columns of short
+   rows does not read as a denser list; it reads as a scattered one, and the
+   card is short enough now (see NOTE_BUDGET in js/sports/nba/draftgrade.js)
+   that one column costs nothing it was buying.
 
-   The card is short enough now (see NOTE_BUDGET in js/sports/nba/draftgrade.js)
-   that one column costs nothing it was buying. */
+   The size is --text-xs rather than a literal 0.85rem, which is #73's doing and
+   is kept deliberately through this merge: the token is 13px at every
+   breakpoint by construction where a literal is 13px at exactly one, and the
+   phone breakpoint scales the root. */
 .draft-grade-reasons {
   margin: 0;
   padding-left: 0;
@@ -7292,7 +7495,7 @@ html {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -7848,7 +8051,7 @@ html {
   }
 
   .why-reasons {
-    font-size: 0.85rem;
+    font-size: var(--text-xs);
   }
 
   .rank-ladder-row {
@@ -8343,7 +8546,7 @@ html {
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text);
 }
@@ -9105,7 +9308,7 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   letter-spacing: 0;
   color: var(--text);
 }
