@@ -48,3 +48,10 @@ docs/audits/*-mobile-baseline/*-partial.json
 # else should inherit. The real, keepable browser tooling is scripts/selftest/.
 .shoot*.mjs
 .shoot-profile.json
+
+# /brag launch-video output. The storyboard (brag-plan.md) is worth keeping and
+# is tracked; everything else here is render output - an mp4, a poster frame,
+# and a Hyperframes composition directory of intermediates. This repo root is
+# what GitHub Pages serves from main, so a stray render lands on the live site.
+brag-output/*
+!brag-output/brag-plan.md
