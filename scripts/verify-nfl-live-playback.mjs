@@ -27,7 +27,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
+import { renderCheck, renderSection, summarize, PASS, FAIL, SKIP } from "./lib/report.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -571,11 +571,23 @@ async function main() {
             const bothSides = sides.has("a") && sides.has("b");
             return [{
               title: "Each score is worn in the scoring side's kit",
+              // A SHUTOUT CANNOT PROVE THIS, AND SAYING SO IS A SKIP RATHER
+              // THAN A FAILURE. The detail line below already admitted the
+              // case - "a one-sided shutout cannot prove this" - and the check
+              // failed on it anyway, so an unseeded simulation that happened to
+              // end 43-0 turned the build red while saying nothing whatever
+              // about the code. A gate that cries wolf is a gate people learn
+              // to re-run.
+              //
+              // The property itself is untouched: a game where both sides score
+              // and the two rows come out in the same kit still fails, which is
+              // the regression this exists to catch.
+              skip: !bothSides,
               ok: bothSides && rows.every((r) => r.side) &&
                 inkBySide.get("a") !== inkBySide.get("b") && borders.size >= 2,
               detail: bothSides
                 ? `a ${inkBySide.get("a")} vs b ${inkBySide.get("b")}, ${borders.size} border colours`
-                : `sides seen: ${[...sides].join(", ") || "none"} (a one-sided shutout cannot prove this)`,
+                : `sides seen: ${[...sides].join(", ") || "none"} - a one-sided shutout cannot prove this`,
             }];
           })(),
         ];
@@ -598,7 +610,7 @@ async function main() {
     server.close();
   }
 
-  const report = checks.map((c) => ({ title: c.title, status: c.ok ? PASS : FAIL, detail: c.detail }));
+  const report = checks.map((c) => ({ title: c.title, status: c.skip ? SKIP : c.ok ? PASS : FAIL, detail: c.detail }));
   for (const c of report) console.log(renderCheck(c));
   const { counts, ok } = summarize(report);
   console.log(`\n  ${samples.length} DOM samples\n  passed ${counts[PASS]}  failed ${counts[FAIL]}\n`);
