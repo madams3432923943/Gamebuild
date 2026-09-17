@@ -153,11 +153,6 @@ export function trackOnce(event, props = {}, key = event) {
   return true;
 }
 
-/** Whether trackOnce would still fire for this key. For a caller that has to
- * do real work (build an image, open a dialog) only if the event is new. */
-export function firedAlready(key) {
-  return alreadyFired.has(key);
-}
 
 async function send(event, props) {
   if (transportGaveUp) return;

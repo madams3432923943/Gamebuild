@@ -63,6 +63,10 @@ function serve(root, port) {
   return new Promise((resolve) => server.listen(port, () => resolve(server)));
 }
 
+/** Hoisted out of the try block so the post-run checks below can still see
+ * what the boot fetched. */
+let bootFiles = [];
+
 /** Datasets, which are the only files big enough to matter here. */
 const isNflData = (p) => /\/data\/nfl-/.test(p);
 const isNbaData = (p) => /\/data\/nba-/.test(p);
@@ -81,9 +85,17 @@ async function main() {
 
   try {
     const context = await browser.newContext();
-    await context.route("**/esm.sh/**", (route) =>
-      route.fulfill({ status: 200, body: stub, contentType: "text/javascript; charset=utf-8" })
-    );
+    // WHEN the CDN is asked for, not just whether. The app gates its first
+    // screen on supabase-js, so if that request waits for the whole module
+    // graph to download and evaluate first, every visitor pays a new origin's
+    // DNS, TLS and module chain at the END of boot rather than during it. That
+    // is what the preconnect and modulepreload in index.html exist to fix, and
+    // a hint is exactly the kind of thing that gets deleted as clutter.
+    let esmRequestedAfter = null;
+    await context.route("**/esm.sh/**", (route) => {
+      if (esmRequestedAfter === null) esmRequestedAfter = served.length;
+      return route.fulfill({ status: 200, body: stub, contentType: "text/javascript; charset=utf-8" });
+    });
     const page = await context.newPage();
 
     // ---- boot -------------------------------------------------------------
@@ -102,7 +114,7 @@ async function main() {
         : { domContentLoaded: 0, load: 0 };
     });
 
-    const bootFiles = [...served];
+    bootFiles = [...served];
     const nflOnBoot = bootFiles.filter((f) => isNflData(f.path));
     const nbaOnBoot = bootFiles.filter((f) => isNbaData(f.path));
     const bootBytes = sumBytes(bootFiles);
@@ -166,6 +178,20 @@ async function main() {
       title: "The app reaches an interactive screen inside 10s",
       ok: interactiveMs < 10000,
       detail: `${interactiveMs}ms`,
+    });
+    checks.push({
+      // The threshold is deliberately loose: the point is "early, in parallel
+      // with the app's own modules", not an exact position. Before the
+      // preconnect and modulepreload landed this was request 53 of 56 - the
+      // dynamic import cannot run until main.js has been evaluated, and
+      // main.js is evaluated last. With the hints it is in the opening burst.
+      // A regression here reads as ~500ms added to every cold visit.
+      title: "supabase-js is requested during boot, not at the end of it",
+      ok: esmRequestedAfter !== null && esmRequestedAfter < 15,
+      detail:
+        esmRequestedAfter === null
+          ? "esm.sh was never requested - the auth gate cannot have run"
+          : `requested after ${esmRequestedAfter} of the app's own ${bootFiles.length} boot files`,
     });
 
     // ---- choosing football -------------------------------------------------
@@ -294,6 +320,34 @@ async function main() {
   } finally {
     await browser.close();
     server.close();
+  }
+
+  // ---- the preload block has not drifted from the module graph ------------
+  //
+  // tools/stamp-build.mjs regenerates this on every `npm run verify`, so the
+  // only way it goes stale is somebody editing index.html by hand or the
+  // stamp step being skipped. A missing entry is SILENT - it is not an error,
+  // it is just that branch of the graph back to being discovered one round
+  // trip at a time - which is exactly why it is asserted rather than trusted.
+  {
+    const html = await readFile(path.join(ROOT, "index.html"), "utf8");
+    const preloaded = new Set([...html.matchAll(/<link rel="modulepreload" href="(js\/[^"]+)"/g)].map((m) => m[1]));
+    // What the browser ACTUALLY fetched to boot, which is the ground truth the
+    // generator is trying to predict.
+    const fetched = bootFiles
+      .map((f) => f.path.replace(/^\//, ""))
+      // The ENTRY is excluded: it is loaded by the <script type="module"> tag
+      // itself, so preloading it would be a second hint for a request the
+      // parser has already made.
+      .filter((p) => p.startsWith("js/") && p !== "js/main.js");
+    const missing = fetched.filter((p) => !preloaded.has(p));
+    checks.push({
+      title: "Every module fetched on boot is in the generated preload block",
+      ok: missing.length === 0,
+      detail: missing.length
+        ? `${missing.length} not preloaded: ${missing.slice(0, 5).join(" ")}${missing.length > 5 ? " …" : ""}. Run 'npm run stamp' and commit index.html.`
+        : `all ${fetched.length} boot modules preloaded`,
+    });
   }
 
   const report = checks.map((c) => ({ title: c.title, status: c.ok ? PASS : FAIL, detail: c.detail }));

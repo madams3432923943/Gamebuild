@@ -238,14 +238,77 @@ async function main() {
       );
       add("Tab stays inside the dialog", trapped && stillInside, stillInside ? "wraps to the first control" : "focus escaped to the page behind");
 
-      // The CTA is the documented way out, and it records the completion.
+      // ---- PANEL TWO: where to send feedback ------------------------------
+      // Start Playing no longer closes the dialog; it advances to the step that
+      // points at the settings gear. "Completed" moved with it, because the end
+      // of the welcome moved.
       await page.click(".onboarding-cta");
+      const step2 = await page.evaluate(async () => {
+        const { FEEDBACK_STEP } = await import("/js/onboarding.js");
+        const gear = document.getElementById("btn-settings");
+        const r = gear.getBoundingClientRect();
+        const body = document.getElementById("modal-body");
+        return {
+          open: !document.getElementById("modal-backdrop").classList.contains("hidden"),
+          heading: document.querySelector(".onboarding-hook")?.textContent || "",
+          lede: document.querySelector(".onboarding-lede")?.textContent || "",
+          cta: document.querySelector(".onboarding-cta-feedback")?.textContent || "",
+          copy: FEEDBACK_STEP,
+          spotlit: gear.classList.contains("is-spotlit"),
+          // THE SPOTLIGHT IS ONLY A SPOTLIGHT IF IT IS ON TOP. The backdrop is
+          // z-index 50 and covers the page; a ring drawn underneath it is a
+          // ring nobody sees. Asked of the document rather than of the class.
+          gearOnTop: (() => {
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return gear === hit || gear.contains(hit);
+          })(),
+          // Navigation is NOT blocked: the close button is still reachable.
+          dismissable: !!document.getElementById("modal-close"),
+          mentionsSettings: /settings/i.test(body.textContent || ""),
+        };
+      });
+
+      add("Start Playing advances to the feedback step", step2.open && !!step2.cta, step2.open ? step2.heading : "dialog closed instead");
+      add(
+        "The feedback step says what the product decided it says",
+        step2.heading === step2.copy.title && step2.lede === step2.copy.body && step2.cta.trim() === step2.copy.cta,
+        `"${step2.heading}" / CTA "${step2.cta.trim()}"`
+      );
+      add("It tells the player the feedback option lives in Settings", step2.mentionsSettings, "the word 'Settings' is in the body");
+      add("The settings gear is highlighted", step2.spotlit, `is-spotlit=${step2.spotlit}`);
+      add(
+        "The highlighted gear is drawn ABOVE the backdrop, not under it",
+        step2.gearOnTop,
+        step2.gearOnTop ? "the gear is the topmost element at its own centre" : "the backdrop is covering it"
+      );
+      add("The step is still dismissable - navigation is not blocked", step2.dismissable, "the modal close button is present");
+
+      // The CTA is the documented way out, and it records the completion.
+      await page.click(".onboarding-cta-feedback");
       const afterCta = await modalOpen(page);
       const completed = await page.evaluate(() =>
         window.__events.filter((e) => e.event === "onboarding_completed").length
       );
-      add("Start Playing closes it", !afterCta.open, afterCta.open ? "still open" : "closed");
-      add("Start Playing records onboarding_completed once", completed === 1, `${completed} event(s)`);
+      const spotlightAfter = await page.evaluate(() =>
+        document.getElementById("btn-settings").classList.contains("is-spotlit")
+      );
+      add("Got it closes the welcome", !afterCta.open, afterCta.open ? "still open" : "closed");
+      add("Got it records onboarding_completed once", completed === 1, `${completed} event(s)`);
+      add(
+        "The spotlight is cleaned up when the welcome ends",
+        !spotlightAfter,
+        spotlightAfter ? "the gear is still pulsing with no dialog open" : "removed"
+      );
+
+      // AND ON EVERY OTHER WAY OUT. Escape, the x and the backdrop all close
+      // this panel too, and a gear left ringed forever is the failure mode a
+      // cleanup that only runs on the happy path would ship.
+      await page.evaluate(() => {
+        // Re-open panel two by hand: the flag is written, so the sequence will
+        // not run again in this session.
+        document.getElementById("btn-settings").classList.add("is-spotlit");
+      });
+      await page.keyboard.press("Escape");
 
       // ---- it does not come back on a reload -----------------------------
       const storage = await context.storageState();

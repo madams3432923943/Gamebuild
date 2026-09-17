@@ -221,9 +221,10 @@ export function isFirstPlayer(profile) {
 // Each carries its own requirement and reads its own progress off the
 // profile, so adding another is one entry here and nothing else.
 //
-// `art` picks a CSS treatment in bannerArt (ui.js). Plain color-pair banners
-// leave it off; the camo ladder uses it to get a real pattern rather than a
-// flat gradient, since a camo that isn't patterned isn't a camo.
+// `art` picks a CSS treatment in bannerArt (js/ui/banner-art.js). Plain
+// color-pair banners leave it off. Founder is the only entry that sets it
+// today - the camo ladder that this mechanism was built for was replaced by
+// real artwork (`image`), and its CSS went with it.
 
 /** Everyone starts with this equipped (see DEFAULT_BANNER_ID) - a new player
  * on a blank card looked broken, and "no banner" isn't a reward state. Worn

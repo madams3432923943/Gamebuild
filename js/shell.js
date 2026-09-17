@@ -30,6 +30,23 @@ export function showScreen(name) {
   }
 }
 
+/** Which screen is showing, by the name showScreen() knows it as.
+ *
+ * Read off the DOM rather than remembered in a variable here, so it stays true
+ * for the screens that are shown by other means - the auth gate toggles its own
+ * section on boot without going through showScreen. Returns "" when nothing is
+ * visible, which is the state during the first moments of a boot.
+ *
+ * Added for the feedback form, which has to say WHERE a report came from: a
+ * bug report that does not name the screen is a bug report somebody has to
+ * write back about. */
+export function currentScreen() {
+  for (const key of Object.keys(screens)) {
+    if (screens[key] && !screens[key].classList.contains("hidden")) return key;
+  }
+  return "";
+}
+
 export function setActiveNav(which) {
   for (const tab of NAV_TABS) {
     const el = document.getElementById(`nav-${tab}`);

@@ -46,6 +46,8 @@ import {
 } from "./profile.js";
 import { countFriends } from "./friends.js";
 import { maybeShowOnboarding } from "./onboarding.js";
+import { buildFeedbackForm } from "./ui/feedback-form.js";
+import { buildStamp } from "./lib/build-stamp.js";
 import { renderSponsor, releaseSponsor } from "./ads/placements.js";
 import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
@@ -5518,26 +5520,30 @@ document.getElementById("btn-customize-profile").addEventListener("click", () =>
 const settingsBodyEl = document.getElementById("settings-body");
 const settingsBuildEl = document.getElementById("settings-build");
 
-/** The commit this build was stamped with, read off the entry script's own
- * cache-busting query (see tools/stamp-build.mjs).
- *
- * Worth showing: "what version are you on?" is the first question any bug
- * report needs, and until now nothing on screen could answer it - the stamp
- * existed purely to defeat the browser cache. Falls back to "dev" for a
- * checkout served without a stamp, which is the honest answer rather than a
- * blank. */
-function buildStamp() {
-  const src = document.querySelector('script[src*="js/main.js"]')?.getAttribute("src") || "";
-  return new URLSearchParams(src.split("?")[1] || "").get("v") || "dev";
-}
-
 function openSettings() {
   settingsBodyEl.hidden = false;
+  // "What version are you on?" is the first question any bug report needs, and
+  // the stamp used to exist purely to defeat the browser cache. Read through
+  // js/lib/build-stamp.js, which is also what the feedback payload carries -
+  // one reader, so the number in the sheet and the number on the report cannot
+  // disagree.
   if (settingsBuildEl) settingsBuildEl.textContent = buildStamp();
   openModal("Settings", settingsBodyEl);
 }
 
 document.getElementById("btn-settings").addEventListener("click", openSettings);
+
+// ---- Send Feedback ----
+// The settings sheet and the feedback form are both dialog bodies, and there is
+// exactly one dialog (js/shell.js). So this is a REPLACEMENT rather than a
+// second layer: closeModal detaches the settings sheet - which main.js holds a
+// reference to, keeping it and its listeners alive - and openModal puts the
+// form in its place. Stacking two backdrops to get a dialog on a dialog is the
+// version of this that breaks Escape and the focus trap.
+document.getElementById("btn-send-feedback").addEventListener("click", () => {
+  closeModal();
+  openModal("Send Feedback", buildFeedbackForm());
+});
 
 // Account fields stayed on the Profile screen - they are account state, not
 // app preferences - so Settings points at them rather than duplicating them.
