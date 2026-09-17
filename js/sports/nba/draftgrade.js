@@ -448,10 +448,12 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   // to it, which is the half a sentence cannot carry. Everything else the grid
   // showed was a capability sitting in the middle of its range, which is the
   // absence of news, and the letter itself is the summary of all nine.
-  const weakest = CAPABILITIES.find((c) => c.key === metrics.weakest);
-  if (weakest && metrics.weakest in metrics.capabilities) {
+  // `weak`, not a second lookup of the same capability: the headline is built
+  // from it a few lines above, and two independent reads of "the weakest thing
+  // this roster does" are two things that can drift apart.
+  if (weak && metrics.weakest in metrics.capabilities) {
     const value = metrics.capabilities[metrics.weakest];
-    always.push(statNote(weakest.label, pct(value), value <= CAPABILITY_SOFT_SPOT ? "bad" : "neutral"));
+    always.push(statNote(weak.label, pct(value), value <= CAPABILITY_SOFT_SPOT ? "bad" : "neutral"));
   }
 
   // A pick the clock made is the one thing here the player can see they did

@@ -569,6 +569,10 @@ async function main() {
             const inkBySide = new Map(rows.map((r) => [r.side, r.ink]));
             const borders = new Set(rows.map((r) => r.border));
             const bothSides = sides.has("a") && sides.has("b");
+            // Every row says which side it belongs to. Without this the sides
+            // set is empty and "one side scored" and "nobody recorded a side"
+            // look identical.
+            const attributed = rows.length > 0 && rows.every((r) => r.side);
             return [{
               title: "Each score is worn in the scoring side's kit",
               // A SHUTOUT CANNOT PROVE THIS, AND SAYING SO IS A SKIP RATHER
@@ -579,15 +583,21 @@ async function main() {
               // about the code. A gate that cries wolf is a gate people learn
               // to re-run.
               //
-              // The property itself is untouched: a game where both sides score
-              // and the two rows come out in the same kit still fails, which is
-              // the regression this exists to catch.
-              skip: !bothSides,
-              ok: bothSides && rows.every((r) => r.side) &&
+              // A SHUTOUT IS NOT THE SAME AS MISSING ATTRIBUTION, and the first
+              // version of this skip could not tell them apart: it keyed on
+              // `!bothSides`, which is also true when every row's side comes
+              // back empty - the exact regression this check exists to catch,
+              // reported as SKIP on a green build. So the skip requires rows
+              // that are actually attributed and genuinely one-sided; rows with
+              // no side at all still fail, and so does an empty summary.
+              skip: attributed && sides.size === 1,
+              ok: bothSides && attributed &&
                 inkBySide.get("a") !== inkBySide.get("b") && borders.size >= 2,
               detail: bothSides
                 ? `a ${inkBySide.get("a")} vs b ${inkBySide.get("b")}, ${borders.size} border colours`
-                : `sides seen: ${[...sides].join(", ") || "none"} - a one-sided shutout cannot prove this`,
+                : attributed
+                  ? `every score belongs to side ${[...sides][0]} - a one-sided shutout cannot prove this`
+                  : `${rows.length} row(s), ${rows.filter((r) => !r.side).length} with no side attribution`,
             }];
           })(),
         ];
@@ -613,7 +623,12 @@ async function main() {
   const report = checks.map((c) => ({ title: c.title, status: c.skip ? SKIP : c.ok ? PASS : FAIL, detail: c.detail }));
   for (const c of report) console.log(renderCheck(c));
   const { counts, ok } = summarize(report);
-  console.log(`\n  ${samples.length} DOM samples\n  passed ${counts[PASS]}  failed ${counts[FAIL]}\n`);
+  console.log(
+    `\n  ${samples.length} DOM samples\n  passed ${counts[PASS]}  failed ${counts[FAIL]}` +
+      // A skip that does not appear in the totals is a check that quietly
+      // stopped running, which is what this file just learned not to do.
+      `${counts[SKIP] ? `  skipped ${counts[SKIP]}` : ""}\n`
+  );
   process.exit(ok ? 0 : 1);
 }
 

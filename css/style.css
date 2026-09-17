@@ -7527,9 +7527,15 @@ html {
 .grade-note-label {
   overflow: hidden;
   text-overflow: ellipsis;
-  /* A fixed column so five values line up under each other rather than
-     stepping in and out with the length of the word beside them. */
-  flex: 0 0 auto;
+  /* A fixed column so five values line up under each other rather than stepping
+     in and out with the length of the word beside them.
+
+     `0 1 auto`, NOT `0 0 auto`: an unshrinkable label can never reach the
+     ellipsis above it, so a label longer than today's happen to be would have
+     pushed its value off the card instead of truncating - the failure a
+     designer cannot see, in a rule whose own comment promises the opposite.
+     min-width keeps the alignment column; the shrink restores the truncation. */
+  flex: 0 1 auto;
   min-width: 7.5rem;
 }
 
