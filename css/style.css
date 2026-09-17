@@ -236,10 +236,6 @@ button, input {
   vertical-align: middle;
 }
 
-.brand-ball {
-  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.6));
-}
-
 .nav-tabs {
   display: flex;
   gap: 0.4rem;
@@ -420,21 +416,6 @@ button, input {
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 0.9rem;
-}
-
-/* A setting is a label and its control side by side, not stacked: unlike the
-   text fields above it, the control is a fixed-width button and stacking it
-   leaves a row of empty space beside a short word. */
-.field-row-setting {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.field-row-setting > span {
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 #setting-sound {
@@ -766,14 +747,6 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-/* ---- Sport select ---- */
-.sport-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
 /* Section heading with an action beside it. The heading keeps its accent
    underline, so the row aligns on the baseline rather than on the box. */
 .section-head {
@@ -1058,75 +1031,6 @@ textarea:focus-visible {
 
 .play-title-icon {
   font-size: 1.4rem;
-}
-
-@media (max-width: 700px) {
-  .sport-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.sport-tile {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 1.1rem 0.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.sport-tile .sport-icon {
-  font-size: 1.8rem;
-}
-
-.sport-tile .sport-name {
-  font-family: var(--font-display);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 0.9rem;
-}
-
-.sport-tile .sport-status {
-  font-size: var(--text-micro);
-  color: var(--muted);
-}
-
-.sport-tile.active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(var(--accent-rgb), 0.35);
-}
-
-.sport-tile.active .sport-status {
-  color: var(--accent-bright);
-}
-
-.sport-tile.locked {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Selectable but not playable. Deliberately NOT the dimmed locked treatment -
-   a preview tile is a real destination you can click, and dimming it would
-   say the opposite. A dashed border reads as "under construction" rather than
-   "unavailable", which is exactly the difference. */
-.sport-tile.preview {
-  border-style: dashed;
-  border-color: rgba(var(--accent-rgb), 0.55);
-  opacity: 0.9;
-}
-
-.sport-tile.preview .sport-status {
-  color: var(--accent-bright);
-}
-
-.sport-tile.preview.active {
-  border-style: solid;
-  opacity: 1;
 }
 
 /* The line under the era picker explaining why Start Draft is dead. Warned
@@ -2257,8 +2161,6 @@ button.position-btn {
    old single colour, which is what a sport that dresses no kits still gets. */
 .scoreboard-score-a { color: var(--team-a-ink, var(--scoreboard)); }
 .scoreboard-score-b { color: var(--team-b-ink, var(--scoreboard)); }
-.scoreboard-team-a { color: var(--team-a-ink, var(--text)); }
-.scoreboard-team-b { color: var(--team-b-ink, var(--text)); }
 
 /* While the game's actually playing (renderScoreboard's isLive flag), same
    idea as .scoreboard-period.live's blink - a constant, low-key "this is
@@ -2270,12 +2172,6 @@ button.position-btn {
 @keyframes score-glow-pulse {
   0%, 100% { text-shadow: 0 0 16px rgba(255, 209, 102, 0.35); }
   50% { text-shadow: 0 0 28px rgba(255, 209, 102, 0.75), 0 0 8px rgba(255, 209, 102, 0.9); }
-}
-
-.scoreboard-dash {
-  font-family: var(--font-mono);
-  color: var(--muted);
-  font-size: 1.6rem;
 }
 
 /* On a phone the centre column is competing with two glowing scores for a
@@ -2686,6 +2582,138 @@ table.box-table th {
 .settings-disclaimer {
   margin: 0.7rem 0 0;
   line-height: 1.5;
+}
+
+/* The one row in the sheet that is an INVITATION rather than a setting, so it
+   gets a supporting line under its label and the only primary button in the
+   dialog. Everything else here is a preference you already know you came for;
+   this is the one that has to be noticed by somebody who did not. */
+.settings-row-feature {
+  align-items: flex-start;
+}
+
+.settings-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  /* min-width:0 so the hint below can wrap instead of forcing the row wider
+     than the dialog - the classic flex child that refuses to shrink. */
+  min-width: 0;
+}
+
+.settings-row-feature .hint-text {
+  margin: 0;
+}
+
+/* At 360px a two-line label beside a "💬 Send Feedback" button leaves the
+   button about 120px, which is not enough for its own text and is why the
+   label may wrap but the control may not (see .settings-row .btn). Stacking
+   gives both the full width instead of squeezing both. */
+@media (max-width: 560px) {
+  .settings-row-feature {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .settings-row-feature .btn {
+    width: 100%;
+  }
+}
+
+/* ---- Feedback form ----
+   The dialog body for Settings > Send Feedback (js/ui/feedback-form.js).
+   Nothing here is a new design: the field, the button pair and the status line
+   are the shapes the auth card and the squad forms already use. */
+.feedback-blurb {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.feedback-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.feedback-textarea {
+  /* Resize stays VERTICAL only. A textarea that can be dragged wider than the
+     dialog is a horizontal page scroll on a phone, which the mobile standard
+     forbids outright. */
+  resize: vertical;
+  min-height: 8.5rem;
+  line-height: 1.5;
+}
+
+.feedback-counter {
+  margin-top: 0.3rem;
+  text-align: right;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+/* Only at the ceiling. Before that the count is information; at it, it is the
+   explanation for why the next keystroke did nothing. */
+.feedback-counter.is-full {
+  color: var(--scoreboard);
+}
+
+.feedback-status {
+  margin: 0.75rem 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.feedback-status.is-success {
+  color: var(--win);
+}
+
+.feedback-status.is-error {
+  color: var(--buzzer);
+}
+
+/* STICKY, so the submit button is reachable without a scroll hunt once a
+   phone's keyboard has taken half the screen. .modal-body is the scroll
+   container (see its rule), so bottom:0 pins this to the bottom of the visible
+   dialog rather than to the bottom of the page. The background is opaque
+   because the textarea scrolls underneath it. */
+.feedback-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  background: var(--panel);
+  border-top: 1px solid var(--line-soft);
+}
+
+@media (max-width: 560px) {
+  /* Full-width and stacked, with the primary action on top where a thumb
+     reaches it. Two 50% buttons side by side at 360px put "Send Feedback" on
+     two lines. */
+  .feedback-actions {
+    flex-direction: column-reverse;
+  }
+
+  .feedback-actions .btn {
+    width: 100%;
+    /* 48, not the app's 44px floor. These two are the primary action of a form
+       somebody has just typed into, and the shared .btn rule was landing them
+       at 43.56px measured - the floor is set, and sub-pixel layout was leaving
+       it a fraction short, which is a floor that is not one. Clearing it by
+       four pixels rather than by nothing also stops the assertion in
+       scripts/verify-feedback.mjs having to round to pass. */
+    min-height: 48px;
+  }
 }
 
 /* A gear needs no label, but it still needs a target. Square so the 44px
@@ -3677,31 +3705,6 @@ table.box-table th {
   margin-left: auto;
 }
 
-/* This used to hardcode white, because --accent-contrast's dark navy landed
-   under 4.5:1 on the old blue. With the accent now varying per sport neither
-   choice is safe to hardcode: white reads at 3.3:1 on basketball orange and
-   dark reads at 4.1:1 on football blue, so each sport carries whichever one
-   clears the floor against its own accent (see the theme block in
-   js/sports/<id>/index.js). */
-.how-to-play-btn {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 0.5rem 1.15rem;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-}
-
-.how-to-play-btn:hover {
-  filter: brightness(1.08);
-}
-
 .signed-in-as {
   color: var(--accent-bright);
   font-weight: 700;
@@ -4442,63 +4445,6 @@ table.box-table th {
   font-size: 1rem;
 }
 
-/* ---- Camo banner patterns ----
-   Layered radial-gradient blobs at irregular offsets read as disruptive
-   camo without an image asset, the same reasoning as the court backdrop.
-   Both colors come from the banner entry via --art-c1/--art-c2 (set inline
-   in bannerArt), so one rule per pattern covers any palette. */
-.banner-art-camo-woodland,
-.banner-art-camo-desert,
-.banner-art-camo-tiger,
-.banner-art-camo-gold,
-.banner-art-camo-diamond {
-  background-color: var(--art-c2);
-  background-image:
-    radial-gradient(ellipse 38% 46% at 18% 26%, var(--art-c1) 0%, transparent 60%),
-    radial-gradient(ellipse 30% 40% at 62% 70%, var(--art-c1) 0%, transparent 62%),
-    radial-gradient(ellipse 26% 34% at 88% 22%, var(--art-c1) 0%, transparent 58%),
-    radial-gradient(ellipse 22% 30% at 40% 88%, var(--art-c1) 0%, transparent 60%);
-}
-
-/* Tiger stripes are directional bars, not blobs. */
-.banner-art-camo-tiger {
-  background-image:
-    repeating-linear-gradient(72deg, var(--art-c2) 0 8%, transparent 8% 14%, var(--art-c2) 14% 19%, transparent 19% 30%),
-    linear-gradient(180deg, var(--art-c1) 0%, var(--art-c1) 100%);
-}
-
-/* Gold gets a metallic sheen band rather than more blobs. */
-.banner-art-camo-gold {
-  background-image:
-    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 46%, transparent 58%),
-    radial-gradient(ellipse 40% 50% at 22% 30%, var(--art-c1) 0%, transparent 62%),
-    radial-gradient(ellipse 34% 42% at 74% 72%, var(--art-c1) 0%, transparent 60%),
-    linear-gradient(180deg, var(--art-c2) 0%, var(--art-c1) 100%);
-}
-
-/* Diamond: the rarest one, so it gets the most going on - a faceted
-   cross-hatch plus a bright sweep, and it's the only banner that animates. */
-.banner-art-camo-diamond {
-  background-image:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.22) 0 6px, transparent 6px 12px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.18) 0 6px, transparent 6px 12px),
-    linear-gradient(160deg, var(--art-c1) 0%, var(--art-c2) 55%, var(--art-c1) 100%);
-  box-shadow: inset 0 0 20px rgba(159, 232, 255, 0.55);
-}
-
-.banner-art-camo-diamond::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.75) 50%, transparent 65%);
-  animation: diamond-sheen 3.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes diamond-sheen {
-  0%, 100% { transform: translateX(-60%); opacity: 0.35; }
-  50% { transform: translateX(60%); opacity: 0.8; }
-}
 
 /* Founder: a gold burst behind a star that stays inside the frame.
    --burst-x follows the star, which sits on the left of a tile but on the
@@ -5763,6 +5709,61 @@ table.box-table th {
    welcome screen is the first impression of the product, not of a modal. */
 .modal.modal-onboarding {
   width: min(640px, 100%);
+}
+
+/* ---- The onboarding spotlight ----
+   Panel two of the welcome points at the settings gear, and a point is only a
+   point if you can see what is being pointed at. The backdrop is z-index 50
+   and covers everything; this lifts the one control above it and rings it.
+
+   position:relative is what makes z-index apply at all - the gear is a static
+   button otherwise, and a z-index on a static element does nothing. It works
+   from inside #app-root because nothing between here and the root creates a
+   stacking context; scripts/verify-onboarding.mjs asserts the gear really is
+   the top element at its own centre rather than trusting that. */
+.sport-card-action.is-spotlit {
+  position: relative;
+  z-index: 51;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.55), 0 0 22px 6px rgba(var(--accent-rgb), 0.45);
+  animation: spotlight-pulse 1.6s var(--ease-out) infinite;
+}
+
+@keyframes spotlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.55), 0 0 22px 6px rgba(var(--accent-rgb), 0.35); }
+  50%      { box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.75), 0 0 30px 10px rgba(var(--accent-rgb), 0.55); }
+}
+
+/* A pulse is decoration, and a player who has asked their system to stop
+   animating things has asked for this too. The ring stays - it is the
+   information; only the movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  .sport-card-action.is-spotlit {
+    animation: none;
+  }
+}
+
+/* The line that survives the panel. The highlight is gone the moment this
+   dialog closes; the sentence naming the gear is what a player still has
+   tomorrow, so it is set apart rather than buried in the paragraph above. */
+.onboarding-pointer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1.1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-inner);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.onboarding-pointer-glyph {
+  font-size: 1.1rem;
+  flex: 0 0 auto;
 }
 
 .onboarding-hook {
@@ -7311,7 +7312,6 @@ html {
   .game-stage::before,
   .scoreboard-score.pulse,
   .play-card.hot:first-child,
-  .banner-art-camo-diamond::after,
   .matchup-countdown.go {
     animation: none;
   }
@@ -8831,20 +8831,6 @@ table.box-table th:nth-child(2) {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
-}
-
-/* An icon-only nav button. Narrower than the text tabs beside it, so the row
-   still fits a phone with a sport, a profile and a sign-out on it. */
-.nav-tab-icon {
-  padding-left: 0.6rem;
-  padding-right: 0.6rem;
-  font-size: 1rem;
-  line-height: 1;
-}
-
-/* The toggle reads as off without relying on the glyph alone. */
-.nav-tab-icon[aria-pressed="false"] {
-  opacity: 0.55;
 }
 
 /* ---- Profile: identity before administration ------------------------------

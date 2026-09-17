@@ -11,7 +11,7 @@
 #
 # Runs only when supabase/functions/** changes, so an ordinary front-end push
 # doesn't redeploy a function that didn't move.
-name: Deploy Edge Function
+name: Deploy Edge Functions
 
 on:
   push:
@@ -81,3 +81,18 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy simulate-match --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}
+
+      # send-feedback is deployed by the same workflow for the same reason the
+      # first one is: a client that calls a function nobody pushed is a feature
+      # that is live in the browser and missing on the server. It has none of
+      # the engine gates above because it simulates nothing - its own checks are
+      # in `npm run verify:feedback`, which the PR gate already runs.
+      #
+      # Its provider key is a SECRET ON THE PROJECT, not a repository secret and
+      # not passed here: `supabase functions deploy` ships code, and the
+      # function reads RESEND_API_KEY from the project's own environment at
+      # request time. See docs/player-feedback.md for the one-time setup.
+      - name: Deploy send-feedback
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy send-feedback --project-ref ${{ vars.SUPABASE_PROJECT_REF || 'aauvgiygwrwdbtruhxta' }}
