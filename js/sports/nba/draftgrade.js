@@ -45,8 +45,6 @@ import {
   STARTER_SLOTS,
   CAPABILITY_FLOOR,
   CAPABILITY_CEILING,
-  TALENT_FLOOR,
-  TALENT_CEILING,
   CAPABILITY_SOFT_SPOT,
   CAPABILITY_SPREAD_TOLERANCE,
   TOP_HEAVY_TOLERANCE,
@@ -55,6 +53,7 @@ import {
   FORFEIT_GRADE_PENALTY,
   GRADE_BREAKPOINTS,
 } from "./constants.js";
+import { overallFor, overallToUnit } from "./rating.js";
 import { matchupNotes } from "../../matchups.js";
 import { statNote, adviceNote } from "../../gradenotes.js";
 
@@ -201,11 +200,7 @@ function measureBaseline(players) {
   const decile = creators.slice(0, Math.max(1, Math.round(creators.length * 0.1)));
   means.creation = mean(decile);
 
-  // ONE TALENT BASELINE for both halves of the roster - see TALENT_FLOOR in
-  // ./constants.js for why the two-band version had to go.
-  const rated = byImpact.map(impact).filter(Number.isFinite);
-  const top = rated.slice(0, Math.max(1, Math.round(rated.length * 0.15)));
-  return { means, player: mean(top) || 1 };
+  return { means };
 }
 
 /** A ratio onto the 0-1 the grade works in. See CAPABILITY_FLOOR. */
@@ -309,14 +304,16 @@ export function gradeMetrics(roster, datasetStats) {
   const uncovered = gradesCoverage ? STARTER_SLOTS.filter((pos) => !covered.has(pos)) : [];
 
   const mean = (list) => (list.length ? list.reduce((s, v) => s + v, 0) / list.length : 0);
-  const talentOf = (group, base) =>
-    group.length && base > 0
-      ? clamp((mean(group.map((slot) => impact(roster[slot]))) / base - TALENT_FLOOR) /
-          (TALENT_CEILING - TALENT_FLOOR), 0, 1)
-      : 0;
-
-  const starterTalent = baseline ? talentOf(starters, baseline.player) : 0;
-  const benchTalent = baseline && hasBench ? talentOf(bench, baseline.player) : 0;
+  const overallOf = (group) => mean(group.map((slot) => {
+    // A starter is judged at the position this roster asks him to play. A
+    // reserve slot carries no position, so use the player's first listed one.
+    const pos = isReserve(slot) ? roster[slot]?.pos?.[0] : basePosition(slot);
+    return overallFor(roster[slot], pos, datasetStats);
+  }));
+  const starterOverall = Math.round(overallOf(starters));
+  const benchOverall = hasBench ? Math.round(overallOf(bench)) : 0;
+  const starterTalent = starters.length ? overallToUnit(starterOverall) : 0;
+  const benchTalent = hasBench ? overallToUnit(benchOverall) : 0;
   const talent = hasBench ? 0.68 * starterTalent + 0.32 * benchTalent : starterTalent;
 
   // A TWO-MAN TEAM, as a multiple of an even split rather than a flat share -
@@ -360,6 +357,8 @@ export function gradeMetrics(roster, datasetStats) {
     talent,
     starterTalent,
     benchTalent,
+    starterOverall,
+    benchOverall,
     hasBench,
     gradesCoverage,
     uncovered,
@@ -426,13 +425,13 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   const headline = headlineFor(metrics, strong, weak);
 
   const pct = (value) => `${Math.round(100 * value)}`;
-  always.push(statNote("Starters", pct(metrics.starterTalent), metrics.starterTalent >= 0.6 ? "good" : "bad"));
+  always.push(statNote("Starters", String(metrics.starterOverall), metrics.starterOverall >= 80 ? "good" : "bad"));
   if (metrics.hasBench) {
     // BESIDE THE STARTERS, ON THE SAME RULER. This is what the rotation nudge
     // was reaching for and said as an instruction: how much the roster drops
     // when the second unit comes on. As a row it is a fact about the team the
     // player built, not a demand that they rebuild it.
-    always.push(statNote("Bench", pct(metrics.benchTalent), metrics.benchTalent >= 0.5 ? "good" : "bad"));
+    always.push(statNote("Bench", String(metrics.benchOverall), metrics.benchOverall >= 72 ? "good" : "bad"));
   }
 
   // ONE ROW FOR THE THING THIS ROSTER CANNOT DO.

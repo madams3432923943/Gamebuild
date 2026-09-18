@@ -15,6 +15,7 @@ import { eligibleOpenSlots, resolveTypedInput, normalizeName } from "../draft.js
 import { defaultSlots, slotLabel } from "./roster-slots.js";
 import { displayEntryName, shortPlayerName } from "./entry-name.js";
 import { renderNote } from "./note.js";
+import { formatSeason } from "./format.js";
 
 /** "2023 Mavericks" - which version of a player is actually on the roster.
  *
@@ -32,7 +33,10 @@ import { renderNote } from "./note.js";
  */
 function seasonLabel(player) {
   const nickname = String(player.team || "").split(" ").pop();
-  return `${player.season || player.decade} ${nickname}`;
+  const season = player.season
+    ? formatSeason(player.season, activeSport().id)
+    : player.decade;
+  return `${season} ${nickname}`;
 }
 
 

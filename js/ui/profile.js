@@ -11,6 +11,7 @@
 // squad screens need it too.
 
 import { escapeHtml } from "../lib/escape-html.js";
+import { formatSeason, roundStat } from "./format.js";
 import { SPORTS, sportById, eraRecordKey, DEFAULT_SPORT_ID } from "../sports/index.js";
 import { badgesForSport, badgeProgress, badgeSummary, badgeById } from "../badges.js";
 import {
@@ -42,7 +43,6 @@ import { emblemSvg } from "../emblems.js";
 import { bannerArt } from "./banner-art.js";
 import { renderNote } from "./note.js";
 import { historyModeLabel } from "../modes.js";
-import { roundStat } from "./format.js";
 import {
   FEATURED_BADGE_SLOTS,
   RECENT_GAMES_SHOWN,
@@ -1307,7 +1307,9 @@ function renderRecordBoard(container, profile, sport, onOpenGame) {
     const best = bests[key];
     return recordRow({
       label: statLabels[key],
-      holder: best ? (best.season ? `${best.season} ${best.playerName}` : best.playerName) : "",
+      holder: best
+        ? (best.season ? `${formatSeason(best.season, sport.id)} ${best.playerName}` : best.playerName)
+        : "",
       value: best ? String(roundStat(best.value)) : "—",
       date: best ? shortDate(best.date) : "",
       game: best?.game,
