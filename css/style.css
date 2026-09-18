@@ -5632,6 +5632,15 @@ table.box-table th {
      inside that or auto-fit silently stays at one column - which is what a
      16rem track did. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  /* THE TWO COLUMNS ARE STARTERS AND BENCH, not one list reflowed. Filling
+     row-wise put the left column at PG, SF, C, bench, bench and the right at
+     SG, PF, bench, bench, bench - two halves of a list, when a rotation is read
+     as two groups. Column flow fills the starters down the first track and the
+     reserves down the second; the row count comes from --rotation-rows, set
+     from the roster in renderRotationPicker (js/ui/strategy.js) because shape
+     varies by mode. */
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rotation-rows, 5), auto);
   gap: 0.3rem 0.8rem;
   margin-bottom: 0.5rem;
 }
@@ -10437,9 +10446,16 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   /* A phone shows one column of rotation rows whatever the grid says - two
      columns of a name, a minutes value and a slider is two unreadable columns.
      The minmax() above already resolves to one at this width; this states it
-     so a future change to that track cannot silently produce two. */
+     so a future change to that track cannot silently produce two.
+
+     ROW FLOW HAS TO COME BACK WITH IT. One column plus the column flow above is
+     a single track as tall as --rotation-rows and then a second one beside it,
+     which is the two-column layout again at the width it least fits. Row flow
+     gives one column in list order: starters first, then the bench. */
   .rotation-grid {
     grid-template-columns: 1fr;
+    grid-auto-flow: row;
+    grid-template-rows: none;
   }
 
   /* The pool is the screen. Anything else competing for the same height is

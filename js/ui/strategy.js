@@ -26,7 +26,36 @@ import { displayEntryName } from "./entry-name.js";
  */
 export function renderRotationPicker(container, roster, minutesMap, totalEl, slots, onValidChange) {
   container.innerHTML = "";
-  const list = (slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster));
+
+  // THE 6TH MAN IS A RESERVE and isBenchSlot does not think so - it matches the
+  // BENCH* names, and the 6-slot roster calls its reserve "6TH". Same test the
+  // draft grade makes for the same reason (see isReserve in
+  // js/sports/nba/draftgrade.js), defined once here so the ordering below and
+  // the row's own label cannot disagree about who is a starter.
+  const isReserve = (slot) => activeSport().isBenchSlot(slot) || slot === "6TH";
+
+  // STARTERS FIRST, THEN THE BENCH, because the grid now fills down one column
+  // before starting the next (see .rotation-grid in css/style.css).
+  //
+  // orderedRosterSlots already sorts this way, so this is a GUARANTEE rather
+  // than the fix - a caller passing its own `slots` array is not obliged to.
+  // The interleaving this change removes came from the grid's fill direction,
+  // not from the order: ten rows filled row-wise put PG, SF, C, bench, bench
+  // down the left and SG, PF, bench, bench, bench down the right, which is one
+  // list cut in half rather than the two groups a rotation is made of.
+  const all = slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster);
+  const starters = all.filter((slot) => !isReserve(slot));
+  const reserves = all.filter(isReserve);
+  const list = [...starters, ...reserves];
+
+  // WHERE THE GRID BREAKS, derived from the roster rather than fixed at five:
+  // shape varies by mode (10 in Ranked, 6 on the legacy/online path, 5 in Quick
+  // Play with no bench at all), and a hardcoded five would split those wrongly.
+  container.style.setProperty(
+    "--rotation-rows",
+    String(Math.max(starters.length, reserves.length) || 1)
+  );
+
   const rows = [];
 
   const sync = () => {
@@ -50,7 +79,7 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
   for (const slot of list) {
     const player = roster[slot];
     const { min, max } = activeSport().minutesRangeFor(slot);
-    const bench = activeSport().isBenchSlot(slot) || slot === "6TH";
+    const bench = isReserve(slot);
 
     // ONE ELEMENT PER PLAYER, holding the row and the slider that belongs to
     // it. They used to be two siblings of #rotation-grid, which was fine while
