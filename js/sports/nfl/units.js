@@ -11,7 +11,7 @@
 // best season reaches the same ceiling. overallFromZ turns the same z into the
 // 0-99 number the draft board shows.
 
-import { MIN_RATED_GAMES, FORFEIT_PENALTY } from "./constants.js";
+import { MIN_RATED_GAMES } from "./constants.js";
 
 // isUnit and unitLabel are DEFINED in ./entry.js and re-exported here.
 //
@@ -596,7 +596,26 @@ export function buildRatingContext(players, units) {
     // because a shrinkage target computed from a subset of the rows it is used
     // on would make a unit's rating depend on iteration order.
     defensiveRatePriors: {},
+    // Derived once from the full special-teams pool. Individual kicking seasons
+    // regress toward these rates when their sample is thinner than the rest of
+    // the rating system trusts.
+    kickingMeans: { fg: 0, pat: 0 },
   };
+
+  const kicking = { fg: [], pat: [] };
+  for (const row of units || []) {
+    if (canonicalGroup(row) !== "ST") continue;
+    const fg = known(row.fg_pct);
+    const pat = known(row.pat_pct);
+    if (fg !== null) kicking.fg.push(fg);
+    if (pat !== null) kicking.pat.push(pat);
+  }
+  for (const kind of ["fg", "pat"]) {
+    const values = kicking[kind];
+    ctx.kickingMeans[kind] = values.length
+      ? values.reduce((sum, value) => sum + value, 0) / values.length
+      : 0;
+  }
 
   for (const row of units || []) {
     const group = canonicalGroup(row);
@@ -962,18 +981,18 @@ export function defensiveUnitAxis(entry, axis, ctx) {
  * the roster shape being honest about itself rather than a special case: one
  * pick really is the whole defence in that mode.
  *
- * A forfeited or unfilled slot rates REPLACEMENT_LEVEL rather than 0.5. An
- * average stand-in for a pick nobody made is the silent-failure pattern
- * CLAUDE.md names: it makes skipping a defensive pick free.
+ * An unfilled slot rates REPLACEMENT_LEVEL rather than 0.5. An average stand-in
+ * for a slot the application could not fill would silently erase the missing
+ * unit. Draft forfeits are a separate, flat team-level cost in engine.js.
  */
-export function defensiveAxisStrength(roster, axis, ctx, forfeits) {
+export function defensiveAxisStrength(roster, axis, ctx) {
   const weights = DEFENSIVE_AXIS_WEIGHTS[axis];
   if (!weights) return 0.5;
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
     const entry = roster?.[slot] ?? roster?.DEF;
     const rated = entry ? defensiveUnitAxis(entry, axis, ctx) : REPLACEMENT_LEVEL;
-    total += weight * (forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated);
+    total += weight * rated;
   }
   return total;
 }
@@ -981,6 +1000,30 @@ export function defensiveAxisStrength(roster, axis, ctx, forfeits) {
 export function rateEntry(entry, ctx) {
   if (!entry) return 0;
   return isUnit(entry) ? rateUnit(entry, ctx) : ratePlayer(entry, ctx);
+}
+
+/** A kicking unit's field-goal and extra-point accuracy, with the same
+ * sample-size trust every other rating in this file applies.
+ *
+ * The engine used to read fg_pct straight off the row, which was the one rating
+ * path in football that skipped MIN_RATED_GAMES. Regressing a thin season
+ * toward the pool's own rate keeps a barely-used perfect kicker from becoming
+ * the best special-teams pick in the pool.
+ *
+ * Returns null for a missing unit so the caller keeps its own fallback: a
+ * forfeited or absent ST slot is the engine's decision to make, not this
+ * function's.
+ */
+export function kickAccuracy(entry, ctx) {
+  if (!entry) return null;
+  const trust = Math.min(1, Math.max(0, n(entry.games)) / MIN_RATED_GAMES);
+  const regress = (field, kind) => {
+    const poolMean = ctx?.kickingMeans?.[kind];
+    const row = known(entry[field]);
+    if (!Number.isFinite(poolMean)) return row === null ? null : bounded(row);
+    return bounded(poolMean + ((row ?? poolMean) - poolMean) * trust);
+  };
+  return { fg: regress("fg_pct", "fg"), pat: regress("pat_pct", "pat") };
 }
 
 /**

@@ -51,6 +51,7 @@ import { buildStamp } from "./lib/build-stamp.js";
 import { renderSponsor, releaseSponsor } from "./ads/placements.js";
 import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
+import { formatSeason } from "./ui/format.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
 import {
@@ -280,7 +281,10 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
   // The season, not the decade: by this point a year has been chosen and the
   // slot picker should confirm which one, or the last thing you see before
   // committing disagrees with what you committed to.
-  meta.textContent = `${player.pos.join(" / ")} · ${player.season || player.decade} ${player.team}`;
+  const season = player.season
+    ? formatSeason(player.season, activeSportId())
+    : player.decade;
+  meta.textContent = `${player.pos.join(" / ")} · ${season} ${player.team}`;
   wrap.appendChild(meta);
 
   // Bench spots are interchangeable, so offering five identical "Bench"
@@ -718,7 +722,7 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
     row.type = "button";
     row.className = "season-option";
     row.innerHTML = `<span class="season-year"></span><span class="season-line"></span>`;
-    row.querySelector(".season-year").textContent = String(s.season);
+    row.querySelector(".season-year").textContent = formatSeason(s.season, activeSportId());
     // Under ranked rules the row is the year and nothing else.
     // Through the sport's own hook, not basketball's columns. This printed
     // "undefined pts · undefined reb · undefined ast" on every football season,

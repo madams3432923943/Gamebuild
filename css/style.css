@@ -5620,11 +5620,10 @@ table.box-table th {
 }
 
 /* ---- Rotation phase ---- */
-/* TWO COLUMNS ON ANYTHING WIDE ENOUGH. A ten-player rotation is ten rows and
-   ten sliders - 620px of one column, so the Confirm button that ends the phase
-   sat below the fold on every laptop. Paired up it is five rows deep and the
-   button is on screen with them, which is what makes the budget readable as
-   one set of trade-offs rather than a list you scroll. */
+/* TWO COLUMNS ON ANYTHING WIDE ENOUGH. These are semantic groups: starters
+   fill the left column and reserves fill the right, rather than one list that
+   happens to reflow. The shape-derived --rotation-rows comes from strategy.js,
+   keeping 5-, 6- and 10-slot modes correct without duplicating the grid. */
 .rotation-grid {
   display: grid;
   /* 14rem, measured rather than chosen: the centre column of the draft board is
@@ -5632,6 +5631,8 @@ table.box-table th {
      inside that or auto-fit silently stays at one column - which is what a
      16rem track did. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rotation-rows, 5), auto);
   gap: 0.3rem 0.8rem;
   margin-bottom: 0.5rem;
 }
@@ -10437,9 +10438,12 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   /* A phone shows one column of rotation rows whatever the grid says - two
      columns of a name, a minutes value and a slider is two unreadable columns.
      The minmax() above already resolves to one at this width; this states it
-     so a future change to that track cannot silently produce two. */
+     so a future change to that track cannot silently produce two. Row flow
+     preserves starters-first order instead of making one tall column follow
+     the desktop grid's column-placement rules. */
   .rotation-grid {
     grid-template-columns: 1fr;
+    grid-auto-flow: row;
   }
 
   /* The pool is the screen. Anything else competing for the same height is

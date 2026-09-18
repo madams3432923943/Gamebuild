@@ -10,7 +10,7 @@ import { escapeHtml } from "../lib/escape-html.js";
 import { activeSport } from "../sports/index.js";
 import { slotLabel, rosterSlots } from "./roster-slots.js";
 import { displayEntryName } from "./entry-name.js";
-import { roundStat } from "./format.js";
+import { formatSeason, roundStat } from "./format.js";
 import { bindScrollAffordance } from "./scroll-affordance.js";
 
 /**
@@ -150,7 +150,9 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   //
   // Full team name rather than seasonLabel()'s nickname: this table is wide,
   // and the nickname exists only to stop draft cards wrapping on a phone.
-  const era = player.season || player.decade || "";
+  const era = player.season
+    ? formatSeason(player.season, activeSport().id)
+    : player.decade || "";
   const meta = player.team ? `<div class="box-meta">${escapeHtml(player.team)} ${escapeHtml(String(era))}</div>` : "";
   // Cells come from the SPORT's column list. A value of 0 shows as 0 and a
   // missing one shows a dash, because "nothing" and "did not do this" are
@@ -790,4 +792,3 @@ export function formatMvpStatLine(sport, line) {
  * turns a final score into a sequence, and the play-by-play, the sounds and the
  * run/lead lines still run off it. Only the floor they were painted on is gone.
  */
-

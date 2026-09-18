@@ -15,3 +15,15 @@
 export function roundStat(n) {
   return Math.max(0, Math.round(n));
 }
+
+/** A canonical season key at the UI boundary.
+ *
+ * Basketball keys name the season's start year, so 2012 is 2012-13. Football
+ * keys name a single NFL season and remain 2012. Keeping the sport explicit
+ * prevents shared UI from silently applying an NBA convention globally. */
+export function formatSeason(season, sportId) {
+  if (season === undefined || season === null || season === "") return "";
+  const start = Number(season);
+  if (sportId !== "nba" || !Number.isInteger(start)) return String(season);
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}

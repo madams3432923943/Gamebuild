@@ -10,6 +10,7 @@ import { escapeHtml } from "../lib/escape-html.js";
 import { activeSport } from "../sports/index.js";
 import { rosterSlots, slotLabel } from "./roster-slots.js";
 import { displayEntryName } from "./entry-name.js";
+import { formatSeason } from "./format.js";
 
 /** Rotation phase, NBA 2K franchise style: one slider per player, with each
  * position's two players coupled to that position's 48 minutes. Dragging a
@@ -26,7 +27,19 @@ import { displayEntryName } from "./entry-name.js";
  */
 export function renderRotationPicker(container, roster, minutesMap, totalEl, slots, onValidChange) {
   container.innerHTML = "";
-  const list = (slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster));
+  const isReserve = (slot) => activeSport().isBenchSlot(slot) || slot === "6TH";
+  const all = slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster);
+  const starters = all.filter((slot) => !isReserve(slot));
+  const reserves = all.filter(isReserve);
+  const list = [...starters, ...reserves];
+  // COLUMN FLOW NEEDS TO KNOW WHERE TO BREAK. The grid fills down the starters
+  // column and then the bench column, so the row count is the taller of the two
+  // groups - derived, because roster shape varies by mode: 5+5 in Ranked, 5+1
+  // on the legacy/online path, 5+0 in Quick Play.
+  container.style.setProperty(
+    "--rotation-rows",
+    String(Math.max(starters.length, reserves.length) || 1)
+  );
   const rows = [];
 
   const sync = () => {
@@ -50,7 +63,7 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
   for (const slot of list) {
     const player = roster[slot];
     const { min, max } = activeSport().minutesRangeFor(slot);
-    const bench = activeSport().isBenchSlot(slot) || slot === "6TH";
+    const bench = isReserve(slot);
 
     // ONE ELEMENT PER PLAYER, holding the row and the slider that belongs to
     // it. They used to be two siblings of #rotation-grid, which was fine while
@@ -67,7 +80,9 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     name.className = "rotation-label";
     name.innerHTML =
       `<span class="rotation-role">${bench ? "Bench" : slotLabel(slot)}</span> ` +
-      `${escapeHtml(displayEntryName(player))} <span class="rotation-pos">${player.pos.join("/")}</span>`;
+      `${escapeHtml(displayEntryName(player))}` +
+      `${player.season ? ` — ${formatSeason(player.season, activeSport().id)}` : ""} ` +
+      `<span class="rotation-pos">${player.pos.join("/")}</span>`;
     row.appendChild(name);
 
     const value = document.createElement("span");

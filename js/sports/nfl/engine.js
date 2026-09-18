@@ -95,7 +95,7 @@
 import {
   DRIVES_PER_TEAM, SCORING_LIFT, EDGE_BASELINE, DRIVE_START_YARD, FG_RANGE_YARD,
   DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY, EDGE_FLOOR,
-  TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
+  TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_RATING_COST,
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
   TWO_POINT_POSSESSIONS,
@@ -105,7 +105,7 @@ import {
   situationFor, fourthDownCall, mustScoreTouchdown, twoPointWindow, DRIVE_LIVES_ON,
 } from "./fourthdown.js";
 import {
-  buildRatingContext, rateEntry, isUnit, defensiveAxisStrength, DEFENSIVE_AXES,
+  buildRatingContext, rateEntry, kickAccuracy, isUnit, defensiveAxisStrength, DEFENSIVE_AXES,
 } from "./units.js";
 import { composedModsFor, affinityRevealFor } from "./tactics.js";
 
@@ -117,10 +117,11 @@ export function computeDatasetStats(players, units) {
   return ctx;
 }
 
-/** Weighted mean of the slots on one side of the ball. A forfeited slot is not
- * a zero - it is a replacement-level body, which is what actually takes the
- * field when you have nobody. Zero would mean eleven men playing ten. */
-function sideRating(roster, weights, forfeits, ctx) {
+/** Weighted mean of the slots on one side of the ball. A genuinely missing
+ * entry falls back to league average: the application can leave a slot empty
+ * when it had nothing legal to offer, and charging the player for that would
+ * charge them for our bug. Draft forfeits are charged separately below. */
+function sideRating(roster, weights, ctx) {
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
     // Quick Play drafts one DEF unit instead of four, so it stands in for
@@ -140,8 +141,7 @@ function sideRating(roster, weights, forfeits, ctx) {
       (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined) ??
       roster[slot.replace(/\d+$/, "")];
     const rated = entry ? rateEntry(entry, ctx) : 0.5;
-    const penalised = forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated;
-    total += weight * penalised;
+    total += weight * rated;
   }
   return total;
 }
@@ -157,10 +157,17 @@ function sideRating(roster, weights, forfeits, ctx) {
  * numbers that look solved and are not.
  */
 export function rosterRatings(roster, ctx, forfeits) {
+  const cost = forfeitCost(forfeits);
   return {
-    off: sideRating(roster, OFFENSE_WEIGHTS, forfeits, ctx),
-    def: sideRating(roster, DEFENSE_WEIGHTS, forfeits, ctx),
+    off: Math.max(0, sideRating(roster, OFFENSE_WEIGHTS, ctx) - cost),
+    def: Math.max(0, sideRating(roster, DEFENSE_WEIGHTS, ctx) - cost),
   };
+}
+
+/** What this roster's forfeits cost it, as a flat deduction on each side
+ * rating. See FORFEIT_RATING_COST. */
+export function forfeitCost(forfeits) {
+  return (forfeits?.length || 0) * FORFEIT_RATING_COST;
 }
 
 /**
@@ -183,10 +190,10 @@ function swing(rating, amount) {
  * the rating context, and rebuilding it 22 times a game would be 22 identical
  * answers. The same reasoning as usageWeights.
  */
-function defensiveMatchup(roster, ctx, forfeits) {
+function defensiveMatchup(roster, ctx) {
   const axes = {};
   for (const axis of DEFENSIVE_AXES) {
-    axes[axis] = defensiveAxisStrength(roster, axis, ctx, forfeits);
+    axes[axis] = defensiveAxisStrength(roster, axis, ctx);
   }
   return axes;
 }
@@ -529,9 +536,12 @@ function nextStart(outcome, endYard) {
 /** Whether a kick from this distance goes through, using the DRAFTED kicker's
  * accuracy rather than a constant. Falls back to a league-ish rate when the ST
  * slot was forfeited, scaled down for distance either way. */
-function fieldGoalGood(kicker, endYard, rand, fgMod = 1) {
+function fieldGoalGood(kicker, ctx, endYard, rand, fgMod = 1, forfeits = null) {
   const distance = 100 - endYard + 17;
-  const base = (Number(kicker?.fg_pct) || 0.78) * fgMod;
+  // A forfeited kicker is charged the same flat cost as every other forfeited
+  // slot, applied where special teams reaches the game. Nothing else on the
+  // roster is scaled by it.
+  const base = (kickAccuracy(kicker, ctx)?.fg ?? 0.78) * fgMod * (1 - forfeitCost(forfeits));
   const longPenalty = Math.max(0, distance - 38) * 0.011;
   return rand() < Math.max(0.25, base - longPenalty);
 }
@@ -613,7 +623,7 @@ function pickTakeawayMan(entry, kindOfTakeaway, rand) {
  * @param margin the score difference AFTER the six points, from the scoring
  *   team's side - which is the number the chart is written in terms of.
  */
-function runConversion(margin, quarter, rand, situation = null) {
+function runConversion(margin, quarter, rand, situation = null, kicker = null, ctx = null) {
   // POSSESSIONS, not just the quarter. The chart's whole argument is that the
   // arithmetic has run out - "this makes it a field goal game" is a claim
   // about a game with a known number of drives left in it. Gating on the
@@ -627,7 +637,8 @@ function runConversion(margin, quarter, rand, situation = null) {
   // whether the chart fired - which keeps a replay of the same seed identical
   // however the baseline rate is set.
   const goForTwo = chart || rand() < TWO_POINT_BASELINE_RATE;
-  const good = rand() < (goForTwo ? TWO_POINT_SUCCESS : EXTRA_POINT_SUCCESS);
+  const xpSuccess = kickAccuracy(kicker, ctx)?.pat ?? EXTRA_POINT_SUCCESS;
+  const good = rand() < (goForTwo ? TWO_POINT_SUCCESS : xpSuccess);
   return { type: goForTwo ? "two" : "xp", good, points: good ? (goForTwo ? 2 : 1) : 0 };
 }
 
@@ -652,7 +663,7 @@ function describeConversion(conversion) {
  *   down 1 could not punt in the fourth: the index flipped, the score never
  *   entered into it.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5, forfeits = null) {
   const margin = situation.margin;
   // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
   // the defense you are running into. A style that only helped its owner would
@@ -867,7 +878,9 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       who = pickScorer(roster, kind, rand);
     }
     points = POINTS.touchdown;
-    conversion = runConversion(margin + POINTS.touchdown, quarter, rand, situation);
+    conversion = runConversion(
+      margin + POINTS.touchdown, quarter, rand, situation, kickingEntry(roster), ctx
+    );
     points += conversion.points;
     scorer = who ? who.entry.name : null;
     scorerSlot = who?.slot ?? null;
@@ -876,7 +889,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       : "Touchdown") + describeConversion(conversion);
   } else if (outcome === "fieldGoal") {
     const kicker = kickingEntry(roster);
-    if (fieldGoalGood(kicker, endYard, rand, mine.fg)) {
+    if (fieldGoalGood(kicker, ctx, endYard, rand, mine.fg, forfeits)) {
       points = POINTS.fieldGoal;
       scorer = kicker?.members?.[0]?.name || label(kicker) || teamName(roster);
       scorerSlot = kickerSlot(roster);
@@ -2116,10 +2129,12 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // receive the second, which is the whole point of the choice.
   const firstHalfReceiver = elected === "receive" ? tossWinner : other(tossWinner);
 
-  const offA = sideRating(rosterA, OFFENSE_WEIGHTS, opts.forfeitsA, ctx);
-  const offB = sideRating(rosterB, OFFENSE_WEIGHTS, opts.forfeitsB, ctx);
-  const defA = sideRating(rosterA, DEFENSE_WEIGHTS, opts.forfeitsA, ctx);
-  const defB = sideRating(rosterB, DEFENSE_WEIGHTS, opts.forfeitsB, ctx);
+  const costA = forfeitCost(opts.forfeitsA);
+  const costB = forfeitCost(opts.forfeitsB);
+  const offA = Math.max(0, sideRating(rosterA, OFFENSE_WEIGHTS, ctx) - costA);
+  const offB = Math.max(0, sideRating(rosterB, OFFENSE_WEIGHTS, ctx) - costB);
+  const defA = Math.max(0, sideRating(rosterA, DEFENSE_WEIGHTS, ctx) - costA);
+  const defB = Math.max(0, sideRating(rosterB, DEFENSE_WEIGHTS, ctx) - costB);
 
   // What an average matchup of this roster shape rates at - see edge(), and
   // EDGE_BASELINE in constants.js for the measurement. Keyed on the shape
@@ -2158,10 +2173,12 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // rebuilt per row froze the browser once before.
   const cfg = {
     A: { off: offA, def: defA, roster: rosterA, mods: modsA,
-         axes: defensiveMatchup(rosterA, ctx, opts.forfeitsA),
+         axes: defensiveMatchup(rosterA, ctx), forfeits: opts.forfeitsA,
+         // The quarterback's own quality remains intact; forfeits are a
+         // separate flat team cost rather than a scaling of the drafted player.
          qb: rosterA.QB ? rateEntry(rosterA.QB, ctx) : 0.5 },
     B: { off: offB, def: defB, roster: rosterB, mods: modsB,
-         axes: defensiveMatchup(rosterB, ctx, opts.forfeitsB),
+         axes: defensiveMatchup(rosterB, ctx), forfeits: opts.forfeitsB,
          qb: rosterB.QB ? rateEntry(rosterB.QB, ctx) : 0.5 },
   };
   const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
@@ -2194,7 +2211,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeits);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -2262,7 +2279,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeits);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;
