@@ -722,6 +722,41 @@ export const FIELD_POSITION_MAX = 1.55;
 export const QB_SWING = 0.45;
 
 /**
+ * THE KICK: how distance moves a kicker's own season percentage.
+ *
+ * A special-teams unit's Overall IS its season field-goal percentage - 24 of 25
+ * is a 96, and a 96 converts about 96% of his attempts across a season. That is
+ * the whole design: the number on the card is the number in the game, and it is
+ * checkable against the row it came from.
+ *
+ * DISTANCE SCALES THE MISS, NOT THE MAKE. Subtracting a flat penalty per yard -
+ * which is what this used to do - cannot preserve that promise: it cost every
+ * kicker about 7 points of conversion, so a 96 converted 89% and the number on
+ * the card was a number the game did not honour. Scaling the miss chance keeps
+ * the make probability inside 0..1 by construction, and it is the more honest
+ * football anyway: a great kicker loses less to distance IN ABSOLUTE TERMS than
+ * a poor one does, which is why a 96 still makes 93% from 52 while a league
+ * average unit makes 71%.
+ *
+ * NEUTRAL AT THE AVERAGE ATTEMPT, so the mean multiplier over a season is 1 and
+ * the realised rate lands on the rating. 37.5 yards is MEASURED, not chosen:
+ * that is the mean field-goal distance over 14,742 attempts across 3,000 seeded
+ * games. Re-measure it if fourth-down policy or FG_RANGE_YARD changes, because
+ * either moves which kicks get attempted and therefore where the middle is.
+ *
+ * The slope is solved against the real league's shape by distance - about 97%
+ * inside 30 yards, 82% from 40-49 and 68% from 50+ - and is capped below so a
+ * chip shot never becomes literally automatic.
+ */
+export const FG_NEUTRAL_DISTANCE = 37.5;
+export const FG_DISTANCE_SLOPE = 0.04;
+
+/** What a roster with no special teams at all kicks like - Quick Play drafts
+ * no ST slot. The pool's own mean season percentage, so an undrafted kicker is
+ * an ordinary one rather than an invented one. */
+export const LEAGUE_FG_PCT = 0.83;
+
+/**
  * What ONE forfeited pick costs, as a flat deduction from BOTH of a roster's
  * side ratings. Equal for every slot, special teams included.
  *

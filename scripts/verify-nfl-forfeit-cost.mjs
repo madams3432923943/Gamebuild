@@ -73,14 +73,18 @@ const EVENNESS = 0.6;
 // anyone meaning it to gets caught here - these two rosters are drafted to the
 // same rating at every slot, so the number is a property of the engine.
 //
-// It is NOT the number the balance constants were solved against any more.
-// Wiring special teams in moved it: A's kicker used to carry a raw fg_pct edge
-// that regressing thin seasons took away, so two rosters built to the same
-// rating now play much nearer a coin flip - which is what "the same rating"
-// ought to mean. tools/calibrate-nfl-variance.mjs solves the same
-// TALENT_PARITY and variance range either side of that change, so no
-// calibrated lever moved with it.
-const UNTOUCHED = { ptsA: 26.7, ptsB: 26.0, winA: 52.5 };
+// It is NOT the number the balance constants were solved against. Kicking
+// changed twice since they were: special teams was wired into the simulation,
+// then a kicker's rating became his literal season percentage, which added
+// about 0.7 points a side because scaling the MISS by distance is gentler on
+// an ordinary kicker at ordinary range than docking the make was.
+// tools/calibrate-nfl-variance.mjs solves the same TALENT_PARITY and variance
+// range either side of both, so no calibrated lever moved with them.
+//
+// A wins slightly more than half of these by construction, not by luck: each
+// slot is drafted to the same target rating, but B may not reuse A's man, so
+// B takes the second-closest match twelve times.
+const UNTOUCHED = { ptsA: 27.2, ptsB: 26.5, winA: 52.8 };
 
 const SLOTS = ["QB", "RB", "WR1", "WR2", "WR3", "TE", "OL", "DL", "LB", "CB", "S", "ST"];
 
@@ -105,6 +109,21 @@ function draftAt(slot, target) {
 const roster = (target) => Object.fromEntries(SLOTS.map((s) => [s, draftAt(s, target)]));
 const rosterA = roster(0.62);
 const rosterB = roster(0.62);
+
+// BOTH SIDES KICK WITH THE SAME UNIT, pinned by percentage rather than drafted
+// by rating. Kicking is not what this file measures, and leaving it to the
+// draft made the baseline move whenever the ST RATING was redefined - not
+// because the engine changed, but because "the 0.62-rated kicker" became a
+// different team. That happened twice, and the second time it showed up here
+// as a 1.6-point drift with nothing behind it. One shared kicker removes
+// kicking from every arm except the ST forfeit, which is the one that should
+// feel it.
+const kickers = pool
+  .filter((e) => (e.pos || []).includes("ST") && Number(e.fg_pct) > 0)
+  .sort((a, b) => a.fg_pct - b.fg_pct);
+const medianKicker = kickers[Math.floor(kickers.length / 2)];
+rosterA.ST = medianKicker;
+rosterB.ST = medianKicker;
 
 // COMMON RANDOM NUMBERS. Game i is played from the same seed in every arm, so
 // the only difference between two arms is the forfeit being measured and most

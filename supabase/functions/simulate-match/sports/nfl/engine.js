@@ -99,6 +99,7 @@ import {
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
   TWO_POINT_POSSESSIONS,
+  FG_NEUTRAL_DISTANCE, FG_DISTANCE_SLOPE, LEAGUE_FG_PCT,
   AXIS_SWING, QB_SWING, FIELD_POSITION_SWING, FIELD_POSITION_MIN, FIELD_POSITION_MAX,
 } from "./constants.js";
 import {
@@ -106,7 +107,6 @@ import {
 } from "./fourthdown.js";
 import {
   buildRatingContext, rateEntry, isUnit, defensiveAxisStrength, DEFENSIVE_AXES,
-  kickAccuracy,
 } from "./units.js";
 import { composedModsFor, affinityRevealFor } from "./tactics.js";
 
@@ -551,15 +551,20 @@ function nextStart(outcome, endYard) {
  * the team-level deduction to bite on. Without it, forfeiting the ST slot was
  * measured at exactly 0.0 win points: the clock picked your kicker and you
  * were charged nothing. See FORFEIT_RATING_COST. */
-function fieldGoalGood(accuracy, endYard, rand, fgMod = 1, haircut = 0) {
+function fieldGoalGood(kicker, endYard, rand, fgMod = 1, haircut = 0) {
   const distance = 100 - endYard + 17;
-  // The TRUST-SCALED rate, not the raw fg_pct column. Reading the column
-  // directly was the one rating path in football that skipped sample size, so
-  // a unit that kicked 100% on sixteen attempts kicked 100% here too. See
-  // kickAccuracy in units.js.
-  const base = (Number(accuracy?.fg) || 0.78) * fgMod * (1 - haircut);
-  const longPenalty = Math.max(0, distance - 38) * 0.011;
-  return rand() < Math.max(0.25, base - longPenalty);
+  // THE UNIT'S OWN SEASON PERCENTAGE, read straight off the row. It is also
+  // exactly the Overall the draft board printed - a 96 went 24 of 25 - so the
+  // number the player picked on is the number the game plays with.
+  const season = Number(kicker?.fg_pct) || LEAGUE_FG_PCT;
+  // Distance scales the MISS rather than docking the make, which is what keeps
+  // a season's average on the rating instead of about seven points under it.
+  // See FG_NEUTRAL_DISTANCE.
+  const reach = Math.max(0.05, 1 + (distance - FG_NEUTRAL_DISTANCE) * FG_DISTANCE_SLOPE);
+  const make = (1 - (1 - season) * reach) * fgMod * (1 - haircut);
+  // A kick is never hopeless and never certain: the floor is the one this
+  // always had, and the ceiling stops a chip shot being a formality.
+  return rand() < Math.max(0.25, Math.min(0.99, make));
 }
 
 /** What to call a roster entry out loud. A drafted unit carries the team it
@@ -687,7 +692,7 @@ function describeConversion(conversion) {
  *   down 1 could not punt in the fourth: the index flipped, the score never
  *   entered into it.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5, forfeitHaircut = 0, kicking = null) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5, forfeitHaircut = 0) {
   const margin = situation.margin;
   // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
   // the defense you are running into. A style that only helped its owner would
@@ -902,7 +907,10 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       who = pickScorer(roster, kind, rand);
     }
     points = POINTS.touchdown;
-    conversion = runConversion(margin + POINTS.touchdown, quarter, rand, situation, kicking?.pat);
+    // The kicking unit's own extra-point percentage, on the same terms as its
+    // field goals: what the row says, with no scaling in between.
+    conversion = runConversion(margin + POINTS.touchdown, quarter, rand, situation,
+                               kickingEntry(roster)?.pat_pct);
     points += conversion.points;
     scorer = who ? who.entry.name : null;
     scorerSlot = who?.slot ?? null;
@@ -911,7 +919,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       : "Touchdown") + describeConversion(conversion);
   } else if (outcome === "fieldGoal") {
     const kicker = kickingEntry(roster);
-    if (fieldGoalGood(kicking, endYard, rand, mine.fg, forfeitHaircut)) {
+    if (fieldGoalGood(kicker, endYard, rand, mine.fg, forfeitHaircut)) {
       points = POINTS.fieldGoal;
       scorer = kicker?.members?.[0]?.name || label(kicker) || teamName(roster);
       scorerSlot = kickerSlot(roster);
@@ -2203,13 +2211,11 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     A: { off: offA, def: defA, roster: rosterA, mods: modsA,
          axes: defensiveMatchup(rosterA, ctx),
          qb: rosterA.QB ? rateEntry(rosterA.QB, ctx) : 0.5,
-         forfeitHaircut: costA,
-         kicking: kickAccuracy(kickingEntry(rosterA), ctx) },
+         forfeitHaircut: costA },
     B: { off: offB, def: defB, roster: rosterB, mods: modsB,
          axes: defensiveMatchup(rosterB, ctx),
          qb: rosterB.QB ? rateEntry(rosterB.QB, ctx) : 0.5,
-         forfeitHaircut: costB,
-         kicking: kickAccuracy(kickingEntry(rosterB), ctx) },
+         forfeitHaircut: costB },
   };
   const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
 
@@ -2241,8 +2247,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut,
-                         cfg[side].kicking);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -2310,8 +2315,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut,
-                         cfg[side].kicking);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;
