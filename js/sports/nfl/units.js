@@ -11,7 +11,7 @@
 // best season reaches the same ceiling. overallFromZ turns the same z into the
 // 0-99 number the draft board shows.
 
-import { MIN_RATED_GAMES, FORFEIT_PENALTY } from "./constants.js";
+import { MIN_RATED_GAMES } from "./constants.js";
 
 // isUnit and unitLabel are DEFINED in ./entry.js and re-exported here.
 //
@@ -962,18 +962,23 @@ export function defensiveUnitAxis(entry, axis, ctx) {
  * the roster shape being honest about itself rather than a special case: one
  * pick really is the whole defence in that mode.
  *
- * A forfeited or unfilled slot rates REPLACEMENT_LEVEL rather than 0.5. An
- * average stand-in for a pick nobody made is the silent-failure pattern
- * CLAUDE.md names: it makes skipping a defensive pick free.
+ * An unfilled slot rates REPLACEMENT_LEVEL rather than 0.5. An average
+ * stand-in for a pick nobody made is the silent-failure pattern CLAUDE.md
+ * names: it makes skipping a defensive pick free.
+ *
+ * Forfeits are NOT charged here. They used to be, on top of the same charge in
+ * sideRating, which is what made a forfeited defensive slot cost about 1.75x
+ * what a forfeited offensive one did - 13 to 15 win points against 5. The
+ * whole charge is now one flat team-level deduction; see FORFEIT_RATING_COST.
  */
-export function defensiveAxisStrength(roster, axis, ctx, forfeits) {
+export function defensiveAxisStrength(roster, axis, ctx) {
   const weights = DEFENSIVE_AXIS_WEIGHTS[axis];
   if (!weights) return 0.5;
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
     const entry = roster?.[slot] ?? roster?.DEF;
     const rated = entry ? defensiveUnitAxis(entry, axis, ctx) : REPLACEMENT_LEVEL;
-    total += weight * (forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated);
+    total += weight * rated;
   }
   return total;
 }

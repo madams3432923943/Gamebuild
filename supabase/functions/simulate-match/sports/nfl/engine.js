@@ -95,7 +95,7 @@
 import {
   DRIVES_PER_TEAM, SCORING_LIFT, EDGE_BASELINE, DRIVE_START_YARD, FG_RANGE_YARD,
   DRIVE_OUTCOMES, POINTS, OFFENSE_WEIGHTS, DEFENSE_WEIGHTS, TALENT_PARITY, EDGE_FLOOR,
-  TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_PENALTY,
+  TEAM_QUARTER_VARIANCE_MIN, TEAM_QUARTER_VARIANCE_MAX, FORFEIT_RATING_COST,
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
   TWO_POINT_POSSESSIONS,
@@ -117,10 +117,13 @@ export function computeDatasetStats(players, units) {
   return ctx;
 }
 
-/** Weighted mean of the slots on one side of the ball. A forfeited slot is not
- * a zero - it is a replacement-level body, which is what actually takes the
- * field when you have nobody. Zero would mean eleven men playing ten. */
-function sideRating(roster, weights, forfeits, ctx) {
+/** Weighted mean of the slots on one side of the ball.
+ *
+ * Forfeits are NOT charged here any more. They are a flat, team-level
+ * deduction applied once by rosterRatings - see FORFEIT_RATING_COST for why
+ * scaling the forfeited slot's own rating made the cost of a missed pick
+ * depend on which slot the clock happened to run out on. */
+function sideRating(roster, weights, ctx) {
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
     // Quick Play drafts one DEF unit instead of four, so it stands in for
@@ -139,9 +142,14 @@ function sideRating(roster, weights, forfeits, ctx) {
       roster[slot] ??
       (DEFENSE_WEIGHTS[slot] ? roster.DEF : undefined) ??
       roster[slot.replace(/\d+$/, "")];
+    // LEAGUE AVERAGE for a genuinely empty slot, and deliberately not
+    // REPLACEMENT_LEVEL. An empty slot here is not always a player's fault:
+    // js/main.js:2186 leaves one empty when the app had nothing legal left to
+    // offer, and js/main.js:2115 is explicit that charging the player for that
+    // is charging them for our bug. A forfeit - the case that IS the player's
+    // - is charged separately and by name, in rosterRatings.
     const rated = entry ? rateEntry(entry, ctx) : 0.5;
-    const penalised = forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated;
-    total += weight * penalised;
+    total += weight * rated;
   }
   return total;
 }
@@ -157,10 +165,17 @@ function sideRating(roster, weights, forfeits, ctx) {
  * numbers that look solved and are not.
  */
 export function rosterRatings(roster, ctx, forfeits) {
+  const cost = forfeitCost(forfeits);
   return {
-    off: sideRating(roster, OFFENSE_WEIGHTS, forfeits, ctx),
-    def: sideRating(roster, DEFENSE_WEIGHTS, forfeits, ctx),
+    off: Math.max(0, sideRating(roster, OFFENSE_WEIGHTS, ctx) - cost),
+    def: Math.max(0, sideRating(roster, DEFENSE_WEIGHTS, ctx) - cost),
   };
+}
+
+/** What this roster's forfeits cost it, as a flat deduction on each side
+ * rating. See FORFEIT_RATING_COST. */
+export function forfeitCost(forfeits) {
+  return (forfeits?.length || 0) * FORFEIT_RATING_COST;
 }
 
 /**
@@ -183,10 +198,10 @@ function swing(rating, amount) {
  * the rating context, and rebuilding it 22 times a game would be 22 identical
  * answers. The same reasoning as usageWeights.
  */
-function defensiveMatchup(roster, ctx, forfeits) {
+function defensiveMatchup(roster, ctx) {
   const axes = {};
   for (const axis of DEFENSIVE_AXES) {
-    axes[axis] = defensiveAxisStrength(roster, axis, ctx, forfeits);
+    axes[axis] = defensiveAxisStrength(roster, axis, ctx);
   }
   return axes;
 }
@@ -527,11 +542,17 @@ function nextStart(outcome, endYard) {
 }
 
 /** Whether a kick from this distance goes through, using the DRAFTED kicker's
- * accuracy rather than a constant. Falls back to a league-ish rate when the ST
- * slot was forfeited, scaled down for distance either way. */
-function fieldGoalGood(kicker, endYard, rand, fgMod = 1) {
+ * accuracy rather than a constant. Falls back to a league-ish rate when there
+ * is no unit at all, scaled down for distance either way.
+ *
+ * `haircut` is this roster's flat forfeit cost - the ONE place special teams
+ * is charged for a missed pick, because ST carries no side-rating weight for
+ * the team-level deduction to bite on. Without it, forfeiting the ST slot was
+ * measured at exactly 0.0 win points: the clock picked your kicker and you
+ * were charged nothing. See FORFEIT_RATING_COST. */
+function fieldGoalGood(kicker, endYard, rand, fgMod = 1, haircut = 0) {
   const distance = 100 - endYard + 17;
-  const base = (Number(kicker?.fg_pct) || 0.78) * fgMod;
+  const base = (Number(kicker?.fg_pct) || 0.78) * fgMod * (1 - haircut);
   const longPenalty = Math.max(0, distance - 38) * 0.011;
   return rand() < Math.max(0.25, base - longPenalty);
 }
@@ -652,7 +673,7 @@ function describeConversion(conversion) {
  *   down 1 could not punt in the fourth: the index flipped, the score never
  *   entered into it.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5, forfeitHaircut = 0) {
   const margin = situation.margin;
   // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
   // the defense you are running into. A style that only helped its owner would
@@ -876,7 +897,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       : "Touchdown") + describeConversion(conversion);
   } else if (outcome === "fieldGoal") {
     const kicker = kickingEntry(roster);
-    if (fieldGoalGood(kicker, endYard, rand, mine.fg)) {
+    if (fieldGoalGood(kicker, endYard, rand, mine.fg, forfeitHaircut)) {
       points = POINTS.fieldGoal;
       scorer = kicker?.members?.[0]?.name || label(kicker) || teamName(roster);
       scorerSlot = kickerSlot(roster);
@@ -2116,10 +2137,14 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // receive the second, which is the whole point of the choice.
   const firstHalfReceiver = elected === "receive" ? tossWinner : other(tossWinner);
 
-  const offA = sideRating(rosterA, OFFENSE_WEIGHTS, opts.forfeitsA, ctx);
-  const offB = sideRating(rosterB, OFFENSE_WEIGHTS, opts.forfeitsB, ctx);
-  const defA = sideRating(rosterA, DEFENSE_WEIGHTS, opts.forfeitsA, ctx);
-  const defB = sideRating(rosterB, DEFENSE_WEIGHTS, opts.forfeitsB, ctx);
+  // One flat charge per forfeited pick, on BOTH sides of the ball, rather than
+  // a haircut on the forfeited slot's own rating - see FORFEIT_RATING_COST.
+  const costA = forfeitCost(opts.forfeitsA);
+  const costB = forfeitCost(opts.forfeitsB);
+  const offA = Math.max(0, sideRating(rosterA, OFFENSE_WEIGHTS, ctx) - costA);
+  const offB = Math.max(0, sideRating(rosterB, OFFENSE_WEIGHTS, ctx) - costB);
+  const defA = Math.max(0, sideRating(rosterA, DEFENSE_WEIGHTS, ctx) - costA);
+  const defB = Math.max(0, sideRating(rosterB, DEFENSE_WEIGHTS, ctx) - costB);
 
   // What an average matchup of this roster shape rates at - see edge(), and
   // EDGE_BASELINE in constants.js for the measurement. Keyed on the shape
@@ -2157,12 +2182,18 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
   // reasoning usageWeights already carries, and the reason a rating index
   // rebuilt per row froze the browser once before.
   const cfg = {
+    // `qb` is the DRAFTED quarterback's own quality, deliberately UNSCALED by
+    // any forfeit. The forfeit is a separate team-level term on off/def above,
+    // so discounting him here too would charge the same missed pick twice -
+    // which is exactly what the old per-slot shape did to the defence.
     A: { off: offA, def: defA, roster: rosterA, mods: modsA,
-         axes: defensiveMatchup(rosterA, ctx, opts.forfeitsA),
-         qb: rosterA.QB ? rateEntry(rosterA.QB, ctx) : 0.5 },
+         axes: defensiveMatchup(rosterA, ctx),
+         qb: rosterA.QB ? rateEntry(rosterA.QB, ctx) : 0.5,
+         forfeitHaircut: costA },
     B: { off: offB, def: defB, roster: rosterB, mods: modsB,
-         axes: defensiveMatchup(rosterB, ctx, opts.forfeitsB),
-         qb: rosterB.QB ? rateEntry(rosterB.QB, ctx) : 0.5 },
+         axes: defensiveMatchup(rosterB, ctx),
+         qb: rosterB.QB ? rateEntry(rosterB.QB, ctx) : 0.5,
+         forfeitHaircut: costB },
   };
   const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
 
@@ -2194,7 +2225,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -2262,7 +2293,7 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;

@@ -710,7 +710,23 @@ export const FIELD_POSITION_MAX = 1.55;
  */
 export const QB_SWING = 0.45;
 
-/** What a forfeited pick costs. Football has no bench, so an unfilled slot is
- * a hole in the lineup rather than a worse player standing in - steeper than
- * basketball's penalty for exactly that reason. */
-export const FORFEIT_PENALTY = 0.55;
+/**
+ * What ONE forfeited pick costs, as a flat deduction from BOTH of a roster's
+ * side ratings. Equal for every slot, special teams included.
+ *
+ * MEASURED, NOT AUTHORED. The previous shape scaled the forfeited slot's own
+ * rating by 0.55, so the cost tracked that slot's weight: measured over 3,000
+ * seeded sims, forfeiting the QB cost 15.6 win points and forfeiting WR3 cost
+ * 3.1, while forfeiting ST cost nothing at all because special teams carries no
+ * weight to scale. A number no player can predict is not a penalty, it is a
+ * trap. At this value every slot costs 3-5 win points, which is what a missed
+ * pick out of twelve should be worth.
+ *
+ * DELIBERATELY NOT WEIGHTED BY SLOT. How much a missed pick costs is a fairness
+ * decision about the draft, not a football opinion about position value - the
+ * slot weights stay the place where position value lives.
+ *
+ * Re-measure with the harness in scripts/verify-nfl-forfeit-cost.mjs after any
+ * change to the slot weights, to units.js, or to TALENT_PARITY.
+ */
+export const FORFEIT_RATING_COST = 0.014;
