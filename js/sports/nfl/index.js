@@ -705,6 +705,13 @@ export const NFL = {
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
 
+  /** An NFL season is ONE calendar year and "2019" is already its whole name,
+   * so this is the identity. It exists because basketball's is not: a season
+   * that spans two years reads "2012-13", and shared code has to be able to
+   * ask rather than assume. Answering here is what keeps that convention from
+   * being applied to football. */
+  seasonLabel: (season) => String(season ?? ""),
+
   /** How good the practice bot's picks should be, position group by position
    * group, at each difficulty - football's replacement for the shared
    * one-ranking difficulty window. See js/sports/nfl/botdraft.js for what each

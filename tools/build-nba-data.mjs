@@ -112,7 +112,6 @@ for (const sheet of sheets) {
   // to; that is the half of this that was genuinely wrong.
   const startYear = parseInt(sheet.name.match(/(\d{4})/)?.[1] ?? "", 10);
   if (!Number.isFinite(startYear)) continue;
-  const endYear = startYear;
 
   const header = sheet.rows[0] || [];
   const col = Object.fromEntries(header.map((h, i) => [h, i]));
@@ -145,7 +144,9 @@ for (const sheet of sheets) {
       decade: decadeOf(startYear),
       // The season a pick resolves to, named by its START year: "2025" is the
       // 2025-26 season, which is the convention this project uses throughout.
-      season: endYear,
+      // The screens spell that span out through the sport's seasonLabel hook,
+      // so what is stored stays one number and only the label is a span.
+      season: startYear,
       pos: positions(at(cells, "Pos")),
       games,
       ppg: r1(num(at(cells, "PTS"))),

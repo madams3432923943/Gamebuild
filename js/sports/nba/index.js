@@ -165,6 +165,15 @@ import {
   ROTATION_BUDGET,
 } from "./constants.js";
 
+/** 2012 -> "2012-13", 1999 -> "1999-00". The second year is the first plus
+ * one, shown as two digits, so the century rolls over correctly rather than
+ * reading "1999-100". */
+function seasonLabel(season) {
+  const start = Number(season);
+  if (!Number.isFinite(start)) return String(season ?? "");
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
 const TIERS = [
   { name: "YMCA", minPercentile: 0 },
   { name: "Middle School", minPercentile: 5 },
@@ -413,6 +422,22 @@ export const NBA = {
   ],
   basePosition,
   isBenchSlot,
+
+  /** How a basketball season is written out: 2012 is the 2012-13 season.
+   *
+   * The dataset stores a season by its START year - tools/build-nba-data.mjs
+   * takes it from the sheet name and says so - and every screen printed that
+   * year bare. "Dirk Nowitzki - 2012" therefore looked like the 2012 calendar
+   * year, which is two different seasons, and the card showing his 17.3 points
+   * read as an insult to the 21.6 he averaged in the year a reader would
+   * assume. Both numbers were right; the label was ambiguous.
+   *
+   * A PER-SPORT HOOK RATHER THAN A SHARED HELPER, because football disagrees:
+   * an NFL season is one calendar year and "2019" is already its whole name.
+   * Rendering it "2019-20" would be wrong, and a shared formatter is exactly
+   * how basketball's convention would have been applied to it.
+   */
+  seasonLabel,
 
   /** Basketball has no per-position difficulty plan: null means the practice
    * bot keeps the shared difficulty WINDOW over one ranked board (see

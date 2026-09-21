@@ -1307,7 +1307,9 @@ function renderRecordBoard(container, profile, sport, onOpenGame) {
     const best = bests[key];
     return recordRow({
       label: statLabels[key],
-      holder: best ? (best.season ? `${best.season} ${best.playerName}` : best.playerName) : "",
+      holder: best
+        ? (best.season ? `${sport.seasonLabel(best.season)} ${best.playerName}` : best.playerName)
+        : "",
       value: best ? String(roundStat(best.value)) : "—",
       date: best ? shortDate(best.date) : "",
       game: best?.game,
