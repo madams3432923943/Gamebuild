@@ -99,7 +99,7 @@ import {
   RUSH_CARRIER_WEIGHTS, EXTRA_POINT_SUCCESS, TWO_POINT_SUCCESS,
   TWO_POINT_BASELINE_RATE, TWO_POINT_MARGINS, TWO_POINT_CHART_QUARTER,
   TWO_POINT_POSSESSIONS,
-  FG_NEUTRAL_DISTANCE, FG_DISTANCE_SLOPE, LEAGUE_FG_PCT,
+  FG_NEUTRAL_DISTANCE, FG_DISTANCE_SLOPE, LEAGUE_FG_PCT, MIN_KICK_MISS,
   AXIS_SWING, QB_SWING, FIELD_POSITION_SWING, FIELD_POSITION_MIN, FIELD_POSITION_MAX,
 } from "./constants.js";
 import {
@@ -561,9 +561,17 @@ function fieldGoalGood(kicker, endYard, rand, fgMod = 1, haircut = 0) {
   // a season's average on the rating instead of about seven points under it.
   // See FG_NEUTRAL_DISTANCE.
   const reach = Math.max(0.05, 1 + (distance - FG_NEUTRAL_DISTANCE) * FG_DISTANCE_SLOPE);
-  const make = (1 - (1 - season) * reach) * fgMod * (1 - haircut);
-  // A kick is never hopeless and never certain: the floor is the one this
-  // always had, and the ceiling stops a chip shot being a formality.
+  // Floored BEFORE distance is applied - see MIN_KICK_MISS. A perfect season
+  // misses nothing, and nothing times a distance multiplier is still nothing,
+  // so without this floor the best unit in the pool was the one unit a
+  // 55-yarder could not touch.
+  const miss = Math.max(1 - season, MIN_KICK_MISS) * reach;
+  const make = (1 - miss) * fgMod * (1 - haircut);
+  // A kick is never hopeless and never certain. The floor is the only place
+  // the card's number bends: it binds beyond about 50 yards for a unit under
+  // 56%, which in this dataset is ONE season of 830 - Tennessee 2019, which
+  // went 8 of 18 and so realises about 51% against its rating of 44. Everyone
+  // else lands within a point of what the board printed.
   return rand() < Math.max(0.25, Math.min(0.99, make));
 }
 

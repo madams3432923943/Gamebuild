@@ -509,7 +509,9 @@ export const NFL = {
   // are comparable - see js/sports/nfl/units.js for why percentile rather than
   // an invented rating.
   rate: notLoaded("rate"),
-  /** The same standing as rate(), on the 0-99 scale the draft board shows.
+  /** The same standing as rate(), on the 0-99 scale the draft board shows -
+   * except special teams, whose Overall IS its season field-goal percentage
+   * and therefore reaches 100 for a season with no misses in it.
    * Football's own, not a contract hook: basketball rates through a different
    * function entirely (engine.impact) and has no equivalent, so putting this on
    * the shared contract would oblige it to invent one. */

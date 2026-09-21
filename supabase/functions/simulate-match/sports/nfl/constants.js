@@ -445,10 +445,13 @@ export const FOURTH_DOWN_AGGRESSION = {
  * twelfth slot would move every score in every game and force a full
  * recalibration - variance first, then gamestyles - for a unit that does not
  * block, throw or tackle. Special teams acts where it actually acts: on the
- * kicks, through kickAccuracy() and fieldGoalGood(), where the drafted unit's
- * own field-goal and extra-point rates decide the points. Measured, the ST
- * PICK is worth about 9.5 win points between the best unit in the pool and the
- * worst, which is plenty without a weight here.
+ * kicks, through fieldGoalGood(), where the drafted unit's own field-goal
+ * percentage decides the points, and through runConversion(), where its
+ * extra-point percentage does. Measured in the same seat, the ST PICK is worth
+ * about 9.5 win points between the best unit in the pool and the worst, which
+ * is plenty without a weight here - and scripts/verify-nfl-forfeit-cost.mjs
+ * asserts that gap, because a kicker who stopped reaching the simulation would
+ * otherwise look exactly like a kicker who was never worth much.
  */
 export const OFFENSE_WEIGHTS = {
   QB: 0.4, WR1: 0.13, RB: 0.125, OL: 0.1, TE: 0.09, WR2: 0.085, WR3: 0.07,
@@ -755,6 +758,27 @@ export const FG_DISTANCE_SLOPE = 0.04;
  * no ST slot. The pool's own mean season percentage, so an undrafted kicker is
  * an ordinary one rather than an invented one. */
 export const LEAGUE_FG_PCT = 0.83;
+
+/**
+ * The miss chance even a perfect season carries, before distance is applied.
+ *
+ * WITHOUT IT, DISTANCE STOPS EXISTING FOR THE BEST UNITS. Distance scales the
+ * MISS, and a unit that went 16 of 16 has a miss rate of exactly zero - so
+ * zero times any multiplier is still zero, and a perfect season kicked 99%
+ * from 20 yards and 99% from 55. That is not a rating philosophy, it is
+ * multiplying by nought: the one unit the model should be most careful with
+ * was the one it made immune to a 55-yarder.
+ *
+ * Floored here rather than by capping the rating, because the rating is the
+ * thing being promised: the card still says 100 for a perfect season, and a
+ * perfect season still converts about 98% over a year. It just stops being
+ * certain from anywhere on the field.
+ *
+ * 2% is the shortfall a season with no misses in it does not prove. Three
+ * seasons in the pool of 830 went perfect, the longest of them on 37
+ * attempts; none of them is evidence that the next kick is automatic.
+ */
+export const MIN_KICK_MISS = 0.02;
 
 /**
  * What ONE forfeited pick costs, as a flat deduction from BOTH of a roster's

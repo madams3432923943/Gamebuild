@@ -254,18 +254,12 @@ const NON_DEFENSIVE_UNIT_COMPOSITES = {
   // removing these would have swapped one distortion for another rather than
   // ending it, so the two changes belong together.
   OL: (r) => n(r.rating),
-  // THE SEASON'S FIELD-GOAL PERCENTAGE, AND NOTHING ELSE. This was
-  // `100*fg_pct + 30*pat_pct + 3*fg_att`, which mixed three things into one
-  // number and made the unit's rating impossible to check against the row it
-  // came from. A kicker's Overall is now literally his season percentage - 24
-  // of 25 is a 96 - so the composite has to be monotonic in that one column or
-  // the draft board would sort by one number while printing another.
-  //
-  // This still feeds rateEntry, which is the 0.5-centred scale the bot values
-  // picks on (js/draft.js) and the draft grade's construction score works in,
-  // so a kicker stays comparable to the other eleven slots there. Only the
-  // Overall below is the raw percentage.
-  ST: (r) => n(r.fg_pct),
+  // NO ST ENTRY. A kicking unit is rated on its season field-goal percentage
+  // and nothing else, and both consumers - rateUnit and overallFor - answer
+  // for it before they reach this table. Leaving a composite here would be
+  // dead code that still costs something: it filled a per-season distribution
+  // and a solved span for a group nothing reads them for, and npm run bake
+  // shipped both to the Edge Function on every deploy.
 };
 
 const DEFENSIVE_GROUPS = new Set(["DL", "LB", "CB", "S"]);
@@ -643,6 +637,12 @@ export function buildRatingContext(players, units) {
   for (const row of units || []) {
     const group = canonicalGroup(row);
     if (n(row.games) < MIN_RATED_GAMES) continue;
+    // A group with nothing to measure gets no bucket at all. Special teams is
+    // rated on its own percentage and answers before this table (see
+    // NON_DEFENSIVE_UNIT_COMPOSITES), and creating the bucket BEFORE asking
+    // left an empty per-season distribution behind for it - which
+    // summariseBucket then filled out and npm run bake shipped to the server.
+    if (!DEFENSIVE_GROUPS.has(group) && !NON_DEFENSIVE_UNIT_COMPOSITES[group]) continue;
     const bucket = seasonBucket(ctx, group, seasonKey(row));
 
     if (DEFENSIVE_GROUPS.has(group)) {
@@ -1050,7 +1050,9 @@ export function rateEntry(entry, ctx) {
 }
 
 /**
- * The 0-99 Overall the draft board shows.
+ * The 0-99 Overall the draft board shows - 40-100 for a kicking unit, which
+ * is the one group whose Overall is a percentage rather than a standing, and
+ * so the one that can legitimately read 100. See the ST branch below.
  *
  * DISPLAY ONLY - nothing in the simulation reads this. The engine needs a
  * 0.5-centred 0..1 rating (see ratingFromZ) and a player needs a number he

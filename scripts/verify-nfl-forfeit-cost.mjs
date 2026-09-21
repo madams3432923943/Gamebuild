@@ -26,9 +26,19 @@
 //   2. PROPORTIONATE. One forfeit out of twelve costs 3-5 win points.
 //   3. LINEAR. Two forfeits cost about twice one, three about three times.
 //
+// ...one that the ST arm above cannot see for itself:
+//
+//   4. THE DRAFTED KICKER REACHES THE GAME AT ALL. Both sides are pinned to
+//      the same median kicker, whose percentage sits within a rounding error
+//      of the no-kicker fallback - so every arm above would read exactly the
+//      same if fieldGoalGood ignored its kicker argument entirely, and the one
+//      slot this whole file exists to catch would be untested for a second
+//      time. So the best and worst units in the pool are played in the same
+//      seat and have to produce different games.
+//
 // ...and the property that says no calibrated constant moved underneath us:
 //
-//   4. A ZERO-FORFEIT GAME IS UNTOUCHED. TALENT_PARITY, EDGE_BASELINE, the
+//   5. A ZERO-FORFEIT GAME IS UNTOUCHED. TALENT_PARITY, EDGE_BASELINE, the
 //      quarter-variance range and every gamestyle mod were solved against a
 //      game with no forfeits in it. If that game moves, they all need
 //      re-solving, and a silent drift here is how that goes unnoticed.
@@ -204,6 +214,30 @@ for (const [n, slots] of [[2, ["QB", "WR1"]], [2, ["DL", "LB"]], [3, ["QB", "RB"
       `not linear in the number of picks missed.`
     );
   }
+}
+
+// ---- 4. the drafted kicker is actually the one kicking ---------------------
+const graded = kickers.filter((k) => Number(k.fg_pct) > 0);
+const bestKicker = graded.at(-1);
+const worstKicker = graded[0];
+const inSeat = (unit) => {
+  const saved = rosterA.ST;
+  rosterA.ST = unit;
+  const out = measure([]).winA;
+  rosterA.ST = saved;
+  return out;
+};
+const kickerGap = inSeat(bestKicker) - inSeat(worstKicker);
+console.log(
+  `  best kicker (${(100 * bestKicker.fg_pct).toFixed(1)}%) beats worst ` +
+  `(${(100 * worstKicker.fg_pct).toFixed(1)}%) by ${kickerGap.toFixed(1)} win points`
+);
+if (kickerGap < 3) {
+  failures.push(
+    `the drafted kicker barely reaches the game: the best unit in the pool is worth ` +
+    `only ${kickerGap.toFixed(1)} win points over the worst, in the same seat. ` +
+    `fieldGoalGood is not reading fg_pct, or something upstream has flattened it.`
+  );
 }
 
 if (failures.length) {
