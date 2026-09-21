@@ -38,6 +38,7 @@
 // badly is priced as exactly that.
 
 import { impact, rosterTilt } from "./engine.js";
+import { overallFor, overallToUnit } from "./rating.js";
 import {
   isBenchSlot,
   orderedRosterSlots,
@@ -45,8 +46,6 @@ import {
   STARTER_SLOTS,
   CAPABILITY_FLOOR,
   CAPABILITY_CEILING,
-  TALENT_FLOOR,
-  TALENT_CEILING,
   CAPABILITY_SOFT_SPOT,
   CAPABILITY_SPREAD_TOLERANCE,
   TOP_HEAVY_TOLERANCE,
@@ -201,11 +200,12 @@ function measureBaseline(players) {
   const decile = creators.slice(0, Math.max(1, Math.round(creators.length * 0.1)));
   means.creation = mean(decile);
 
-  // ONE TALENT BASELINE for both halves of the roster - see TALENT_FLOOR in
-  // ./constants.js for why the two-band version had to go.
-  const rated = byImpact.map(impact).filter(Number.isFinite);
-  const top = rated.slice(0, Math.max(1, Math.round(rated.length * 0.15)));
-  return { means, player: mean(top) || 1 };
+  // NO TALENT BASELINE HERE ANY MORE. Talent used to be a ratio against the
+  // mean impact of the dataset's top 15%, which is what pinned a good starting
+  // five at 100; it is now a position-relative Overall and does not need a
+  // reference roster at all. See js/sports/nba/rating.js. The nine CAPABILITY
+  // reads above still use this baseline and are unchanged.
+  return { means };
 }
 
 /** A ratio onto the 0-1 the grade works in. See CAPABILITY_FLOOR. */
@@ -293,7 +293,9 @@ export function gradeMetrics(roster, datasetStats) {
   // made in reverse when it capped every Quick Play draft at a C for having no
   // depth to grade. Derived from the roster, never assumed.
   const gradesCoverage = bench.length >= STARTER_SLOTS.length;
-  const baseline = baselineFor(datasetStats);
+  // No baseline read here any more: talent stopped being a ratio against one.
+  // rosterCapabilities still takes the memoised baseline through baselineFor,
+  // so the nine capability reads are untouched.
   const capabilities = rosterCapabilities(roster, datasetStats);
   const keys = Object.keys(capabilities);
 
@@ -309,14 +311,34 @@ export function gradeMetrics(roster, datasetStats) {
   const uncovered = gradesCoverage ? STARTER_SLOTS.filter((pos) => !covered.has(pos)) : [];
 
   const mean = (list) => (list.length ? list.reduce((s, v) => s + v, 0) / list.length : 0);
-  const talentOf = (group, base) =>
-    group.length && base > 0
-      ? clamp((mean(group.map((slot) => impact(roster[slot]))) / base - TALENT_FLOOR) /
-          (TALENT_CEILING - TALENT_FLOOR), 0, 1)
-      : 0;
 
-  const starterTalent = baseline ? talentOf(starters, baseline.player) : 0;
-  const benchTalent = baseline && hasBench ? talentOf(bench, baseline.player) : 0;
+  // TALENT IS NOW THE MEAN OVERALL, against the men who played that position.
+  //
+  // It used to be the group's mean impact as a ratio against the dataset's
+  // top-quartile mean, rescaled between 0.35 and 0.95 - so any group reaching
+  // 0.95x of that reference printed 100 and stopped moving. A live card read
+  // "Starters 100" for a five whose mean impact was 32.4 against a reference
+  // near 29-32: above the ceiling with headroom to spare, pinned, telling the
+  // player nothing about how much better the draft could have gone. Impact was
+  // also position-blind, so a centre's 24 and a point guard's 24 counted the
+  // same. See js/sports/nba/rating.js.
+  //
+  // WHICH POSITION a man is rated at is a fact about the roster, not about
+  // him: a starter is rated at the slot he was drafted into, a reserve at his
+  // own first listed position, because BENCH3 is a draft-order accident. The
+  // coverage read above already draws exactly this distinction.
+  const ratedPosition = (slot) =>
+    STARTER_SLOTS.includes(slot) ? slot : (roster[slot]?.pos || [])[0];
+  const overallOf = (group) =>
+    mean(group.map((slot) => overallFor(roster[slot], ratedPosition(slot), datasetStats)));
+
+  // KEPT ON 0-1 for the composite below, so nothing downstream of this
+  // function changes type; the 40-99 means travel beside them for the card,
+  // which shows players the same ruler their players are rated on.
+  const starterOverall = starters.length ? overallOf(starters) : 0;
+  const benchOverall = hasBench ? overallOf(bench) : 0;
+  const starterTalent = starters.length ? overallToUnit(starterOverall) : 0;
+  const benchTalent = hasBench ? overallToUnit(benchOverall) : 0;
   const talent = hasBench ? 0.68 * starterTalent + 0.32 * benchTalent : starterTalent;
 
   // A TWO-MAN TEAM, as a multiple of an even split rather than a flat share -
@@ -360,6 +382,12 @@ export function gradeMetrics(roster, datasetStats) {
     talent,
     starterTalent,
     benchTalent,
+    // The same two on the 0-99 ruler, for the card. Carried alongside rather
+    // than instead of: the composite above needs 0-1, the reader needs the
+    // scale his players are rated on, and deriving either from the other at
+    // the point of use is how they start disagreeing.
+    starterOverall,
+    benchOverall,
     hasBench,
     gradesCoverage,
     uncovered,
@@ -425,14 +453,37 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
   const weak = CAPABILITIES.find((c) => c.key === metrics.weakest);
   const headline = headlineFor(metrics, strong, weak);
 
+  // Capabilities are still 0-1 ratios against a drafted-calibre reference and
+  // still read as percentages - this change is to TALENT, not to them.
   const pct = (value) => `${Math.round(100 * value)}`;
-  always.push(statNote("Starters", pct(metrics.starterTalent), metrics.starterTalent >= 0.6 ? "good" : "bad"));
+  // THE SAME 0-99 THE DRAFT BOARD SHOWS, not a percentage of a hidden span.
+  // A player who drafted a 93 Overall small forward should see that roster
+  // read in the same units he chose it in - and "100" was not a score anyway,
+  // it was the clamp at the top of a ratio.
+  const ovr = (value) => `${Math.round(value)}`;
+  // 70 IS THE LINE FOR BOTH HALVES, and it is the one number on this scale
+  // that means something on its own: an average season at that position. A
+  // group above it is, on average, better than the men who play there.
+  //
+  // MEASURED BEFORE SHIPPING. 80 was tried first, on the reasoning that a
+  // starting five should clear the league comfortably - over 300 bot drafts
+  // across the whole skill range only 4% of rosters ever reached it, so the
+  // row would have read "bad" at nearly every draft anyone plays and stopped
+  // being information. At 70 it is 38% of starting fives and 44% of benches:
+  // the better end of a draft reads good, which is what the row is for.
+  // starterOverall runs 59-81 across that population and nothing pins.
+  //
+  // THE SAME LINE FOR BOTH is the point, not a shortcut. The rows sit side by
+  // side, and the old two-band version is exactly how a bench once scored 1.2
+  // while the starters it outrated scored 0.8. Both halves are now rated
+  // against their own positions, so one ruler is the honest one.
+  always.push(statNote("Starters", ovr(metrics.starterOverall), metrics.starterOverall >= 70 ? "good" : "bad"));
   if (metrics.hasBench) {
     // BESIDE THE STARTERS, ON THE SAME RULER. This is what the rotation nudge
     // was reaching for and said as an instruction: how much the roster drops
     // when the second unit comes on. As a row it is a fact about the team the
     // player built, not a demand that they rebuild it.
-    always.push(statNote("Bench", pct(metrics.benchTalent), metrics.benchTalent >= 0.5 ? "good" : "bad"));
+    always.push(statNote("Bench", ovr(metrics.benchOverall), metrics.benchOverall >= 70 ? "good" : "bad"));
   }
 
   // ONE ROW FOR THE THING THIS ROSTER CANNOT DO.

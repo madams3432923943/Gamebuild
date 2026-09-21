@@ -11,7 +11,7 @@
 // best season reaches the same ceiling. overallFromZ turns the same z into the
 // 0-99 number the draft board shows.
 
-import { MIN_RATED_GAMES, FORFEIT_PENALTY } from "./constants.js";
+import { MIN_RATED_GAMES } from "./constants.js";
 
 // isUnit and unitLabel are DEFINED in ./entry.js and re-exported here.
 //
@@ -254,7 +254,12 @@ const NON_DEFENSIVE_UNIT_COMPOSITES = {
   // removing these would have swapped one distortion for another rather than
   // ending it, so the two changes belong together.
   OL: (r) => n(r.rating),
-  ST: (r) => 100 * n(r.fg_pct) + 30 * n(r.pat_pct) + 3 * n(r.fg_att),
+  // NO ST ENTRY. A kicking unit is rated on its season field-goal percentage
+  // and nothing else, and both consumers - rateUnit and overallFor - answer
+  // for it before they reach this table. Leaving a composite here would be
+  // dead code that still costs something: it filled a per-season distribution
+  // and a solved span for a group nothing reads them for, and npm run bake
+  // shipped both to the Edge Function on every deploy.
 };
 
 const DEFENSIVE_GROUPS = new Set(["DL", "LB", "CB", "S"]);
@@ -596,6 +601,9 @@ export function buildRatingContext(players, units) {
     // because a shrinkage target computed from a subset of the rows it is used
     // on would make a unit's rating depend on iteration order.
     defensiveRatePriors: {},
+    // The kicking pool, measured over EVERY season at once rather than within
+    // each - see rateUnit's ST branch for why this one group is absolute.
+    kickingPool: null,
   };
 
   for (const row of units || []) {
@@ -629,6 +637,12 @@ export function buildRatingContext(players, units) {
   for (const row of units || []) {
     const group = canonicalGroup(row);
     if (n(row.games) < MIN_RATED_GAMES) continue;
+    // A group with nothing to measure gets no bucket at all. Special teams is
+    // rated on its own percentage and answers before this table (see
+    // NON_DEFENSIVE_UNIT_COMPOSITES), and creating the bucket BEFORE asking
+    // left an empty per-season distribution behind for it - which
+    // summariseBucket then filled out and npm run bake shipped to the server.
+    if (!DEFENSIVE_GROUPS.has(group) && !NON_DEFENSIVE_UNIT_COMPOSITES[group]) continue;
     const bucket = seasonBucket(ctx, group, seasonKey(row));
 
     if (DEFENSIVE_GROUPS.has(group)) {
@@ -645,6 +659,26 @@ export function buildRatingContext(players, units) {
 
     const composite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
     if (composite) bucket.production.push(composite(row));
+  }
+
+  // THE KICKING POOL, ABSOLUTE. Every other distribution in this file is per
+  // season, because there is no era-free scale for a pass rush. A field-goal
+  // percentage is that scale, so kicking is measured against the whole pool.
+  {
+    const pcts = [];
+    for (const row of units || []) {
+      if (canonicalGroup(row) !== "ST" || n(row.games) < MIN_RATED_GAMES) continue;
+      const pct = n(row.fg_pct);
+      if (pct > 0) pcts.push(pct);
+    }
+    if (pcts.length > 1) {
+      const mean = pcts.reduce((sum, v) => sum + v, 0) / pcts.length;
+      const sd = Math.sqrt(pcts.reduce((sum, v) => sum + (v - mean) ** 2, 0) / pcts.length);
+      // Solved exactly as the per-group spans below are: the best season in
+      // the pool reaches the ceiling and nothing clips short of it.
+      const peak = sd > 0 ? (Math.max(...pcts) - mean) / sd : 0;
+      ctx.kickingPool = { mean, sd, span: peak > 0 ? Math.max(peak, 0.5) / CEILING_Z : 1 };
+    }
   }
 
   for (const [group, bySeason] of Object.entries(ctx.seasons)) {
@@ -882,6 +916,33 @@ const DEPTH_IS_NOT_QUALITY = new Set(["ST", "OL"]);
 export function rateUnit(row, ctx) {
   const group = canonicalGroup(row);
   if (DEFENSIVE_GROUPS.has(group)) return rateDefensiveUnit(row, ctx);
+
+  // SPECIAL TEAMS IS RATED ABSOLUTELY, AND ON NOTHING BUT ITS PERCENTAGE.
+  //
+  // This is the engine-facing twin of the Overall in overallFor, and it has to
+  // agree with it or the draft board sorts by one number while printing
+  // another. It did: rated against its own SEASON like every other unit, a
+  // 63.3% kicker came out above a 75% one because his league was worse at it,
+  // and 10% of all pairs on the board were ordered against the number beside
+  // them.
+  //
+  // Kicking is the one group where an absolute scale exists - a percentage is
+  // already era-free in the way a pass rush never is - so it is the one group
+  // that does not need its era taken out. The cost is real and accepted: a
+  // 1980s kicker is simply worse here than a modern one, which is what the
+  // percentages say.
+  //
+  // It stays 0.5-CENTRED rather than being the percentage itself, because
+  // js/draft.js scores every slot's candidates with this one function to pick
+  // the bot's best available. A kicker returning his raw 0.83 against a
+  // quarterback's 0.5 would make the bot draft the kicker first, every time.
+  if (group === "ST") {
+    const pool = ctx?.kickingPool;
+    const pct = n(row.fg_pct);
+    if (!pool || !(pct > 0)) return 0.5;
+    return bounded(ratingFromZ((pct - pool.mean) / pool.sd, pool.span));
+  }
+
   const composite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
   if (!composite) return 0.5;
   const rated = ratingFromZ(rawZ(row, ctx, group), ctx?.spans?.[group]);
@@ -962,18 +1023,23 @@ export function defensiveUnitAxis(entry, axis, ctx) {
  * the roster shape being honest about itself rather than a special case: one
  * pick really is the whole defence in that mode.
  *
- * A forfeited or unfilled slot rates REPLACEMENT_LEVEL rather than 0.5. An
- * average stand-in for a pick nobody made is the silent-failure pattern
- * CLAUDE.md names: it makes skipping a defensive pick free.
+ * An unfilled slot rates REPLACEMENT_LEVEL rather than 0.5. An average
+ * stand-in for a pick nobody made is the silent-failure pattern CLAUDE.md
+ * names: it makes skipping a defensive pick free.
+ *
+ * Forfeits are NOT charged here. They used to be, on top of the same charge in
+ * sideRating, which is what made a forfeited defensive slot cost about 1.75x
+ * what a forfeited offensive one did - 13 to 15 win points against 5. The
+ * whole charge is now one flat team-level deduction; see FORFEIT_RATING_COST.
  */
-export function defensiveAxisStrength(roster, axis, ctx, forfeits) {
+export function defensiveAxisStrength(roster, axis, ctx) {
   const weights = DEFENSIVE_AXIS_WEIGHTS[axis];
   if (!weights) return 0.5;
   let total = 0;
   for (const [slot, weight] of Object.entries(weights)) {
     const entry = roster?.[slot] ?? roster?.DEF;
     const rated = entry ? defensiveUnitAxis(entry, axis, ctx) : REPLACEMENT_LEVEL;
-    total += weight * (forfeits?.includes(slot) ? rated * (1 - FORFEIT_PENALTY) : rated);
+    total += weight * rated;
   }
   return total;
 }
@@ -984,7 +1050,9 @@ export function rateEntry(entry, ctx) {
 }
 
 /**
- * The 0-99 Overall the draft board shows.
+ * The 0-99 Overall the draft board shows - 40-100 for a kicking unit, which
+ * is the one group whose Overall is a percentage rather than a standing, and
+ * so the one that can legitimately read 100. See the ST branch below.
  *
  * DISPLAY ONLY - nothing in the simulation reads this. The engine needs a
  * 0.5-centred 0..1 rating (see ratingFromZ) and a player needs a number he
@@ -1001,6 +1069,24 @@ export function overallFor(entry, ctx) {
   if (!entry) return 40;
   const group = ratingGroup(entry);
   if (!group) return 70;
+
+  // SPECIAL TEAMS IS ITS OWN SEASON PERCENTAGE, not a z-score against the
+  // kicking pool. Every other rating in this file answers "how far above his
+  // league did he stand", because there is no natural scale for a pass rush or
+  // a receiving line. Kicking has one: he went 24 of 25, so he is a 96, and he
+  // makes about 96% of them in the game. Nothing to explain and nothing to
+  // take on trust.
+  //
+  // The cost is deliberate and worth stating. A unit that went 16 of 16 rates
+  // 100 and tops the board on the fewest attempts in the pool, where the
+  // z-score would have regressed it toward the mean for exactly that reason. A
+  // rating a player can verify against the box score beats a rating that is
+  // harder to fool, for a number this small and this legible.
+  if (group === "ST") {
+    const pct = n(entry.fg_pct);
+    if (!(pct > 0)) return 40;
+    return Math.max(40, Math.min(100, Math.round(pct * 100)));
+  }
 
   let z = rawZ(entry, ctx, group);
   const games = Math.max(0, n(entry.games));

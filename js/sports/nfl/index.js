@@ -509,7 +509,9 @@ export const NFL = {
   // are comparable - see js/sports/nfl/units.js for why percentile rather than
   // an invented rating.
   rate: notLoaded("rate"),
-  /** The same standing as rate(), on the 0-99 scale the draft board shows.
+  /** The same standing as rate(), on the 0-99 scale the draft board shows -
+   * except special teams, whose Overall IS its season field-goal percentage
+   * and therefore reaches 100 for a season with no misses in it.
    * Football's own, not a contract hook: basketball rates through a different
    * function entirely (engine.impact) and has no equivalent, so putting this on
    * the shared contract would oblige it to invent one. */
@@ -704,6 +706,13 @@ export const NFL = {
   },
   basePosition: (slot) => slot.replace(/\d+$/, ""),
   isBenchSlot: (slot) => slot.startsWith("BENCH"),
+
+  /** An NFL season is ONE calendar year and "2019" is already its whole name,
+   * so this is the identity. It exists because basketball's is not: a season
+   * that spans two years reads "2012-13", and shared code has to be able to
+   * ask rather than assume. Answering here is what keeps that convention from
+   * being applied to football. */
+  seasonLabel: (season) => String(season ?? ""),
 
   /** How good the practice bot's picks should be, position group by position
    * group, at each difficulty - football's replacement for the shared

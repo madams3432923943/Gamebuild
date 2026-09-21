@@ -59,6 +59,15 @@ const REQUIRED_FUNCTIONS = [
   // draft analysis, so a sport without one would have its analysis ranked
   // against whatever pool happened to be loaded, silently.
   "datasetVersion",
+  // How this sport writes a season out. Basketball's span two calendar years
+  // and read "2012-13"; football's are one year and read "2019". Shared code
+  // prints seasons on the draft board, the game screen, the roster panels and
+  // the profile, and before this it printed the stored number bare - which is
+  // basketball's start year, so every basketball season on every screen was
+  // ambiguous by one year. Required rather than optional because the moment it
+  // is optional, shared code needs a fallback, and the only fallback available
+  // is one sport's convention applied to the other.
+  "seasonLabel",
 ];
 
 const REQUIRED_VALUES = ["id", "name", "groupKey", "slots", "eras", "theme", "labels",

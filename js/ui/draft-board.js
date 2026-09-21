@@ -32,7 +32,11 @@ import { renderNote } from "./note.js";
  */
 function seasonLabel(player) {
   const nickname = String(player.team || "").split(" ").pop();
-  return `${player.season || player.decade} ${nickname}`;
+  // Through the SPORT's own hook: basketball's 2012 is the 2012-13 season and
+  // has to say so, football's 2019 is already its whole name. The decade
+  // fallback is left bare - "2010s" is not a season and has no span to write.
+  const season = player.season ? activeSport().seasonLabel(player.season) : player.decade;
+  return `${season} ${nickname}`;
 }
 
 

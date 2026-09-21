@@ -438,6 +438,20 @@ export const FOURTH_DOWN_AGGRESSION = {
  * AUTHORED, NOT SOLVED - like TALENT_PARITY and the quarter-variance range
  * below. No football calibrator exists; only the two NBA ones do. Anyone
  * changing these is exercising the same judgement, not correcting a computation.
+ *
+ * SPECIAL TEAMS IS NOT HERE, AND THAT IS NOT AN OVERSIGHT. Ranked drafts an ST
+ * slot and it is rated like every other unit, but these weights feed edge(),
+ * and EDGE_BASELINE is a measured constant tied to what they sum to. Adding a
+ * twelfth slot would move every score in every game and force a full
+ * recalibration - variance first, then gamestyles - for a unit that does not
+ * block, throw or tackle. Special teams acts where it actually acts: on the
+ * kicks, through fieldGoalGood(), where the drafted unit's own field-goal
+ * percentage decides the points, and through runConversion(), where its
+ * extra-point percentage does. Measured in the same seat, the ST PICK is worth
+ * about 9.5 win points between the best unit in the pool and the worst, which
+ * is plenty without a weight here - and scripts/verify-nfl-forfeit-cost.mjs
+ * asserts that gap, because a kicker who stopped reaching the simulation would
+ * otherwise look exactly like a kicker who was never worth much.
  */
 export const OFFENSE_WEIGHTS = {
   QB: 0.4, WR1: 0.13, RB: 0.125, OL: 0.1, TE: 0.09, WR2: 0.085, WR3: 0.07,
@@ -710,7 +724,91 @@ export const FIELD_POSITION_MAX = 1.55;
  */
 export const QB_SWING = 0.45;
 
-/** What a forfeited pick costs. Football has no bench, so an unfilled slot is
- * a hole in the lineup rather than a worse player standing in - steeper than
- * basketball's penalty for exactly that reason. */
-export const FORFEIT_PENALTY = 0.55;
+/**
+ * THE KICK: how distance moves a kicker's own season percentage.
+ *
+ * A special-teams unit's Overall IS its season field-goal percentage - 24 of 25
+ * is a 96, and a 96 converts about 96% of his attempts across a season. That is
+ * the whole design: the number on the card is the number in the game, and it is
+ * checkable against the row it came from.
+ *
+ * DISTANCE SCALES THE MISS, NOT THE MAKE. Subtracting a flat penalty per yard -
+ * which is what this used to do - cannot preserve that promise: it cost every
+ * kicker about 7 points of conversion, so a 96 converted 89% and the number on
+ * the card was a number the game did not honour. Scaling the miss chance keeps
+ * the make probability inside 0..1 by construction, and it is the more honest
+ * football anyway: a great kicker loses less to distance IN ABSOLUTE TERMS than
+ * a poor one does, which is why a 96 still makes 93% from 52 while a league
+ * average unit makes 71%.
+ *
+ * NEUTRAL AT THE AVERAGE ATTEMPT, so the mean multiplier over a season is 1 and
+ * the realised rate lands on the rating. 37.5 yards is MEASURED, not chosen:
+ * that is the mean field-goal distance over 14,742 attempts across 3,000 seeded
+ * games. Re-measure it if fourth-down policy or FG_RANGE_YARD changes, because
+ * either moves which kicks get attempted and therefore where the middle is.
+ *
+ * The slope is solved against the real league's shape by distance - about 97%
+ * inside 30 yards, 82% from 40-49 and 68% from 50+ - and is capped below so a
+ * chip shot never becomes literally automatic.
+ */
+export const FG_NEUTRAL_DISTANCE = 37.5;
+export const FG_DISTANCE_SLOPE = 0.04;
+
+/** What a roster with no special teams at all kicks like - Quick Play drafts
+ * no ST slot. The pool's own mean season percentage, so an undrafted kicker is
+ * an ordinary one rather than an invented one. */
+export const LEAGUE_FG_PCT = 0.83;
+
+/**
+ * The miss chance even a perfect season carries, before distance is applied.
+ *
+ * WITHOUT IT, DISTANCE STOPS EXISTING FOR THE BEST UNITS. Distance scales the
+ * MISS, and a unit that went 16 of 16 has a miss rate of exactly zero - so
+ * zero times any multiplier is still zero, and a perfect season kicked 99%
+ * from 20 yards and 99% from 55. That is not a rating philosophy, it is
+ * multiplying by nought: the one unit the model should be most careful with
+ * was the one it made immune to a 55-yarder.
+ *
+ * Floored here rather than by capping the rating, because the rating is the
+ * thing being promised: the card still says 100 for a perfect season, and a
+ * perfect season still converts about 98% over a year. It just stops being
+ * certain from anywhere on the field.
+ *
+ * 2% is the shortfall a season with no misses in it does not prove. Three
+ * seasons in the pool of 830 went perfect, the longest of them on 37
+ * attempts; none of them is evidence that the next kick is automatic.
+ */
+export const MIN_KICK_MISS = 0.02;
+
+/**
+ * What ONE forfeited pick costs, as a flat deduction from BOTH of a roster's
+ * side ratings. Equal for every slot, special teams included.
+ *
+ * MEASURED, NOT AUTHORED. The previous shape scaled the forfeited slot's own
+ * rating by 0.55, so the cost tracked that slot's weight: measured over 3,000
+ * seeded sims, forfeiting the QB cost 15.6 win points and forfeiting WR3 cost
+ * 3.1, while forfeiting ST cost nothing at all because special teams carries no
+ * weight to scale. A number no player can predict is not a penalty, it is a
+ * trap. At this value every slot costs 3-5 win points, which is what a missed
+ * pick out of twelve should be worth.
+ *
+ * DELIBERATELY NOT WEIGHTED BY SLOT. How much a missed pick costs is a fairness
+ * decision about the draft, not a football opinion about position value - the
+ * slot weights stay the place where position value lives.
+ *
+ * SOLVED AGAINST THE ENGINE THAT SHIPS, and re-solved once already. At 0.014 a
+ * forfeit cost 3.6 win points; wiring special teams into the simulation then
+ * dropped the same constant to 2.4, because a kicking game decided by the
+ * unit's real accuracy adds outcomes that talent does not control, and noise
+ * flattens the curve talent is spent on. 0.018 puts it back at 4.0 - measured
+ * as the mean over three seeds of 8,000 games, reading 3.2, 4.2 and 4.5.
+ *
+ * AIMED AT THE MIDDLE OF THE BAND, NOT ITS EDGE, and that is not tidiness: a
+ * win-rate difference over 8,000 games carries about +/-0.8 of noise, so a
+ * constant solved to land on 5.0 would measure outside the band about half the
+ * time it was checked. 0.021 was tried first and did exactly that.
+ *
+ * Re-measure with scripts/verify-nfl-forfeit-cost.mjs after any change to the
+ * slot weights, to units.js, or to TALENT_PARITY.
+ */
+export const FORFEIT_RATING_COST = 0.018;

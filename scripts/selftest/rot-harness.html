@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/style.css">
+<style>body{margin:0}#wrap{width:475px}</style></head>
+<body><div id="wrap"><div id="rotation-grid" class="rotation-grid"></div><div id="total"></div></div>
+<script type="module">
+import { setActiveSport, activeSport } from "/js/sports/index.js";
+import { NBA } from "/js/sports/nba/index.js";
+import { renderRotationPicker } from "/js/ui/strategy.js";
+setActiveSport("nba");
+// defaultMinutes lives on the lazily loaded engine, so the sport has to be
+// preloaded before the screen this harness is testing can be built at all.
+await NBA.preload();
+const mk = (name, pos) => ({ name, pos: [pos], season: 2020, team: "Test", games: 70, ppg:10,rpg:5,apg:5,spg:1,bpg:1,tov:2 });
+const roster = {
+  PG: mk("Starter PG","PG"), SG: mk("Starter SG","SG"), SF: mk("Starter SF","SF"),
+  PF: mk("Starter PF","PF"), C: mk("Starter C","C"),
+  BENCH1: mk("Bench One","PG"), BENCH2: mk("Bench Two","SG"), BENCH3: mk("Bench Three","SF"),
+  BENCH4: mk("Bench Four","PF"), BENCH5: mk("Bench Five","C"),
+};
+// The sport's OWN opening split, not a hand-made one: defaultMinutes is what
+// the app starts this screen from, and any other starting point tests a state
+// the player never sees (and can start over budget).
+const minutes = activeSport().defaultMinutes(roster);
+renderRotationPicker(document.getElementById("rotation-grid"), roster, minutes,
+  document.getElementById("total"), Object.keys(roster), () => {});
+// The budget the harness's checks measure against, read from the sport rather
+// than repeated here - 240 is basketball's answer, not a constant of the
+// screen.
+window.__rotationBudget = activeSport().rotationBudget;
+window.__ready = true;
+</script></body></html>

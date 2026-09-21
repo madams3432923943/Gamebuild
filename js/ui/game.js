@@ -150,7 +150,9 @@ function boxRow(slotLabel, player, line, shots, minutes, columns, showMinutes = 
   //
   // Full team name rather than seasonLabel()'s nickname: this table is wide,
   // and the nickname exists only to stop draft cards wrapping on a phone.
-  const era = player.season || player.decade || "";
+  // The sport's own spelling of the season - see seasonLabel on the sport
+  // interface. The decade fallback stays bare; it is not a season.
+  const era = player.season ? activeSport().seasonLabel(player.season) : (player.decade || "");
   const meta = player.team ? `<div class="box-meta">${escapeHtml(player.team)} ${escapeHtml(String(era))}</div>` : "";
   // Cells come from the SPORT's column list. A value of 0 shows as 0 and a
   // missing one shows a dash, because "nothing" and "did not do this" are
