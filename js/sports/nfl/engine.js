@@ -106,6 +106,7 @@ import {
 } from "./fourthdown.js";
 import {
   buildRatingContext, rateEntry, isUnit, defensiveAxisStrength, DEFENSIVE_AXES,
+  kickAccuracy,
 } from "./units.js";
 import { composedModsFor, affinityRevealFor } from "./tactics.js";
 
@@ -550,9 +551,13 @@ function nextStart(outcome, endYard) {
  * the team-level deduction to bite on. Without it, forfeiting the ST slot was
  * measured at exactly 0.0 win points: the clock picked your kicker and you
  * were charged nothing. See FORFEIT_RATING_COST. */
-function fieldGoalGood(kicker, endYard, rand, fgMod = 1, haircut = 0) {
+function fieldGoalGood(accuracy, endYard, rand, fgMod = 1, haircut = 0) {
   const distance = 100 - endYard + 17;
-  const base = (Number(kicker?.fg_pct) || 0.78) * fgMod * (1 - haircut);
+  // The TRUST-SCALED rate, not the raw fg_pct column. Reading the column
+  // directly was the one rating path in football that skipped sample size, so
+  // a unit that kicked 100% on sixteen attempts kicked 100% here too. See
+  // kickAccuracy in units.js.
+  const base = (Number(accuracy?.fg) || 0.78) * fgMod * (1 - haircut);
   const longPenalty = Math.max(0, distance - 38) * 0.011;
   return rand() < Math.max(0.25, base - longPenalty);
 }
@@ -634,7 +639,7 @@ function pickTakeawayMan(entry, kindOfTakeaway, rand) {
  * @param margin the score difference AFTER the six points, from the scoring
  *   team's side - which is the number the chart is written in terms of.
  */
-function runConversion(margin, quarter, rand, situation = null) {
+function runConversion(margin, quarter, rand, situation = null, patRate = null) {
   // POSSESSIONS, not just the quarter. The chart's whole argument is that the
   // arithmetic has run out - "this makes it a field goal game" is a claim
   // about a game with a known number of drives left in it. Gating on the
@@ -648,7 +653,16 @@ function runConversion(margin, quarter, rand, situation = null) {
   // whether the chart fired - which keeps a replay of the same seed identical
   // however the baseline rate is set.
   const goForTwo = chart || rand() < TWO_POINT_BASELINE_RATE;
-  const good = rand() < (goForTwo ? TWO_POINT_SUCCESS : EXTRA_POINT_SUCCESS);
+  // The kick is the DRAFTED unit's own extra-point rate; the two-point try is
+  // not. A two-pointer is an offensive play run from the two, so it keeps
+  // TWO_POINT_SUCCESS - the kicker has nothing to do with it. EXTRA_POINT_SUCCESS
+  // survives only as the rate for a roster with no special teams at all, which
+  // is every Quick Play roster.
+  //
+  // The single roll below still happens either way, so the random stream does
+  // not depend on which branch was taken and a seeded replay stays identical.
+  const success = goForTwo ? TWO_POINT_SUCCESS : (Number(patRate) || EXTRA_POINT_SUCCESS);
+  const good = rand() < success;
   return { type: goForTwo ? "two" : "xp", good, points: good ? (goForTwo ? 2 : 1) : 0 };
 }
 
@@ -673,7 +687,7 @@ function describeConversion(conversion) {
  *   down 1 could not punt in the fourth: the index flipped, the score never
  *   entered into it.
  */
-function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5, forfeitHaircut = 0) {
+function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, rand, mine, theirs, situation, tuning = DEFAULT_TUNING, quarterRoll = 1, baseline = 0, axes = NEUTRAL_AXES, qbRating = 0.5, forfeitHaircut = 0, kicking = null) {
   const margin = situation.margin;
   // The gamestyle acts on BOTH sides: yours lifts your offense, theirs lifts
   // the defense you are running into. A style that only helped its owner would
@@ -888,7 +902,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       who = pickScorer(roster, kind, rand);
     }
     points = POINTS.touchdown;
-    conversion = runConversion(margin + POINTS.touchdown, quarter, rand, situation);
+    conversion = runConversion(margin + POINTS.touchdown, quarter, rand, situation, kicking?.pat);
     points += conversion.points;
     scorer = who ? who.entry.name : null;
     scorerSlot = who?.slot ?? null;
@@ -897,7 +911,7 @@ function runDrive(ctx, side, off, def, roster, oppRoster, startYard, quarter, ra
       : "Touchdown") + describeConversion(conversion);
   } else if (outcome === "fieldGoal") {
     const kicker = kickingEntry(roster);
-    if (fieldGoalGood(kicker, endYard, rand, mine.fg, forfeitHaircut)) {
+    if (fieldGoalGood(kicking, endYard, rand, mine.fg, forfeitHaircut)) {
       points = POINTS.fieldGoal;
       scorer = kicker?.members?.[0]?.name || label(kicker) || teamName(roster);
       scorerSlot = kickerSlot(roster);
@@ -2189,11 +2203,13 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
     A: { off: offA, def: defA, roster: rosterA, mods: modsA,
          axes: defensiveMatchup(rosterA, ctx),
          qb: rosterA.QB ? rateEntry(rosterA.QB, ctx) : 0.5,
-         forfeitHaircut: costA },
+         forfeitHaircut: costA,
+         kicking: kickAccuracy(kickingEntry(rosterA), ctx) },
     B: { off: offB, def: defB, roster: rosterB, mods: modsB,
          axes: defensiveMatchup(rosterB, ctx),
          qb: rosterB.QB ? rateEntry(rosterB.QB, ctx) : 0.5,
-         forfeitHaircut: costB },
+         forfeitHaircut: costB,
+         kicking: kickAccuracy(kickingEntry(rosterB), ctx) },
   };
   const start = { A: DRIVE_START_YARD, B: DRIVE_START_YARD };
 
@@ -2225,7 +2241,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut,
+                         cfg[side].kicking);
       drives.push(r.drive);
       live[side] += r.drive.points;
       start[foe] = r.nextStart;
@@ -2293,7 +2310,8 @@ export function simulate(rosterA, rosterB, stats, opts = {}) {
                          cfg[foe].roster, start[side], quarter, rand,
                          cfg[side].mods, cfg[foe].mods, situation, tuning,
                          quarterRoll(side, quarter), baseline,
-                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut);
+                         cfg[foe].axes, cfg[side].qb, cfg[side].forfeitHaircut,
+                         cfg[side].kicking);
       drives.push(r.drive);
       start[foe] = r.nextStart;
       if (side === "A") teamScoreA += r.drive.points;

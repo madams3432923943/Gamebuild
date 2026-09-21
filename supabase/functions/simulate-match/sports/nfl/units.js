@@ -534,6 +534,13 @@ export function overallFromZ(z, span) {
   return Math.max(40, Math.min(99, Math.round(70 + 29 * scaled)));
 }
 
+/** How many kicks a season's field-goal percentage actually rests on.
+ * fg_att is stored PER GAME, so the sample size is that times the games
+ * played - the distinction the whole trust term turns on. */
+function kickVolume(row) {
+  return Math.max(0, n(row?.fg_att)) * Math.max(0, n(row?.games));
+}
+
 function metricNames(group) {
   const responsibilities = DEFENSIVE_RESPONSIBILITIES[group] || {};
   return [...new Set(Object.values(responsibilities).flat())];
@@ -596,6 +603,11 @@ export function buildRatingContext(players, units) {
     // because a shrinkage target computed from a subset of the rows it is used
     // on would make a unit's rating depend on iteration order.
     defensiveRatePriors: {},
+    // The kicking pool's own mean rates, and the attempt volume below which a
+    // season's percentage is discounted toward them. Built here rather than
+    // per call for the same reason every other distribution in this file is: a
+    // rating index rebuilt per rendered row froze the browser once already.
+    kicking: null,
   };
 
   for (const row of units || []) {
@@ -645,6 +657,42 @@ export function buildRatingContext(players, units) {
 
     const composite = NON_DEFENSIVE_UNIT_COMPOSITES[group];
     if (composite) bucket.production.push(composite(row));
+  }
+
+  // THE KICKING POOL'S OWN RATES, AND HOW MANY KICKS IT TAKES TO BE BELIEVED.
+  //
+  // Built from the units we already trust - the same MIN_RATED_GAMES filter
+  // defensiveRatePriors uses above - because a shrinkage target that included
+  // the thin seasons it is meant to correct would drag itself toward them.
+  //
+  // THE SAMPLE SIZE IS ATTEMPTS, NOT GAMES. Every ST row is a whole team's
+  // season, so `games` is 8-17 for all 830 of them and a games-based trust
+  // term would saturate at 1 on every single row - dead code that looks like
+  // it is working. What is actually thin about "Green Bay 2020 kicked 100%" is
+  // that it rests on SIXTEEN kicks, against a pool median of 31.
+  {
+    let fg = 0, pat = 0, count = 0;
+    const volumes = [];
+    for (const row of units || []) {
+      if (canonicalGroup(row) !== "ST" || n(row.games) < MIN_RATED_GAMES) continue;
+      fg += n(row.fg_pct);
+      pat += n(row.pat_pct);
+      volumes.push(kickVolume(row));
+      count++;
+    }
+    // SOLVED FROM THE POOL, not authored - the same rule the spans above
+    // follow. The threshold is the pool's lower quartile of attempt volume: a
+    // unit that kicked less often than three quarters of the league has its
+    // percentage discounted in proportion, and everyone at or above ordinary
+    // volume is taken at face value. Measured on the committed dataset that is
+    // 27 attempts.
+    volumes.sort((a, b) => a - b);
+    const minKicks = volumes[Math.floor(0.25 * (volumes.length - 1))] || 1;
+    // Falls back to nothing rather than to an invented rate: with no kicking
+    // pool at all, kickAccuracy returns null and the engine keeps its own
+    // league-ish constants. A plausible default here would be the silent
+    // failure CLAUDE.md names.
+    ctx.kicking = count ? { fgPct: fg / count, patPct: pat / count, minKicks } : null;
   }
 
   for (const [group, bySeason] of Object.entries(ctx.seasons)) {
@@ -981,6 +1029,49 @@ export function defensiveAxisStrength(roster, axis, ctx) {
     total += weight * rated;
   }
   return total;
+}
+
+/**
+ * A kicking unit's field-goal and extra-point accuracy, with the same
+ * sample-size trust every other rating in this file applies.
+ *
+ * The engine used to read fg_pct straight off the row, which was the one
+ * rating path in football that skipped MIN_RATED_GAMES - so a unit that
+ * attempted barely one kick a game rated a perfect kicker, and the best
+ * special teams in the pool (Colts 2003, fg_pct 1.000) was a rounding artefact
+ * rather than a kicker. Regressed toward the pool's own rate, the number means
+ * what the rest of the ratings mean.
+ *
+ * pat_pct had it worse than fg_pct: the rating formula counted it while the
+ * simulation rolled every extra point against a flat constant, so a 100%-PAT
+ * unit converted identically to a 94.7% one. It is returned here so the engine
+ * can spend it.
+ *
+ * Returns NULL for a missing unit, or for a pool with no kicking rates to
+ * regress toward, so the caller keeps its own fallback: what an absent ST slot
+ * kicks like is the engine's decision to make, not this function's.
+ */
+export function kickAccuracy(entry, ctx) {
+  const pool = ctx?.kicking;
+  if (!entry || !pool) return null;
+  // Applied to the RATE rather than in z space, unlike the trust discount in
+  // overallFor. A kicking percentage is already on the scale the engine spends
+  // it on, and what a thin season should be pulled toward is the pool's real
+  // conversion rate - not the middle of a distribution.
+  const trust = Math.min(1, kickVolume(entry) / pool.minKicks);
+  return {
+    fg: bounded(pool.fgPct + (n(entry.fg_pct) - pool.fgPct) * trust),
+    // pat_pct IS NOT TRUST-SCALED, because the dataset carries no PAT attempt
+    // count to scale it by - tools/build-nfl-data.mjs sums pat_att and then
+    // emits only the percentage. Reusing the FG attempt count here would be
+    // scaling one sample by another sample's size, which is the kind of
+    // plausible-looking invention CLAUDE.md forbids. The exposure is small:
+    // extra points run 0.89 to 1.00 across the whole pool against 0.44 to 1.00
+    // for field goals, so there is far less room for a thin season to look
+    // remarkable. Emitting pat_att is the real fix, and needs a dataset
+    // rebuild - see docs.
+    pat: bounded(n(entry.pat_pct) || pool.patPct),
+  };
 }
 
 export function rateEntry(entry, ctx) {

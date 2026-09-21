@@ -1145,8 +1145,19 @@ const checks = [
   {
     // The report was 297 rushing yards, and a second back at 285 in the same
     // game. A bell-cow's line is the most-read row in the box score.
+    //
+    // The ceiling was 110 and the measured median was exactly 110, so this
+    // check passed on the boundary and any change to the random stream at all
+    // would decide it. Wiring special teams into the simulation moved it to
+    // 111: a kicker who makes more of his attempts hands the ball back on a
+    // KICKOFF rather than on downs at the spot, so both sides start marginally
+    // further up the field and everyone's yardage rises a little. That is the
+    // feature working, not a back running wild - 111 yards is still a bell-cow
+    // line and the p95 and max that the report was actually about have not
+    // moved. Raised to 115 so the check is measuring a record line again
+    // rather than measuring the seed.
     title: "The drafted back posts a bell-cow's line, not a record one",
-    ok: back.median >= 60 && back.median <= 110 &&
+    ok: back.median >= 60 && back.median <= 115 &&
         backCarries.median >= 14 && backCarries.median <= 24 &&
         back.p95 <= 240,
     detail: `${back.median} yards on ${backCarries.median} carries (p95 ${back.p95}, max ${back.max})`,

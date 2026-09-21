@@ -726,7 +726,19 @@ export const QB_SWING = 0.45;
  * decision about the draft, not a football opinion about position value - the
  * slot weights stay the place where position value lives.
  *
- * Re-measure with the harness in scripts/verify-nfl-forfeit-cost.mjs after any
- * change to the slot weights, to units.js, or to TALENT_PARITY.
+ * SOLVED AGAINST THE ENGINE THAT SHIPS, and re-solved once already. At 0.014 a
+ * forfeit cost 3.6 win points; wiring special teams into the simulation then
+ * dropped the same constant to 2.4, because a kicking game decided by the
+ * unit's real accuracy adds outcomes that talent does not control, and noise
+ * flattens the curve talent is spent on. 0.018 puts it back at 4.0 - measured
+ * as the mean over three seeds of 8,000 games, reading 3.2, 4.2 and 4.5.
+ *
+ * AIMED AT THE MIDDLE OF THE BAND, NOT ITS EDGE, and that is not tidiness: a
+ * win-rate difference over 8,000 games carries about +/-0.8 of noise, so a
+ * constant solved to land on 5.0 would measure outside the band about half the
+ * time it was checked. 0.021 was tried first and did exactly that.
+ *
+ * Re-measure with scripts/verify-nfl-forfeit-cost.mjs after any change to the
+ * slot weights, to units.js, or to TALENT_PARITY.
  */
-export const FORFEIT_RATING_COST = 0.014;
+export const FORFEIT_RATING_COST = 0.018;
