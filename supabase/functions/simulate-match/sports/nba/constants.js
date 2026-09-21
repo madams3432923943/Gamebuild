@@ -446,17 +446,16 @@ export const OT_LENGTH_SCALE = 5 / 12;
 export const CAPABILITY_FLOOR = 0.5;
 export const CAPABILITY_CEILING = 1.1;
 
-/**
- * The same span for TALENT, against what a top-15% player in the dataset rates.
- *
- * ONE BASELINE FOR STARTERS AND BENCH, deliberately. Reading the bench against
- * a lower "reserve" band made the two numbers incomparable, and they are printed
- * side by side on the card: a bench rated against reserves scored 1.2 while the
- * starters it outrated scored 0.8. Same ruler, or the rows lie about which half
- * of the roster is better.
- */
-export const TALENT_FLOOR = 0.35;
-export const TALENT_CEILING = 0.95;
+/* TALENT_FLOOR and TALENT_CEILING lived here: the span a group's mean impact
+   was rescaled between, as a ratio against what a top-15% player rated. They
+   are gone because talent is no longer a ratio against anyone - it is the mean
+   position-relative Overall of the group (js/sports/nba/rating.js), on the same
+   0-99 ruler the draft board already shows. The ceiling was the bug: at 0.95
+   any starting five reaching 0.95x of the reference printed 100 and stopped
+   moving, so the card could not tell a good draft from a great one. The note
+   they carried - that starters and bench must be read on ONE ruler, or the
+   rows lie about which half of the roster is better - survives in the rating,
+   which rates every man against his own position and nothing else. */
 
 export const CAPABILITY_SOFT_SPOT = 0.45;
 
@@ -523,11 +522,20 @@ export const FORFEIT_GRADE_PENALTY = 0.05;
  * Re-run that tool after any change to GRADE_WEIGHTS, to the capability spans
  * above, or to the dataset - every one of them moves where a draft scores.
  * Solved over 400 rosters drafted across the full skill range.
+ *
+ * RE-SOLVED when talent became a position-relative Overall rather than a ratio
+ * against the dataset's top 15%. That moved the whole score distribution down
+ * - an average roster now lands near (70-40)/59 = 0.51 instead of pinning the
+ * old ceiling - and under the previous breakpoints 400 drafts produced ZERO
+ * A+ and ZERO A-minus-or-better below 5%, piling a third of everything into
+ * C+. These separate the skill range again: mean score climbs 0.18, 0.22,
+ * 0.27, 0.38, 0.48 across the five skill bands, and A+ is 5% of drafts rather
+ * than none of them or all of them.
  */
 export const GRADE_BREAKPOINTS = [
-  [0.74, "A+"], [0.65, "A"], [0.56, "A-"],
-  [0.47, "B+"], [0.34, "B"], [0.23, "B-"],
-  [0.16, "C+"], [0.12, "C"], [0.09, "C-"],
-  [0.07, "D+"], [0.06, "D"], [0.05, "D-"],
+  [0.58, "A+"], [0.54, "A"], [0.50, "A-"],
+  [0.41, "B+"], [0.34, "B"], [0.28, "B-"],
+  [0.24, "C+"], [0.21, "C"], [0.18, "C-"],
+  [0.17, "D+"], [0.16, "D"], [0.15, "D-"],
   [0.00, "F"],
 ];
