@@ -438,6 +438,17 @@ export const FOURTH_DOWN_AGGRESSION = {
  * AUTHORED, NOT SOLVED - like TALENT_PARITY and the quarter-variance range
  * below. No football calibrator exists; only the two NBA ones do. Anyone
  * changing these is exercising the same judgement, not correcting a computation.
+ *
+ * SPECIAL TEAMS IS NOT HERE, AND THAT IS NOT AN OVERSIGHT. Ranked drafts an ST
+ * slot and it is rated like every other unit, but these weights feed edge(),
+ * and EDGE_BASELINE is a measured constant tied to what they sum to. Adding a
+ * twelfth slot would move every score in every game and force a full
+ * recalibration - variance first, then gamestyles - for a unit that does not
+ * block, throw or tackle. Special teams acts where it actually acts: on the
+ * kicks, through kickAccuracy() and fieldGoalGood(), where the drafted unit's
+ * own field-goal and extra-point rates decide the points. Measured, the ST
+ * PICK is worth about 9.5 win points between the best unit in the pool and the
+ * worst, which is plenty without a weight here.
  */
 export const OFFENSE_WEIGHTS = {
   QB: 0.4, WR1: 0.13, RB: 0.125, OL: 0.1, TE: 0.09, WR2: 0.085, WR3: 0.07,
