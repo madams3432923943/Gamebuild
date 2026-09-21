@@ -5624,7 +5624,15 @@ table.box-table th {
    ten sliders - 620px of one column, so the Confirm button that ends the phase
    sat below the fold on every laptop. Paired up it is five rows deep and the
    button is on screen with them, which is what makes the budget readable as
-   one set of trade-offs rather than a list you scroll. */
+   one set of trade-offs rather than a list you scroll.
+
+   THE TWO COLUMNS ARE STARTERS AND BENCH, not a reflow of one list. Filling
+   row-wise put a starter and a reserve side by side on every row and ran the
+   two groups down the page together; a rotation is read as "my five, and the
+   five who spell them", so the five starters run down the left and the bench
+   down the right. The row count comes from --rotation-rows, set from the
+   roster's own shape in js/ui/strategy.js - the flow below needs to know where
+   to break, and roster shape varies by mode. */
 .rotation-grid {
   display: grid;
   /* 14rem, measured rather than chosen: the centre column of the draft board is
@@ -5632,6 +5640,8 @@ table.box-table th {
      inside that or auto-fit silently stays at one column - which is what a
      16rem track did. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--rotation-rows, 5), auto);
   gap: 0.3rem 0.8rem;
   margin-bottom: 0.5rem;
 }
@@ -10437,9 +10447,19 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   /* A phone shows one column of rotation rows whatever the grid says - two
      columns of a name, a minutes value and a slider is two unreadable columns.
      The minmax() above already resolves to one at this width; this states it
-     so a future change to that track cannot silently produce two. */
+     so a future change to that track cannot silently produce two.
+
+     THE FLOW HAS TO BE STATED TOO, for the same reason and more urgently.
+     Column flow into a single column fills --rotation-rows cells and then
+     starts a second column that the track above has already collapsed - so
+     the starters would run down the page and the bench would land wherever
+     the row count left off, in an order nobody chose. Row flow puts the
+     starters first and the bench under them, which is the same reading the
+     two columns give on a wider screen. */
   .rotation-grid {
     grid-template-columns: 1fr;
+    grid-auto-flow: row;
+    grid-template-rows: none;
   }
 
   /* The pool is the screen. Anything else competing for the same height is

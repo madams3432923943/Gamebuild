@@ -23,10 +23,38 @@ import { displayEntryName } from "./entry-name.js";
  *
  * The legacy/online 6-slot roster has no position pairs, so its slots fall
  * back to independent sliders against a running total.
+ *
+ * STARTERS DOWN ONE COLUMN, BENCH DOWN THE OTHER. The grid used to fill
+ * row-wise, so a ten-man rotation read PG, SG / SF, PF / C, Bench / Bench,
+ * Bench - the five men who start the game interleaved with the five who do
+ * not, which is not how anyone thinks about a rotation. The ordering here and
+ * the column flow in .rotation-grid are two halves of one layout; neither
+ * works without the other.
  */
 export function renderRotationPicker(container, roster, minutesMap, totalEl, slots, onValidChange) {
   container.innerHTML = "";
-  const list = (slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster));
+  // ONE definition of what counts as a reserve, used for both the ordering
+  // below and each row's own label. It was computed per row and is now
+  // computed once - two copies of this test are two chances to disagree about
+  // which half of the screen a man belongs on. Mirrors
+  // js/sports/nba/draftgrade.js.
+  const isReserve = (slot) => activeSport().isBenchSlot(slot) || slot === "6TH";
+
+  const all = slots ? slots.filter((slot) => roster[slot]) : rosterSlots(roster);
+  const starters = all.filter((slot) => !isReserve(slot));
+  const reserves = all.filter(isReserve);
+  const list = [...starters, ...reserves];
+
+  // COLUMN FLOW NEEDS TO KNOW WHERE TO BREAK. The grid fills down the starters
+  // column and then the bench column, so the row count is the taller of the
+  // two groups - derived, because roster shape varies by mode: 5+5 in Ranked,
+  // 5+1 on the legacy/online path, 5+0 in Quick Play. Hardcoding five would
+  // put a sixth starter in the bench column.
+  container.style.setProperty(
+    "--rotation-rows",
+    String(Math.max(starters.length, reserves.length) || 1)
+  );
+
   const rows = [];
 
   const sync = () => {
@@ -50,7 +78,7 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
   for (const slot of list) {
     const player = roster[slot];
     const { min, max } = activeSport().minutesRangeFor(slot);
-    const bench = activeSport().isBenchSlot(slot) || slot === "6TH";
+    const bench = isReserve(slot);
 
     // ONE ELEMENT PER PLAYER, holding the row and the slider that belongs to
     // it. They used to be two siblings of #rotation-grid, which was fine while
