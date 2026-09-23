@@ -699,8 +699,19 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
       lean < 0 ? "good" : "neutral"));
   }
 
-  if (forfeits.length) {
-    notes.push(statNote("Slots empty", `${forfeits.length}`, "bad"));
+  // TWO DIFFERENT FAILURES, AND THIS PRINTED BOTH AS ONE. `forfeits` holds
+  // every slot the grade is charging for: the ones the clock filled with the
+  // worst player on the board, and the ones never filled at all. They were all
+  // labelled "Slots empty", so a draft with eleven clock-made picks read as
+  // eleven empty slots - reported as a roster that should never have been
+  // allowed to play. Only a slot with nobody in it is empty.
+  const clockDrafted = forfeits.filter((slot) => roster[slot]);
+  const emptySlots = forfeits.filter((slot) => !roster[slot]);
+  if (clockDrafted.length) {
+    notes.push(statNote("Clock drafted", `${clockDrafted.length}`, "bad"));
+  }
+  if (emptySlots.length) {
+    notes.push(statNote("Slots empty", `${emptySlots.length}`, "bad"));
   }
 
   // The identity read, as advice rather than as an observation: a drafter can
@@ -708,7 +719,8 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
   // gameplan that suits it.
   if (lean > 0.15) advice.push("Offense-heavy - your defense will give it back.");
   else if (lean < -0.15) advice.push("Defense-first - you need this game low-scoring.");
-  if (forfeits.length) advice.push("Empty slots rate zero - never let the clock draft.");
+  if (emptySlots.length) advice.push("Empty slots rate zero.");
+  else if (clockDrafted.length) advice.push("The clock drafts the worst player left - pick before it runs out.");
 
   // Football's counterplay read, and until now it did not exist. NFL.draftAnalysis
   // accepted an opponent roster and dropped it on the floor, so the "how your

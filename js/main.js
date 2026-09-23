@@ -20,7 +20,7 @@ import { startPresence } from "./presence.js";
 // able to leave entirely to js/ui/profile.js.
 import { bannerById, DEFAULT_BANNER_ID } from "./banners.js";
 import { bannerArt } from "./ui/banner-art.js";
-import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
+import { DraftState, eligibleOpenSlots, openSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { adviceNote, isNote, noteText } from "./gradenotes.js";
 import { OPENING_HOLD_MS, FINAL_HOLD_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
@@ -2049,6 +2049,7 @@ function startDraft() {
   game.roundNumber = 0;
   poolSearch.value = "";
   hideDraftGrade();
+  rosterBlockedEl.classList.add("hidden");
   captureProgressBaseline();
   // A DRAFT HAS BEGUN. One of the two places this can be true - the other is
   // enterOnlineMatch, which is how a ranked or friend draft starts - and the
@@ -2077,7 +2078,15 @@ function advanceDraft() {
 
   if (game.round.needNewSquad) {
     const rolled = draft.rollNextSquad();
-    rememberSquad(rolled && rolled.id);
+    // Out of squads with a slot still open. This used to carry on with the last
+    // squad left in currentSquad - a squad already drafted from - so the
+    // draft either re-served it or recursed until the stack gave out. It ends
+    // here instead, and renderDraftComplete refuses to play the result.
+    if (!rolled) {
+      renderDraftComplete();
+      return;
+    }
+    rememberSquad(rolled.id);
     game.roundNumber += 1;
     game.round.needNewSquad = false;
     game.round.resolved = {};
@@ -2285,10 +2294,80 @@ const draftGradeHeadlineEl = document.getElementById("draft-grade-headline");
 const draftGradeReasonsEl = document.getElementById("draft-grade-reasons");
 const draftGradeTeamsEl = document.getElementById("draft-grade-teams");
 const draftGradeScoutingEl = document.getElementById("draft-grade-scouting");
+const draftGradeCausesEl = document.getElementById("draft-grade-causes");
 
 function hideDraftGrade() {
   draftGradeEl.classList.add("hidden");
 }
+
+const rosterBlockedEl = document.getElementById("roster-blocked");
+const rosterBlockedDetailEl = document.getElementById("roster-blocked-detail");
+
+/**
+ * Refuses to go on to the strategy phases or the simulation when either roster
+ * has an empty slot, and says which. Returns true when it blocked.
+ *
+ * FAIL CLOSED. An empty slot does not stop the engine: it plays the rest of the
+ * roster and produces a believable, lopsided score - the same class of silent
+ * failure as an unfilled slot quietly rating 0.5. So the check is not "is this
+ * roster good", it is "does every slot this draft declares have someone in it",
+ * read from the draft's own slot list rather than any assumed shape.
+ *
+ * Online never reaches this: the server only moves a match to strategy once
+ * both rosters are full (advance_round_if_ready).
+ */
+function renderRosterBlocked(rosterA, rosterB, slots) {
+  const mine = openSlots(rosterA, slots);
+  const theirs = openSlots(rosterB, slots);
+  if (!mine.length && !theirs.length) {
+    rosterBlockedEl.classList.add("hidden");
+    return false;
+  }
+  cleanupRotationTimer();
+  cleanupMatchupTimer();
+  cleanupTacticTimer();
+  rotationPhaseEl.classList.add("hidden");
+  matchupPhaseEl.classList.add("hidden");
+  tacticPhaseEl.classList.add("hidden");
+  // Its "draft from memory" hint is an invitation to keep drafting, which is
+  // exactly what can no longer happen. startDraft shows it again.
+  draftPoolPanel.classList.add("hidden");
+  // Bench slots share one label, so they are counted rather than listed - "7
+  // empty: SG, SF, PF, Bench" undercounts by three.
+  const name = (list) => {
+    const counts = new Map();
+    for (const slot of list) counts.set(slotLabel(slot), (counts.get(slotLabel(slot)) || 0) + 1);
+    return [...counts].map(([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(", ");
+  };
+  const lines = [];
+  if (mine.length) lines.push(`Your roster has ${mine.length} empty ${mine.length === 1 ? "slot" : "slots"}: ${name(mine)}.`);
+  if (theirs.length) lines.push(`${game.nameB}'s roster has ${theirs.length} empty: ${name(theirs)}.`);
+  lines.push("A game is only played with every slot filled. Start a new draft to play.");
+  rosterBlockedDetailEl.textContent = lines.join(" ");
+  draftTurnBanner.textContent = "Roster incomplete";
+  rosterBlockedEl.classList.remove("hidden");
+  console.error("Draft finished with empty slots", { mine, theirs });
+  return true;
+}
+
+document.getElementById("btn-blocked-new-draft").addEventListener("click", () => {
+  rosterBlockedEl.classList.add("hidden");
+  setActiveNav("play");
+  const played = game.modeConfig;
+  openPlayScreen({
+    sport: game.sport || getSport(),
+    mode: played && MODES[played.id] ? played.id : undefined,
+    difficulty: played?.difficulty || undefined,
+    era: game.era,
+  });
+});
+document.getElementById("btn-blocked-home").addEventListener("click", () => {
+  rosterBlockedEl.classList.add("hidden");
+  goToTab("play", () => {
+    showScreen("home");
+    refreshHome();
+  });
+});
 
 /**
  * One note on the grade card.
@@ -2423,6 +2502,27 @@ function renderGradeTeams(grade) {
   }
 }
 
+/**
+ * THE CAUSES A LETTER CANNOT SAY ON ITS OWN. A draft that the clock made half
+ * of grades F, and so does a draft of honest bad picks; only one of those is
+ * about who you know. A bare F on the first read as the game marking you down
+ * for nothing.
+ *
+ * Shared rather than per sport because the two facts are the same in every
+ * sport: `forfeits` is every slot the grade charges for, and a slot with a
+ * player in it was filled by the clock while one without was never filled.
+ */
+function renderGradeCauses(roster, forfeits) {
+  const unique = [...new Set(forfeits)];
+  const clockDrafted = unique.filter((slot) => roster[slot]).length;
+  const empty = unique.filter((slot) => !roster[slot]).length;
+  const parts = [];
+  if (clockDrafted) parts.push(`${clockDrafted} clock-drafted ${clockDrafted === 1 ? "pick" : "picks"}`);
+  if (empty) parts.push(`${empty} empty ${empty === 1 ? "slot" : "slots"}`);
+  draftGradeCausesEl.textContent = parts.length ? `Graded down for: ${parts.join(" · ")}` : "";
+  draftGradeCausesEl.classList.toggle("hidden", parts.length === 0);
+}
+
 /** @param opts.oppRoster adds the counterplay read when the opponent's roster
  *   is already known - it always is by the time a draft finishes. */
 function showDraftGrade(roster, opts = {}) {
@@ -2439,6 +2539,7 @@ function showDraftGrade(roster, opts = {}) {
 
   draftGradeLetterEl.textContent = grade.letter;
   draftGradeHeadlineEl.textContent = grade.headline;
+  renderGradeCauses(roster, opts.forfeits || []);
   draftGradeReasonsEl.innerHTML = "";
   renderGradeTeams(grade);
 
@@ -2484,6 +2585,10 @@ function renderDraftComplete() {
     oppRoster: draft.rosterB,
     forfeits: forfeitedSlotsFor("A", draft.rosterA, draft.slots),
   });
+
+  // No game around a hole in a roster. The grade above still shows, because it
+  // is the thing that says what happened.
+  if (renderRosterBlocked(draft.rosterA, draft.rosterB, draft.slots)) return;
 
   // EVERY practice game now runs the full strategy sequence - rotation,
   // matchups, gamestyle - because every practice game now drafts the ranked
@@ -5007,6 +5112,13 @@ function showShotChart(events, labelA, labelB) {
 
 function runLocalSimulation() {
   const draft = game.draft;
+  // The last gate before the engine. renderDraftComplete already refuses an
+  // incomplete roster; this is here so no future path to the simulation can
+  // skip that check and have the engine play around the hole.
+  if (renderRosterBlocked(draft.rosterA, draft.rosterB, draft.slots)) {
+    showScreen("draft");
+    return;
+  }
   // Resolve the user's own rotation up front so the box score can show the
   // same minutes the simulation actually used, rather than a second guess.
   const minutesA = strategy.rotationMinutes || sport().defaultMinutes(draft.rosterA);

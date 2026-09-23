@@ -637,6 +637,10 @@
         <div class="draft-grade-body">
           <div class="draft-grade-title">Draft Grade</div>
           <p class="draft-grade-headline" id="draft-grade-headline"></p>
+          <!-- WHY the letter is what it is, when the cause is something the
+               player did rather than who they drafted: picks the clock made,
+               slots nobody filled. Hidden when there is neither. -->
+          <p class="draft-grade-causes hidden" id="draft-grade-causes"></p>
           <!-- The two teams' headline grades, side by side. Only YOUR card
                ever carries per-slot detail below; the opponent's three numbers
                are deliberately the whole of what is shown about them. See the
@@ -645,6 +649,19 @@
           <div class="draft-grade-teams hidden" id="draft-grade-teams"></div>
           <p class="draft-grade-scouting hidden" id="draft-grade-scouting"></p>
           <ul class="draft-grade-reasons" id="draft-grade-reasons"></ul>
+        </div>
+      </div>
+
+      <!-- Shown INSTEAD of the strategy phases when a finished draft left a
+           roster slot empty. A game is never simulated around a hole in a
+           roster: the engine would still produce a believable score, which is
+           exactly why it must not be allowed to. See renderRosterBlocked(). -->
+      <div id="roster-blocked" class="roster-blocked hidden" role="alert">
+        <p class="roster-blocked-title">This roster can't play</p>
+        <p class="roster-blocked-detail" id="roster-blocked-detail"></p>
+        <div class="roster-blocked-actions">
+          <button id="btn-blocked-new-draft" class="btn btn-primary" type="button">Start a new draft</button>
+          <button id="btn-blocked-home" class="btn btn-secondary" type="button">Home</button>
         </div>
       </div>
 

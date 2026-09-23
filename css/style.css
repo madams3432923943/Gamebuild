@@ -7575,6 +7575,50 @@ html {
   color: var(--text);
 }
 
+/* The cause of a low letter when it is the clock or a hole in the roster, in
+   the same colour the grade's own bad values use - it is the reason, so it sits
+   directly under the headline rather than among the notes. */
+.draft-grade-causes {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--buzzer);
+}
+
+/* --- Roster incomplete ---------------------------------------------------
+   Replaces the strategy phases when a finished draft left a slot empty. A
+   blocking state, so it borrows the buzzer rather than the accent: nothing on
+   this panel is a choice the sport's theme should dress up. */
+.roster-blocked {
+  margin: 0.6rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(232, 67, 61, 0.6);
+  border-radius: var(--radius-inner);
+  background: rgba(232, 67, 61, 0.1);
+}
+
+.roster-blocked-title {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.roster-blocked-detail {
+  margin: 0 0 0.75rem;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.roster-blocked-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* THE NOTES STOPPED BEING SENTENCES. They were seven prose bullets of 29-117
    characters against a body about 190px wide on a 360px phone - roughly 27
    characters - so each wrapped to three or four lines and the verdict arrived
