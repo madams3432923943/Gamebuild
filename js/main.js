@@ -9,6 +9,7 @@ import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, rep
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
+import { endPickTurn, pickModalScope } from "./ui/pick-modal.js";
 import { initBrandFallbacks } from "./brand-fallback.js";
 import { withSeededMathRandom } from "./lib/seeded-rng.js";
 import { newSimulationSeed, provenanceFor } from "./lib/provenance.js";
@@ -232,6 +233,9 @@ function cleanupPickTimer() {
   if (pickTimerEl) pickTimerEl.textContent = "";
   currentPickTimeoutHandler = null;
   btnForfeitPick.classList.add("hidden");
+  // Every way a pick window ends comes through here, so this is where a
+  // season or slot picker opened during it is closed - see js/ui/pick-modal.js.
+  endPickTurn();
 }
 
 /** (Re)starts the countdown from PICK_TIMER_SECONDS. Call exactly once per
@@ -268,6 +272,7 @@ btnForfeitPick.addEventListener("click", () => {
 
 /** Position picker: which open slot should this player fill? */
 function openSlotPicker(player, slots, onChoose, onCancel) {
+  const scope = pickModalScope();
   const wrap = document.createElement("div");
 
   const who = document.createElement("div");
@@ -304,15 +309,12 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
     btn.type = "button";
     btn.className = "modal-slot";
     btn.textContent = label;
-    btn.addEventListener("click", () => {
-      closeModal();
-      onChoose(slot);
-    });
+    btn.addEventListener("click", scope.choose(() => onChoose(slot)));
     grid.appendChild(btn);
   }
   wrap.appendChild(grid);
 
-  openModal("Where does he play?", wrap, onCancel);
+  scope.open("Where does he play?", wrap, onCancel);
 }
 
 // The rules differ per sport - basketball drafts ten individuals, football
@@ -703,6 +705,7 @@ function sportCardAction(label, onClick) {
  * where the year is chosen.
  */
 function openSeasonPicker(player, seasons, onChoose, showStats = false, placement = null) {
+  const scope = pickModalScope();
   const wrap = document.createElement("div");
 
   const intro = document.createElement("p");
@@ -742,16 +745,13 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
       row.querySelector(".season-line").textContent =
         `${(s.pos || []).join(" / ")} - no open slot`;
     } else {
-      row.addEventListener("click", () => {
-        closeModal();
-        onChoose(s);
-      });
+      row.addEventListener("click", scope.choose(() => onChoose(s)));
     }
     list.appendChild(row);
   }
   wrap.appendChild(list);
 
-  openModal(`Which ${player.name}?`, wrap);
+  scope.open(`Which ${player.name}?`, wrap);
 }
 
 /** Re-reads the profile and repaints the home header. Called on entry and
