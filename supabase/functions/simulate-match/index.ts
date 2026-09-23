@@ -363,6 +363,10 @@ Deno.serve(async (req: Request) => {
   const { data: match, error: matchErr } = await admin.from("matches").select("*").eq("id", matchId).single();
   if (matchErr || !match) return json({ error: "match not found" }, 404);
   if (match.player_a !== uid && match.player_b !== uid) return json({ error: "not a participant" }, 403);
+  // Both seats must be filled before anything is simulated. A match missing a
+  // player cannot move two ratings, and writing it anyway is how completed
+  // ranked rows with a null side and a winner reached the table.
+  if (!match.player_a || !match.player_b) return json({ error: "match is missing a player" }, 409);
 
   const { data: existing } = await admin.from("match_results").select("*").eq("match_id", matchId).maybeSingle();
   if (existing) return json({ status: "complete", result: existing, winner: match.winner });
@@ -425,6 +429,14 @@ Deno.serve(async (req: Request) => {
   // rather than silently awarding a tied game to one side.
   if (result.winner !== "A" && result.winner !== "B") {
     return json({ error: `${sportId} simulation ended tied after overtime safety cap` }, 409);
+  }
+  // The winner is whoever scored more, and nothing else. A level score with a
+  // winner - the NBA engine once broke ties by roster strength - is refused
+  // here and again by the database (see db/migrations/20260923_01_*.sql).
+  const expectedWinner = result.teamScoreA > result.teamScoreB ? "A" : result.teamScoreB > result.teamScoreA ? "B" : null;
+  if (result.winner !== expectedWinner) {
+    console.error(`${sportId} result disagrees with its score`, result.teamScoreA, result.teamScoreB, result.winner);
+    return json({ error: `${sportId} simulation winner does not match the score` }, 500);
   }
   if (!result.mvp?.player?.name) return json({ error: `${sportId} simulation produced no MVP` }, 500);
 
