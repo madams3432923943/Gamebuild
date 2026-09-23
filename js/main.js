@@ -233,9 +233,20 @@ function cleanupPickTimer() {
   if (pickTimerEl) pickTimerEl.textContent = "";
   currentPickTimeoutHandler = null;
   btnForfeitPick.classList.add("hidden");
+  setPickLive(false);
   // Every way a pick window ends comes through here, so this is where a
   // season or slot picker opened during it is closed - see js/ui/pick-modal.js.
   endPickTurn();
+}
+
+const draftScreenEl = document.getElementById("screen-draft");
+
+/** Marks the draft screen as waiting on YOUR pick, which is what the status
+ * row's hierarchy keys off: while it is set the on-clock badge and the timer
+ * lead the row, and Forfeit Pick recedes. Cleared with the pick clock, so any
+ * end of the window ends it. See .pick-live in style.css. */
+function setPickLive(live) {
+  draftScreenEl.classList.toggle("pick-live", live);
 }
 
 /** (Re)starts the countdown from PICK_TIMER_SECONDS. Call exactly once per
@@ -2148,6 +2159,7 @@ function renderDraftRound() {
   renderDraftEra(game.era);
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
   poolSearch.hidden = false;
+  setPickLive(true);
 
   const pending = game.round.pendingPlayer;
   const eligibleForPending = pending ? eligibleOpenSlots(pending, roster, draft.slots) : null;
@@ -3086,6 +3098,7 @@ async function renderOnlineDraftRound(match) {
     .map((p) => p.slot);
 
   if (matchConfig().timed) startPickTimer(handleOnlineTimeout);
+  setPickLive(true);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: sport().slots.ranked });
   renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, revealSlots: oppRevealSlots });

@@ -1833,6 +1833,45 @@ button.position-btn {
   animation: pulse-buzzer 0.6s ease-in-out infinite;
 }
 
+/* --- While YOUR pick is on the clock ---------------------------------------
+   The status row carried three things at one weight, and the heaviest-looking
+   of them was Forfeit Pick: a bordered button in full-strength text, sitting
+   beside a small timer and a dim pill. With a clock running the eye should go
+   to whose pick it is and how long is left, then to the pool, and only then to
+   the way out. So, while .pick-live is set (setPickLive in js/main.js):
+   the seat becomes a filled badge, the timer grows, and Forfeit recedes to an
+   outline in the muted voice - still a full-size target, just not a loud one.
+   Nothing is hidden: the position strip above the search stays, because on a
+   phone it is the only view of the roster above the fold (see its note). */
+#screen-draft.pick-live .turn-banner {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+#screen-draft.pick-live .pick-timer {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+#screen-draft.pick-live .pick-timer.timer-warning {
+  color: var(--buzzer);
+}
+
+#screen-draft.pick-live #btn-forfeit-pick {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  #screen-draft.pick-live #btn-forfeit-pick:hover {
+    color: var(--text);
+    border-color: var(--buzzer);
+  }
+}
+
 @keyframes pulse-buzzer {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
