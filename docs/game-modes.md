@@ -218,6 +218,22 @@ shape the engine can be handed, and the calibration and box-score harnesses
 drive it. Removing the declaration would remove the engine's ability to score a
 roster shape that exists in the database.
 
+## The setup screen
+
+The Start a Draft Battle screen is drawn by one function, `renderPlayScreen`
+(`js/main.js`): sport header, mode cards, difficulty, era and the launch
+summary, in a single synchronous pass. A sport switch runs it BEFORE awaiting
+the sport's dataset, so the screen never shows one sport's name, eras or
+summary under another sport's colours; only Start Draft waits on the data.
+
+- **Ranked shows no difficulty.** The difficulty cards are emptied, not only
+  hidden, and the mode's `note` (declared in `MODES`) says why in their place.
+- **Play Again returns here**, preselected with the sport, mode, practice
+  difficulty and era just played (`openPlayScreen`). It never skips this screen
+  into a draft. A friend match keeps the last-chosen mode, since Friend Match is
+  not selectable here. `npm run verify:selftest` asserts it as
+  `browser:play-again`.
+
 ## Verifying
 
 ```
