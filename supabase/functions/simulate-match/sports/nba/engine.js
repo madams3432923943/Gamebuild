@@ -1007,13 +1007,24 @@ function applyPointsMultiplier(totals, factor) {
   }
 }
 
-/** The team score the finished box will print: the absolute clamp, then each
- * player's line rounded, then summed - the same steps applyAbsoluteClamp and
- * roundLine take, without mutating anything. */
-function finalTeamScore(totals) {
-  const actual = sumTeamLine(totals, "pts");
-  const scale = actual > MAX_TEAM_SCORE ? MAX_TEAM_SCORE / actual : 1;
-  return Object.keys(totals).reduce((sum, slot) => sum + Math.max(0, Math.round(totals[slot].pts * scale)), 0);
+/** The one factor the absolute clamp scales BOTH teams by: whatever brings the
+ * higher score down to MAX_TEAM_SCORE, or 1 when neither is over it.
+ *
+ * ONE FACTOR, NOT ONE PER TEAM. Clamping each team to the cap separately sent
+ * two teams that both passed 190 to exactly 190 each - a tie the clamp itself
+ * manufactured, which no amount of overtime could break because the next
+ * period's points were clamped away too. Scaling both by the same factor keeps
+ * who won and by roughly how much. */
+function clampFactor(totalsA, totalsB) {
+  const top = Math.max(sumTeamLine(totalsA, "pts"), sumTeamLine(totalsB, "pts"));
+  return top > MAX_TEAM_SCORE ? MAX_TEAM_SCORE / top : 1;
+}
+
+/** The team score the finished box will print: the clamp, then each player's
+ * line rounded, then summed - the same steps the clamp and roundLine take,
+ * without mutating anything. */
+function finalTeamScore(totals, factor) {
+  return Object.keys(totals).reduce((sum, slot) => sum + Math.max(0, Math.round(totals[slot].pts * factor)), 0);
 }
 
 function roundLine(line) {
@@ -1145,7 +1156,9 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
   // absolute clamp, and Math.round of the team sum can split a game the box
   // then prints level. That is how a ranked game finished 140-140 with no
   // overtime and a winner handed out by the tiebreak below.
-  while (finalTeamScore(totalsA) === finalTeamScore(totalsB) && otPeriods < MAX_OT_PERIODS) {
+  while (otPeriods < MAX_OT_PERIODS) {
+    const factor = clampFactor(totalsA, totalsB);
+    if (finalTeamScore(totalsA, factor) !== finalTeamScore(totalsB, factor)) break;
     // OT is already crunch time - it plays out under the same clutch mods as
     // the 4th quarter, not the base ones.
     const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB);
@@ -1155,8 +1168,11 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
     otPeriods += 1;
   }
 
-  applyAbsoluteClamp(totalsA);
-  applyAbsoluteClamp(totalsB);
+  const clamp = clampFactor(totalsA, totalsB);
+  if (clamp < 1) {
+    applyPointsMultiplier(totalsA, clamp);
+    applyPointsMultiplier(totalsB, clamp);
+  }
 
   const boxA = {};
   const boxB = {};
@@ -1390,13 +1406,6 @@ function applyScoringCeiling(totals, roster, minutesMap) {
   const multiplier = actual / baseline;
   if (multiplier > SCORING_CEILING) {
     applyPointsMultiplier(totals, SCORING_CEILING / multiplier);
-  }
-}
-
-function applyAbsoluteClamp(totals) {
-  const actual = sumTeamLine(totals, "pts");
-  if (actual > MAX_TEAM_SCORE) {
-    applyPointsMultiplier(totals, MAX_TEAM_SCORE / actual);
   }
 }
 

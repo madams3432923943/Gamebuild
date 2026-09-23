@@ -655,7 +655,10 @@ async function renderHomeSportCards(profile, population = null) {
         // player choosing anything - counting it there would make every page
         // load look like a sport selection.
         track(EVENTS.SPORT_SELECTED, { sport: s.id });
-        openPlayScreen({ sport: s.id });
+        // setSport even for the sport already selected: it is also what retries
+        // a dataset that failed to load. It remounts the screen before awaiting.
+        setSport(s.id);
+        showScreen("play");
       });
     }
     card.appendChild(open);
@@ -1006,7 +1009,6 @@ const difficultyFieldEl = document.getElementById("difficulty-field");
 const difficultyNoteEl = document.getElementById("difficulty-note");
 const launchSummaryEl = document.getElementById("launch-summary");
 const modeNoteEl = document.getElementById("mode-note");
-const startCardEl = document.querySelector("#screen-play .start-card");
 
 const DIFFICULTY_KEY = "bk_practice_difficulty";
 
@@ -1081,13 +1083,11 @@ function renderModeCards() {
  * than disabled: a difficulty is not a choice that exists in a ranked game, and
  * a greyed-out row of it reads as something the player has failed to unlock.
  *
- * The mode note and the card's data-mode are set here too, because they change
- * exactly when this does: Ranked has to SAY there is no bot to pick, or an empty
+ * The mode note is set here too, because it changes exactly when this does: Ranked has to SAY there is no bot to pick, or an empty
  * space where the difficulty was reads as a setting that failed to load. */
 function renderDifficultyCards() {
   const isPractice = selectedMode === "practice";
   difficultyFieldEl.hidden = !isPractice;
-  if (startCardEl) startCardEl.dataset.mode = selectedMode;
   if (modeNoteEl) modeNoteEl.textContent = MODES[selectedMode]?.note || "";
   if (!isPractice) {
     // Emptied, not just hidden, so no stale Hard card is left in the DOM for a
@@ -1243,8 +1243,16 @@ function renderPlayScreen() {
   renderModeChoice();
 }
 
+/** Which setSport call is the latest. Every load awaits, and two sports picked
+ * in quick succession load concurrently - so only the newest call may clear the
+ * loading flag or repaint. Without this an older load finishing first enabled
+ * Start Draft for a sport whose data had not arrived yet, and an older load
+ * FAILING reported the newer sport as unloadable. */
+let sportLoadSeq = 0;
+
 async function setSport(id) {
   if (!setActiveSport(id)) return;
+  const load = ++sportLoadSeq;
   applyTheme(sport());
   // Football's dataset is 4.2MB and is fetched the moment football is chosen,
   // not on boot. Awaited HERE, before anything reads the player pool, so every
@@ -1265,16 +1273,17 @@ async function setSport(id) {
     // Never silent: the button stays disabled and says so, and the reason is
     // on the console for anyone debugging it.
     console.error(`Could not load ${id} data:`, error);
+    if (load !== sportLoadSeq) return;
     sportDataLoading = false;
     renderPlayability();
     sportPreviewNoteEl.hidden = false;
     sportPreviewNoteEl.textContent = `${sport().name} data could not be loaded. Check your connection and try again.`;
     return;
   }
+  // A player can change sport again while this one loads; only the newest load
+  // gets to say loading is over or repaint the screen.
+  if (load !== sportLoadSeq) return;
   sportDataLoading = false;
-  // A player can change sport again while this one loads; only the sport still
-  // selected gets to repaint the screen.
-  if (getSport() !== id) return;
   renderPlayScreen();
   warmDatasetStats();
 }
@@ -1306,11 +1315,26 @@ function openPlayScreen({ sport: sportId, mode, difficulty, era } = {}) {
       // As above.
     }
   }
-  // setSport remounts the screen synchronously before it awaits any data, so
-  // the screen is right by the time it is shown.
-  if (sportId) setSport(sportId);
+  // A different sport goes through setSport, which remounts the screen
+  // synchronously before it awaits any data, so the screen is right by the time
+  // it is shown. The same sport is already loaded and only needs redrawing -
+  // reloading it flashed a disabled "Loading…" Start button on every Play Again.
+  if (sportId && sportId !== getSport()) setSport(sportId);
   else renderPlayScreen();
   showScreen("play");
+}
+
+/** The setup the last game was played with, back on the setup screen. Shared
+ * by Play Again and by the roster-incomplete panel's "Start a new draft", which
+ * both mean "the same game again". */
+function reopenLastSetup() {
+  const played = game.modeConfig;
+  openPlayScreen({
+    sport: game.sport || getSport(),
+    mode: played && MODES[played.id] ? played.id : undefined,
+    difficulty: played?.difficulty || undefined,
+    era: game.era,
+  });
 }
 
 /** The Play screen says which sport you are in, because the sport was chosen
@@ -2365,13 +2389,7 @@ function renderRosterBlocked(rosterA, rosterB, slots) {
 document.getElementById("btn-blocked-new-draft").addEventListener("click", () => {
   rosterBlockedEl.classList.add("hidden");
   setActiveNav("play");
-  const played = game.modeConfig;
-  openPlayScreen({
-    sport: game.sport || getSport(),
-    mode: played && MODES[played.id] ? played.id : undefined,
-    difficulty: played?.difficulty || undefined,
-    era: game.era,
-  });
+  reopenLastSetup();
 });
 document.getElementById("btn-blocked-home").addEventListener("click", () => {
   rosterBlockedEl.classList.add("hidden");
@@ -3053,6 +3071,10 @@ btnLeaveMatch.addEventListener("click", async () => {
 async function renderOnlineDraftRound(match) {
   const o = game.online;
   if (!o) return;
+  // The previous pick window is over the moment a new round is seen - not after
+  // the fetches below, which is when startPickTimer would end it. A season
+  // picker left open across them could otherwise submit last round's player.
+  endPickTurn();
 
   draftRoundLabel.textContent = `Round ${match.round_number}` + (match.is_friendly ? " · Friendly Match (unranked)" : "");
   squadBannerTeam.textContent = match.current_squad_team;
@@ -4592,7 +4614,14 @@ function showShotChart(events, labelA, labelB) {
     if (summary?.length) renderScoringSummary(playFeedEl, headline, summary);
     else pushPlayHeadline(playFeedEl, headline, "final");
 
+    // A level score has no winner - both engines report null past their
+    // overtime safety cap - and naming one would contradict the score printed
+    // beside it. Vanishingly rare, but a banner that says "Bot wins 101-101" is
+    // exactly the inconsistency the ranked guards exist to refuse.
+    const tied = result.winner !== "A" && result.winner !== "B";
     const winnerName = result.winner === "A" ? labelA : labelB;
+    const winnerLine = tied ? "Level after overtime" : `${winnerName} ${subjectVerb(winnerName, "wins", "win")}`;
+    const outcome = tied ? "Tied" : result.winner === "A" ? "Won" : "Lost";
     const otNote = result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : "";
     // The SCORE leads. It was one uppercase sentence with the numbers buried in
     // the middle of it, which made the single thing everyone looks for the
@@ -4608,18 +4637,18 @@ function showShotChart(events, labelA, labelB) {
     // parsed as HTML, and textContent settles that without an escaping step
     // anyone can forget.
     finalBanner.replaceChildren(
-      bannerPart("fb-outcome", youWon ? "Won" : "Lost"),
+      bannerPart("fb-outcome", outcome),
       bannerPart("fb-score", `${result.teamScoreA}–${result.teamScoreB}`),
-      bannerPart("fb-winner", `${winnerName} ${subjectVerb(winnerName, "wins", "win")}${otNote}`)
+      bannerPart("fb-winner", `${winnerLine}${otNote}`)
     );
     finalBanner.classList.toggle("final-won", youWon);
-    finalBanner.classList.toggle("final-lost", !youWon);
+    finalBanner.classList.toggle("final-lost", !youWon && !tied);
     // Three stacked spans read as one run-on string to a screen reader -
     // "Lost24-28Bot wins". The visual split is a layout decision; the sentence
     // is what should be announced.
     finalBanner.setAttribute(
       "aria-label",
-      `${youWon ? "Won" : "Lost"}. Final score ${result.teamScoreA} to ${result.teamScoreB}. ${winnerName} ${subjectVerb(winnerName, "wins", "win")}${otNote}.`
+      `${outcome}. Final score ${result.teamScoreA} to ${result.teamScoreB}. ${winnerLine}${otNote}.`
     );
     finalBanner.classList.remove("hidden");
 
@@ -5568,13 +5597,7 @@ btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
-  const played = game.modeConfig;
-  openPlayScreen({
-    sport: game.sport || getSport(),
-    mode: played && MODES[played.id] ? played.id : undefined,
-    difficulty: played?.difficulty || undefined,
-    era: game.era,
-  });
+  reopenLastSetup();
 });
 btnToProfile.addEventListener("click", () => {
   cleanupOnlineWatcher();

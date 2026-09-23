@@ -425,11 +425,6 @@ function letterForScore(score) {
 export function gradeDraft(roster, datasetStats, opts = {}) {
   const metrics = gradeMetrics(roster, datasetStats);
   const forfeits = (opts.forfeits || []).filter((slot) => roster[slot]);
-  // The slots in the same list that nobody fills. Filtered out of `forfeits`
-  // above because a clock pick and a missing player are different failures,
-  // but then never mentioned at all - so a roster with a hole in it graded
-  // with no word about the hole.
-  const emptySlots = (opts.forfeits || []).filter((slot) => !roster[slot]);
 
   // Forfeits are a draft failure, not a simulation one, so the grade says so as
   // well. Subtracted after construction rather than folded into it: a pick the
@@ -512,20 +507,10 @@ export function gradeDraft(roster, datasetStats, opts = {}) {
     always.push(statNote(weak.label, pct(value), value <= CAPABILITY_SOFT_SPOT ? "bad" : "neutral"));
   }
 
-  // An empty slot is a fact about the roster itself, so it is always shown.
-  if (emptySlots.length > 0) {
-    always.push(statNote("Slots empty", `${emptySlots.length}`, "bad"));
-    keyAdvice.push("An empty slot plays nobody - the rest of the roster covers its minutes.");
-  }
-
-  // A pick the clock made is the one thing here the player can see they did
-  // wrong, so it outranks every other optional row.
+  // The COUNT of clock-made picks is not a row here: the shared card states it
+  // once for every sport, under the headline (renderGradeCauses in
+  // js/main.js). Only the advice is basketball's to give.
   if (forfeits.length > 0) {
-    optional.push(statNote(
-      "Clock drafted",
-      forfeits.length <= 3 ? forfeits.join(", ") : `${forfeits.length} picks`,
-      "bad"
-    ));
     advice.push("Picks that ran out of clock cost you a letter.");
   }
 

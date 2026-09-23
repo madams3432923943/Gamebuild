@@ -363,13 +363,14 @@ Deno.serve(async (req: Request) => {
   const { data: match, error: matchErr } = await admin.from("matches").select("*").eq("id", matchId).single();
   if (matchErr || !match) return json({ error: "match not found" }, 404);
   if (match.player_a !== uid && match.player_b !== uid) return json({ error: "not a participant" }, 403);
-  // Both seats must be filled before anything is simulated. A match missing a
-  // player cannot move two ratings, and writing it anyway is how completed
-  // ranked rows with a null side and a winner reached the table.
-  if (!match.player_a || !match.player_b) return json({ error: "match is missing a player" }, 409);
 
   const { data: existing } = await admin.from("match_results").select("*").eq("match_id", matchId).maybeSingle();
   if (existing) return json({ status: "complete", result: existing, winner: match.winner });
+  // Both seats must be filled before anything is simulated. A match missing a
+  // player cannot move two ratings. AFTER the existing-result return, not
+  // before it: account deletion nulls a side of every finished match, and the
+  // remaining player must still be able to read that result back.
+  if (!match.player_a || !match.player_b) return json({ error: "match is missing a player" }, 409);
   if (match.status !== "ready_to_simulate") {
     return json({ error: "match is not ready to simulate", status: match.status }, 409);
   }

@@ -143,13 +143,14 @@ and slots nobody filled. They used to be reported as one - football labelled
 all of them "Slots empty", so a draft with eleven clock-made picks read as a
 roster with eleven holes.
 
-- **Per sport**, the notes now say which is which: `Clock drafted` for a filled
-  slot the clock chose, `Slots empty` for one with nobody in it (basketball did
-  not mention empty slots at all).
-- **Shared**, the card carries one cause line directly under the headline -
-  `Graded down for: 7 clock-drafted picks · 2 empty slots` - built in
-  `renderGradeCauses` (`js/main.js`) from the same list, so every sport explains
-  a low letter the same way and a bare F never appears without its cause.
+- **One place, every sport.** The card carries one cause line directly under
+  the headline - `Graded down for: 7 clock-drafted picks · 2 empty slots` -
+  built in `renderGradeCauses` (`js/main.js`) from the same list: a charged slot
+  with a player in it was filled by the clock, one without was never filled. A
+  bare F never appears without its cause.
+- **Per sport**, only the penalty and the advice clause remain. Neither sport
+  prints its own forfeit count any more, so the number cannot appear twice or
+  disagree with the shared line.
 
 A roster with an empty slot is also never simulated: `renderRosterBlocked`
 stops a local draft before the strategy phases and names the empty positions,
