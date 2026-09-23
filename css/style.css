@@ -583,8 +583,9 @@ textarea:focus-visible {
   letter-spacing: 0.01em;
 }
 
-/* Only Ranked has one, and it is the one thing about this screen that is worth
-   being unmissable: it is the mode where the result is kept. */
+/* Both modes carry one now, saying who the opponent is. Ranked's stays red
+   because it is the one thing on this screen worth being unmissable: it is the
+   mode where the result is kept. Practice's is toned down below. */
 .mode-tag {
   font-family: var(--font-display);
   font-size: var(--text-micro);
@@ -596,6 +597,18 @@ textarea:focus-visible {
   background: rgba(232, 67, 61, 0.18);
   border: 1px solid rgba(232, 67, 61, 0.6);
   color: #ff8b86;
+}
+
+/* Practice's tag is a fact about the opponent, not a stake - so it stays in the
+   neutral voice and Ranked's red tag remains the only alarm on the screen. */
+.mode-btn[data-mode="practice"] .mode-tag {
+  background: var(--surface-3);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.mode-note:empty {
+  display: none;
 }
 
 .mode-blurb {
@@ -633,12 +646,15 @@ textarea:focus-visible {
    block further down, which already scales .mode-btn on :active - and a second
    transform declared closer to the top of the file would just be the one that
    loses. */
+/* A 2px ring in the bright accent, not a 1px tint of it: with two mode cards the
+   selected one has to be obvious at a glance, and a hairline in the accent read
+   the same as hover on the football theme. */
 .mode-btn.active {
   border-color: var(--accent-bright);
   background:
-    linear-gradient(180deg, rgba(var(--accent-rgb), 0.2) 0%, rgba(var(--accent-rgb), 0.07) 100%),
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.24) 0%, rgba(var(--accent-rgb), 0.09) 100%),
     var(--surface-2);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.35), var(--shadow-card);
+  box-shadow: 0 0 0 2px var(--accent-bright), var(--shadow-card);
 }
 
 .mode-btn.active .mode-check {

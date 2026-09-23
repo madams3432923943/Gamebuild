@@ -644,8 +644,7 @@ async function renderHomeSportCards(profile, population = null) {
         // player choosing anything - counting it there would make every page
         // load look like a sport selection.
         track(EVENTS.SPORT_SELECTED, { sport: s.id });
-        setSport(s.id);
-        showScreen("play");
+        openPlayScreen({ sport: s.id });
       });
     }
     card.appendChild(open);
@@ -995,6 +994,8 @@ const difficultyToggleEl = document.getElementById("difficulty-toggle");
 const difficultyFieldEl = document.getElementById("difficulty-field");
 const difficultyNoteEl = document.getElementById("difficulty-note");
 const launchSummaryEl = document.getElementById("launch-summary");
+const modeNoteEl = document.getElementById("mode-note");
+const startCardEl = document.querySelector("#screen-play .start-card");
 
 const DIFFICULTY_KEY = "bk_practice_difficulty";
 
@@ -1067,11 +1068,23 @@ function renderModeCards() {
 
 /** The difficulty picker, shown only when Practice is selected. Hidden rather
  * than disabled: a difficulty is not a choice that exists in a ranked game, and
- * a greyed-out row of it reads as something the player has failed to unlock. */
+ * a greyed-out row of it reads as something the player has failed to unlock.
+ *
+ * The mode note and the card's data-mode are set here too, because they change
+ * exactly when this does: Ranked has to SAY there is no bot to pick, or an empty
+ * space where the difficulty was reads as a setting that failed to load. */
 function renderDifficultyCards() {
   const isPractice = selectedMode === "practice";
   difficultyFieldEl.hidden = !isPractice;
-  if (!isPractice) return;
+  if (startCardEl) startCardEl.dataset.mode = selectedMode;
+  if (modeNoteEl) modeNoteEl.textContent = MODES[selectedMode]?.note || "";
+  if (!isPractice) {
+    // Emptied, not just hidden, so no stale Hard card is left in the DOM for a
+    // re-render or a screen reader to find while Ranked is selected.
+    difficultyToggleEl.innerHTML = "";
+    difficultyNoteEl.textContent = "";
+    return;
+  }
   renderChoiceCards(
     difficultyToggleEl,
     DIFFICULTY_IDS.map((id) => difficultyById(id)),
@@ -1200,6 +1213,25 @@ function applyTheme(s) {
 const playSportIconEl = document.getElementById("play-sport-icon");
 const playSportNameEl = document.getElementById("play-sport-name");
 
+/** Remounts every part of the setup screen from state: sport header, mode,
+ * difficulty, era and the launch summary, in one synchronous pass.
+ *
+ * Each piece used to be repainted by whichever handler happened to change it,
+ * and a sport switch repainted the header and the eras only AFTER its dataset
+ * had loaded - so the screen showed the new sport's colours over the previous
+ * sport's name, eras and summary for as long as football's 4.2MB took on a
+ * phone. One function that draws all of it is what makes a partial repaint
+ * impossible rather than a matter of remembering every piece. */
+function renderPlayScreen() {
+  // Era ids are only unique within a sport, so re-resolve before drawing.
+  selectedEra = sport().eraById(selectedEra).id;
+  renderPlayHead();
+  renderModeCards();
+  renderDifficultyCards();
+  renderEraChoice();
+  renderModeChoice();
+}
+
 async function setSport(id) {
   if (!setActiveSport(id)) return;
   applyTheme(sport());
@@ -1208,7 +1240,9 @@ async function setSport(id) {
   // screen below can stay synchronous - the alternative is every caller
   // learning that one sport loads late.
   sportDataLoading = true;
-  renderPlayability();
+  // BEFORE the await: everything the setup screen shows is this sport's from
+  // the first frame. Only the Start Draft button waits on the data.
+  renderPlayScreen();
   try {
     // The dataset and the game-screen modules travel together: both are this
     // sport's, both are only needed once you are playing it, and both must be
@@ -1227,14 +1261,45 @@ async function setSport(id) {
     return;
   }
   sportDataLoading = false;
-  // Era ids are only unique within a sport, so a bracket selected under the
-  // previous sport may not exist here. Re-resolving through the new sport
-  // snaps to its default rather than leaving a dangling id.
-  selectedEra = sport().eraById(selectedEra).id;
-  renderPlayHead();
-  renderEraChoice();
-  renderPlayability();
+  // A player can change sport again while this one loads; only the sport still
+  // selected gets to repaint the screen.
+  if (getSport() !== id) return;
+  renderPlayScreen();
   warmDatasetStats();
+}
+
+/**
+ * Shows the Start a Draft Battle screen, optionally preselected.
+ *
+ * Play Again comes here with the game just played - its sport, mode, practice
+ * difficulty and era - so the next game is one tap away and still goes through
+ * this screen rather than straight into a draft. A friend match has no mode on
+ * this screen to select, so it keeps whatever mode was chosen last.
+ */
+function openPlayScreen({ sport: sportId, mode, difficulty, era } = {}) {
+  if (mode && MODES[mode]) selectedMode = mode;
+  if (mode === "practice" && DIFFICULTY_IDS.includes(difficulty)) {
+    selectedDifficulty = difficulty;
+    try {
+      localStorage.setItem(DIFFICULTY_KEY, difficulty);
+    } catch {
+      // Storage refused (private mode) - the choice still applies this session.
+    }
+  }
+  // Set before the sport, which re-resolves it against its own brackets.
+  if (era) {
+    selectedEra = era;
+    try {
+      localStorage.setItem(ERA_KEY, era);
+    } catch {
+      // As above.
+    }
+  }
+  // setSport remounts the screen synchronously before it awaits any data, so
+  // the screen is right by the time it is shown.
+  if (sportId) setSport(sportId);
+  else renderPlayScreen();
+  showScreen("play");
 }
 
 /** The Play screen says which sport you are in, because the sport was chosen
@@ -1306,12 +1371,8 @@ function renderEraChoice() {
 // comes back to it - and has to come back to its colors too, not the
 // stylesheet's default sport.
 applyTheme(sport());
-renderPlayHead();
-renderModeCards();
-renderDifficultyCards();
-renderEraChoice();
+renderPlayScreen();
 warmDatasetStats();
-renderModeChoice();
 
 // --- Online ticker ---------------------------------------------------------
 // Decoration, so it fails silently: startPresence never rejects, and the
@@ -5374,11 +5435,21 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
 // The three ways out of a finished game. All of them stop the playback as well
 // as the match watcher: these buttons are revealed at the final whistle, but
 // the post-game reveal has its own timers and a fast tap can leave one pending.
+// PLAY AGAIN IS THE SAME GAME, ONE STEP BACK. It lands on the setup screen with
+// the sport, mode, difficulty and era just played already selected - not on
+// Home, which made the player pick all four again, and not straight into a
+// draft, which would take away the chance to change one of them.
 btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
-  showScreen("home");
+  const played = game.modeConfig;
+  openPlayScreen({
+    sport: game.sport || getSport(),
+    mode: played && MODES[played.id] ? played.id : undefined,
+    difficulty: played?.difficulty || undefined,
+    era: game.era,
+  });
 });
 btnToProfile.addEventListener("click", () => {
   cleanupOnlineWatcher();
