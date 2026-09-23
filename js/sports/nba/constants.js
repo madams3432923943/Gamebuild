@@ -410,7 +410,12 @@ export const SCORING_CEILING = 1.55;
 // overtime periods), so no single game can produce an unrealistic score
 // no matter how factors compound.
 export const MAX_TEAM_SCORE = 190;
-export const MAX_OT_PERIODS = 4;
+// A SAFETY CAP, NOT A RULE. The game has no tie outcome - a ranked result needs
+// a winner the score agrees with - so overtime runs until someone leads. At
+// about one tied OT in twelve, ten periods leaves a residual tie roughly once in
+// 10^11 games; four left one in a few hundred thousand, and a tie a server
+// cannot record is a match that can never finish.
+export const MAX_OT_PERIODS = 10;
 // Overtime periods are shorter than a full quarter (5 real minutes vs 12).
 export const OT_LENGTH_SCALE = 5 / 12;
 

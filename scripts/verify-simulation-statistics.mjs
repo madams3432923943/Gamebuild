@@ -77,6 +77,20 @@ const replayA = simulate(123456, strong, weak);
 const replayB = simulate(123456, strong, weak);
 assert.deepEqual(replayA, replayB, "same seed did not reproduce the same game");
 
+// EVERY GAME HAS A WINNER, AND IT IS WHOEVER SCORED MORE. A ranked NBA game
+// once finished 140-140 with no overtime and a winner handed out by a roster
+// tiebreak, and the database now refuses that shape outright
+// (db/migrations/20260923_01_ranked_completion_guards.sql) - so an engine that
+// produced it would strand the match instead. Checked on every game below,
+// equal rosters included, which is where ties live.
+let decidedGames = 0;
+function assertDecided(result, label) {
+  const expected = result.teamScoreA > result.teamScoreB ? "A" : result.teamScoreB > result.teamScoreA ? "B" : null;
+  assert(expected !== null, `${label}: game finished level ${result.teamScoreA}-${result.teamScoreB} after ${result.overtimePeriods} OT`);
+  assert.equal(result.winner, expected, `${label}: winner ${result.winner} contradicts ${result.teamScoreA}-${result.teamScoreB}`);
+  decidedGames++;
+}
+
 let strongWins = 0;
 let swappedStrongWins = 0;
 let fullWinsAgainstForfeit = 0;
@@ -87,13 +101,16 @@ let marginSum = 0;
 for (let i = 0; i < RUNS; i++) {
   const seed = i + 1;
   const normal = simulate(seed, strong, weak);
+  assertDecided(normal, `seed ${seed} strong-weak`);
   if (normal.winner === "A") strongWins++;
   marginSum += normal.teamScoreA - normal.teamScoreB;
 
   const swapped = simulate(seed, weak, strong);
+  assertDecided(swapped, `seed ${seed} weak-strong`);
   if (swapped.winner === "B") swappedStrongWins++;
 
   const forfeit = simulate(seed, strong, strong, { forfeitsB: ["BENCH4", "BENCH5"] });
+  assertDecided(forfeit, `seed ${seed} forfeit`);
   if (forfeit.winner === "A") fullWinsAgainstForfeit++;
 
   const tactic = withSeededMathRandom(seed, () => simulateGame(strong, strong, dataset, {
@@ -101,6 +118,7 @@ for (let i = 0; i < RUNS; i++) {
     tacticA: "balanced",
     tacticB: "lockdown-defense",
   }));
+  assertDecided(tactic, `seed ${seed} equal rosters`);
   if (tactic.winner === "A") balancedWins++;
   else lockdownWins++;
 }
@@ -132,4 +150,5 @@ console.log(JSON.stringify({
   fullRosterVsTwoForfeitsWinRate: forfeitRate,
   balancedVsLockdownWinRate: tacticRate,
   meanStrongRosterMargin: marginSum / RUNS,
+  gamesWithAWinnerTheScoreAgreesWith: decidedGames,
 }, null, 2));

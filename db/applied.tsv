@@ -106,3 +106,4 @@
 20260911143742	admin_dashboard	db/migrations/20260911_03_admin_dashboard.sql
 20260911145015	games_per_user_window	db/migrations/20260911_04_games_per_user_window.sql
 20260917175044	player_feedback	db/migrations/20260917_01_player_feedback.sql
+20260923221629	ranked_completion_guards	db/migrations/20260923_01_ranked_completion_guards.sql

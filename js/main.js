@@ -9,6 +9,7 @@ import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, rep
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
 import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
+import { endPickTurn, pickModalScope } from "./ui/pick-modal.js";
 import { initBrandFallbacks } from "./brand-fallback.js";
 import { withSeededMathRandom } from "./lib/seeded-rng.js";
 import { newSimulationSeed, provenanceFor } from "./lib/provenance.js";
@@ -19,7 +20,7 @@ import { startPresence } from "./presence.js";
 // able to leave entirely to js/ui/profile.js.
 import { bannerById, DEFAULT_BANNER_ID } from "./banners.js";
 import { bannerArt } from "./ui/banner-art.js";
-import { DraftState, eligibleOpenSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
+import { DraftState, eligibleOpenSlots, openSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { adviceNote, isNote, noteText } from "./gradenotes.js";
 import { OPENING_HOLD_MS, FINAL_HOLD_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
@@ -232,6 +233,20 @@ function cleanupPickTimer() {
   if (pickTimerEl) pickTimerEl.textContent = "";
   currentPickTimeoutHandler = null;
   btnForfeitPick.classList.add("hidden");
+  setPickLive(false);
+  // Every way a pick window ends comes through here, so this is where a
+  // season or slot picker opened during it is closed - see js/ui/pick-modal.js.
+  endPickTurn();
+}
+
+const draftScreenEl = document.getElementById("screen-draft");
+
+/** Marks the draft screen as waiting on YOUR pick, which is what the status
+ * row's hierarchy keys off: while it is set the on-clock badge and the timer
+ * lead the row, and Forfeit Pick recedes. Cleared with the pick clock, so any
+ * end of the window ends it. See .pick-live in style.css. */
+function setPickLive(live) {
+  draftScreenEl.classList.toggle("pick-live", live);
 }
 
 /** (Re)starts the countdown from PICK_TIMER_SECONDS. Call exactly once per
@@ -268,6 +283,7 @@ btnForfeitPick.addEventListener("click", () => {
 
 /** Position picker: which open slot should this player fill? */
 function openSlotPicker(player, slots, onChoose, onCancel) {
+  const scope = pickModalScope();
   const wrap = document.createElement("div");
 
   const who = document.createElement("div");
@@ -304,15 +320,12 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
     btn.type = "button";
     btn.className = "modal-slot";
     btn.textContent = label;
-    btn.addEventListener("click", () => {
-      closeModal();
-      onChoose(slot);
-    });
+    btn.addEventListener("click", scope.choose(() => onChoose(slot)));
     grid.appendChild(btn);
   }
   wrap.appendChild(grid);
 
-  openModal("Where does he play?", wrap, onCancel);
+  scope.open("Where does he play?", wrap, onCancel);
 }
 
 // The rules differ per sport - basketball drafts ten individuals, football
@@ -642,6 +655,8 @@ async function renderHomeSportCards(profile, population = null) {
         // player choosing anything - counting it there would make every page
         // load look like a sport selection.
         track(EVENTS.SPORT_SELECTED, { sport: s.id });
+        // setSport even for the sport already selected: it is also what retries
+        // a dataset that failed to load. It remounts the screen before awaiting.
         setSport(s.id);
         showScreen("play");
       });
@@ -703,6 +718,7 @@ function sportCardAction(label, onClick) {
  * where the year is chosen.
  */
 function openSeasonPicker(player, seasons, onChoose, showStats = false, placement = null) {
+  const scope = pickModalScope();
   const wrap = document.createElement("div");
 
   const intro = document.createElement("p");
@@ -742,16 +758,13 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
       row.querySelector(".season-line").textContent =
         `${(s.pos || []).join(" / ")} - no open slot`;
     } else {
-      row.addEventListener("click", () => {
-        closeModal();
-        onChoose(s);
-      });
+      row.addEventListener("click", scope.choose(() => onChoose(s)));
     }
     list.appendChild(row);
   }
   wrap.appendChild(list);
 
-  openModal(`Which ${player.name}?`, wrap);
+  scope.open(`Which ${player.name}?`, wrap);
 }
 
 /** Re-reads the profile and repaints the home header. Called on entry and
@@ -995,6 +1008,7 @@ const difficultyToggleEl = document.getElementById("difficulty-toggle");
 const difficultyFieldEl = document.getElementById("difficulty-field");
 const difficultyNoteEl = document.getElementById("difficulty-note");
 const launchSummaryEl = document.getElementById("launch-summary");
+const modeNoteEl = document.getElementById("mode-note");
 
 const DIFFICULTY_KEY = "bk_practice_difficulty";
 
@@ -1067,11 +1081,21 @@ function renderModeCards() {
 
 /** The difficulty picker, shown only when Practice is selected. Hidden rather
  * than disabled: a difficulty is not a choice that exists in a ranked game, and
- * a greyed-out row of it reads as something the player has failed to unlock. */
+ * a greyed-out row of it reads as something the player has failed to unlock.
+ *
+ * The mode note is set here too, because it changes exactly when this does: Ranked has to SAY there is no bot to pick, or an empty
+ * space where the difficulty was reads as a setting that failed to load. */
 function renderDifficultyCards() {
   const isPractice = selectedMode === "practice";
   difficultyFieldEl.hidden = !isPractice;
-  if (!isPractice) return;
+  if (modeNoteEl) modeNoteEl.textContent = MODES[selectedMode]?.note || "";
+  if (!isPractice) {
+    // Emptied, not just hidden, so no stale Hard card is left in the DOM for a
+    // re-render or a screen reader to find while Ranked is selected.
+    difficultyToggleEl.innerHTML = "";
+    difficultyNoteEl.textContent = "";
+    return;
+  }
   renderChoiceCards(
     difficultyToggleEl,
     DIFFICULTY_IDS.map((id) => difficultyById(id)),
@@ -1200,15 +1224,44 @@ function applyTheme(s) {
 const playSportIconEl = document.getElementById("play-sport-icon");
 const playSportNameEl = document.getElementById("play-sport-name");
 
+/** Remounts every part of the setup screen from state: sport header, mode,
+ * difficulty, era and the launch summary, in one synchronous pass.
+ *
+ * Each piece used to be repainted by whichever handler happened to change it,
+ * and a sport switch repainted the header and the eras only AFTER its dataset
+ * had loaded - so the screen showed the new sport's colours over the previous
+ * sport's name, eras and summary for as long as football's 4.2MB took on a
+ * phone. One function that draws all of it is what makes a partial repaint
+ * impossible rather than a matter of remembering every piece. */
+function renderPlayScreen() {
+  // Era ids are only unique within a sport, so re-resolve before drawing.
+  selectedEra = sport().eraById(selectedEra).id;
+  renderPlayHead();
+  renderModeCards();
+  renderDifficultyCards();
+  renderEraChoice();
+  renderModeChoice();
+}
+
+/** Which setSport call is the latest. Every load awaits, and two sports picked
+ * in quick succession load concurrently - so only the newest call may clear the
+ * loading flag or repaint. Without this an older load finishing first enabled
+ * Start Draft for a sport whose data had not arrived yet, and an older load
+ * FAILING reported the newer sport as unloadable. */
+let sportLoadSeq = 0;
+
 async function setSport(id) {
   if (!setActiveSport(id)) return;
+  const load = ++sportLoadSeq;
   applyTheme(sport());
   // Football's dataset is 4.2MB and is fetched the moment football is chosen,
   // not on boot. Awaited HERE, before anything reads the player pool, so every
   // screen below can stay synchronous - the alternative is every caller
   // learning that one sport loads late.
   sportDataLoading = true;
-  renderPlayability();
+  // BEFORE the await: everything the setup screen shows is this sport's from
+  // the first frame. Only the Start Draft button waits on the data.
+  renderPlayScreen();
   try {
     // The dataset and the game-screen modules travel together: both are this
     // sport's, both are only needed once you are playing it, and both must be
@@ -1220,21 +1273,68 @@ async function setSport(id) {
     // Never silent: the button stays disabled and says so, and the reason is
     // on the console for anyone debugging it.
     console.error(`Could not load ${id} data:`, error);
+    if (load !== sportLoadSeq) return;
     sportDataLoading = false;
     renderPlayability();
     sportPreviewNoteEl.hidden = false;
     sportPreviewNoteEl.textContent = `${sport().name} data could not be loaded. Check your connection and try again.`;
     return;
   }
+  // A player can change sport again while this one loads; only the newest load
+  // gets to say loading is over or repaint the screen.
+  if (load !== sportLoadSeq) return;
   sportDataLoading = false;
-  // Era ids are only unique within a sport, so a bracket selected under the
-  // previous sport may not exist here. Re-resolving through the new sport
-  // snaps to its default rather than leaving a dangling id.
-  selectedEra = sport().eraById(selectedEra).id;
-  renderPlayHead();
-  renderEraChoice();
-  renderPlayability();
+  renderPlayScreen();
   warmDatasetStats();
+}
+
+/**
+ * Shows the Start a Draft Battle screen, optionally preselected.
+ *
+ * Play Again comes here with the game just played - its sport, mode, practice
+ * difficulty and era - so the next game is one tap away and still goes through
+ * this screen rather than straight into a draft. A friend match has no mode on
+ * this screen to select, so it keeps whatever mode was chosen last.
+ */
+function openPlayScreen({ sport: sportId, mode, difficulty, era } = {}) {
+  if (mode && MODES[mode]) selectedMode = mode;
+  if (mode === "practice" && DIFFICULTY_IDS.includes(difficulty)) {
+    selectedDifficulty = difficulty;
+    try {
+      localStorage.setItem(DIFFICULTY_KEY, difficulty);
+    } catch {
+      // Storage refused (private mode) - the choice still applies this session.
+    }
+  }
+  // Set before the sport, which re-resolves it against its own brackets.
+  if (era) {
+    selectedEra = era;
+    try {
+      localStorage.setItem(ERA_KEY, era);
+    } catch {
+      // As above.
+    }
+  }
+  // A different sport goes through setSport, which remounts the screen
+  // synchronously before it awaits any data, so the screen is right by the time
+  // it is shown. The same sport is already loaded and only needs redrawing -
+  // reloading it flashed a disabled "Loading…" Start button on every Play Again.
+  if (sportId && sportId !== getSport()) setSport(sportId);
+  else renderPlayScreen();
+  showScreen("play");
+}
+
+/** The setup the last game was played with, back on the setup screen. Shared
+ * by Play Again and by the roster-incomplete panel's "Start a new draft", which
+ * both mean "the same game again". */
+function reopenLastSetup() {
+  const played = game.modeConfig;
+  openPlayScreen({
+    sport: game.sport || getSport(),
+    mode: played && MODES[played.id] ? played.id : undefined,
+    difficulty: played?.difficulty || undefined,
+    era: game.era,
+  });
 }
 
 /** The Play screen says which sport you are in, because the sport was chosen
@@ -1306,12 +1406,8 @@ function renderEraChoice() {
 // comes back to it - and has to come back to its colors too, not the
 // stylesheet's default sport.
 applyTheme(sport());
-renderPlayHead();
-renderModeCards();
-renderDifficultyCards();
-renderEraChoice();
+renderPlayScreen();
 warmDatasetStats();
-renderModeChoice();
 
 // --- Online ticker ---------------------------------------------------------
 // Decoration, so it fails silently: startPresence never rejects, and the
@@ -1988,6 +2084,7 @@ function startDraft() {
   game.roundNumber = 0;
   poolSearch.value = "";
   hideDraftGrade();
+  rosterBlockedEl.classList.add("hidden");
   captureProgressBaseline();
   // A DRAFT HAS BEGUN. One of the two places this can be true - the other is
   // enterOnlineMatch, which is how a ranked or friend draft starts - and the
@@ -2016,7 +2113,15 @@ function advanceDraft() {
 
   if (game.round.needNewSquad) {
     const rolled = draft.rollNextSquad();
-    rememberSquad(rolled && rolled.id);
+    // Out of squads with a slot still open. This used to carry on with the last
+    // squad left in currentSquad - a squad already drafted from - so the
+    // draft either re-served it or recursed until the stack gave out. It ends
+    // here instead, and renderDraftComplete refuses to play the result.
+    if (!rolled) {
+      renderDraftComplete();
+      return;
+    }
+    rememberSquad(rolled.id);
     game.roundNumber += 1;
     game.round.needNewSquad = false;
     game.round.resolved = {};
@@ -2078,6 +2183,7 @@ function renderDraftRound() {
   renderDraftEra(game.era);
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
   poolSearch.hidden = false;
+  setPickLive(true);
 
   const pending = game.round.pendingPlayer;
   const eligibleForPending = pending ? eligibleOpenSlots(pending, roster, draft.slots) : null;
@@ -2224,10 +2330,74 @@ const draftGradeHeadlineEl = document.getElementById("draft-grade-headline");
 const draftGradeReasonsEl = document.getElementById("draft-grade-reasons");
 const draftGradeTeamsEl = document.getElementById("draft-grade-teams");
 const draftGradeScoutingEl = document.getElementById("draft-grade-scouting");
+const draftGradeCausesEl = document.getElementById("draft-grade-causes");
 
 function hideDraftGrade() {
   draftGradeEl.classList.add("hidden");
 }
+
+const rosterBlockedEl = document.getElementById("roster-blocked");
+const rosterBlockedDetailEl = document.getElementById("roster-blocked-detail");
+
+/**
+ * Refuses to go on to the strategy phases or the simulation when either roster
+ * has an empty slot, and says which. Returns true when it blocked.
+ *
+ * FAIL CLOSED. An empty slot does not stop the engine: it plays the rest of the
+ * roster and produces a believable, lopsided score - the same class of silent
+ * failure as an unfilled slot quietly rating 0.5. So the check is not "is this
+ * roster good", it is "does every slot this draft declares have someone in it",
+ * read from the draft's own slot list rather than any assumed shape.
+ *
+ * Online never reaches this: the server only moves a match to strategy once
+ * both rosters are full (advance_round_if_ready).
+ */
+function renderRosterBlocked(rosterA, rosterB, slots) {
+  const mine = openSlots(rosterA, slots);
+  const theirs = openSlots(rosterB, slots);
+  if (!mine.length && !theirs.length) {
+    rosterBlockedEl.classList.add("hidden");
+    return false;
+  }
+  cleanupRotationTimer();
+  cleanupMatchupTimer();
+  cleanupTacticTimer();
+  rotationPhaseEl.classList.add("hidden");
+  matchupPhaseEl.classList.add("hidden");
+  tacticPhaseEl.classList.add("hidden");
+  // Its "draft from memory" hint is an invitation to keep drafting, which is
+  // exactly what can no longer happen. startDraft shows it again.
+  draftPoolPanel.classList.add("hidden");
+  // Bench slots share one label, so they are counted rather than listed - "7
+  // empty: SG, SF, PF, Bench" undercounts by three.
+  const name = (list) => {
+    const counts = new Map();
+    for (const slot of list) counts.set(slotLabel(slot), (counts.get(slotLabel(slot)) || 0) + 1);
+    return [...counts].map(([label, n]) => (n > 1 ? `${label} ×${n}` : label)).join(", ");
+  };
+  const lines = [];
+  if (mine.length) lines.push(`Your roster has ${mine.length} empty ${mine.length === 1 ? "slot" : "slots"}: ${name(mine)}.`);
+  if (theirs.length) lines.push(`${game.nameB}'s roster has ${theirs.length} empty: ${name(theirs)}.`);
+  lines.push("A game is only played with every slot filled. Start a new draft to play.");
+  rosterBlockedDetailEl.textContent = lines.join(" ");
+  draftTurnBanner.textContent = "Roster incomplete";
+  rosterBlockedEl.classList.remove("hidden");
+  console.error("Draft finished with empty slots", { mine, theirs });
+  return true;
+}
+
+document.getElementById("btn-blocked-new-draft").addEventListener("click", () => {
+  rosterBlockedEl.classList.add("hidden");
+  setActiveNav("play");
+  reopenLastSetup();
+});
+document.getElementById("btn-blocked-home").addEventListener("click", () => {
+  rosterBlockedEl.classList.add("hidden");
+  goToTab("play", () => {
+    showScreen("home");
+    refreshHome();
+  });
+});
 
 /**
  * One note on the grade card.
@@ -2362,6 +2532,27 @@ function renderGradeTeams(grade) {
   }
 }
 
+/**
+ * THE CAUSES A LETTER CANNOT SAY ON ITS OWN. A draft that the clock made half
+ * of grades F, and so does a draft of honest bad picks; only one of those is
+ * about who you know. A bare F on the first read as the game marking you down
+ * for nothing.
+ *
+ * Shared rather than per sport because the two facts are the same in every
+ * sport: `forfeits` is every slot the grade charges for, and a slot with a
+ * player in it was filled by the clock while one without was never filled.
+ */
+function renderGradeCauses(roster, forfeits) {
+  const unique = [...new Set(forfeits)];
+  const clockDrafted = unique.filter((slot) => roster[slot]).length;
+  const empty = unique.filter((slot) => !roster[slot]).length;
+  const parts = [];
+  if (clockDrafted) parts.push(`${clockDrafted} clock-drafted ${clockDrafted === 1 ? "pick" : "picks"}`);
+  if (empty) parts.push(`${empty} empty ${empty === 1 ? "slot" : "slots"}`);
+  draftGradeCausesEl.textContent = parts.length ? `Graded down for: ${parts.join(" · ")}` : "";
+  draftGradeCausesEl.classList.toggle("hidden", parts.length === 0);
+}
+
 /** @param opts.oppRoster adds the counterplay read when the opponent's roster
  *   is already known - it always is by the time a draft finishes. */
 function showDraftGrade(roster, opts = {}) {
@@ -2378,6 +2569,7 @@ function showDraftGrade(roster, opts = {}) {
 
   draftGradeLetterEl.textContent = grade.letter;
   draftGradeHeadlineEl.textContent = grade.headline;
+  renderGradeCauses(roster, opts.forfeits || []);
   draftGradeReasonsEl.innerHTML = "";
   renderGradeTeams(grade);
 
@@ -2423,6 +2615,10 @@ function renderDraftComplete() {
     oppRoster: draft.rosterB,
     forfeits: forfeitedSlotsFor("A", draft.rosterA, draft.slots),
   });
+
+  // No game around a hole in a roster. The grade above still shows, because it
+  // is the thing that says what happened.
+  if (renderRosterBlocked(draft.rosterA, draft.rosterB, draft.slots)) return;
 
   // EVERY practice game now runs the full strategy sequence - rotation,
   // matchups, gamestyle - because every practice game now drafts the ranked
@@ -2875,6 +3071,10 @@ btnLeaveMatch.addEventListener("click", async () => {
 async function renderOnlineDraftRound(match) {
   const o = game.online;
   if (!o) return;
+  // The previous pick window is over the moment a new round is seen - not after
+  // the fetches below, which is when startPickTimer would end it. A season
+  // picker left open across them could otherwise submit last round's player.
+  endPickTurn();
 
   draftRoundLabel.textContent = `Round ${match.round_number}` + (match.is_friendly ? " · Friendly Match (unranked)" : "");
   squadBannerTeam.textContent = match.current_squad_team;
@@ -2920,6 +3120,7 @@ async function renderOnlineDraftRound(match) {
     .map((p) => p.slot);
 
   if (matchConfig().timed) startPickTimer(handleOnlineTimeout);
+  setPickLive(true);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: sport().slots.ranked });
   renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, revealSlots: oppRevealSlots });
@@ -4413,7 +4614,14 @@ function showShotChart(events, labelA, labelB) {
     if (summary?.length) renderScoringSummary(playFeedEl, headline, summary);
     else pushPlayHeadline(playFeedEl, headline, "final");
 
+    // A level score has no winner - both engines report null past their
+    // overtime safety cap - and naming one would contradict the score printed
+    // beside it. Vanishingly rare, but a banner that says "Bot wins 101-101" is
+    // exactly the inconsistency the ranked guards exist to refuse.
+    const tied = result.winner !== "A" && result.winner !== "B";
     const winnerName = result.winner === "A" ? labelA : labelB;
+    const winnerLine = tied ? "Level after overtime" : `${winnerName} ${subjectVerb(winnerName, "wins", "win")}`;
+    const outcome = tied ? "Tied" : result.winner === "A" ? "Won" : "Lost";
     const otNote = result.overtimePeriods > 0 ? ` (${result.overtimePeriods}OT)` : "";
     // The SCORE leads. It was one uppercase sentence with the numbers buried in
     // the middle of it, which made the single thing everyone looks for the
@@ -4429,18 +4637,18 @@ function showShotChart(events, labelA, labelB) {
     // parsed as HTML, and textContent settles that without an escaping step
     // anyone can forget.
     finalBanner.replaceChildren(
-      bannerPart("fb-outcome", youWon ? "Won" : "Lost"),
+      bannerPart("fb-outcome", outcome),
       bannerPart("fb-score", `${result.teamScoreA}–${result.teamScoreB}`),
-      bannerPart("fb-winner", `${winnerName} ${subjectVerb(winnerName, "wins", "win")}${otNote}`)
+      bannerPart("fb-winner", `${winnerLine}${otNote}`)
     );
     finalBanner.classList.toggle("final-won", youWon);
-    finalBanner.classList.toggle("final-lost", !youWon);
+    finalBanner.classList.toggle("final-lost", !youWon && !tied);
     // Three stacked spans read as one run-on string to a screen reader -
     // "Lost24-28Bot wins". The visual split is a layout decision; the sentence
     // is what should be announced.
     finalBanner.setAttribute(
       "aria-label",
-      `${youWon ? "Won" : "Lost"}. Final score ${result.teamScoreA} to ${result.teamScoreB}. ${winnerName} ${subjectVerb(winnerName, "wins", "win")}${otNote}.`
+      `${outcome}. Final score ${result.teamScoreA} to ${result.teamScoreB}. ${winnerLine}${otNote}.`
     );
     finalBanner.classList.remove("hidden");
 
@@ -4946,6 +5154,13 @@ function showShotChart(events, labelA, labelB) {
 
 function runLocalSimulation() {
   const draft = game.draft;
+  // The last gate before the engine. renderDraftComplete already refuses an
+  // incomplete roster; this is here so no future path to the simulation can
+  // skip that check and have the engine play around the hole.
+  if (renderRosterBlocked(draft.rosterA, draft.rosterB, draft.slots)) {
+    showScreen("draft");
+    return;
+  }
   // Resolve the user's own rotation up front so the box score can show the
   // same minutes the simulation actually used, rather than a second guess.
   const minutesA = strategy.rotationMinutes || sport().defaultMinutes(draft.rosterA);
@@ -5374,11 +5589,15 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
 // The three ways out of a finished game. All of them stop the playback as well
 // as the match watcher: these buttons are revealed at the final whistle, but
 // the post-game reveal has its own timers and a fast tap can leave one pending.
+// PLAY AGAIN IS THE SAME GAME, ONE STEP BACK. It lands on the setup screen with
+// the sport, mode, difficulty and era just played already selected - not on
+// Home, which made the player pick all four again, and not straight into a
+// draft, which would take away the chance to change one of them.
 btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
-  showScreen("home");
+  reopenLastSetup();
 });
 btnToProfile.addEventListener("click", () => {
   cleanupOnlineWatcher();

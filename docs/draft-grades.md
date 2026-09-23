@@ -135,6 +135,27 @@ slot against fifty at receiver), so a per-half curve graded 68% of every defense
 ever drafted as A+ while the same rosters' offenses spread from D+ to A. The
 comment above `sideOutOf100` has the measurements.
 
+## Clock-drafted picks and empty slots
+
+Both sports charge a grade for every slot in `forfeits`, and that list holds
+two different failures: slots the pick clock filled with the worst player left,
+and slots nobody filled. They used to be reported as one - football labelled
+all of them "Slots empty", so a draft with eleven clock-made picks read as a
+roster with eleven holes.
+
+- **One place, every sport.** The card carries one cause line directly under
+  the headline - `Graded down for: 7 clock-drafted picks · 2 empty slots` -
+  built in `renderGradeCauses` (`js/main.js`) from the same list: a charged slot
+  with a player in it was filled by the clock, one without was never filled. A
+  bare F never appears without its cause.
+- **Per sport**, only the penalty and the advice clause remain. Neither sport
+  prints its own forfeit count any more, so the number cannot appear twice or
+  disagree with the shared line.
+
+A roster with an empty slot is also never simulated: `renderRosterBlocked`
+stops a local draft before the strategy phases and names the empty positions,
+and online the server does not leave the draft until both rosters are full.
+
 ## Known limitations
 
 - **Quick Play grades a little higher than Ranked.** Six picks with no bench has

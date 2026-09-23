@@ -1007,6 +1007,26 @@ function applyPointsMultiplier(totals, factor) {
   }
 }
 
+/** The one factor the absolute clamp scales BOTH teams by: whatever brings the
+ * higher score down to MAX_TEAM_SCORE, or 1 when neither is over it.
+ *
+ * ONE FACTOR, NOT ONE PER TEAM. Clamping each team to the cap separately sent
+ * two teams that both passed 190 to exactly 190 each - a tie the clamp itself
+ * manufactured, which no amount of overtime could break because the next
+ * period's points were clamped away too. Scaling both by the same factor keeps
+ * who won and by roughly how much. */
+function clampFactor(totalsA, totalsB) {
+  const top = Math.max(sumTeamLine(totalsA, "pts"), sumTeamLine(totalsB, "pts"));
+  return top > MAX_TEAM_SCORE ? MAX_TEAM_SCORE / top : 1;
+}
+
+/** The team score the finished box will print: the clamp, then each player's
+ * line rounded, then summed - the same steps the clamp and roundLine take,
+ * without mutating anything. */
+function finalTeamScore(totals, factor) {
+  return Object.keys(totals).reduce((sum, slot) => sum + Math.max(0, Math.round(totals[slot].pts * factor)), 0);
+}
+
 function roundLine(line) {
   const out = {};
   for (const k of LINE_KEYS) out[k] = Math.max(0, Math.round(line[k]));
@@ -1131,10 +1151,14 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
   applyScoringCeiling(totalsB, rosterB, minutesB);
 
   let otPeriods = 0;
-  while (
-    Math.round(sumTeamLine(totalsA, "pts")) === Math.round(sumTeamLine(totalsB, "pts")) &&
-    otPeriods < MAX_OT_PERIODS
-  ) {
+  // Tied ON THE SCORE THE BOX WILL SHOW, not on the rounded team total. The two
+  // differ: the final score is the sum of each player's rounded line after the
+  // absolute clamp, and Math.round of the team sum can split a game the box
+  // then prints level. That is how a ranked game finished 140-140 with no
+  // overtime and a winner handed out by the tiebreak below.
+  while (otPeriods < MAX_OT_PERIODS) {
+    const factor = clampFactor(totalsA, totalsB);
+    if (finalTeamScore(totalsA, factor) !== finalTeamScore(totalsB, factor)) break;
     // OT is already crunch time - it plays out under the same clutch mods as
     // the 4th quarter, not the base ones.
     const ot = runPeriods(rosterA, rosterB, datasetStats, 1, OT_LENGTH_SCALE, clutchA, clutchB, minutesA, minutesB, teamVariance, parity, matchupsA, matchupsB);
@@ -1144,8 +1168,11 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
     otPeriods += 1;
   }
 
-  applyAbsoluteClamp(totalsA);
-  applyAbsoluteClamp(totalsB);
+  const clamp = clampFactor(totalsA, totalsB);
+  if (clamp < 1) {
+    applyPointsMultiplier(totalsA, clamp);
+    applyPointsMultiplier(totalsB, clamp);
+  }
 
   const boxA = {};
   const boxB = {};
@@ -1200,7 +1227,12 @@ export function simulateGame(rawRosterA, rawRosterB, datasetStats, opts = {}) {
     boxB,
     quarterBoxScores,
     overtimePeriods: otPeriods,
-    winner: teamScoreA === teamScoreB ? (rosterCombinedImpact(rosterA) >= rosterCombinedImpact(rosterB) ? "A" : "B") : teamScoreA > teamScoreB ? "A" : "B",
+    // NO WINNER FOR A LEVEL SCORE. This used to break a tie by roster impact,
+    // which put a result on the board the scoreline contradicts. The loop above
+    // makes a tie after regulation impossible; one that survives every overtime
+    // period is reported as null, as football does, and the server refuses to
+    // record it rather than inventing a winner (see simulate-match/index.ts).
+    winner: teamScoreA === teamScoreB ? null : teamScoreA > teamScoreB ? "A" : "B",
     mvp,
     analysis,
     // The play-by-play, as part of the RESULT rather than as something a
@@ -1374,13 +1406,6 @@ function applyScoringCeiling(totals, roster, minutesMap) {
   const multiplier = actual / baseline;
   if (multiplier > SCORING_CEILING) {
     applyPointsMultiplier(totals, SCORING_CEILING / multiplier);
-  }
-}
-
-function applyAbsoluteClamp(totals) {
-  const actual = sumTeamLine(totals, "pts");
-  if (actual > MAX_TEAM_SCORE) {
-    applyPointsMultiplier(totals, MAX_TEAM_SCORE / actual);
   }
 }
 

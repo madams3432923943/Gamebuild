@@ -1180,6 +1180,45 @@ export async function runBrowserChecks(opts = {}) {
             }
           )
     );
+
+    // ---- Play Again returns to the SAME setup, not to Home ------------------
+    //
+    // It used to drop the player on Home with nothing selected, so the next game
+    // meant re-choosing sport, mode, difficulty and era. It must land on the
+    // Start a Draft Battle screen with the game just played preselected - and
+    // must NOT skip that screen into a live draft. Last in the offline leg
+    // because it leaves the post-game screen every check above reads.
+    if (mode !== "online") {
+      const expectedDifficulty = process.env.SELFTEST_MODE === "quick" ? "easy" : "medium";
+      await page0.locator("#btn-play-again").click();
+      await page0.locator("#screen-play:not(.hidden)").waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
+      const setup = await page0.evaluate(() => ({
+        playVisible: !document.getElementById("screen-play").classList.contains("hidden"),
+        draftVisible: !document.getElementById("screen-draft").classList.contains("hidden"),
+        sportName: document.getElementById("play-sport-name").textContent.trim(),
+        mode: document.querySelector("#mode-toggle .mode-btn.active")?.dataset.mode || null,
+        difficulty: document.querySelector("#difficulty-toggle .mode-btn.active")?.dataset.mode || null,
+        era: document.querySelector("#era-picker .era-chip.active")?.textContent.trim() || null,
+        summary: document.getElementById("launch-summary").textContent.trim(),
+      }));
+      const faults = [];
+      if (!setup.playVisible) faults.push("the setup screen is not showing");
+      if (setup.draftVisible) faults.push("a draft started without the setup screen");
+      if (setup.sportName.toLowerCase() !== sport) faults.push(`sport reads "${setup.sportName}", expected ${sport}`);
+      if (setup.mode !== "practice") faults.push(`mode is ${setup.mode}, expected practice`);
+      if (setup.difficulty !== expectedDifficulty) faults.push(`difficulty is ${setup.difficulty}, expected ${expectedDifficulty}`);
+      if (!setup.era) faults.push("no era is selected");
+      checks.push(
+        check(
+          "browser:play-again",
+          faults.length
+            ? `Play Again setup is wrong — ${faults.join("; ")}`
+            : `Play Again opens the setup screen preselected: ${setup.summary}`,
+          faults.length ? FAIL : PASS,
+          { evidence: setup }
+        )
+      );
+    }
   } catch (e) {
     failed = e;
     checks.push(

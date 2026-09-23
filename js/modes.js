@@ -29,8 +29,12 @@ export const MODES = {
     id: "ranked",
     label: "Online Ranked",
     icon: "🏆",
-    tag: "Online",
-    blurb: "Compete against real players. Wins and losses affect your rank.",
+    tag: "Live · Ranked",
+    blurb: "Real opponents, matched live. Wins and losses move your rank.",
+    // Said under the cards when this mode is selected, where the difficulty
+    // picker would otherwise be. An empty gap there read as a setting that had
+    // failed to load, or as the last Practice difficulty still applying.
+    note: "You'll be matched against a real player. No bot, so no difficulty to choose.",
     online: true,
     ranked: true,
     timed: true,
@@ -41,7 +45,9 @@ export const MODES = {
     id: "practice",
     label: "Practice",
     icon: "🎯",
-    blurb: "Draft against the bot and improve your game.",
+    tag: "vs Bot",
+    blurb: "Draft against the bot at Easy, Medium or Hard. Your rank is never affected.",
+    note: "",
     online: false,
     ranked: false,
     timed: true,

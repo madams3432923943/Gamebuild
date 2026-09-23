@@ -583,8 +583,9 @@ textarea:focus-visible {
   letter-spacing: 0.01em;
 }
 
-/* Only Ranked has one, and it is the one thing about this screen that is worth
-   being unmissable: it is the mode where the result is kept. */
+/* Both modes carry one now, saying who the opponent is. Ranked's stays red
+   because it is the one thing on this screen worth being unmissable: it is the
+   mode where the result is kept. Practice's is toned down below. */
 .mode-tag {
   font-family: var(--font-display);
   font-size: var(--text-micro);
@@ -596,6 +597,18 @@ textarea:focus-visible {
   background: rgba(232, 67, 61, 0.18);
   border: 1px solid rgba(232, 67, 61, 0.6);
   color: #ff8b86;
+}
+
+/* Practice's tag is a fact about the opponent, not a stake - so it stays in the
+   neutral voice and Ranked's red tag remains the only alarm on the screen. */
+.mode-btn[data-mode="practice"] .mode-tag {
+  background: var(--surface-3);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.mode-note:empty {
+  display: none;
 }
 
 .mode-blurb {
@@ -633,12 +646,15 @@ textarea:focus-visible {
    block further down, which already scales .mode-btn on :active - and a second
    transform declared closer to the top of the file would just be the one that
    loses. */
+/* A 2px ring in the bright accent, not a 1px tint of it: with two mode cards the
+   selected one has to be obvious at a glance, and a hairline in the accent read
+   the same as hover on the football theme. */
 .mode-btn.active {
   border-color: var(--accent-bright);
   background:
-    linear-gradient(180deg, rgba(var(--accent-rgb), 0.2) 0%, rgba(var(--accent-rgb), 0.07) 100%),
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.24) 0%, rgba(var(--accent-rgb), 0.09) 100%),
     var(--surface-2);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.35), var(--shadow-card);
+  box-shadow: 0 0 0 2px var(--accent-bright), var(--shadow-card);
 }
 
 .mode-btn.active .mode-check {
@@ -1815,6 +1831,45 @@ button.position-btn {
 .pick-timer.timer-warning {
   color: var(--buzzer);
   animation: pulse-buzzer 0.6s ease-in-out infinite;
+}
+
+/* --- While YOUR pick is on the clock ---------------------------------------
+   The status row carried three things at one weight, and the heaviest-looking
+   of them was Forfeit Pick: a bordered button in full-strength text, sitting
+   beside a small timer and a dim pill. With a clock running the eye should go
+   to whose pick it is and how long is left, then to the pool, and only then to
+   the way out. So, while .pick-live is set (setPickLive in js/main.js):
+   the seat becomes a filled badge, the timer grows, and Forfeit recedes to an
+   outline in the muted voice - still a full-size target, just not a loud one.
+   Nothing is hidden: the position strip above the search stays, because on a
+   phone it is the only view of the roster above the fold (see its note). */
+#screen-draft.pick-live .turn-banner {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+#screen-draft.pick-live .pick-timer {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+#screen-draft.pick-live .pick-timer.timer-warning {
+  color: var(--buzzer);
+}
+
+#screen-draft.pick-live #btn-forfeit-pick {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  #screen-draft.pick-live #btn-forfeit-pick:hover {
+    color: var(--text);
+    border-color: var(--buzzer);
+  }
 }
 
 @keyframes pulse-buzzer {
@@ -7557,6 +7612,50 @@ html {
   line-height: 1.3;
   margin: 0.1rem 0 0.4rem;
   color: var(--text);
+}
+
+/* The cause of a low letter when it is the clock or a hole in the roster, in
+   the same colour the grade's own bad values use - it is the reason, so it sits
+   directly under the headline rather than among the notes. */
+.draft-grade-causes {
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--buzzer);
+}
+
+/* --- Roster incomplete ---------------------------------------------------
+   Replaces the strategy phases when a finished draft left a slot empty. A
+   blocking state, so it borrows the buzzer rather than the accent: nothing on
+   this panel is a choice the sport's theme should dress up. */
+.roster-blocked {
+  margin: 0.6rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(232, 67, 61, 0.6);
+  border-radius: var(--radius-inner);
+  background: rgba(232, 67, 61, 0.1);
+}
+
+.roster-blocked-title {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.roster-blocked-detail {
+  margin: 0 0 0.75rem;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.roster-blocked-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 /* THE NOTES STOPPED BEING SENTENCES. They were seven prose bullets of 29-117

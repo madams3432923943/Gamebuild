@@ -699,16 +699,19 @@ export function draftGrade(roster, ctx, forfeitsOrOpts = []) {
       lean < 0 ? "good" : "neutral"));
   }
 
-  if (forfeits.length) {
-    notes.push(statNote("Slots empty", `${forfeits.length}`, "bad"));
-  }
+  // NO FORFEIT ROW HERE. This printed every charged slot as "Slots empty",
+  // including the ones the pick clock had filled, so a draft with eleven
+  // clock-made picks read as a roster with eleven holes. The count now lives in
+  // one place for every sport - the "Graded down for" line the shared card
+  // draws under the headline (renderGradeCauses in js/main.js) - which says
+  // clock-drafted and empty apart. The penalty above is unchanged.
 
   // The identity read, as advice rather than as an observation: a drafter can
   // act on "you have to win this low-scoring" before kickoff, by picking the
   // gameplan that suits it.
   if (lean > 0.15) advice.push("Offense-heavy - your defense will give it back.");
   else if (lean < -0.15) advice.push("Defense-first - you need this game low-scoring.");
-  if (forfeits.length) advice.push("Empty slots rate zero - never let the clock draft.");
+  if (forfeits.length) advice.push("The clock drafts the worst player left - pick before it runs out.");
 
   // Football's counterplay read, and until now it did not exist. NFL.draftAnalysis
   // accepted an opponent roster and dropped it on the floor, so the "how your
