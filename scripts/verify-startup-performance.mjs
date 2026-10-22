@@ -346,7 +346,7 @@ async function main() {
     // fetched before anything a preload could speed up. Read off the page so a
     // future tag needs no change here.
     const tagLoaded = new Set(
-      [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b[^>]*\ssrc="(js\/[^"?]+)/g)].map((m) => m[1])
+      [...html.matchAll(/<script\b[^>]*\ssrc="(js\/[^"?]+)/g)].map((m) => m[1])
     );
     const fetched = bootFiles
       .map((f) => f.path.replace(/^\//, ""))
