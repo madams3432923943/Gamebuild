@@ -120,10 +120,10 @@ for (const page of PAGES) {
   if (cspMatch) {
     const csp = cspMatch[1].replace(/\s+/g, " ").trim();
     const DATA_BLOCKS = new Set(["application/ld+json", "application/json"]);
-    // The closing tag allows whitespace before its ">" because the HTML parser
-    // does: `</script >` ends a script, and a pattern that missed it would
-    // skip a script the browser runs.
-    for (const m of html.matchAll(/<script\b([^>]*)>(.*?)<\/script\s*>/gis)) {
+    // The closing tag accepts anything up to its ">" because the HTML parser
+    // does: `</script >` and even `</script foo>` end a script, and a pattern
+    // that missed one would skip a script the browser runs.
+    for (const m of html.matchAll(/<script\b([^>]*)>(.*?)<\/script\b[^>]*>/gis)) {
       const attrs = m[1];
       if (/\ssrc\s*=/.test(attrs)) continue;
       const type = (attrs.match(/\stype\s*=\s*"([^"]*)"/) || [])[1] || "";
