@@ -108,6 +108,60 @@ for (const page of PAGES) {
     }
   }
 
+  // ---- 5b. EVERY executable inline script is hashed ------------------------
+  // Check 4 covers the import map by name. This covers whatever is added next,
+  // which is how a hash usually goes missing: someone adds an inline script,
+  // it works on localhost (no policy there? there is - but nobody looks at the
+  // console), and the live page silently drops it.
+  //
+  // Data blocks are skipped because the browser never executes them, so CSP
+  // never sees them: application/ld+json and application/json. The import map
+  // is NOT a data block as far as CSP is concerned, which is why it needs one.
+  if (cspMatch) {
+    const csp = cspMatch[1].replace(/\s+/g, " ").trim();
+    const DATA_BLOCKS = new Set(["application/ld+json", "application/json"]);
+    for (const m of html.matchAll(/<script\b([^>]*)>(.*?)<\/script>/gs)) {
+      const attrs = m[1];
+      if (/\ssrc\s*=/.test(attrs)) continue;
+      const type = (attrs.match(/\stype\s*=\s*"([^"]*)"/) || [])[1] || "";
+      if (DATA_BLOCKS.has(type.toLowerCase())) continue;
+      const hash = `'sha256-${createHash("sha256").update(m[2]).digest("base64")}'`;
+      check(
+        `${page}: inline <script${type ? ` type="${type}"` : ""}> is allowed by its hash`,
+        csp.includes(hash),
+        csp.includes(hash) ? "hash present" : `hashes to ${hash}, which is not in script-src - it will not run`
+      );
+    }
+  }
+
+  // ---- 5c. structured data parses, and says what the page says --------------
+  // A JSON-LD block that does not parse is silently ignored by every search
+  // engine, and an FAQPage whose answers differ from the visible FAQ is the
+  // thing they penalise. The visible FAQ is the h3/p pairs in .quickplay-faq.
+  for (const m of html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)) {
+    let data = null;
+    try {
+      data = JSON.parse(m[1]);
+    } catch (e) {
+      check(`${page}: JSON-LD parses`, false, e.message);
+      continue;
+    }
+    check(`${page}: JSON-LD parses`, true, "valid JSON");
+    const nodes = data["@graph"] || [data];
+    const faq = nodes.find((n) => n["@type"] === "FAQPage");
+    if (!faq) continue;
+    const faqSection = (html.match(/<section class="card quickplay-faq"[\s\S]*?<\/section>/) || [""])[0];
+    const text = (s) => s.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+    const visible = [...faqSection.matchAll(/<h3>([\s\S]*?)<\/h3>\s*<p>([\s\S]*?)<\/p>/g)].map((q) => [text(q[1]), text(q[2])]);
+    const structured = faq.mainEntity.map((q) => [q.name, q.acceptedAnswer.text]);
+    const same = JSON.stringify(visible) === JSON.stringify(structured);
+    check(
+      `${page}: the FAQPage JSON-LD matches the visible FAQ`,
+      same && visible.length > 0,
+      same ? `${visible.length} questions, word for word` : "the JSON-LD and the FAQ on the page say different things - change both"
+    );
+  }
+
   // ---- 6. no inline event handlers -------------------------------------------
   // CSP hashes do not cover inline handlers, so one of these anywhere in the page
   // is either broken under the policy or a reason someone will add

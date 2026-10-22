@@ -395,6 +395,27 @@ export async function driveStrategyPhases(page, label, log, deadline) {
 // Auth
 // ---------------------------------------------------------------------------
 
+/**
+ * Gets a signed-out page to the sign-in form, from wherever it booted.
+ *
+ * A signed-out visitor no longer boots onto the form: the homepage is the guest
+ * Quickplay landing, and the form is one tap away behind the header's Sign in
+ * button. Every harness that signs in goes through here, so that change is one
+ * function rather than a copy of the same three lines in each file - which is
+ * how six harnesses came to wait for an auth screen that stopped appearing.
+ */
+export async function reachSignInForm(page, timeout = 30000) {
+  const auth = page.locator("#screen-auth:not(.hidden)");
+  await page
+    .locator("#screen-auth:not(.hidden), #screen-quickplay:not(.hidden)")
+    .first()
+    .waitFor({ state: "visible", timeout });
+  if (!(await auth.isVisible().catch(() => false))) {
+    await page.locator("#btn-header-signin").click();
+  }
+  await auth.waitFor({ state: "visible", timeout });
+}
+
 export async function signIn(page, { username, password }, log) {
   // Supabase persists a session in browser storage, so a context that already
   // has one lands straight on the home screen and the auth screen never
@@ -410,7 +431,7 @@ export async function signIn(page, { username, password }, log) {
     return;
   }
 
-  await page.locator("#screen-auth:not(.hidden)").waitFor({ state: "visible", timeout: 30000 });
+  await reachSignInForm(page);
 
   // The screen opens in "Sign In", which asks for one identifier - an email
   // address, or a legacy username, resolved by signIn() in supabaseClient.js.

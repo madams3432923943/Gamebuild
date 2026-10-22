@@ -45,6 +45,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
+import { reachSignInForm } from "./lib/app-driver.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -124,7 +125,7 @@ async function signIn(page, baseUrl, who) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   const home = page.locator("#screen-home:not(.hidden)");
   if (await home.isVisible().catch(() => false)) return;
-  await page.locator("#screen-auth:not(.hidden)").waitFor({ state: "visible", timeout: 30000 });
+  await reachSignInForm(page);
   await page.locator("#input-auth-identifier").fill(who);
   await page.locator("#input-auth-password").fill("scroll-regression-password");
   await page.locator("#btn-auth-submit").click();

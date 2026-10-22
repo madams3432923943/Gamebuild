@@ -111,7 +111,10 @@ let stamped = html
   .replace(/(src="js\/main\.js\?v=)[^"]*(")/, `$1${sha}$2`)
   // Tolerates the stylesheet being unversioned the first time, and re-stamps
   // it every time after.
-  .replace(/(href="css\/style\.css)(\?v=[^"]*)?(")/, `$1?v=${sha}$3`);
+  .replace(/(href="css\/style\.css)(\?v=[^"]*)?(")/, `$1?v=${sha}$3`)
+  // The classic script in <head> that hides the guest landing from a returning
+  // player before first paint. Not an ES module, so nothing else revalidates it.
+  .replace(/(src="js\/boot-session-hint\.js)(\?v=[^"]*)?(")/, `$1?v=${sha}$3`);
 
 const modules = moduleGraph("js/main.js");
 const block = preloadBlock(modules);
