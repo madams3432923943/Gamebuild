@@ -120,7 +120,10 @@ for (const page of PAGES) {
   if (cspMatch) {
     const csp = cspMatch[1].replace(/\s+/g, " ").trim();
     const DATA_BLOCKS = new Set(["application/ld+json", "application/json"]);
-    for (const m of html.matchAll(/<script\b([^>]*)>(.*?)<\/script>/gs)) {
+    // The closing tag allows whitespace before its ">" because the HTML parser
+    // does: `</script >` ends a script, and a pattern that missed it would
+    // skip a script the browser runs.
+    for (const m of html.matchAll(/<script\b([^>]*)>(.*?)<\/script\s*>/gis)) {
       const attrs = m[1];
       if (/\ssrc\s*=/.test(attrs)) continue;
       const type = (attrs.match(/\stype\s*=\s*"([^"]*)"/) || [])[1] || "";
@@ -151,7 +154,18 @@ for (const page of PAGES) {
     const faq = nodes.find((n) => n["@type"] === "FAQPage");
     if (!faq) continue;
     const faqSection = (html.match(/<section class="card quickplay-faq"[\s\S]*?<\/section>/) || [""])[0];
-    const text = (s) => s.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+    // Tags are removed until none remain rather than in one pass, so markup
+    // that only forms a tag once another is removed cannot survive into the
+    // comparison. This text is compared, never rendered - but a check that
+    // strips tags should strip all of them.
+    const text = (s) => {
+      let out = s;
+      for (let prev = null; prev !== out; ) {
+        prev = out;
+        out = out.replace(/<[^<>]*>/g, "");
+      }
+      return out.replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+    };
     const visible = [...faqSection.matchAll(/<h3>([\s\S]*?)<\/h3>\s*<p>([\s\S]*?)<\/p>/g)].map((q) => [text(q[1]), text(q[2])]);
     const structured = faq.mainEntity.map((q) => [q.name, q.acceptedAnswer.text]);
     const same = JSON.stringify(visible) === JSON.stringify(structured);
