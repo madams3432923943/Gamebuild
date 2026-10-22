@@ -194,7 +194,7 @@ function retentionRow(retention) {
  * @param funnel the admin_funnel() document, or null if that query failed -
  *   the funnel is then reported as missing rather than as empty.
  */
-export function renderDashboard(root, overview, funnel) {
+export function renderDashboard(root, overview, funnel, guests = null) {
   root.replaceChildren();
   if (!overview) {
     root.appendChild(el("p", "admin-status admin-status-error", "The overview query returned nothing."));
@@ -289,4 +289,49 @@ export function renderDashboard(root, overview, funnel) {
 
   root.appendChild(section("Retention", retentionRow(funnel?.retention)));
   root.appendChild(section("Funnel", funnelTable(funnel)));
+  root.appendChild(guestSection(guests));
+}
+
+/**
+ * Practice games played on the Quickplay landing before an account existed.
+ *
+ * ITS OWN SECTION, LAST, AND NEVER ADDED TO ANYTHING ABOVE. Every figure
+ * further up is about accounts; these are about browsers that had none, and a
+ * total that mixed the two would be neither. "Browsers", not "guests" or
+ * "people": one person on two devices is two, and a cleared browser is a new
+ * one, which is the honest limit of counting somebody who never told us who
+ * they are.
+ */
+function guestSection(guests) {
+  if (!guests) {
+    return section(
+      "Guest play (no account)",
+      el("p", "panel-note", "Not available - admin_guest_overview() did not answer. Has 20261022_01_guest_games been applied?")
+    );
+  }
+  const games = guests.games || {};
+  return section(
+    "Guest play (no account)",
+    statRow(
+      stat("Guest games today", count(games.today)),
+      stat("This week", count(games.this_week)),
+      stat("This month", count(games.this_month)),
+      stat("All time", count(games.total))
+    ),
+    statRow(
+      stat("Browsers that played", count(guests.browsers)),
+      stat("Went on to an account", count(guests.converted_browsers)),
+      stat(
+        "Guest-to-signup conversion",
+        percent(guests.conversion_rate),
+        guests.conversion_rate === null || guests.conversion_rate === undefined ? "no guest games yet" : "share of guest browsers"
+      )
+    ),
+    section("Guest games by sport", breakdown(guests.by_sport, "No guest games recorded.")),
+    el(
+      "p",
+      "panel-note",
+      "Counted from guest_games, which nothing above reads. A guest is in no user, DAU, game or funnel figure on this page."
+    )
+  );
 }
