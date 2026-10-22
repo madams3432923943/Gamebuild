@@ -339,12 +339,18 @@ async function main() {
     const preloaded = new Set([...html.matchAll(/<link rel="modulepreload" href="(js\/[^"]+)"/g)].map((m) => m[1]));
     // What the browser ACTUALLY fetched to boot, which is the ground truth the
     // generator is trying to predict.
+    // Anything a <script src> tag loads directly is excluded: the module ENTRY
+    // (js/main.js), because preloading it would be a second hint for a request
+    // the parser has already made, and the classic synchronous script in
+    // <head> (js/boot-session-hint.js), which is not a module at all and is
+    // fetched before anything a preload could speed up. Read off the page so a
+    // future tag needs no change here.
+    const tagLoaded = new Set(
+      [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b[^>]*\ssrc="(js\/[^"?]+)/g)].map((m) => m[1])
+    );
     const fetched = bootFiles
       .map((f) => f.path.replace(/^\//, ""))
-      // The ENTRY is excluded: it is loaded by the <script type="module"> tag
-      // itself, so preloading it would be a second hint for a request the
-      // parser has already made.
-      .filter((p) => p.startsWith("js/") && p !== "js/main.js");
+      .filter((p) => p.startsWith("js/") && !tagLoaded.has(p));
     const missing = fetched.filter((p) => !preloaded.has(p));
     checks.push({
       title: "Every module fetched on boot is in the generated preload block",
