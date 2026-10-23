@@ -3380,11 +3380,23 @@ table.box-table th {
 
 /* Who holds it - a player, a unit, or the opponent a game record was set
    against. Quieter than the label, because the label is what you scan for and
-   the holder is what you read once you have found it. */
+   the holder is what you read once you have found it.
+
+   ONE LINE, ELLIPSIZED, never broken mid-word. It used overflow-wrap:
+   anywhere, which split a 20-character opponent username across two lines at
+   phone width - the thing scripts/verify-text-wrap.mjs forbids, and whose own
+   notes name a truncated ellipsis as the fix. A holder is a short caption
+   ("2023 Luka Doncic", an opponent's name), so one line loses nothing that
+   matters, and the full text is the element's title (js/ui/profile.js). Block, so
+   overflow and text-overflow apply; .record-what's min-width: 0 is what lets
+   it shrink to the row. */
 .record-holder {
+  display: block;
   font-size: var(--text-micro);
   color: var(--muted);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .record-figure {
