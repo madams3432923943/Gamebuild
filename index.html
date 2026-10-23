@@ -46,7 +46,7 @@
     base-uri 'none';
     form-action 'none';
   " />
-  <meta name="description" content="Draft Nova: a multi-sport draft-battle game. Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
+  <meta name="description" content="Free NBA &amp; NFL all-time draft game. Draft legends from memory, set your game plan, and play your friends. No account needed to start playing." />
   <!-- The default sport's accent, kept in step with the sport picker by
        applyTheme() in js/main.js. Set here too so the phone address bar is the
        right color on the very first paint. -->
@@ -65,20 +65,20 @@
   <link rel="apple-touch-icon" href="assets/brand/draft-nova-app-icon-192.png" />
   <link rel="manifest" href="site.webmanifest" />
   <link rel="canonical" href="https://draftnovagame.com/" />
-  <title>Draft Nova</title>
+  <title>Draft Nova – Free NBA &amp; NFL All-Time Draft Game With Friends</title>
 
   <!-- Shared into a chat or a group, the link is the app's first impression.
        Without these it renders as a bare URL. Absolute URLs because Open Graph
        scrapers do not resolve relative ones. -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Draft Nova" />
-  <meta property="og:title" content="Draft Nova" />
-  <meta property="og:description" content="Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
+  <meta property="og:title" content="Draft Nova – Free NBA &amp; NFL All-Time Draft Game With Friends" />
+  <meta property="og:description" content="Free NBA &amp; NFL all-time draft game. Draft legends from memory, set your game plan, and play your friends. No account needed to start playing." />
   <meta property="og:url" content="https://draftnovagame.com/" />
   <meta property="og:image" content="https://draftnovagame.com/assets/brand/draft-nova-lockup.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Draft Nova" />
-  <meta name="twitter:description" content="Draft a shared squad from memory across NBA and NFL history, pick your gameplan, and play out the result." />
+  <meta name="twitter:title" content="Draft Nova – Free NBA &amp; NFL All-Time Draft Game With Friends" />
+  <meta name="twitter:description" content="Free NBA &amp; NFL all-time draft game. Draft legends from memory, set your game plan, and play your friends. No account needed to start playing." />
   <meta name="twitter:image" content="https://draftnovagame.com/assets/brand/draft-nova-lockup.png" />
   <!-- THE CDN CONNECTION, OPENED NOW RATHER THAN AT THE END OF BOOT.
        The app gates its first screen on getSession(), which dynamically
@@ -92,6 +92,70 @@
        everything else, so that cost is already spent by the time it is
        needed. -->
   <link rel="preconnect" href="https://esm.sh" crossorigin />
+
+  <!-- Hides the guest landing from a returning player before first paint.
+       Synchronous on purpose and tiny; see the file for why it exists. -->
+  <script src="js/boot-session-hint.js?v=af39c94"></script>
+
+  <!-- Structured data for search: the game itself, and the FAQ on the
+       Quickplay landing. NO CSP HASH, and that is correct rather than an
+       omission: application/ld+json is a data block, which the browser never
+       executes, so script-src does not govern it. A hash here would grant
+       nothing and would suggest to the next reader that it does.
+       The FAQ text must match the visible FAQ in #screen-quickplay word for
+       word - structured data that disagrees with the page is what search
+       engines penalise - and scripts/verify-csp.mjs fails the build if the two
+       drift apart. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "VideoGame",
+        "name": "Draft Nova",
+        "url": "https://draftnovagame.com/",
+        "description": "Free NBA & NFL all-time draft game. Draft legends from memory, set your game plan, and play your friends. No account needed to start playing.",
+        "genre": ["Sports", "Strategy"],
+        "gamePlatform": "Web browser",
+        "applicationCategory": "Game",
+        "operatingSystem": "Any",
+        "playMode": ["SinglePlayer", "MultiPlayer"],
+        "image": "https://draftnovagame.com/assets/brand/draft-nova-lockup.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is Draft Nova free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Draft Nova is free to play, in your browser, with nothing to install." }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need an account?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. You can play a practice game right away without one. A free account keeps your record, badges and stats, and lets you play ranked games and challenge your friends." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I play NBA or NFL?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Both. Basketball drafts a ten-player roster from NBA history. Football drafts quarterbacks, running backs, receivers and tight ends by name, and the lines, defense and special teams as units." }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I play my friends?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Create a free account, open Squads, then Friends, and add your friends by username. Send a challenge, pick NBA or NFL, and draft against each other live." }
+          },
+          {
+            "@type": "Question",
+            "name": "Does it work on my phone?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Draft Nova works in the browser on phones, tablets and computers, in portrait or landscape." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 
   <script type="importmap">
   {
@@ -115,7 +179,7 @@
   <!-- The stylesheet BEFORE the module preloads below: it is the only
        render-blocking request on the page, so nothing should be queued in
        front of it. -->
-  <link rel="stylesheet" href="css/style.css?v=5cb1b13" />
+  <link rel="stylesheet" href="css/style.css?v=af39c94" />
 
   <!-- The app's own modules, so the browser learns about all of them now
        instead of discovering them one round trip at a time. GENERATED by
@@ -151,6 +215,7 @@
   <link rel="modulepreload" href="js/ui/entry-name.js" />
   <link rel="modulepreload" href="js/ads/campaigns.js" />
   <link rel="modulepreload" href="js/analytics.js" />
+  <link rel="modulepreload" href="js/guest.js" />
   <link rel="modulepreload" href="js/modes.js" />
   <link rel="modulepreload" href="js/ranks.js" />
   <link rel="modulepreload" href="js/rating.js" />
@@ -230,6 +295,11 @@
         <button class="nav-tab nav-tab-danger" id="nav-signout" type="button">Sign Out</button>
       </div>
     </nav>
+    <!-- A guest's whole header: the way to an account. Outside #nav-tabs
+         because a guest has none of those destinations - Profile, Rewards and
+         Squads all need an account - and this is the only control in the bar.
+         Shown by enterGuestMode() in js/main.js. -->
+    <button class="btn btn-secondary header-signin" id="btn-header-signin" type="button" hidden>Sign in</button>
   </header>
 
   <!-- SPONSOR RAILS. The columns either side of the centred content, which on a
@@ -253,6 +323,115 @@
 
   <main id="app-root">
     <!-- Screens are toggled via JS by adding/removing .hidden -->
+
+    <!-- QUICKPLAY: the homepage for anyone without an account.
+         The ONE screen that is not hidden in the markup, on purpose: it is
+         what a search engine indexes and what a visitor without JavaScript
+         reads, so the H1, the how-to and the FAQ below are real HTML rather
+         than something the app draws. A returning player never sees it -
+         js/boot-session-hint.js marks the document before first paint and
+         CSS keeps it out until js/main.js decides (see enterGuestMode).
+
+         Play first, account after. A tap on a sport goes straight into a
+         Practice draft at the default difficulty; the offer to make an
+         account comes on the results screen, after the first game, when
+         there is something worth keeping. -->
+    <section id="screen-quickplay" class="screen quickplay" aria-labelledby="quickplay-title">
+      <div class="quickplay-hero">
+        <h1 id="quickplay-title" class="quickplay-title">Free NBA &amp; NFL All-Time Draft Game With Friends</h1>
+        <p class="quickplay-lede">
+          Draft legends from every era, set your game plan, and watch the game play out.
+          No account needed to start.
+        </p>
+        <!-- The sport buttons: the hub's .sport-card, without the standings a
+             guest does not have. Static so the page reads without script; each
+             is wired, re-labelled from the sport registry and enabled by
+             renderQuickplay() in js/main.js, so js/sports/index.js stays the one
+             place that says which sports exist and what they are called.
+             Disabled until then, because without the app they do nothing.
+             data-quickplay, NOT data-sport: the hub's cards own that attribute,
+             and several harnesses select `[data-sport="nba"]` and take the
+             first match - which, this section being first in the document,
+             would be a card a signed-in run cannot see. -->
+        <div class="quickplay-sports" id="quickplay-sports">
+          <div class="sport-card quickplay-sport" data-quickplay="nba">
+            <button type="button" class="sport-card-open" disabled>
+              <span class="sport-card-head">
+                <span class="sport-card-icon" aria-hidden="true">🏀</span>
+                <span class="sport-card-text">
+                  <span class="sport-card-name">NBA</span>
+                  <span class="sport-card-rank">Play now</span>
+                </span>
+              </span>
+            </button>
+          </div>
+          <div class="sport-card quickplay-sport" data-quickplay="nfl">
+            <button type="button" class="sport-card-open" disabled>
+              <span class="sport-card-head">
+                <span class="sport-card-icon" aria-hidden="true">🏈</span>
+                <span class="sport-card-text">
+                  <span class="sport-card-name">NFL</span>
+                  <span class="sport-card-rank">Play now</span>
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+        <p class="quickplay-status" id="quickplay-status" role="status" aria-live="polite"></p>
+        <noscript>
+          <p class="quickplay-status">Draft Nova runs in your browser and needs JavaScript turned on to play.</p>
+        </noscript>
+      </div>
+
+      <div class="card quickplay-friends">
+        <h2>Play your friends now.</h2>
+        <p>
+          Make a free account, add your friends by username, and challenge them to an
+          NBA or NFL draft. Same squads, same clock, and the game decides whose team wins.
+        </p>
+        <button type="button" class="btn btn-primary btn-block" id="btn-quickplay-friends">Play your friends now</button>
+        <p class="hint-text quickplay-signin-line">
+          Already have an account?
+          <button type="button" class="link-btn" id="btn-quickplay-signin">Sign in</button>
+        </p>
+      </div>
+
+      <section class="card quickplay-howto" aria-labelledby="quickplay-howto-title">
+        <h2 id="quickplay-howto-title">How to play</h2>
+        <ol class="quickplay-steps">
+          <li><strong>Pick a sport.</strong> NBA or NFL. Each round rolls a real team from a real era, like the 1990s Bulls or the 1985 Bears.</li>
+          <li><strong>Draft from memory.</strong> You and your opponent draft from the same squad. Knowing who played there, and which season was the good one, is the whole game.</li>
+          <li><strong>Set your strategy.</strong> Choose how your team plays: a gamestyle and minutes in basketball, a game plan in football.</li>
+          <li><strong>Watch it play out.</strong> The game is simulated from real season statistics, play by play, with a full box score at the end.</li>
+        </ol>
+      </section>
+
+      <!-- The FAQ. Mirrored in the JSON-LD in <head> - change one, change both;
+           scripts/verify-csp.mjs only checks the hash, not that they agree. -->
+      <section class="card quickplay-faq" aria-labelledby="quickplay-faq-title">
+        <h2 id="quickplay-faq-title">Questions</h2>
+        <h3>Is Draft Nova free?</h3>
+        <p>Yes. Draft Nova is free to play, in your browser, with nothing to install.</p>
+        <h3>Do I need an account?</h3>
+        <p>No. You can play a practice game right away without one. A free account keeps your record, badges and stats, and lets you play ranked games and challenge your friends.</p>
+        <h3>Can I play NBA or NFL?</h3>
+        <p>Both. Basketball drafts a ten-player roster from NBA history. Football drafts quarterbacks, running backs, receivers and tight ends by name, and the lines, defense and special teams as units.</p>
+        <h3>How do I play my friends?</h3>
+        <p>Create a free account, open Squads, then Friends, and add your friends by username. Send a challenge, pick NBA or NFL, and draft against each other live.</p>
+        <h3>Does it work on my phone?</h3>
+        <p>Yes. Draft Nova works in the browser on phones, tablets and computers, in portrait or landscape.</p>
+      </section>
+
+      <p class="legal-note">
+        Draft Nova is an unofficial fan project. It is not affiliated with,
+        endorsed by, or sponsored by the NFL, the NBA, or any team. Team names
+        and statistics are used to identify real teams and players for a game
+        about recalling them.
+      </p>
+      <p class="legal-note legal-links">
+        <a href="privacy.html">Privacy</a> &middot; <a href="terms.html">Terms</a>
+      </p>
+    </section>
 
     <section id="screen-auth" class="screen hidden">
       <div class="card auth-card">
@@ -348,6 +527,12 @@
              asked, not one navigation away. -->
         <p class="legal-note legal-links">
           <a href="privacy.html">Privacy</a> &middot; <a href="terms.html">Terms</a>
+        </p>
+        <!-- The way back to Quickplay for a visitor who opened this and changed
+             their mind. Hidden while setting a new password from a reset
+             link: that visitor has an account and is mid-task. -->
+        <p class="hint-text auth-switch" id="auth-guest-row" hidden>
+          <button id="btn-auth-guest" class="link-btn" type="button">Play without an account</button>
         </p>
       </div>
     </section>
@@ -760,6 +945,22 @@
       </div>
       <div id="mvp-callout" class="mvp-callout hidden"></div>
 
+      <!-- THE SIGN-UP OFFER, for a guest, after the game and not before it.
+           Directly under the result and the MVP, above the long breakdown and
+           box score, so it is on screen at the final whistle without being in
+           front of the score. The game was already kept on this device (see
+           js/guest.js), which is what makes "track your stats" true: an account
+           made now inherits it. Shown by revealGuestSignupCard() in js/main.js. -->
+      <div id="guest-signup-card" class="card guest-signup-card" role="region" aria-labelledby="guest-signup-title" hidden>
+        <h2 id="guest-signup-title">Want to track your stats? Create an account. It's free.</h2>
+        <p class="guest-signup-line">Play your friends now. This game comes with you.</p>
+        <div class="guest-signup-actions">
+          <button type="button" class="btn btn-primary" id="btn-guest-signup">Create Account</button>
+          <button type="button" class="btn btn-secondary" id="btn-guest-signin">Sign In</button>
+          <button type="button" class="link-btn" id="btn-guest-later">Maybe later</button>
+        </div>
+      </div>
+
       <!-- The coach's read, as opposed to the broadcast's: the handful of
            numbers that decided it, and what your rotation, matchups and
            gamestyle actually did. See buildWhyBreakdown() in js/recap.js. -->
@@ -805,7 +1006,7 @@
         <!-- Share leads, because this is the moment the result is worth
              passing on and thirty seconds later it is not. -->
         <button id="btn-share-result" class="btn btn-secondary hidden" type="button">Share Result</button>
-        <button id="btn-to-profile" class="btn btn-secondary hidden">View Profile</button>
+        <button id="btn-to-profile" class="btn btn-secondary signed-in-only hidden">View Profile</button>
         <button id="btn-play-again" class="btn btn-primary hidden">Play Again</button>
       </div>
 
@@ -815,7 +1016,7 @@
            playing. Hidden unless a campaign is actually running for this
            placement; there is none today, so nothing renders here. -->
       <div class="sponsor-slot sponsor-slot-postgame" id="sponsor-postgame" hidden></div>
-      <button id="btn-game-home" class="btn btn-secondary btn-block game-home-btn hidden" type="button">Return to Home</button>
+      <button id="btn-game-home" class="btn btn-secondary btn-block game-home-btn signed-in-only hidden" type="button">Return to Home</button>
     </section>
 
     <section id="screen-profile" class="screen hidden">
@@ -1128,6 +1329,6 @@
        be stale JS. main.js changes on every deploy; its importees are
        re-fetched because the module graph is revalidated when the entry
        URL changes. Bumped by tools/stamp-build.mjs, which runs on verify. -->
-  <script type="module" src="js/main.js?v=5cb1b13"></script>
+  <script type="module" src="js/main.js?v=af39c94"></script>
 </body>
 </html>

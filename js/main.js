@@ -54,6 +54,7 @@ import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
+import { isGuest, setGuest, recordGuestGame, carryOverGuestGames } from "./guest.js";
 import {
   MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
   resolveMode, modeLabel,
@@ -349,8 +350,10 @@ function openHowToPlay(sportId = activeSportId()) {
 }
 
 // ---- Auth screen ----
-// The whole app sits behind this: no anonymous play, so a player's record,
-// badges and rank always belong to a real account they can come back to.
+// Everything that is KEPT sits behind this: a record, badges, a rank, friends,
+// online play. A practice game no longer does - a visitor with no account lands
+// on Quickplay and can play first (see enterGuestMode and js/guest.js) - but
+// nothing a guest does is stored against anyone until they come through here.
 
 const navTabs = document.getElementById("nav-tabs");
 const authHeading = document.getElementById("auth-heading");
@@ -372,6 +375,8 @@ const authForgotRow = document.getElementById("auth-forgot-row");
 const authSwitchLabel = document.getElementById("auth-switch-label");
 const authStatusEl = document.getElementById("auth-status");
 const signedInAsEl = document.getElementById("signed-in-as");
+const authGuestRow = document.getElementById("auth-guest-row");
+const btnHeaderSignin = document.getElementById("btn-header-signin");
 
 // "signin" | "signup" | "recover" - the third is the state a password-reset
 // link lands in, where the only thing on screen is a new password box.
@@ -405,6 +410,7 @@ function renderAuthMode() {
   fieldAuthIdentifier.hidden = isSignup || isRecover;
   authForgotRow.hidden = isSignup || isRecover;
   btnAuthToggle.parentElement.hidden = isRecover;
+  authGuestRow.hidden = isRecover;
 
   if (isRecover) {
     authHeading.textContent = "Set a New Password";
@@ -468,6 +474,8 @@ btnAuthForgot.addEventListener("click", async () => {
 
 function showAuthScreen(mode = "signin") {
   navTabs.hidden = true;
+  // Already on the screen it leads to.
+  btnHeaderSignin.hidden = true;
   authMode = mode;
   renderAuthMode();
   showScreen("auth");
@@ -491,13 +499,33 @@ const homeHeaderRefs = {
   equippedBanner: document.getElementById("home-equipped-banner"),
 };
 
+/** Where "home" is: the hub for a player, Quickplay for a guest. Every way
+ * out of a game, a draft or a dead end comes through here, so no exit can land
+ * a guest on a home screen that would try to load a profile they do not have. */
+function goHome() {
+  if (isGuest()) {
+    renderQuickplay();
+    showScreen("quickplay");
+    return;
+  }
+  showScreen("home");
+  refreshHome();
+}
+
 /** Called once a session exists: loads the profile, shows the app shell, and
  * stamps the display name the game will use for this player. */
 async function enterApp({ newAccount = false } = {}) {
+  leaveGuestMode();
   navTabs.hidden = false;
   setActiveNav("play");
   showScreen("home");
   await reconcileUsername();
+  // BEFORE the home screen reads the profile, so a game played as a guest a
+  // minute ago is already in the record the home screen draws. Almost always
+  // a no-op: it only does anything when this browser is holding guest games.
+  // Failure is logged inside and retried next entry - never a reason the app
+  // does not open.
+  await carryOverGuestGames().catch((e) => console.error("Guest carry-over failed:", e));
   const profile = await refreshHome();
 
   // DAU/WAU/MAU, and nothing else. One idempotent upsert of (user, today) per
@@ -517,6 +545,146 @@ async function enterApp({ newAccount = false } = {}) {
   // a failure anywhere above cannot take the first-run experience down with it.
   if (profile) maybeShowOnboarding(profile);
 }
+
+// ---- Guest mode: Quickplay ----
+//
+// No session, no sign-in wall. The landing is two sport cards and one tap on
+// either is a Practice draft at the default difficulty - the same draft, the
+// same engine and the same results screen a signed-in player gets, with three
+// differences, all decided by isGuest():
+//   - the result is kept by js/guest.js (locally, and a summary to the
+//     guest_games table) instead of written to a profile there is not;
+//   - the results screen offers an account, and hides what needs one;
+//   - every "home" is this landing (goHome).
+// Nothing here calls track() or markActiveToday(), and both already do nothing
+// without a session - a guest is in no user metric. See js/guest.js.
+
+const quickplaySportsEl = document.getElementById("quickplay-sports");
+const quickplayStatusEl = document.getElementById("quickplay-status");
+const guestSignupCardEl = document.getElementById("guest-signup-card");
+
+let quickplayStarting = false;
+
+function enterGuestMode() {
+  setGuest(true);
+  document.documentElement.setAttribute("data-guest", "");
+  // The boot hint guessed "signed in" from a stored token that turned out to
+  // be dead. The landing has to be allowed to show after all.
+  document.documentElement.removeAttribute("data-session-hint");
+  navTabs.hidden = true;
+  btnHeaderSignin.hidden = false;
+  game.nameA = "You";
+  signedInAsEl.textContent = game.nameA;
+  renderQuickplay();
+  showScreen("quickplay");
+}
+
+function leaveGuestMode() {
+  setGuest(false);
+  document.documentElement.removeAttribute("data-guest");
+  btnHeaderSignin.hidden = true;
+  guestSignupCardEl.hidden = true;
+}
+
+/** The sport cards, from the registry. The markup in index.html is the
+ * no-script version of this; it is replaced here so a third sport needs a
+ * registry entry and nothing else, and so the names and icons have one source. */
+function renderQuickplay() {
+  quickplaySportsEl.innerHTML = "";
+  for (const s of SPORTS.filter((x) => isLive(x.id))) {
+    const card = document.createElement("div");
+    card.className = "sport-card quickplay-sport";
+    // Not data-sport - see the note on #quickplay-sports in index.html.
+    card.dataset.quickplay = s.id;
+    if (s.theme) card.style.setProperty("--card-accent", s.theme.accent);
+    card.innerHTML =
+      `<button type="button" class="sport-card-open">` +
+      `<span class="sport-card-head">` +
+      `<span class="sport-card-icon" aria-hidden="true"></span>` +
+      `<span class="sport-card-text">` +
+      `<span class="sport-card-name"></span>` +
+      `<span class="sport-card-rank">Play now</span>` +
+      `</span></span></button>`;
+    card.querySelector(".sport-card-icon").textContent = s.icon;
+    card.querySelector(".sport-card-name").textContent = s.name;
+    const open = card.querySelector(".sport-card-open");
+    open.disabled = quickplayStarting;
+    open.addEventListener("click", () => startGuestGame(s.id));
+    quickplaySportsEl.appendChild(card);
+  }
+}
+
+/** One tap, straight into a Practice draft. No setup screen: the mode is
+ * Practice, the difficulty is the default, the era is whatever was last used
+ * (all eras on a first visit). A guest who wants to choose has an account's
+ * worth of reasons to make one. */
+async function startGuestGame(sportId) {
+  if (quickplayStarting) return;
+  const s = sportById(sportId);
+  quickplayStarting = true;
+  renderQuickplay();
+  quickplayStatusEl.textContent = `Loading ${s.name}…`;
+  try {
+    const loaded = await setSport(sportId);
+    if (!loaded) {
+      quickplayStatusEl.textContent = `${s.name} couldn't load. Check your connection and try again.`;
+      return;
+    }
+    quickplayStatusEl.textContent = "";
+    cleanupOnlineWatcher();
+    game.modeConfig = resolveMode("practice", DEFAULT_DIFFICULTY);
+    game.mode = "bot";
+    game.nameA = "You";
+    game.nameB = "Bot";
+    startDraft();
+  } catch (e) {
+    // setSport reports its own load failures; this is anything else, and the
+    // player is still on the landing, so say so there.
+    console.error("Could not start a guest game:", e);
+    quickplayStatusEl.textContent = "Something went wrong starting the game. Try again.";
+  } finally {
+    quickplayStarting = false;
+    // Repaint only if still here: startDraft has usually moved on already, and
+    // the cards are rebuilt on the way back anyway.
+    if (isGuest()) renderQuickplay();
+  }
+}
+
+/** The results-screen offer, shown at the final whistle of a guest game. */
+function revealGuestSignupCard() {
+  guestSignupCardEl.hidden = false;
+}
+
+document.getElementById("btn-quickplay-friends").addEventListener("click", () => showAuthScreen("signup"));
+document.getElementById("btn-quickplay-signin").addEventListener("click", () => showAuthScreen("signin"));
+btnHeaderSignin.addEventListener("click", () => {
+  // The header is on every screen, including a draft in progress. Leaving one
+  // must stop its clocks the same way leaving through any other door does -
+  // and a game mid-playback is SETTLED, not dropped, so the result a guest was
+  // watching is kept and can come with them into the account.
+  cleanupPlayback({ settle: true });
+  cleanupPickTimer();
+  cleanupTacticTimer();
+  cleanupRotationTimer();
+  cleanupMatchupTimer();
+  showAuthScreen("signin");
+});
+document.getElementById("btn-auth-guest").addEventListener("click", () => enterGuestMode());
+document.getElementById("btn-guest-signup").addEventListener("click", () => {
+  cleanupPlayback();
+  showAuthScreen("signup");
+});
+document.getElementById("btn-guest-signin").addEventListener("click", () => {
+  cleanupPlayback();
+  showAuthScreen("signin");
+});
+// MAYBE LATER: the card goes, and Play Again - which for a guest is the
+// landing, one tap from the next game - is where focus lands, so "later" is
+// one keypress from "again".
+document.getElementById("btn-guest-later").addEventListener("click", () => {
+  guestSignupCardEl.hidden = true;
+  btnPlayAgain.focus();
+});
 
 /** Writes the username from the signup metadata onto the profile if the row
  * still carries the placeholder.
@@ -983,7 +1151,9 @@ document.getElementById("nav-signout").addEventListener("click", async () => {
     console.error("Sign out failed:", e);
   }
   inputAuthPassword.value = "";
-  showAuthScreen();
+  // To the landing, not the sign-in form: signed out is what a guest is, and
+  // the form is one tap away in the header for whoever wants straight back in.
+  enterGuestMode();
 });
 
 // ---- Home screen ----
@@ -1251,7 +1421,7 @@ function renderPlayScreen() {
 let sportLoadSeq = 0;
 
 async function setSport(id) {
-  if (!setActiveSport(id)) return;
+  if (!setActiveSport(id)) return false;
   const load = ++sportLoadSeq;
   applyTheme(sport());
   // Football's dataset is 4.2MB and is fetched the moment football is chosen,
@@ -1273,19 +1443,23 @@ async function setSport(id) {
     // Never silent: the button stays disabled and says so, and the reason is
     // on the console for anyone debugging it.
     console.error(`Could not load ${id} data:`, error);
-    if (load !== sportLoadSeq) return;
+    if (load !== sportLoadSeq) return false;
     sportDataLoading = false;
     renderPlayability();
     sportPreviewNoteEl.hidden = false;
     sportPreviewNoteEl.textContent = `${sport().name} data could not be loaded. Check your connection and try again.`;
-    return;
+    return false;
   }
   // A player can change sport again while this one loads; only the newest load
   // gets to say loading is over or repaint the screen.
-  if (load !== sportLoadSeq) return;
+  if (load !== sportLoadSeq) return false;
   sportDataLoading = false;
   renderPlayScreen();
   warmDatasetStats();
+  // Whether THIS sport is now loaded and current. The Play screen ignores it -
+  // its Start button reflects the same state - but Quickplay has no Start
+  // button: it goes straight into a draft, and must not do that on a failure.
+  return true;
 }
 
 /**
@@ -1566,14 +1740,12 @@ function goToTab(tab, onArrive) {
 
 document.getElementById("btn-brand").addEventListener("click", () => {
   goToTab("play", () => {
-    showScreen("home");
-    refreshHome();
+    goHome();
   });
 });
 document.getElementById("nav-play").addEventListener("click", () => {
   goToTab("play", () => {
-    showScreen("home");
-    refreshHome();
+    goHome();
   });
 });
 // Home is the hub and carries no sport; the sport picker, mode and era all
@@ -1581,8 +1753,7 @@ document.getElementById("nav-play").addEventListener("click", () => {
 // than to whatever screen preceded it, because the hub is the only thing
 // "back" can mean from here.
 document.getElementById("btn-play-back").addEventListener("click", () => {
-  showScreen("home");
-  refreshHome();
+  goHome();
 });
 document.getElementById("nav-profile").addEventListener("click", () => {
   goToTab("profile", openProfileScreen);
@@ -2389,13 +2560,16 @@ function renderRosterBlocked(rosterA, rosterB, slots) {
 document.getElementById("btn-blocked-new-draft").addEventListener("click", () => {
   rosterBlockedEl.classList.add("hidden");
   setActiveNav("play");
+  if (isGuest()) {
+    goHome();
+    return;
+  }
   reopenLastSetup();
 });
 document.getElementById("btn-blocked-home").addEventListener("click", () => {
   rosterBlockedEl.classList.add("hidden");
   goToTab("play", () => {
-    showScreen("home");
-    refreshHome();
+    goHome();
   });
 });
 
@@ -3042,8 +3216,7 @@ btnLeaveMatch.addEventListener("click", async () => {
   // this the button is on screen and does nothing, which is worse than not
   // offering it.
   if (!game.online) {
-    showScreen("home");
-    refreshHome();
+    goHome();
     return;
   }
   const matchId = game.online.matchId;
@@ -3064,8 +3237,7 @@ btnLeaveMatch.addEventListener("click", async () => {
     console.error("Failed to cancel match:", e);
   }
   game.online = null;
-  showScreen("home");
-  refreshHome();
+  goHome();
 });
 
 async function renderOnlineDraftRound(match) {
@@ -3525,6 +3697,10 @@ async function captureProgressBaseline() {
   progressBefore = null;
   rankBefore = null;
   ratingBefore = null;
+  // A guest has no profile to snapshot, and nothing to celebrate against.
+  // Returning here rather than letting loadProfile() throw keeps a guest's
+  // console free of an error that is not one.
+  if (isGuest()) return;
   try {
     const profile = await loadProfile();
     progressBefore = snapshotProgress(profile, getSport());
@@ -3978,6 +4154,9 @@ function resetGameScreen() {
   // session - including on the next game, where it would have worked.
   btnShareResult.disabled = false;
   btnShareResult.textContent = SHARE_BUTTON_LABEL;
+  // The sign-up offer belongs to the game that just ended, like everything
+  // else here; a guest who said "maybe later" sees it again after the next.
+  guestSignupCardEl.hidden = true;
 
   // The postgame sponsor slot goes away with everything else a finished game
   // put on this screen. It is filled at the final whistle, so leaving it up
@@ -4739,6 +4918,9 @@ function showShotChart(events, labelA, labelB) {
     btnToProfile.classList.remove("hidden");
     btnPlayAgain.classList.remove("hidden");
     btnGameHome.classList.remove("hidden");
+    // A guest's View Profile and Return to Home are hidden by CSS
+    // (.signed-in-only); what they get instead is the offer of an account.
+    if (isGuest()) revealGuestSignupCard();
 
     // The postgame sponsor slot, revealed with the exit buttons rather than
     // before them: it sits below the result, the recap, the MVP and the box
@@ -5258,7 +5440,11 @@ function runLocalSimulation() {
         line: result.boxA[slot],
       }));
 
-      const resultWritten = recordPracticeResult({
+      // ONE description of this game, handed to whichever store it belongs in:
+      // the player's profile, or - for a guest - js/guest.js, which keeps it
+      // until there is a profile to put it on (carryOverGuestGames replays this
+      // exact object through recordPracticeResult at sign-up).
+      const practiceResult = {
         // The mode as HISTORY spells it, from the mode record rather than as a
         // literal here. It is "offline" for every practice game and always has
         // been - what changes is that the string now has one home, beside the
@@ -5290,18 +5476,26 @@ function runLocalSimulation() {
         minutesA,
         minutesB,
         provenance,
-      }).catch((e) => console.error("Failed to record result:", e));
+      };
+      const draftedNames = draft.slots.map((slot) => draft.rosterA[slot].name);
 
-      const draftPicksWritten = recordDraftPicks(
-        draft.slots.map((slot) => draft.rosterA[slot].name),
-        getSport()
-      ).catch((e) =>
+      if (isGuest()) {
+        recordGuestGame({
+          practiceResult,
+          draftPicks: draftedNames,
+          difficulty: matchConfig().difficulty,
+        });
+        return;
+      }
+
+      const resultWritten = recordPracticeResult(practiceResult).catch((e) =>
+        console.error("Failed to record result:", e)
+      );
+
+      const draftPicksWritten = recordDraftPicks(draftedNames, getSport()).catch((e) =>
         console.error("Failed to record draft picks:", e)
       );
 
-      // After BOTH writes land. The diff has to read a profile that already
-      // includes this game, or it celebrates nothing now - and, because the
-      // baseline moves on, stays silent about it next game too.
       Promise.allSettled([resultWritten, draftPicksWritten]).then(celebrateProgress);
     },
   });
@@ -5597,6 +5791,12 @@ btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
+  // A guest's setup screen is Quickplay: the same one tap that started this
+  // game. The Play screen would offer Online Ranked, which needs an account.
+  if (isGuest()) {
+    goHome();
+    return;
+  }
   reopenLastSetup();
 });
 btnToProfile.addEventListener("click", () => {
@@ -5609,8 +5809,7 @@ btnGameHome.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
-  showScreen("home");
-  refreshHome();
+  goHome();
 });
 
 // ---- Profile screen ----
@@ -6414,5 +6613,9 @@ initBrandFallbacks();
   } catch (e) {
     console.error("Couldn't check the existing session:", e);
   }
-  showAuthScreen();
+  // No session - or no way to check one - is a guest, and a guest's first
+  // screen is Quickplay rather than a form. A practice game needs no network
+  // beyond the dataset, so this is also the right fallback when the auth CDN
+  // is the thing that failed.
+  enterGuestMode();
 })();

@@ -116,7 +116,13 @@ jobs:
   # because nothing loaded a page.
   browser:
     name: verify (browser)
-    runs-on: ubuntu-latest
+    # PINNED, not ubuntu-latest. When "latest" moved to Ubuntu 26.04, Playwright
+    # 1.56 refused to install Chromium there ("does not support chromium on
+    # ubuntu26.04-x64") and every browser job died in its install step before a
+    # single check ran. Move this when the Playwright pin in package.json
+    # supports the newer image - the other jobs need no browser and stay on
+    # latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -140,3 +146,6 @@ jobs:
 
       - name: Verify the app plays on a phone
         run: npm run verify:selftest:mobile
+
+      - name: Verify a guest can play first and sign up after
+        run: npm run verify:guest-selftest

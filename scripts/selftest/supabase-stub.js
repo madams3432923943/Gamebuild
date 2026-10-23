@@ -112,18 +112,45 @@ const RPC_RESULTS = {
   get_visible_picks: [],
 };
 
+// SIGNED OUT, ON REQUEST. Every harness but one wants to start signed in, so
+// that stays the default. The guest self-test (run-guest-selftest.mjs) sets
+// window.__bkStartSignedOut in an init script and gets the real first-visit
+// boot - no session until the page signs in or signs up through the form.
+let session = typeof window !== "undefined" && window.__bkStartSignedOut ? null : SESSION;
+
+/** Every RPC the page makes, by name and argument keys, for the same reason
+ * update() records writes: the guest self-test has to prove what a guest did
+ * NOT call (track_event, touch_active_day) as much as what it did. */
+function recordRpc(name, args) {
+  if (typeof window === "undefined") return;
+  window.__bkRpcs = window.__bkRpcs || [];
+  window.__bkRpcs.push({ name, signedIn: !!session, args: args || {} });
+}
+
 export function createClient() {
   return {
     auth: {
-      getSession: async () => ({ data: { session: SESSION }, error: null }),
-      getUser: async () => ({ data: { user: USER }, error: null }),
-      signInWithPassword: async () => ({ data: { session: SESSION, user: USER }, error: null }),
-      signUp: async () => ({ data: { session: SESSION, user: USER }, error: null }),
-      signOut: async () => ({ error: null }),
+      getSession: async () => ({ data: { session }, error: null }),
+      getUser: async () => ({ data: { user: session ? USER : null }, error: null }),
+      signInWithPassword: async () => {
+        session = SESSION;
+        return { data: { session, user: USER }, error: null };
+      },
+      signUp: async () => {
+        session = SESSION;
+        return { data: { session, user: USER }, error: null };
+      },
+      signOut: async () => {
+        session = null;
+        return { error: null };
+      },
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
     },
     from: (table) => new Query(table),
-    rpc: async (name) => ({ data: RPC_RESULTS[name] ?? null, error: null }),
+    rpc: async (name, args) => {
+      recordRpc(name, args);
+      return { data: RPC_RESULTS[name] ?? null, error: null };
+    },
     functions: { invoke: async () => ({ data: null, error: { message: "not available in self-test" } }) },
     channel: () => ({ on: () => ({ subscribe: () => ({}) }), subscribe: () => ({}) }),
     removeChannel: () => {},

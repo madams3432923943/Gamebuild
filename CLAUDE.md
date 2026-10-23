@@ -137,6 +137,11 @@ per-sport hook added for football blanked the basketball draft board. See
   never assume a shape.
 - **`db/` is documentation, not a migration runner** — write the file, then apply it
   live. Keep the two in step.
+- **A practice game can run with no account.** The homepage is guest Quickplay
+  (`docs/guest-quickplay.md`). Anything on the practice path that reads the
+  profile must check `isGuest()` from `js/guest.js`. Every way "home" goes
+  through `goHome()`. A guest is in no user metric by construction: never route
+  guest activity into `profiles`, `analytics_events` or `active_days`.
 
 ## Verify before pushing
 

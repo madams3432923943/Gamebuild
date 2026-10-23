@@ -10,6 +10,10 @@ export function sleep(ms) {
 }
 
 const screens = {
+  // The guest homepage. The only screen not hidden in the markup, because it
+  // is also the page a crawler or a visitor without script reads - so the
+  // first showScreen() call of any boot is what hides it for everyone else.
+  quickplay: document.getElementById("screen-quickplay"),
   auth: document.getElementById("screen-auth"),
   home: document.getElementById("screen-home"),
   // The hub is sport-neutral; choosing a sport and a mode happens here.

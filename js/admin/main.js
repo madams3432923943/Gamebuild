@@ -110,17 +110,28 @@ async function load() {
 
     // Both in flight at once: they read different tables and neither needs the
     // other's answer.
-    const [overviewRes, funnelRes] = await Promise.all([
+    const [overviewRes, funnelRes, guestRes] = await Promise.all([
       supabase.rpc("admin_overview", {}),
       supabase.rpc("admin_funnel", { p_days: 30 }),
+      // Guest Quickplay games, a separate population from every figure above
+      // (db/migrations/20261022_01_guest_games.sql). Asked in parallel and
+      // allowed to fail on its own: a project without that migration yet
+      // loses this one section, not the page.
+      supabase.rpc("admin_guest_overview", {}),
     ]);
 
     if (overviewRes.error) throw new Error(overviewRes.error.message);
     // The funnel is the less important half, so a failure there costs the
     // funnel section rather than the whole page.
     if (funnelRes.error) console.error("admin_funnel() failed:", funnelRes.error.message);
+    if (guestRes.error) console.error("admin_guest_overview() failed:", guestRes.error.message);
 
-    renderDashboard(bodyEl, overviewRes.data, funnelRes.error ? null : funnelRes.data);
+    renderDashboard(
+      bodyEl,
+      overviewRes.data,
+      funnelRes.error ? null : funnelRes.data,
+      guestRes.error ? null : guestRes.data
+    );
     bodyEl.hidden = false;
     setStatus("");
     const generated = overviewRes.data?.generated_at;

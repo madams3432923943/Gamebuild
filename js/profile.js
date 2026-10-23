@@ -257,7 +257,11 @@ function isTripleDouble(line) {
  * re-render later (boxRow reads player.name/team/decade, nothing else) -
  * keeping pos/per-game stat fields out of it is what keeps a jsonb snapshot
  * cheap. */
-function snapshotRoster(roster) {
+// Exported for js/guest.js, which stores a guest's game in this same shape so
+// the copy it keeps until sign-up is a few KB rather than two full rosters.
+// Idempotent: a snapshot of a snapshot is the same snapshot, which is what lets
+// recordPracticeResult take either.
+export function snapshotRoster(roster) {
   const out = {};
   for (const [slot, player] of Object.entries(roster)) {
     if (player) out[slot] = { name: player.name, team: player.team, decade: player.decade };
@@ -462,9 +466,12 @@ export async function recordPracticeResult({
   minutesA,
   minutesB,
   provenance,
+  // When the game was played. Defaults to now, which is every caller but one:
+  // a guest game carried over at sign-up (js/guest.js) keeps the time it was
+  // actually played, or a player's history would date it to their sign-up.
+  date = new Date().toISOString(),
 }) {
   const profile = await loadProfile();
-  const date = new Date().toISOString();
 
   // Every career-stat map is namespaced by sport from here on (statsKey), so
   // a football record can never be compared against a basketball one. NBA

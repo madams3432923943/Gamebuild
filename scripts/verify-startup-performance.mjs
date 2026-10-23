@@ -27,6 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderCheck, renderSection, renderTable, summarize, PASS, FAIL } from "./lib/report.mjs";
+import { reachSignInForm } from "./lib/app-driver.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -103,7 +104,10 @@ async function main() {
     await page.goto(baseUrl, { waitUntil: "load" });
     // Interactive means the app has decided what to show, not merely that the
     // HTML parsed - a boot that paints an empty shell is not a boot.
-    await page.locator("#screen-auth:not(.hidden), #screen-home:not(.hidden)")
+    // Quickplay is the signed-out first screen now, but it is in the HTML
+    // unhidden, so its being visible proves nothing about the app. A guest boot
+    // is "decided" once enterGuestMode has run, which is what data-guest marks.
+    await page.locator("#screen-auth:not(.hidden), #screen-home:not(.hidden), :root[data-guest] #screen-quickplay:not(.hidden)")
       .first().waitFor({ state: "visible", timeout: 30000 });
     const interactiveMs = Date.now() - bootStart;
 
@@ -199,6 +203,7 @@ async function main() {
     // how long its data takes to arrive.
     const home = page.locator("#screen-home:not(.hidden)");
     if (!(await home.isVisible().catch(() => false))) {
+      await reachSignInForm(page);
       await page.locator("#input-auth-identifier").fill("StartupPerfTest");
       await page.locator("#input-auth-password").fill("startup-perf-password");
       await page.locator("#btn-auth-submit").click();
@@ -334,12 +339,18 @@ async function main() {
     const preloaded = new Set([...html.matchAll(/<link rel="modulepreload" href="(js\/[^"]+)"/g)].map((m) => m[1]));
     // What the browser ACTUALLY fetched to boot, which is the ground truth the
     // generator is trying to predict.
+    // Anything a <script src> tag loads directly is excluded: the module ENTRY
+    // (js/main.js), because preloading it would be a second hint for a request
+    // the parser has already made, and the classic synchronous script in
+    // <head> (js/boot-session-hint.js), which is not a module at all and is
+    // fetched before anything a preload could speed up. Read off the page so a
+    // future tag needs no change here.
+    const tagLoaded = new Set(
+      [...html.matchAll(/<script\b[^>]*\ssrc="(js\/[^"?]+)/g)].map((m) => m[1])
+    );
     const fetched = bootFiles
       .map((f) => f.path.replace(/^\//, ""))
-      // The ENTRY is excluded: it is loaded by the <script type="module"> tag
-      // itself, so preloading it would be a second hint for a request the
-      // parser has already made.
-      .filter((p) => p.startsWith("js/") && p !== "js/main.js");
+      .filter((p) => p.startsWith("js/") && !tagLoaded.has(p));
     const missing = fetched.filter((p) => !preloaded.has(p));
     checks.push({
       title: "Every module fetched on boot is in the generated preload block",

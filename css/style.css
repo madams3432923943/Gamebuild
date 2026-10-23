@@ -3380,11 +3380,23 @@ table.box-table th {
 
 /* Who holds it - a player, a unit, or the opponent a game record was set
    against. Quieter than the label, because the label is what you scan for and
-   the holder is what you read once you have found it. */
+   the holder is what you read once you have found it.
+
+   ONE LINE, ELLIPSIZED, never broken mid-word. It used overflow-wrap:
+   anywhere, which split a 20-character opponent username across two lines at
+   phone width - the thing scripts/verify-text-wrap.mjs forbids, and whose own
+   notes name a truncated ellipsis as the fix. A holder is a short caption
+   ("2023 Luka Doncic", an opponent's name), so one line loses nothing that
+   matters, and the full text is the element's title (js/ui/profile.js). Block, so
+   overflow and text-overflow apply; .record-what's min-width: 0 is what lets
+   it shrink to the row. */
 .record-holder {
+  display: block;
   font-size: var(--text-micro);
   color: var(--muted);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .record-figure {
@@ -10633,4 +10645,192 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   #pool-search {
     font-size: 1.02rem;
   }
+}
+
+/* ---- Quickplay: the guest homepage ----------------------------------------
+   The landing a visitor without an account sees, and the page search engines
+   index. Mobile first: the two sport buttons are the whole point, so they are
+   the first thing under the H1 at 360px, full width, thumb-sized. Everything
+   below them - the friends offer, how to play, the FAQ - is there to be read
+   by someone who wants to know more and by a crawler, not in the way of a tap.
+
+   Built from the same tokens and components as every other screen: the sport
+   buttons ARE the hub's .sport-card, with only their sizing adjusted here. */
+
+/* A returning player's first paint. js/boot-session-hint.js sets this before
+   the body exists when supabase-js has a stored session; js/main.js removes it
+   if that session turns out to be dead, and showScreen() takes over from
+   there. Without it, every signed-in boot flashed the guest landing. */
+:root[data-session-hint] #screen-quickplay {
+  display: none;
+}
+
+.quickplay-hero {
+  text-align: center;
+  padding: 0.75rem 0 1.25rem;
+}
+
+.quickplay-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  line-height: 1.15;
+  letter-spacing: 0.005em;
+  margin: 0 auto 0.6rem;
+  max-width: 22ch;
+  /* Balanced so the headline does not leave one word on its last line at
+     phone width, which is where most of these will be read. */
+  text-wrap: balance;
+}
+
+.quickplay-lede {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0 auto 1.25rem;
+  max-width: 38ch;
+}
+
+.quickplay-sports {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+@media (min-width: 480px) {
+  .quickplay-sports {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.quickplay-sport .sport-card-open {
+  align-items: center;
+  justify-content: center;
+  min-height: 5.5rem;
+}
+
+/* Disabled until the app has wired it, and while a sport's data loads.
+   Dimmed, not hidden: the page without script still shows what it offers. */
+.quickplay-sport:has(.sport-card-open:disabled) {
+  opacity: 0.7;
+}
+
+.quickplay-status {
+  min-height: 1.4em;
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.quickplay-friends {
+  max-width: 560px;
+  margin: 0 auto 1rem;
+  text-align: center;
+}
+
+.quickplay-friends p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.quickplay-signin-line {
+  margin: 0.75rem 0 0;
+}
+
+.quickplay-howto,
+.quickplay-faq {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.quickplay-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.55;
+}
+
+.quickplay-steps li + li {
+  margin-top: 0.5rem;
+}
+
+.quickplay-faq h3 {
+  margin: 1rem 0 0.25rem;
+}
+
+.quickplay-faq h3:first-of-type {
+  margin-top: 0;
+}
+
+.quickplay-faq p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* On the page background rather than inside a card here, so it needs no
+   rule above it. */
+#screen-quickplay > .legal-note {
+  border-top: none;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#screen-quickplay > .legal-links {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* ---- Guest chrome ----------------------------------------------------------
+   :root[data-guest] is set by enterGuestMode() in js/main.js. Anything that
+   needs an account carries .signed-in-only and simply is not there for a
+   guest - not disabled, not greyed: a "View Profile" button a guest cannot use
+   is a button that leads to an error. */
+:root[data-guest] .signed-in-only {
+  display: none !important;
+}
+
+.header-signin {
+  padding: 0.45rem 1rem;
+}
+
+/* The results-screen offer. A card like every other block on that screen,
+   with the sport's accent along its top edge so it reads as part of this game
+   rather than as an ad dropped into it. */
+.guest-signup-card {
+  border-top: 3px solid var(--accent);
+  text-align: center;
+}
+
+.guest-signup-card h2 {
+  margin-bottom: 0.4rem;
+  text-wrap: balance;
+}
+
+.guest-signup-line {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.guest-signup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem 0.75rem;
+}
+
+/* Full-width stacked buttons at phone width, where two side by side would
+   each be too narrow to read "Create Account" without wrapping. */
+@media (max-width: 480px) {
+  .guest-signup-actions .btn {
+    flex: 1 1 100%;
+  }
+}
+
+.guest-signup-actions .link-btn {
+  padding: 0.5rem;
 }

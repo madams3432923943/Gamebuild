@@ -1171,7 +1171,11 @@ function recordRow({ label, holder = "", value = "—", date = "", game = null, 
     `<span class="record-what"><span class="record-label"></span><span class="record-holder"></span></span>` +
     `<span class="record-figure"><span class="record-value"></span><span class="record-date"></span></span>`;
   row.querySelector(".record-label").textContent = label;
-  row.querySelector(".record-holder").textContent = holder;
+  const holderEl = row.querySelector(".record-holder");
+  holderEl.textContent = holder;
+  // The holder is one ellipsized line (see .record-holder in css/style.css), so
+  // the whole of it stays reachable on hover and to assistive tech.
+  if (holder) holderEl.title = holder;
   row.querySelector(".record-value").textContent = value;
   row.querySelector(".record-date").textContent = date;
   return row;
