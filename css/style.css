@@ -10834,3 +10834,15 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 .guest-signup-actions .link-btn {
   padding: 0.5rem;
 }
+
+/* What an account gets you, on the guest results card. Left-aligned inside a
+   centred card because a list of four reads down its left edge; centred bullets
+   make every line start somewhere different. Fit to its content and centred as
+   a block, so the card itself still reads as centred. */
+.guest-signup-perks {
+  display: inline-block;
+  text-align: left;
+  margin: 0.25rem auto 0.75rem;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
