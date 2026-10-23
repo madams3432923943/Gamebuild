@@ -402,7 +402,9 @@ function renderAuthMode() {
   authPitchSteps.hidden = !isSignup;
   authPitchLine.textContent = isSignup
     ? "Draft players across NBA and NFL eras, build your lineup, set your strategy, " +
-      "and compete to see whose team wins. Free to play, no app to install."
+      "and compete to see whose team wins. Free to play, no app to install. Your account " +
+      "tracks your stats and records, and lets you customize your profile, earn badges, " +
+      "play ranked and challenge your friends."
     : "Draft across NBA and NFL eras, set your strategy, and see whose team wins.";
 
   fieldAuthEmail.hidden = !isSignup;
@@ -548,10 +550,12 @@ async function enterApp({ newAccount = false } = {}) {
 
 // ---- Guest mode: Quickplay ----
 //
-// No session, no sign-in wall. The landing is two sport cards and one tap on
-// either is a Practice draft at the default difficulty - the same draft, the
-// same engine and the same results screen a signed-in player gets, with three
-// differences, all decided by isGuest():
+// No session, no sign-in wall. The landing is two sport cards; a tap on either
+// opens the Play screen in Practice, where the difficulty and era are chosen,
+// and from there it is the same draft, the same engine and the same results
+// screen a signed-in player gets, with four differences, all decided by
+// isGuest():
+//   - Online Ranked on the Play screen leads to Create Account (renderModeCards);
 //   - the result is kept by js/guest.js (locally, and a summary to the
 //     guest_games table) instead of written to a profile there is not;
 //   - the results screen offers an account, and hides what needs one;
@@ -560,10 +564,7 @@ async function enterApp({ newAccount = false } = {}) {
 // without a session - a guest is in no user metric. See js/guest.js.
 
 const quickplaySportsEl = document.getElementById("quickplay-sports");
-const quickplayStatusEl = document.getElementById("quickplay-status");
 const guestSignupCardEl = document.getElementById("guest-signup-card");
-
-let quickplayStarting = false;
 
 function enterGuestMode() {
   setGuest(true);
@@ -607,47 +608,25 @@ function renderQuickplay() {
       `</span></span></button>`;
     card.querySelector(".sport-card-icon").textContent = s.icon;
     card.querySelector(".sport-card-name").textContent = s.name;
-    const open = card.querySelector(".sport-card-open");
-    open.disabled = quickplayStarting;
-    open.addEventListener("click", () => startGuestGame(s.id));
+    card.querySelector(".sport-card-open").addEventListener("click", () => startGuestGame(s.id));
     quickplaySportsEl.appendChild(card);
   }
 }
 
-/** One tap, straight into a Practice draft. No setup screen: the mode is
- * Practice, the difficulty is the default, the era is whatever was last used
- * (all eras on a first visit). A guest who wants to choose has an account's
- * worth of reasons to make one. */
-async function startGuestGame(sportId) {
-  if (quickplayStarting) return;
-  const s = sportById(sportId);
-  quickplayStarting = true;
-  renderQuickplay();
-  quickplayStatusEl.textContent = `Loading ${s.name}…`;
-  try {
-    const loaded = await setSport(sportId);
-    if (!loaded) {
-      quickplayStatusEl.textContent = `${s.name} couldn't load. Check your connection and try again.`;
-      return;
-    }
-    quickplayStatusEl.textContent = "";
-    cleanupOnlineWatcher();
-    game.modeConfig = resolveMode("practice", DEFAULT_DIFFICULTY);
-    game.mode = "bot";
-    game.nameA = "You";
-    game.nameB = "Bot";
-    startDraft();
-  } catch (e) {
-    // setSport reports its own load failures; this is anything else, and the
-    // player is still on the landing, so say so there.
-    console.error("Could not start a guest game:", e);
-    quickplayStatusEl.textContent = "Something went wrong starting the game. Try again.";
-  } finally {
-    quickplayStarting = false;
-    // Repaint only if still here: startDraft has usually moved on already, and
-    // the cards are rebuilt on the way back anyway.
-    if (isGuest()) renderQuickplay();
-  }
+/** A tap on a sport opens the Play screen in Practice: the same screen, the
+ * same difficulty and era pickers, and the same Start Draft button a player
+ * has. Not straight into a draft - the first version did that, and a guest
+ * then had no way to pick Easy or an era at all. One screen, not a second set
+ * of pickers on the landing: those pickers are per sport (era brackets differ)
+ * and duplicating them is how two copies drift. Online Ranked stays on the
+ * screen as the reason to make an account; see renderModeCards. */
+function startGuestGame(sportId) {
+  selectedMode = "practice";
+  // setSport even for the sport already active, exactly as the hub's cards do:
+  // a fresh visit restores NBA as the active sport without loading its data,
+  // and setSport is what loads it. It remounts the screen before it awaits.
+  setSport(sportId);
+  showScreen("play");
 }
 
 /** The results-screen offer, shown at the final whistle of a guest game. */
@@ -678,9 +657,9 @@ document.getElementById("btn-guest-signin").addEventListener("click", () => {
   cleanupPlayback();
   showAuthScreen("signin");
 });
-// MAYBE LATER: the card goes, and Play Again - which for a guest is the
-// landing, one tap from the next game - is where focus lands, so "later" is
-// one keypress from "again".
+// MAYBE LATER: the card goes, and Play Again - back to the Play screen with
+// this game's sport, difficulty and era still selected - is where focus lands,
+// so "later" is one keypress from "again".
 document.getElementById("btn-guest-later").addEventListener("click", () => {
   guestSignupCardEl.hidden = true;
   btnPlayAgain.focus();
@@ -1237,7 +1216,19 @@ function renderChoiceCards(container, entries, selectedId, onSelect) {
 }
 
 function renderModeCards() {
-  renderChoiceCards(modeToggleEl, Object.values(MODES), selectedMode, (id) => {
+  // A GUEST SEES RANKED, AND IT LEADS TO AN ACCOUNT. Hiding it would leave
+  // Practice alone on the screen with nothing to say what an account is for;
+  // shown as-is it would select a mode that cannot start. So it is drawn with
+  // its guest wording from js/modes.js, and choosing it opens Create Account.
+  const guest = isGuest();
+  const entries = Object.values(MODES).map((m) =>
+    guest && m.guestBlurb ? { ...m, tag: m.guestTag, blurb: m.guestBlurb } : m
+  );
+  renderChoiceCards(modeToggleEl, entries, selectedMode, (id) => {
+    if (guest && MODES[id]?.online) {
+      showAuthScreen("signup");
+      return;
+    }
     // On the click, not on the render: renderModeCards() runs again on every
     // selection and on every return to the Play screen, and an event fired
     // from a render is an event fired by the app rather than by the player.
@@ -1562,6 +1553,9 @@ function renderEraChoice() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "era-chip" + (era.id === selectedEra ? " active" : "");
+    // A stable hook, as the mode and difficulty cards have in data-mode: the
+    // guest self-test picks an era and then checks that exact id was played.
+    btn.dataset.era = era.id;
     btn.setAttribute("role", "radio");
     btn.setAttribute("aria-checked", String(era.id === selectedEra));
     btn.innerHTML =
@@ -1693,6 +1687,12 @@ btnStartDraft.addEventListener("click", async () => {
   if (!isLive(getSport())) return;
 
   const config = currentModeConfig();
+  // Belt and braces again: renderModeCards never lets a guest select an online
+  // mode, but a mode restored from a signed-in session in this tab could.
+  if (config.online && isGuest()) {
+    showAuthScreen("signup");
+    return;
+  }
   cleanupOnlineWatcher();
 
   // The whole match configuration, not one flag off it: the clock, the board,
@@ -2560,10 +2560,6 @@ function renderRosterBlocked(rosterA, rosterB, slots) {
 document.getElementById("btn-blocked-new-draft").addEventListener("click", () => {
   rosterBlockedEl.classList.add("hidden");
   setActiveNav("play");
-  if (isGuest()) {
-    goHome();
-    return;
-  }
   reopenLastSetup();
 });
 document.getElementById("btn-blocked-home").addEventListener("click", () => {
@@ -5791,12 +5787,6 @@ btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
-  // A guest's setup screen is Quickplay: the same one tap that started this
-  // game. The Play screen would offer Online Ranked, which needs an account.
-  if (isGuest()) {
-    goHome();
-    return;
-  }
   reopenLastSetup();
 });
 btnToProfile.addEventListener("click", () => {

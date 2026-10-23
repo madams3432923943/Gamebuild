@@ -7,11 +7,15 @@ The homepage for anyone without an account. Play first, sign up after.
 Before this change, a visitor's first screen was a sign-in form. Quickplay
 turns it around:
 
-- **NBA and NFL cards.** One tap starts a Practice draft at the default
-  difficulty, through the same draft, strategy and simulation screens a
-  signed-in player uses.
+- **NBA and NFL cards.** A tap opens the Play screen in Practice, where the
+  guest picks a difficulty (Easy, Medium, Hard) and an era, then Start Draft.
+  From there it's the same draft, strategy and simulation screens a signed-in
+  player uses. Online Ranked stays on that screen, tagged "Free account", and
+  choosing it opens Create Account.
 - **The account offer comes after the game.** It appears on the results
-  screen, once there is a game worth keeping.
+  screen, once there is a game worth keeping, and lists what an account gets
+  you: stats and records, a customizable profile (banners, kits, icons),
+  badges and the ranked ladder, and playing friends.
 - **The landing is static HTML.** Search engines and visitors without
   JavaScript see the H1, how-to-play, FAQ and JSON-LD.
 
@@ -63,8 +67,12 @@ What differs is decided by `isGuest()`:
   sign-up card is shown. View Profile and Return to Home carry
   `.signed-in-only`, which `:root[data-guest]` hides.
 - **Where "home" is.** Every exit goes through `goHome()`, which sends a
-  guest to the landing. Play Again does too, since a guest's setup screen is
-  the landing.
+  guest to the landing. Play Again returns a guest to the Play screen with the
+  same sport, difficulty and era selected, just as it does for a player.
+- **Online Ranked.** `renderModeCards()` draws it with the `guestTag` and
+  `guestBlurb` from `js/modes.js`, and choosing it opens Create Account
+  instead of selecting it. `btnStartDraft` refuses an online mode for a guest
+  as well, as a backstop.
 
 ### Guests are in no user metric
 

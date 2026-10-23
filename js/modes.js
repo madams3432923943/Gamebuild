@@ -35,6 +35,12 @@ export const MODES = {
     // picker would otherwise be. An empty gap there read as a setting that had
     // failed to load, or as the last Practice difficulty still applying.
     note: "You'll be matched against a real player. No bot, so no difficulty to choose.",
+    // What a GUEST sees on this card instead (renderModeCards in js/main.js).
+    // Choosing it opens Create Account rather than selecting a mode that
+    // cannot start without one - so the card says that, rather than promising
+    // a match the next tap will not deliver.
+    guestTag: "Free account",
+    guestBlurb: "Create a free account to play real opponents and climb the ranked ladder.",
     online: true,
     ranked: true,
     timed: true,

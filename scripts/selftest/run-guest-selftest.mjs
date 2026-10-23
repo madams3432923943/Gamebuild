@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Guest self-test: `npm run verify:guest-selftest`.
 //
-// The homepage is Quickplay: a visitor with no account taps a sport and is
-// drafting, and the offer to make an account comes after the game. This drives
+// The homepage is Quickplay: a visitor with no account taps a sport, chooses a
+// difficulty and an era on the Play screen, and drafts; the offer to make an
+// account comes after the game. This drives
 // that path end to end in a real browser, at phone width, for BOTH sports, and
 // then converts - once by creating an account from the results card (NBA) and
 // once by signing in from the header after "Maybe later" (NFL) - and checks the
@@ -45,9 +46,13 @@ const VIEWPORT = { width: 375, height: 812 };
 // screen too.
 const GUEST_RPCS = new Set(["heartbeat_presence", "record_guest_game"]);
 
+// A DIFFERENT DIFFICULTY AND A NON-DEFAULT ERA PER LEG, so the test proves the
+// guest's choice is what was played, not that the default happened to match.
+// Easy on basketball because it is the difficulty that also changes the draft
+// interface (open board, no clock), which is the most different path.
 const LEGS = [
-  { sport: "nba", convert: "signup" },
-  { sport: "nfl", convert: "signin" },
+  { sport: "nba", convert: "signup", difficulty: "easy", tryRanked: true },
+  { sport: "nfl", convert: "signin", difficulty: "hard" },
 ];
 
 const verbose = !!process.env.BK_VERBOSE;
@@ -64,7 +69,7 @@ async function layoutAt375(page) {
   };
 }
 
-async function runLeg(browser, stub, baseUrl, { sport, convert }) {
+async function runLeg(browser, stub, baseUrl, { sport, convert, difficulty, tryRanked = false }) {
   const checks = [];
   const add = (id, title, ok, detail) => checks.push(check(`${sport}:${id}`, title, ok ? PASS : FAIL, { detail }));
   const errors = [];
@@ -104,14 +109,55 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
     const landingLayout = await layoutAt375(page);
     add("landing-layout", "Landing fits at 375px", landingLayout.ok, landingLayout.detail);
 
-    // ---- one tap to a draft -------------------------------------------------
-    await page.locator(`[data-quickplay="${sport}"] .sport-card-open`).click();
+    // ---- a sport, then the setup a guest chooses ----------------------------
+    const openSport = async () => {
+      await page.locator(`[data-quickplay="${sport}"] .sport-card-open`).click();
+      return page.locator("#screen-play:not(.hidden)").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+    };
+    const onPlay = await openSport();
+    const setup = await page.evaluate(() => ({
+      selectedMode: document.querySelector('#mode-toggle [aria-checked="true"]')?.dataset.mode,
+      difficulties: [...document.querySelectorAll("#difficulty-toggle [data-mode]")].map((b) => b.dataset.mode),
+      eras: [...document.querySelectorAll("#era-picker [data-era]")].map((b) => b.dataset.era),
+      rankedTag: document.querySelector('#mode-toggle [data-mode="ranked"] .mode-tag')?.textContent,
+    }));
+    add(
+      "setup",
+      `${sport.toUpperCase()} opens the Play screen in Practice, with difficulty and era to choose`,
+      onPlay && setup.selectedMode === "practice" && setup.difficulties.join() === "easy,medium,hard" &&
+        setup.eras.length > 1 && setup.rankedTag === "Free account",
+      JSON.stringify(setup)
+    );
+    if (!onPlay) return checks;
+
+    if (tryRanked) {
+      // Online Ranked is shown to a guest as the reason for an account, and
+      // choosing it must lead there - not select a mode that cannot start.
+      await page.locator('#mode-toggle [data-mode="ranked"]').click();
+      const toSignup = await page
+        .locator("#screen-auth:not(.hidden) #field-auth-email:not([hidden])")
+        .waitFor({ timeout: 10000 })
+        .then(() => true)
+        .catch(() => false);
+      add("ranked-to-signup", "Choosing Online Ranked as a guest opens Create Account", toSignup, "");
+      await page.locator("#btn-auth-guest").click();
+      await page.locator(":root[data-guest] #screen-quickplay:not(.hidden)").waitFor({ timeout: 10000 });
+      await openSport();
+    }
+
+    // The last era rather than the first, which is "all" and the default.
+    const era = setup.eras[setup.eras.length - 1];
+    await page.locator(`#difficulty-toggle [data-mode="${difficulty}"]`).click();
+    await page.locator(`#era-picker [data-era="${era}"]`).click();
+    const start = page.locator("#btn-start-draft");
+    await page.waitForFunction(() => !document.getElementById("btn-start-draft").disabled, null, { timeout: 30000 });
+    await start.click();
     const drafting = await page
       .locator("#screen-draft:not(.hidden)")
       .waitFor({ timeout: 30000 })
       .then(() => true)
       .catch(() => false);
-    add("one-tap", `One tap on ${sport.toUpperCase()} starts a practice draft`, drafting, drafting ? "" : "never reached the draft screen");
+    add("start", `Start Draft begins a ${difficulty} practice draft in the ${era} era`, drafting, drafting ? "" : "never reached the draft screen");
     if (!drafting) return checks;
 
     const deadline = Date.now() + (sport === "nfl" ? 360000 : 240000);
@@ -132,7 +178,7 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
       };
       return {
         title: document.getElementById("guest-signup-title")?.textContent.trim(),
-        friendsLine: /Play your friends now\./.test(document.getElementById("guest-signup-card")?.textContent || ""),
+        perks: [...document.querySelectorAll("#guest-signup-card .guest-signup-perks li")].map((li) => li.textContent.trim()),
         profileBtn: visible("btn-to-profile"),
         homeBtn: visible("btn-game-home"),
         playAgain: visible("btn-play-again"),
@@ -144,9 +190,11 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
     });
     add(
       "card",
-      "The results screen offers an account, with the friends line, and hides what needs one",
+      "The results screen offers an account, says what it gets you, and hides what needs one",
       cardShown && result.title === "Want to track your stats? Create an account. It's free." &&
-        result.friendsLine && !result.profileBtn && !result.homeBtn && result.playAgain,
+        result.perks.some((p) => /stats/i.test(p)) && result.perks.some((p) => /customize your profile/i.test(p)) &&
+        result.perks.includes("Play your friends now") &&
+        !result.profileBtn && !result.homeBtn && result.playAgain,
       JSON.stringify({ cardShown, ...result, rpcs: undefined, writes: undefined })
     );
     // Evidence for a reviewer, not an assertion: what the offer looks like.
@@ -158,8 +206,9 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
     const recorded = result.rpcs.filter((r) => r.name === "record_guest_game");
     add(
       "counted",
-      "The guest game is counted once (record_guest_game) and kept on this device",
-      recorded.length === 1 && recorded[0].args.p_sport === sport && result.stored === 1 && result.token,
+      "The guest game is counted once (record_guest_game), as the difficulty and era chosen, and kept on this device",
+      recorded.length === 1 && recorded[0].args.p_sport === sport && recorded[0].args.p_difficulty === difficulty &&
+        recorded[0].args.p_era === era && result.stored === 1 && result.token,
       `record_guest_game calls: ${JSON.stringify(recorded.map((r) => r.args))}, stored: ${result.stored}`
     );
     const strays = result.rpcs.filter((r) => !GUEST_RPCS.has(r.name));
@@ -186,11 +235,20 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
       add("maybe-later", "Maybe later closes the card and puts focus on Play Again", later.cardHidden && later.focused === "btn-play-again", JSON.stringify(later));
       await page.locator("#btn-play-again").click();
       const back = await page
-        .locator(":root[data-guest] #screen-quickplay:not(.hidden)")
+        .locator("#screen-play:not(.hidden)")
         .waitFor({ timeout: 10000 })
         .then(() => true)
         .catch(() => false);
-      add("play-again", "Play Again takes a guest back to Quickplay, one tap from the next game", back, "");
+      const kept = await page.evaluate(() => ({
+        difficulty: document.querySelector('#difficulty-toggle [aria-checked="true"]')?.dataset.mode,
+        era: document.querySelector('#era-picker [aria-checked="true"]')?.dataset.era,
+      }));
+      add(
+        "play-again",
+        "Play Again returns a guest to the Play screen with the same difficulty and era selected",
+        back && kept.difficulty === difficulty && kept.era === era,
+        JSON.stringify(kept)
+      );
       await page.locator("#btn-header-signin").click();
       await page.locator("#screen-auth:not(.hidden) #field-auth-identifier:not([hidden])").waitFor({ timeout: 10000 });
       await page.locator("#input-auth-identifier").fill("guest-selftest@example.com");
