@@ -1899,6 +1899,7 @@ const rotationGridEl = document.getElementById("rotation-grid");
 const rotationTotalEl = document.getElementById("rotation-total");
 const rotationPhaseHintEl = document.getElementById("rotation-phase-hint");
 const btnConfirmRotation = document.getElementById("btn-confirm-rotation");
+const btnRotationDefault = document.getElementById("btn-rotation-default");
 const matchupPhaseEl = document.getElementById("matchup-phase");
 const matchupGridEl = document.getElementById("matchup-grid");
 const matchupPhaseHintEl = document.getElementById("matchup-phase-hint");
@@ -1927,27 +1928,8 @@ function cleanupTacticTimer() {
   }
 }
 
-function renderTactics() {
-  const groups = sport().strategyGroups;
-  if (groups && strategy.strategy) {
-    // Only what this game offered, not the whole catalogue.
-    const offered = strategy.offeredPlans
-      ? groups.map((g) => ({ ...g, plans: strategy.offeredPlans[g.key] || g.plans }))
-      : groups;
-    renderStrategyGroups(tacticGridEl, offered, strategy.strategy, (groupKey, id) => {
-      strategy.strategy = { ...strategy.strategy, [groupKey]: id };
-      renderTactics();
-    });
-    return;
-  }
-  renderTacticPicker(tacticGridEl, strategy.offeredTactics, strategy.tactic, (id) => {
-    strategy.tactic = id;
-    renderTactics();
-  });
-}
-
 /** Final round: both rosters are set, 45 seconds to commit to a plan. Running
- * out doesn't punish you - it locks in whatever is highlighted - because the
+ * out doesn't punish you - it locks in your choice, or the first plan if there is none - because the
  * timer exists to keep a match moving, not to tax indecision. */
 /** @param opts.timed false runs the phase with no clock at all - Easy practice's
  * whole identity is "no clock", and giving it a 45-second gamestyle timer
@@ -1962,6 +1944,12 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
   const perGroup = sport().strategyChoices || 3;
   let groupIndex = 0;
 
+  // NOTHING IS PRE-CHOSEN. The first card used to arrive highlighted, and
+  // testers took the highlight for the game having decided - so they pressed
+  // Play without ever reading the three plans. The button waits for a choice.
+  // Only the clock running out falls back to the first plan on offer, because
+  // a match has to move on (see confirm).
+  //
   // Grouped sports (NFL) make each side of the ball its own round.
   // Draw all offers once so advancing from offense to defense never
   // rerolls either hand, then show only the current group.
@@ -1975,13 +1963,11 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
       }
       strategy.offeredPlans[group.key] = picked;
     }
-    strategy.strategy = Object.fromEntries(
-      groups.map((g) => [g.key, strategy.offeredPlans[g.key][0].id])
-    );
+    strategy.strategy = Object.fromEntries(groups.map((g) => [g.key, null]));
   } else {
     // Basketball keeps the original single-round 3-card gamestyle.
     strategy.offeredTactics = sport().randomTacticChoices(3);
-    strategy.tactic = strategy.offeredTactics[0].id;
+    strategy.tactic = null;
   }
 
   draftPoolPanel.classList.add("hidden");
@@ -2004,23 +1990,25 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
     }, 1000);
   }
 
+  const chosen = () => (groups && groups.length ? !!strategy.strategy[groups[groupIndex].key] : !!strategy.tactic);
+  const syncButton = () => {
+    btnPlayGame.disabled = !chosen();
+  };
+
+  // Drawing a round and starting its clock are separate on purpose: choosing a
+  // card redraws, and it used to restart football's clock on every tap.
   function renderCurrentRound() {
     if (!groups || !groups.length) {
-      renderTactics();
-      startRoundTimer();
+      renderTacticPicker(tacticGridEl, strategy.offeredTactics, strategy.tactic, (id) => {
+        strategy.tactic = id;
+        renderCurrentRound();
+      });
+      syncButton();
       return;
     }
 
     const group = groups[groupIndex];
     const plans = strategy.offeredPlans[group.key] || group.plans;
-    const isOffense = group.key === "offense";
-    const roundName = isOffense ? "Offensive Gameplan" : group.key === "defense" ? "Defensive Gameplan" : (group.label || "Gameplan");
-
-    draftTurnBanner.textContent = `${roundName} — Round ${groupIndex + 1} of ${groups.length}`;
-    tacticPhaseHintEl.textContent = timed
-      ? `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds — choose 1 of ${plans.length} ${roundName.toLowerCase()} options.`
-      : `Choose 1 of ${plans.length} ${roundName.toLowerCase()} options.`;
-
     renderStrategyGroups(
       tacticGridEl,
       [{ ...group, plans }],
@@ -2030,22 +2018,43 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
         renderCurrentRound();
       }
     );
+    syncButton();
+  }
 
-    btnPlayGame.textContent = groupIndex < groups.length - 1
-      ? "Lock Offense & Continue"
-      : "Lock Defense & Continue";
+  function beginRound() {
+    if (groups && groups.length) {
+      const group = groups[groupIndex];
+      const plans = strategy.offeredPlans[group.key] || group.plans;
+      const roundName = group.key === "offense" ? "Offensive game plan" : group.key === "defense" ? "Defensive game plan" : (group.label || "Game plan");
+      enterSetupStep(roundName);
+      tacticPhaseHintEl.textContent = setupHint(`Choose 1 of ${plans.length} plans.`, timed, "the first plan");
+      btnPlayGame.textContent = groupIndex < groups.length - 1 ? "Lock offense and continue" : "Lock defense and play";
+    } else {
+      enterSetupStep("Pick your game plan");
+      tacticPhaseHintEl.textContent = setupHint("Choose how this team plays.", timed, "the first plan");
+      btnPlayGame.textContent = "Play Game";
+    }
+    renderCurrentRound();
     startRoundTimer();
   }
 
   function confirm() {
     cleanupTacticTimer();
+    // The clock ran out with nothing chosen: the first plan on offer, said in
+    // the hint before it happened (see setupHint).
+    if (groups && groups.length) {
+      const key = groups[groupIndex].key;
+      if (!strategy.strategy[key]) strategy.strategy = { ...strategy.strategy, [key]: strategy.offeredPlans[key][0].id };
+    } else if (!strategy.tactic) {
+      strategy.tactic = strategy.offeredTactics[0].id;
+    }
 
     // NFL offense confirms into a brand-new defensive round with a
     // fresh clock and its own three random choices. Nothing from the
     // defensive hand is visible while offense is being chosen.
     if (groups && groupIndex < groups.length - 1) {
       groupIndex += 1;
-      renderCurrentRound();
+      beginRound();
       return;
     }
 
@@ -2054,13 +2063,60 @@ function startTacticPhase(onConfirm, { timed = true } = {}) {
     pickTimerEl.hidden = true;
     pickTimerEl.textContent = "";
     btnPlayGame.onclick = null;
+    btnPlayGame.disabled = false;
     btnPlayGame.textContent = "Play Game";
+    endSetup();
     onConfirm();
   }
 
   btnPlayGame.onclick = confirm;
-  renderCurrentRound();
+  beginRound();
 }
+
+// ---- Setup steps ----
+// Rotation, matchups and the game plan are one sequence, and a phone showed
+// them as three unlabelled screens under a grade card and two rosters. They are
+// numbered now, and everything that is not the current decision folds behind
+// one button (see .setup-live in style.css).
+
+const btnViewRosters = document.getElementById("btn-view-rosters");
+let setupStep = 0;
+
+/** How many decisions follow the draft, from what the sport declares - three
+ * for basketball, two (offense, defense) for football. */
+function setupStepCount() {
+  return (hasRotation() ? 1 : 0) + (hasMatchups() ? 1 : 0) + (sport().strategyGroups?.length || 1);
+}
+
+function beginSetup() {
+  setupStep = 0;
+  draftScreenEl.classList.add("setup-live");
+  draftScreenEl.classList.remove("show-rosters");
+  btnViewRosters.setAttribute("aria-expanded", "false");
+}
+
+function enterSetupStep(title) {
+  setupStep += 1;
+  draftRoundLabel.textContent = `Step ${Math.min(setupStep, setupStepCount())} of ${setupStepCount()}`;
+  draftTurnBanner.classList.remove("turn-reveal");
+  draftTurnBanner.textContent = title;
+}
+
+function endSetup() {
+  draftScreenEl.classList.remove("setup-live", "show-rosters");
+}
+
+/** A phase's hint, plus what the clock will do. A setup screen that moves on by
+ * itself has to say so before it does - testers on a phone watched matchups
+ * turn into the game plan before they had confirmed anything. */
+function setupHint(text, timed, fallback) {
+  return timed ? `${text} If the clock runs out, ${fallback} is used.` : text;
+}
+
+btnViewRosters.addEventListener("click", () => {
+  const open = draftScreenEl.classList.toggle("show-rosters");
+  btnViewRosters.setAttribute("aria-expanded", String(open));
+});
 
 /** Re-show the gamestyle screen as a retry, without re-running the phase.
  *
@@ -2141,12 +2197,26 @@ function startRotationPhase(roster, slots, onConfirm, timerSeconds = ROTATION_TI
   cleanupPickTimer();
   cleanupRotationTimer();
   strategy.rotationMinutes = sport().defaultMinutes(roster);
+  enterSetupStep("Set your rotation");
+  rotationPhaseHintEl.textContent = setupHint(
+    `Share ${sport().rotationBudget} ${sport().labels.unit} across your roster. Starters usually play more.`,
+    timed,
+    `what is set now`
+  );
   // Confirm stays locked until the whole 240 is spent. Leaving minutes on the
   // table is never a real choice - it just fields a weaker team - so it's
   // blocked rather than warned about.
-  renderRotationPicker(rotationGridEl, roster, strategy.rotationMinutes, rotationTotalEl, slots, (valid) => {
-    btnConfirmRotation.disabled = !valid;
-  });
+  const draw = () =>
+    renderRotationPicker(rotationGridEl, roster, strategy.rotationMinutes, rotationTotalEl, slots, (valid) => {
+      btnConfirmRotation.disabled = !valid;
+    });
+  draw();
+  // Back to the split the screen opened with, in one tap - a rotation pulled
+  // out of shape on a phone was otherwise forty taps from being valid again.
+  btnRotationDefault.onclick = () => {
+    Object.assign(strategy.rotationMinutes, sport().defaultMinutes(roster));
+    draw();
+  };
 
   draftPoolPanel.classList.add("hidden");
   rotationPhaseEl.classList.remove("hidden");
@@ -2205,6 +2275,12 @@ function startMatchupPhase(myRoster, oppRoster, oppLabel, onConfirm, { timed = t
   const myStarters = sport().slots.starters.filter((slot) => myRoster[slot]);
   const oppStarters = sport().slots.starters.filter((slot) => oppRoster[slot]);
   strategy.matchups = sport().defaultMatchups(myRoster, oppRoster);
+  enterSetupStep("Set your defensive matchups");
+  matchupPhaseHintEl.textContent = setupHint(
+    `Choose who each of your starters defends. Pick someone already covered and the two players swap.`,
+    timed,
+    `what is set now`
+  );
 
   renderMatchupPicker(matchupGridEl, myRoster, oppRoster, myStarters, oppStarters, strategy.matchups, oppLabel);
 
@@ -2305,6 +2381,7 @@ function rememberSquad(squadId) {
 
 function startDraft() {
   cleanupPickTimer();
+  endSetup();
   cleanupTacticTimer();
   cleanupRotationTimer();
   cleanupMatchupTimer();
@@ -2945,25 +3022,19 @@ function renderDraftComplete() {
   // Easy runs the same phases with no clock on any of them. That is the only
   // difference: the phases, the choices and what the engine does with them are
   // identical at all three difficulties.
-  const timed = matchConfig().timed;
+  //
+  // NO CLOCK AFTER A LOCAL DRAFT, at any difficulty. Nobody is waiting on the
+  // other side of a bot, and these three screens moving on by themselves was
+  // the loudest complaint about them: on a phone, matchups turned into the
+  // game plan before the tester had confirmed anything. Difficulty is a
+  // drafting rule (see js/modes.js); the pick clock still runs. Online keeps
+  // its clocks, because there a real opponent is waiting.
+  const timed = false;
+  beginSetup();
 
-  draftTurnBanner.textContent = "Set your rotation";
-  rotationPhaseHintEl.textContent =
-    `${sport().rotationBudget} ${sport().labels.unit} to spend. Starters play more than the bench. ` +
-    `Lower someone to free ${sport().labels.unit} before raising someone else.`;
-  const toTactic = () => {
-    draftTurnBanner.textContent = "Final round — set your game plan";
-    tacticPhaseHintEl.textContent = timed
-      ? `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`
-      : "Choose how this team plays - no clock, take your time.";
-    startTacticPhase(runLocalSimulation, { timed });
-  };
+  const toTactic = () => startTacticPhase(runLocalSimulation, { timed });
   const afterRotationOffline = () => {
     if (!hasMatchups()) return toTactic();
-    draftTurnBanner.textContent = "Set your defensive matchups";
-    matchupPhaseHintEl.textContent =
-      `Your starters are on their opposite numbers by default. Move anyone you want - ` +
-      `switching two players trades their assignments.`;
     startMatchupPhase(draft.rosterA, draft.rosterB, game.nameB, toTactic, { timed });
   };
   // Straight past both phases for a sport that has neither. NFL has no minutes
@@ -3614,12 +3685,7 @@ async function beginOnlineStrategyPhase(match) {
     forfeits: [...(o.forfeits || []), ...sport().slots.ranked.filter((slot) => !o.myRoster[slot])],
   });
 
-  if (hasRotation()) {
-    draftTurnBanner.textContent = "Set your rotation";
-    rotationPhaseHintEl.textContent =
-      `${sport().rotationBudget} ${sport().labels.unit} to spend. Starters play more than the bench. ` +
-      `Lower someone to free ${sport().labels.unit} before raising someone else.`;
-  }
+  beginSetup();
   /**
    * Commit rotation + matchups + gamestyle, and recover in place if that
    * fails.
@@ -3680,17 +3746,9 @@ async function beginOnlineStrategyPhase(match) {
     }
   };
 
-  const onlineTactic = () => {
-      draftTurnBanner.textContent = "Final round — set your game plan";
-      tacticPhaseHintEl.textContent = `${sport().tacticTimerSeconds || TACTIC_TIMER_SECONDS} seconds to choose how this team plays.`;
-      startTacticPhase(submitOnlineStrategy);
-  };
+  const onlineTactic = () => startTacticPhase(submitOnlineStrategy);
   const afterRotationOnline = () => {
     if (!hasMatchups()) return onlineTactic();
-    draftTurnBanner.textContent = "Set your defensive matchups";
-    matchupPhaseHintEl.textContent =
-      `Your starters are on their opposite numbers by default. Move anyone you want - ` +
-      `switching two players trades their assignments.`;
     startMatchupPhase(o.myRoster, o.oppRoster, o.oppUsername, onlineTactic);
   };
   if (hasRotation()) {

@@ -821,6 +821,11 @@
            it - see the phone layout pass in style.css. -->
       <div class="position-selector" id="position-selector"></div>
 
+      <!-- Only while the post-draft steps are up (.setup-live): the grade and,
+           on a phone, both rosters fold behind this so each step shows one
+           decision. See the setup-steps block in js/main.js. -->
+      <button id="btn-view-rosters" class="link-btn view-rosters" type="button" aria-expanded="false" aria-controls="draft-grade">Draft grade and rosters</button>
+
       <!-- The grade for the roster you just built, shown before a minute is
            simulated. See js/draftgrade.js. -->
       <div id="draft-grade" class="draft-grade hidden">
@@ -863,8 +868,15 @@
           <h3 class="tactic-heading">Set your rotation</h3>
           <p class="hint-text" id="rotation-phase-hint">Both rosters are set. Assign minutes across your roster.</p>
           <div class="rotation-grid" id="rotation-grid"></div>
-          <p class="rotation-total" id="rotation-total"></p>
-          <button id="btn-confirm-rotation" class="btn btn-primary btn-block">Confirm Rotation</button>
+          <!-- Sticky on a phone: ten rows of minutes put Confirm, and the count
+               it waits on, below the fold. -->
+          <div class="phase-actions">
+            <p class="rotation-total" id="rotation-total" aria-live="polite"></p>
+            <div class="phase-actions-row">
+              <button id="btn-rotation-default" class="btn btn-secondary" type="button">Use default</button>
+              <button id="btn-confirm-rotation" class="btn btn-primary">Confirm Rotation</button>
+            </div>
+          </div>
         </div>
 
         <div class="tactic-phase hidden" id="matchup-phase">

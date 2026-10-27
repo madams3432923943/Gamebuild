@@ -9,7 +9,7 @@
 import { escapeHtml } from "../lib/escape-html.js";
 import { activeSport } from "../sports/index.js";
 import { rosterSlots, slotLabel } from "./roster-slots.js";
-import { displayEntryName } from "./entry-name.js";
+import { displayEntryName, seasonLabel } from "./entry-name.js";
 
 /** Rotation phase, NBA 2K franchise style: one slider per player, with each
  * position's two players coupled to that position's 48 minutes. Dragging a
@@ -57,6 +57,14 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
 
   const rows = [];
 
+  // The most this slot may hold right now: its own minutes plus whatever is
+  // still unspent, never past the position's maximum.
+  const capFor = (slot) => {
+    const spent = list.reduce((sum, s) => sum + (minutesMap[s] || 0), 0);
+    const remaining = activeSport().rotationBudget - spent;
+    return Math.min(activeSport().minutesRangeFor(slot).max, (minutesMap[slot] || 0) + Math.max(0, remaining));
+  };
+
   const sync = () => {
     const spent = list.reduce((sum, slot) => sum + (minutesMap[slot] || 0), 0);
     const remaining = activeSport().rotationBudget - spent;
@@ -66,10 +74,16 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
       // no more. That is what makes going over 240 impossible rather than
       // merely discouraged - there is no invalid state to validate against.
       const cap = Math.min(max, minutesMap[slot] + Math.max(0, remaining));
+      // The TRACK keeps the position's full range and the value is clamped on
+      // input instead (see capFor). Shrinking the track to the cap put every
+      // thumb at its right-hand end once the budget was spent, which read as
+      // "every player is maxed out" on a full and perfectly ordinary rotation.
       rows[i].slider.min = String(min);
-      rows[i].slider.max = String(cap);
+      rows[i].slider.max = String(max);
       rows[i].slider.value = String(minutesMap[slot]);
       rows[i].value.textContent = `${minutesMap[slot]} min`;
+      rows[i].less.disabled = minutesMap[slot] <= min;
+      rows[i].more.disabled = minutesMap[slot] >= cap;
     });
     renderRotationTotal(totalEl, minutesMap, list);
     if (onValidChange) onValidChange(remaining === 0);
@@ -93,9 +107,11 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
 
     const name = document.createElement("span");
     name.className = "rotation-label";
+    // Two lines, like the roster panel: who, then position and which season.
     name.innerHTML =
       `<span class="rotation-role">${bench ? "Bench" : slotLabel(slot)}</span> ` +
-      `${escapeHtml(displayEntryName(player))} <span class="rotation-pos">${player.pos.join("/")}</span>`;
+      `<span class="rotation-name">${escapeHtml(displayEntryName(player))}</span>` +
+      `<span class="rotation-meta">${escapeHtml(player.pos.join("/"))} · ${escapeHtml(seasonLabel(player))}</span>`;
     row.appendChild(name);
 
     const value = document.createElement("span");
@@ -110,16 +126,40 @@ export function renderRotationPicker(container, roster, minutesMap, totalEl, slo
     slider.max = String(max);
     slider.value = String(minutesMap[slot] ?? min);
     slider.addEventListener("input", () => {
-      minutesMap[slot] = Math.min(max, Math.max(min, parseInt(slider.value, 10) || min));
+      minutesMap[slot] = Math.min(capFor(slot), Math.max(min, parseInt(slider.value, 10) || min));
       sync();
     });
 
-    rows.push({ slider, value });
-    cell.append(row, slider);
+    // STEPPERS BESIDE THE SLIDER. A thin range input that has to land on an
+    // exact total was the hardest control in the game to use on a phone:
+    // testers dragged, overshot and gave up. One tap is one minute, and the
+    // slider stays for the big moves.
+    const step = (delta) => {
+      minutesMap[slot] = Math.min(capFor(slot), Math.max(min, (minutesMap[slot] || 0) + delta));
+      sync();
+    };
+    const less = stepperButton("−", `One minute less for ${player.name}`, () => step(-1));
+    const more = stepperButton("+", `One minute more for ${player.name}`, () => step(1));
+    const control = document.createElement("div");
+    control.className = "rotation-control";
+    control.append(less, slider, more);
+
+    rows.push({ slider, value, less, more });
+    cell.append(row, control);
     container.appendChild(cell);
   }
 
   sync();
+}
+
+function stepperButton(text, label, onClick) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "rotation-step";
+  btn.textContent = text;
+  btn.setAttribute("aria-label", label);
+  btn.addEventListener("click", onClick);
+  return btn;
 }
 
 function renderRotationTotal(totalEl, minutesMap, list) {
@@ -129,8 +169,9 @@ function renderRotationTotal(totalEl, minutesMap, list) {
     totalEl.textContent = `All ${activeSport().rotationBudget} minutes assigned`;
     totalEl.className = "rotation-total";
   } else {
+    // The number left LEADS, because it is the one the player is working to.
     totalEl.textContent =
-      `${spent} of ${activeSport().rotationBudget} assigned \u2014 ${remaining} minute${remaining === 1 ? "" : "s"} still to give out`;
+      `${remaining} minute${remaining === 1 ? "" : "s"} left to give out (${spent} of ${activeSport().rotationBudget})`;
     totalEl.className = "rotation-total rotation-warning";
   }
 }
@@ -155,16 +196,24 @@ export function renderMatchupPicker(container, myRoster, oppRoster, myStarters, 
 
       const mine = document.createElement("span");
       mine.className = "matchup-mine";
-      mine.innerHTML = `<span class="matchup-slot">${slot}</span>${escapeHtml(myRoster[slot].name)}`;
+      mine.innerHTML =
+        `<span class="matchup-slot">${escapeHtml(slot)}</span>` +
+        `<span class="matchup-name">${escapeHtml(myRoster[slot].name)}</span>` +
+        `<span class="matchup-meta">${escapeHtml(seasonLabel(myRoster[slot]))}</span>`;
       row.appendChild(mine);
 
+      // "GUARDS" in capitals between a name and a dropdown read as a heading,
+      // and testers did not see that the dropdown was the choice. It is a
+      // sentence now - "Kobe Bryant defends" then the man he is on - with the
+      // dropdown labelled for a screen reader the same way.
       const arrow = document.createElement("span");
       arrow.className = "matchup-arrow";
-      arrow.textContent = "guards";
+      arrow.textContent = "defends";
       row.appendChild(arrow);
 
       const pick = document.createElement("select");
       pick.className = "matchup-pick";
+      pick.setAttribute("aria-label", `Who ${myRoster[slot].name} defends`);
       for (const target of oppStarters) {
         const opt = document.createElement("option");
         opt.value = target;
@@ -271,21 +320,33 @@ function tacticCard(tactic, selectedId, onSelect) {
     // content - and it inherited the blurb's line box, so every chip ran
     // together into "+2 Rushing+2 Ball Control-2 Explosive Plays". The
     // tradeoff was on screen and unreadable, which is the same as absent.
-    if (tactic.up || tactic.down) {
+    //
+    // IN WORDS, NOT RATINGS. "+2 3PT Shooting, +2 Switching Defense" read as
+    // jargon to every tester. The direction is what a player decides on, so the
+    // card says "Better at" and "Worse at"; the sizes are the sport's own data
+    // and stay on the chip's tooltip for anyone who wants them.
+    if (tactic.up?.length || tactic.down?.length) {
       const trade = document.createElement("span");
       trade.className = "tactic-trade";
-      for (const [items, cls] of [[tactic.up, "up"], [tactic.down, "down"]]) {
-        for (const item of items || []) {
-          const chip = document.createElement("span");
-          chip.className = `tactic-trade-item ${cls}`;
-          chip.textContent = item;
-          trade.appendChild(chip);
-        }
+      for (const [items, cls, lead] of [[tactic.up, "up", "Better at"], [tactic.down, "down", "Worse at"]]) {
+        if (!items?.length) continue;
+        const line = document.createElement("span");
+        line.className = `tactic-trade-item ${cls}`;
+        line.textContent = `${lead}: ${items.map(plainTrade).join(", ")}`;
+        line.title = items.join(", ");
+        trade.appendChild(line);
       }
       btn.appendChild(trade);
     }
 
+    btn.setAttribute("aria-pressed", String(tactic.id === selectedId));
     btn.addEventListener("click", () => onSelect(tactic.id));
     return btn;
   }
+}
+
+/** "+2 3PT Shooting" -> "3PT shooting". The sign is said by the line it sits on. */
+function plainTrade(item) {
+  const text = String(item).replace(/^[+\-\u2212]\s*\d+(\.\d+)?\s*/, "");
+  return text.charAt(0) + text.slice(1).toLowerCase();
 }

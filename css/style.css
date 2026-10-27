@@ -11107,3 +11107,171 @@ table.box-table tfoot .box-totals td:nth-child(2) {
     font-size: 1rem;
   }
 }
+
+/* ---- Post-draft steps, UX pass section B (docs/ux-pass-2026-10.md) --------
+   Rotation, matchups and game plan are numbered steps now ("Step 1 of 3"),
+   and while one is up (.setup-live on #screen-draft) the draft grade folds
+   behind one button everywhere, and both rosters fold behind it on a phone.
+   One decision per screen; the reference material is a tap away. */
+#btn-view-rosters {
+  display: none;
+  min-height: 44px;
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+#screen-draft.setup-live #btn-view-rosters {
+  display: inline-block;
+}
+
+#screen-draft.setup-live:not(.show-rosters) #draft-grade {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  #screen-draft.setup-live:not(.show-rosters) .draft-body .roster-panel {
+    display: none;
+  }
+}
+
+/* Rotation rows: two lines (who, then position and season), and a stepper
+   either side of the slider. */
+.rotation-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.35rem;
+  white-space: normal;
+}
+
+.rotation-name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rotation-meta {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: var(--text-micro);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rotation-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.rotation-control .rotation-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rotation-step {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rotation-step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rotation-value {
+  font-size: 0.9rem;
+}
+
+/* The count and the buttons, together. */
+.phase-actions .rotation-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.phase-actions-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.phase-actions-row .btn-primary {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 860px) {
+  /* A bigger thumb for the drags that remain. */
+  .rotation-slider {
+    height: 32px;
+  }
+
+  .phase-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 -0.55rem;
+    padding: 0.6rem 0.55rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    background: var(--surface-2);
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* Matchups: a sentence, "Kobe Bryant defends [their SG]". */
+.matchup-name {
+  display: block;
+  font-weight: 600;
+}
+
+.matchup-meta {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-micro);
+}
+
+.matchup-arrow {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.matchup-pick {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+@media (max-width: 520px) {
+  /* Name over the choice, so neither is squeezed to a third of a phone. */
+  .matchup-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .matchup-row .matchup-pick {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Game plan trade-offs are sentences now ("Better at: ..."), so they wrap. */
+.tactic-trade {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tactic-trade-item {
+  white-space: normal;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  border-radius: 8px;
+}
