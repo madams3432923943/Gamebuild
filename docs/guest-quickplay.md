@@ -63,8 +63,9 @@ What differs is decided by `isGuest()`:
   sign-up card is shown. View Profile and Return to Home carry
   `.signed-in-only`, which `:root[data-guest]` hides.
 - **Where "home" is.** Every exit goes through `goHome()`, which sends a
-  guest to the landing. Play Again does too, since a guest's setup screen is
-  the landing.
+  guest to the landing. Play Again is the exception: it starts the next draft
+  of the same sport directly, because going back to the landing read as being
+  thrown out of the game (see `docs/ux-pass-2026-10.md`, section C).
 
 ### Guests are in no user metric
 

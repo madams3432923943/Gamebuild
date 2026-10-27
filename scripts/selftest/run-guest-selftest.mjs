@@ -185,12 +185,15 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
       }));
       add("maybe-later", "Maybe later closes the card and puts focus on Play Again", later.cardHidden && later.focused === "btn-play-again", JSON.stringify(later));
       await page.locator("#btn-play-again").click();
-      const back = await page
-        .locator(":root[data-guest] #screen-quickplay:not(.hidden)")
+      // Straight into the next draft, same sport, still a guest. It used to go
+      // back to Quickplay, which testers read as being thrown out of the game.
+      const again = await page
+        .locator(":root[data-guest] #screen-draft:not(.hidden) #pool-search:not([hidden])")
         .waitFor({ timeout: 10000 })
         .then(() => true)
         .catch(() => false);
-      add("play-again", "Play Again takes a guest back to Quickplay, one tap from the next game", back, "");
+      const label = await page.locator("#draft-round-label").textContent().catch(() => "");
+      add("play-again", "Play Again takes a guest straight into a new draft", again && /^Pick 1 of /.test(label || ""), label || "");
       await page.locator("#btn-header-signin").click();
       await page.locator("#screen-auth:not(.hidden) #field-auth-identifier:not([hidden])").waitFor({ timeout: 10000 });
       await page.locator("#input-auth-identifier").fill("guest-selftest@example.com");
