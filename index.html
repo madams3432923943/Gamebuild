@@ -390,7 +390,9 @@
           Make a free account, add your friends by username, and challenge them to an
           NBA or NFL draft. Same squads, same clock, and the game decides whose team wins.
         </p>
-        <button type="button" class="btn btn-primary btn-block" id="btn-quickplay-friends">Play your friends now</button>
+        <!-- Secondary on purpose: the NBA and NFL cards above are the thing to
+             press on this page, and an orange block here outweighed them. -->
+        <button type="button" class="btn btn-secondary btn-block" id="btn-quickplay-friends">Play your friends now</button>
         <p class="hint-text quickplay-signin-line">
           Already have an account?
           <button type="button" class="link-btn" id="btn-quickplay-signin">Sign in</button>
@@ -894,6 +896,9 @@
         </div>
 
         <div class="draft-pool-panel" id="draft-pool-panel">
+          <!-- "How a round works", on a device's first draft only. See
+               js/ui/round-intro.js. -->
+          <section id="round-intro" class="round-intro" aria-label="How a round works" hidden></section>
           <input id="pool-search" type="text" placeholder="Type a player's name from memory…" autocomplete="off" />
           <p class="knowledge-hint" id="knowledge-hint"></p>
           <div id="pool-help" class="pool-help" hidden>

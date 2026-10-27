@@ -11369,3 +11369,89 @@ table.box-table tfoot .box-totals td:nth-child(2) {
     margin-inline: auto;
   }
 }
+
+/* ---- First-draft intro, UX pass section D (docs/ux-pass-2026-10.md) ------ */
+.round-intro {
+  margin: 0 0 0.6rem;
+  padding: 0.7rem 0.8rem 0.3rem;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.round-intro[hidden] {
+  display: none;
+}
+
+.round-intro-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.round-intro-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.round-intro-steps strong {
+  color: var(--text);
+}
+
+.round-intro-done {
+  min-height: 44px;
+  font-size: 0.9rem;
+}
+
+/* ---- Phone floors, UX pass section E -------------------------------------
+   Measured by the testers at 390px: a 15px-tall Sign in link, 28px legal
+   links, 13px helper text. 44px for anything you tap, 14px for anything you
+   read. */
+#btn-quickplay-signin {
+  min-height: 44px;
+  padding: 0 0.4rem;
+}
+
+.legal-links a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .hint-text,
+  .legal-note,
+  .quickplay-status {
+    font-size: 0.875rem;
+  }
+
+  /* iOS Safari zooms the whole page into any focused field under 16px. A
+     floor, so a later, more specific rule cannot quietly undercut it. */
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: max(16px, 1rem) !important;
+  }
+}
+
+/* The empty middle column on a desktop draft board was a large blank panel
+   under the search box. It says what will appear there instead. */
+@media (min-width: 861px) {
+  #pool-search:not([hidden]) ~ #pool-list:empty::before {
+    content: "Matches appear here as you type.";
+    display: block;
+    padding: 1.5rem 0.5rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  .knowledge-hint {
+    font-size: 0.95rem;
+  }
+}

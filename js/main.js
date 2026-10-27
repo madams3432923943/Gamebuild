@@ -8,8 +8,9 @@ import { wornColours, rgbString, kitById, KITS, DEFAULT_KIT_ID, botKitFor } from
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
-import { showScreen, setActiveNav, openModal, closeModal, isModalOpen, sleep } from "./shell.js";
+import { showScreen, currentScreen, setActiveNav, openModal, closeModal, isModalOpen, sleep } from "./shell.js";
 import { showToast } from "./ui/toast.js";
+import { maybeShowRoundIntro, hideRoundIntro } from "./ui/round-intro.js";
 import { endPickTurn, pickModalScope } from "./ui/pick-modal.js";
 import { initBrandFallbacks } from "./brand-fallback.js";
 import { withSeededMathRandom } from "./lib/seeded-rng.js";
@@ -1851,6 +1852,9 @@ const squadBannerEraEl = document.getElementById("squad-banner-era");
 function renderDraftEra(eraId) {
   const era = sport().eraById(eraId || getEra());
   squadBannerEraEl.textContent = `${era.emoji} ${era.label}`;
+  // What the chip MEANS, for anyone who wonders: testers read "ALL YEARS" as a
+  // setting they could change mid-draft. The first-draft intro says it too.
+  squadBannerEraEl.title = era.blurb ? `${era.label}: ${era.blurb}` : era.label;
 }
 const draftTurnBanner = document.getElementById("draft-turn-banner");
 const btnLeaveMatch = document.getElementById("btn-leave-match");
@@ -2381,6 +2385,7 @@ function rememberSquad(squadId) {
 
 function startDraft() {
   cleanupPickTimer();
+  hideRoundIntro(roundIntroEl);
   endSetup();
   cleanupTacticTimer();
   cleanupRotationTimer();
@@ -2472,6 +2477,9 @@ function advanceDraft() {
       // hidden forfeit path behind this, only the absence of one.
       if (matchConfig().timed) startPickTimer(handleLocalTimeout, { seconds: pickTimerSeconds(), pausable: true });
       renderDraftRound();
+      if (game.roundNumber === 1) {
+        maybeShowRoundIntro(roundIntroEl, { era: sport().eraById(game.era), picks: game.draft.slots.length, rival: "The bot" });
+      }
       return;
     }
     game.round.resolved[pendingHuman] = true;
@@ -2577,6 +2585,7 @@ function renderPoolForCurrentState({ settled = true } = {}) {
 // practice is still practice at naming players, and a list that was always on
 // would turn the draft into reading one. See renderSuggestions.
 const poolHelpEl = document.getElementById("pool-help");
+const roundIntroEl = document.getElementById("round-intro");
 const poolSuggestionsEl = document.getElementById("pool-suggestions");
 const btnPoolIdeas = document.getElementById("btn-pool-ideas");
 let suggestionsShown = false;
@@ -2635,6 +2644,7 @@ function onPoolPick(player) {
 
 function finalizePick(player, slot) {
   cleanupPickTimer();
+  hideRoundIntro(roundIntroEl);
   const side = game.round.activeSide;
   game.draft.makePick(side, player, slot);
   game.round.resolved[side] = true;
@@ -6105,6 +6115,20 @@ btnGameHome.addEventListener("click", () => {
   goHome();
 });
 
+// A GAME IN PROGRESS ASKS BEFORE THE PAGE GOES. Nothing about a local draft
+// survives a reload, so a reload, a back-swipe or a mistyped shortcut mid-draft
+// used to drop the player on the homepage with the game gone and nothing said -
+// which is the most likely explanation for the one report of exactly that
+// (docs/ux-pass-2026-10.md, section F). The browser draws its own prompt; this
+// only says whether one is needed. A finished game, or no game, never asks.
+window.addEventListener("beforeunload", (e) => {
+  const screen = currentScreen();
+  const inProgress = screen === "draft" || (screen === "game" && btnPlayAgain.classList.contains("hidden"));
+  if (!inProgress) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
+
 // ---- Profile screen ----
 
 // The identity card at the top of the profile. Built rather than written into
@@ -6897,6 +6921,14 @@ initBrandFallbacks();
     return;
   }
 
+  // NO STORED SESSION MEANS A GUEST, and a guest does not wait for the auth
+  // library. The homepage's NBA and NFL buttons stayed disabled until
+  // supabase-js had downloaded from its CDN just to answer "no session" - a
+  // pause testers noticed with nothing on screen to explain it. The same
+  // storage key boot-session-hint.js reads decides it; the check below still
+  // runs, so a session that exists anyway is honoured.
+  if (!document.documentElement.hasAttribute("data-session-hint")) enterGuestMode();
+
   try {
     const session = await getSession();
     if (session) {
@@ -6906,6 +6938,9 @@ initBrandFallbacks();
   } catch (e) {
     console.error("Couldn't check the existing session:", e);
   }
+  // Already a guest (above) and possibly already playing: entering guest mode
+  // a second time would show the homepage over a draft in progress.
+  if (isGuest()) return;
   // No session - or no way to check one - is a guest, and a guest's first
   // screen is Quickplay rather than a form. A practice game needs no network
   // beyond the dataset, so this is also the right fallback when the auth CDN
