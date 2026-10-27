@@ -8,7 +8,8 @@ import { wornColours, rgbString, kitById, KITS, DEFAULT_KIT_ID, botKitFor } from
 import { confetti, playBuzzer, playFanfare, playDefeat, playWhoosh, playPop, replayAnimation } from "./celebrate.js";
 import { snapshotProgress, progressGains } from "./progress.js";
 import { game, strategy } from "./state.js";
-import { showScreen, setActiveNav, openModal, closeModal, sleep } from "./shell.js";
+import { showScreen, setActiveNav, openModal, closeModal, isModalOpen, sleep } from "./shell.js";
+import { showToast } from "./ui/toast.js";
 import { endPickTurn, pickModalScope } from "./ui/pick-modal.js";
 import { initBrandFallbacks } from "./brand-fallback.js";
 import { withSeededMathRandom } from "./lib/seeded-rng.js";
@@ -22,7 +23,7 @@ import { bannerById, DEFAULT_BANNER_ID } from "./banners.js";
 import { bannerArt } from "./ui/banner-art.js";
 import { DraftState, eligibleOpenSlots, openSlots, resolvePickSlot, worstEligiblePick } from "./draft.js";
 import { adviceNote, isNote, noteText } from "./gradenotes.js";
-import { OPENING_HOLD_MS, FINAL_HOLD_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS, MIN_SEARCH_CHARS } from "./constants.js";
+import { OPENING_HOLD_MS, FINAL_HOLD_MS, DRAFT_REVEAL_DELAY_MS, PICK_TIMER_SECONDS, FIRST_DRAFT_PICK_TIMER_SECONDS, PICK_WARNING_SECONDS, SEARCH_SETTLE_MS, TACTIC_TIMER_SECONDS, ROTATION_TIMER_SECONDS, ONLINE_ROTATION_TIMER_SECONDS, MATCHUP_TIMER_SECONDS, ONLINE_QUEUE_TIMEOUT_SECONDS, RESULT_WAIT_MS, SIMULATION_WAIT_MS, ONLINE_QUEUE_POLL_MS } from "./constants.js";
 // Slot lists and the default era still come from basketball directly. They are
 // read at module scope for DOM wiring that runs before any sport is chosen;
 // unpicking that is a separate change from this one.
@@ -50,11 +51,11 @@ import { maybeShowOnboarding } from "./onboarding.js";
 import { buildFeedbackForm } from "./ui/feedback-form.js";
 import { buildStamp } from "./lib/build-stamp.js";
 import { renderSponsor, releaseSponsor } from "./ads/placements.js";
-import { slotLabel, rosterSlots } from "./ui/roster-slots.js";
+import { slotLabel, slotChoices, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
-import { isGuest, setGuest, recordGuestGame, carryOverGuestGames } from "./guest.js";
+import { isGuest, setGuest, recordGuestGame, carryOverGuestGames, pendingGuestGames } from "./guest.js";
 import {
   MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
   resolveMode, modeLabel,
@@ -99,6 +100,7 @@ import {
   renderPositionSelector,
   renderRosterPanel,
   renderPool,
+  renderSuggestions,
   renderPickTimer,
   subjectVerb,
   renderFullBoxScore,
@@ -234,6 +236,8 @@ function cleanupPickTimer() {
   if (pickTimerEl) pickTimerEl.textContent = "";
   currentPickTimeoutHandler = null;
   btnForfeitPick.classList.add("hidden");
+  disarmForfeit();
+  setPickWarning(false);
   setPickLive(false);
   // Every way a pick window ends comes through here, so this is where a
   // season or slot picker opened during it is closed - see js/ui/pick-modal.js.
@@ -241,6 +245,7 @@ function cleanupPickTimer() {
 }
 
 const draftScreenEl = document.getElementById("screen-draft");
+const pickWarningEl = document.getElementById("pick-warning");
 
 /** Marks the draft screen as waiting on YOUR pick, which is what the status
  * row's hierarchy keys off: while it is set the on-clock badge and the timer
@@ -250,23 +255,43 @@ function setPickLive(live) {
   draftScreenEl.classList.toggle("pick-live", live);
 }
 
-/** (Re)starts the countdown from PICK_TIMER_SECONDS. Call exactly once per
- * new turn - never on a re-render of the same turn (e.g. picking a
- * multi-slot-eligible player just re-renders the position selector, it
- * doesn't start a new turn) or the clock would never run out. */
-function startPickTimer(onTimeout) {
+/** "We'll pick for you in 5s." An auto-pick used to arrive with no warning at
+ * all, so the first anyone knew of it was a stranger on their roster. */
+function setPickWarning(on) {
+  if (pickWarningEl) pickWarningEl.hidden = !on;
+}
+
+/** How long this pick gets. A guest's first draft on this device gets the long
+ * clock - see FIRST_DRAFT_PICK_TIMER_SECONDS. */
+function pickTimerSeconds() {
+  return isGuest() && pendingGuestGames().length === 0 ? FIRST_DRAFT_PICK_TIMER_SECONDS : PICK_TIMER_SECONDS;
+}
+
+/** (Re)starts the countdown. Call exactly once per new turn - never on a
+ * re-render of the same turn (e.g. picking a multi-slot-eligible player just
+ * re-renders the position selector, it doesn't start a new turn) or the clock
+ * would never run out.
+ *
+ * `pausable` stops the clock while a dialog is open. Testers lost 19 of their
+ * 30 seconds inside the season list and the slot picker, which are part of
+ * making the pick rather than time spent avoiding it. ONLINE IS NEVER
+ * PAUSABLE: the server holds that clock, and a client that paused its own copy
+ * would only be lying to the player about how long is left. */
+function startPickTimer(onTimeout, { seconds = PICK_TIMER_SECONDS, pausable = false } = {}) {
   cleanupPickTimer();
   currentPickTimeoutHandler = onTimeout;
   btnForfeitPick.classList.remove("hidden");
-  let secondsRemaining = PICK_TIMER_SECONDS;
+  let secondsRemaining = seconds;
   if (pickTimerEl) renderPickTimer(pickTimerEl, secondsRemaining);
   pickTimerInterval = setInterval(() => {
+    if (pausable && isModalOpen()) return;
     secondsRemaining -= 1;
     if (secondsRemaining <= 0) {
       cleanupPickTimer();
       onTimeout();
       return;
     }
+    setPickWarning(secondsRemaining <= PICK_WARNING_SECONDS);
     if (pickTimerEl) renderPickTimer(pickTimerEl, secondsRemaining);
   }, 1000);
 }
@@ -275,11 +300,33 @@ function startPickTimer(onTimeout) {
  * option on purpose (the same worst-eligible-combo/skip logic a timeout
  * already uses), for whenever nothing comes to mind and waiting isn't worth
  * it. Works identically in every mode with a pick clock (bot, ranked
- * practice, online), since all three funnel through startPickTimer. */
+ * practice, online), since all three funnel through startPickTimer.
+ *
+ * TWO TAPS. It sat beside the timer, the one thing on the board a player looks
+ * at under pressure, and one stray tap threw a pick away. The first tap arms it
+ * and says what the second will do; it disarms itself after a few seconds or
+ * when the pick window ends. */
+const FORFEIT_LABEL = btnForfeitPick.textContent;
+const FORFEIT_ARM_MS = 3000;
+let forfeitArmTimer = null;
+
+function disarmForfeit() {
+  clearTimeout(forfeitArmTimer);
+  forfeitArmTimer = null;
+  btnForfeitPick.classList.remove("armed");
+  btnForfeitPick.textContent = FORFEIT_LABEL;
+}
+
 btnForfeitPick.addEventListener("click", () => {
+  if (!btnForfeitPick.classList.contains("armed")) {
+    btnForfeitPick.classList.add("armed");
+    btnForfeitPick.textContent = "Tap again to forfeit";
+    forfeitArmTimer = setTimeout(disarmForfeit, FORFEIT_ARM_MS);
+    return;
+  }
   const handler = currentPickTimeoutHandler;
   cleanupPickTimer();
-  if (handler) handler();
+  if (handler) handler({ forfeited: true });
 });
 
 /** Position picker: which open slot should this player fill? */
@@ -301,18 +348,7 @@ function openSlotPicker(player, slots, onChoose, onCancel) {
   meta.textContent = `${player.pos.join(" / ")} · ${season} ${player.team}`;
   wrap.appendChild(meta);
 
-  // Bench spots are interchangeable, so offering five identical "Bench"
-  // buttons is noise dressed up as a decision - collapse them to one.
-  const benchSlots = slots.filter((s) => s.startsWith("BENCH"));
-  const choices = slots
-    .filter((s) => !s.startsWith("BENCH"))
-    .map((s) => ({ label: s === "6TH" ? "6th Man" : s, slot: s }));
-  if (benchSlots.length > 0) {
-    choices.push({
-      label: benchSlots.length > 1 ? `Bench (${benchSlots.length} open)` : "Bench",
-      slot: benchSlots[0],
-    });
-  }
+  const choices = slotChoices(slots);
 
   const grid = document.createElement("div");
   grid.className = "modal-slot-grid";
@@ -917,6 +953,36 @@ function openSeasonPicker(player, seasons, onChoose, showStats = false, placemen
       : "";
 
     const placeable = !placement || eligibleOpenSlots(s, placement.roster, placement.slots).length > 0;
+    // ONE SHEET, NOT TWO. A season that still leaves a real position choice
+    // used to close this sheet and open the slot picker - type, tap, pick a
+    // year, pick a slot, four steps with the clock going. The slots now sit on
+    // the season's own row, so one tap answers both. A season that fits one
+    // slot (or only the interchangeable bench) is still a single button and
+    // places itself, exactly as before.
+    const slotChoice = placeable && placement?.onChooseSlot ? resolvePickSlot(s, placement.roster, placement.slots) : null;
+    if (slotChoice && !slotChoice.slot && slotChoice.choices.length > 1) {
+      const group = document.createElement("div");
+      group.className = "season-option season-option-slots";
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-label", sport().seasonLabel(s.season));
+      group.append(...row.childNodes);
+      const buttons = document.createElement("div");
+      // modal-slot-grid too: it is the same grid of slot buttons the slot
+      // picker draws, and anything that drives that picker drives this.
+      buttons.className = "modal-slot-grid season-slot-buttons";
+      for (const { label, slot } of slotChoices(slotChoice.choices)) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "modal-slot";
+        btn.textContent = label;
+        btn.setAttribute("aria-label", `${sport().seasonLabel(s.season)} at ${label}`);
+        btn.addEventListener("click", scope.choose(() => placement.onChooseSlot(s, slot)));
+        buttons.appendChild(btn);
+      }
+      group.appendChild(buttons);
+      list.appendChild(group);
+      continue;
+    }
     if (!placeable) {
       row.disabled = true;
       row.classList.add("disabled");
@@ -2189,9 +2255,16 @@ function applyModeToDraftUI() {
   // because "type a player's name" is a dead end at half its roster.
   const fromMemory = sport().labels?.searchHint || "Type a player's name from memory…";
   poolSearch.placeholder = easy ? "Filter this squad…" : fromMemory;
+  // ONE CALM LINE. This was an orange pill reading "No player list — draft
+  // from memory. 3+ letters to search." that wrapped to two lines on a phone
+  // and looked like a warning, on the first screen a new player sees. It is an
+  // instruction, so it says what to do; "keep typing" covers the letter count
+  // at the moment it matters (see renderPool). Who else is picking is said
+  // here because it is the one rule a first draft cannot guess.
+  const rival = game.mode === "online" ? "Your opponent" : "The bot";
   knowledgeHintEl.textContent = easy
-    ? "Easy practice — full squad and stats shown, no clock."
-    : `No player list — draft from memory. ${MIN_SEARCH_CHARS}+ letters to search.`;
+    ? "Full squad and stats shown. No clock."
+    : `Name anyone from this team. ${rival} picks too.`;
   // Not merely hidden: easy practice runs NO clock at all (see startDraft and
   // advanceDraft), so there is nothing to show and nothing that can time out.
   pickTimerEl.hidden = !config.timed;
@@ -2317,9 +2390,10 @@ function advanceDraft() {
       game.round.activeSide = pendingHuman;
       game.round.pendingPlayer = null;
       poolSearch.value = "";
+      suggestionsShown = false;
       // Easy practice runs no clock and therefore cannot time out - there is no
       // hidden forfeit path behind this, only the absence of one.
-      if (matchConfig().timed) startPickTimer(handleLocalTimeout);
+      if (matchConfig().timed) startPickTimer(handleLocalTimeout, { seconds: pickTimerSeconds(), pausable: true });
       renderDraftRound();
       return;
     }
@@ -2346,12 +2420,13 @@ function renderDraftRound() {
   const side = game.round.activeSide;
   const roster = rosterFor(side);
 
-  draftRoundLabel.textContent = `Round ${game.roundNumber}`;
+  draftRoundLabel.textContent = pickCountLabel(roster, draft.slots);
   squadBannerTeam.textContent = draft.currentSquad.team;
   // groupKey, not "decade" - football's squads are bracketed by era and the
   // hardcoded field left the banner blank for every NFL draft.
   squadBannerDecade.textContent = draft.currentSquad[sport().groupKey] ?? draft.currentSquad.decade ?? "";
   renderDraftEra(game.era);
+  draftTurnBanner.classList.remove("turn-reveal");
   draftTurnBanner.textContent = game.mode === "bot" ? "Your Pick" : `${nameFor(side)}'s Pick`;
   poolSearch.hidden = false;
   setPickLive(true);
@@ -2366,13 +2441,37 @@ function renderDraftRound() {
   renderPoolForCurrentState();
 
   renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, side === "A", { pendingSlots: pendingSlotsFor("A"), slots: draft.slots });
-  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, side === "B", { pendingSlots: pendingSlotsFor("B"), slots: draft.slots });
+  // The bot has already chosen by the time your clock starts - it picks at the
+  // same moment you do, from the same squad - and the panel says so without
+  // saying who or where. Testers took the old per-row "Locked in" for a bug.
+  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, side === "B", {
+    pendingSlots: pendingSlotsFor("B"),
+    slots: draft.slots,
+    collapsible: true,
+    status: pendingSlotsFor("B").length ? "picked ✓" : "",
+  });
 }
 
-function renderPoolForCurrentState() {
+/** "Pick 3 of 10". "Round 3" never said how many there were, so nobody knew how
+ * far through a draft they were. Counted from the roster rather than the round
+ * number: a round where a side had no legal player costs it no pick, so the
+ * two drift apart, and the roster is what the player is filling. */
+function pickCountLabel(roster, slots) {
+  const filled = slots.filter((slot) => roster[slot]).length;
+  return `Pick ${Math.min(filled + 1, slots.length)} of ${slots.length}`;
+}
+
+function renderPoolForCurrentState({ settled = true } = {}) {
   const draft = game.draft;
   const side = game.round.activeSide;
   const pendingName = game.round.pendingPlayer ? game.round.pendingPlayer.name : null;
+  renderPoolSuggestions(draft.currentSquad, rosterFor(side), draft.slots, onPoolPick, (player, seasons, showStats) =>
+    openSeasonPicker(player, seasons, onPoolPick, showStats, {
+      roster: rosterFor(game.round.activeSide),
+      slots: game.draft.slots,
+      onChooseSlot: finalizePick,
+    })
+  );
   const rendered = renderPool(
     poolList,
     draft.currentSquad,
@@ -2387,12 +2486,41 @@ function renderPoolForCurrentState() {
       openSeasonPicker(player, seasons, onPoolPick, showStats, {
         roster: rosterFor(game.round.activeSide),
         slots: game.draft.slots,
-      })
+        onChooseSlot: finalizePick,
+      }),
+    { settled }
   );
   // The pool told the player it is broken; running the clock down and
   // forfeiting their pick on top of that would be charging them for our bug.
   if (!rendered.ok) cleanupPickTimer();
 }
+
+// ---- Suggestions (practice only) ----
+// A one-tap way out of an empty search box. Off until asked for, per pick:
+// practice is still practice at naming players, and a list that was always on
+// would turn the draft into reading one. See renderSuggestions.
+const poolHelpEl = document.getElementById("pool-help");
+const poolSuggestionsEl = document.getElementById("pool-suggestions");
+const btnPoolIdeas = document.getElementById("btn-pool-ideas");
+let suggestionsShown = false;
+
+/** Pass a null squad to clear. */
+function renderPoolSuggestions(squad, roster, slots, onPick, onPickSeason) {
+  const config = matchConfig();
+  const offer = !!squad && game.mode !== "online" && config.id === "practice" && !config.openBoard && poolSearch.value.trim() === "";
+  poolHelpEl.hidden = !offer;
+  btnPoolIdeas.hidden = suggestionsShown;
+  poolSuggestionsEl.innerHTML = "";
+  if (!offer || !suggestionsShown) return;
+  if (!renderSuggestions(poolSuggestionsEl, squad, roster, slots, onPick, onPickSeason)) poolHelpEl.hidden = true;
+}
+
+btnPoolIdeas.addEventListener("click", () => {
+  suggestionsShown = true;
+  renderPoolForCurrentState();
+  // The button the focus was on is gone; the first name is where it belongs.
+  poolSuggestionsEl.querySelector("button")?.focus();
+});
 
 function onPoolPick(player) {
   const roster = rosterFor(game.round.activeSide);
@@ -2451,11 +2579,12 @@ function skipLocalTurn() {
 /** Pick-timer timeout for a local human turn: auto-picks the worst eligible
  * (player, slot) combo through the exact same path a manual pick uses, or
  * resolves the turn pickless if nothing at all is eligible. */
-function handleLocalTimeout() {
+function handleLocalTimeout({ forfeited = false } = {}) {
   const draft = game.draft;
   const side = game.round.activeSide;
   const combo = worstEligiblePick(draft.currentSquad, rosterFor(side), draft.slots);
   if (combo) {
+    announceAutoPick(combo, forfeited);
     // Recorded before the pick lands, because from here on it is an ordinary
     // roster entry - the only thing that distinguishes it is this list.
     game.forfeits[side].push(combo.slot);
@@ -2465,6 +2594,13 @@ function handleLocalTimeout() {
     // had no legal option. The empty slot is charged separately, below.
     skipLocalTurn();
   }
+}
+
+/** Says who the clock put on the roster. A pick the player never made has to
+ * be named, or the first they hear of it is a stranger in their lineup. */
+function announceAutoPick(combo, forfeited) {
+  const who = `${combo.player.name} (${slotLabel(combo.slot)})`;
+  showToast(forfeited ? `Pick forfeited. Auto-picked ${who}.` : `Time's up. Auto-picked ${who}.`);
 }
 
 function renderRoundReveal() {
@@ -2479,14 +2615,19 @@ function renderRoundReveal() {
   // point of that layout - so the one moment in the round where you learn what
   // you are up against was happening off the bottom of the screen. The banner
   // is already in view, so this puts the answer where the eyes are.
+  poolHelpEl.hidden = true;
   const oppSlot = pendingSlotsFor("B")[0];
   const oppPick = oppSlot && draft.rosterB[oppSlot];
+  // In sentence case, as a sentence: the all-caps pill read as a label, and
+  // testers skimmed straight past the one line that says what you are up
+  // against. .turn-reveal is cleared by the next renderDraftRound.
+  draftTurnBanner.classList.add("turn-reveal");
   draftTurnBanner.textContent = oppPick
-    ? `${game.nameB} took ${oppPick.name} — ${oppSlot}`
+    ? `${game.nameB} picked ${oppPick.name} (${slotLabel(oppSlot)})`
     : "Revealing picks…";
 
   renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { revealSlots: pendingSlotsFor("A"), slots: draft.slots });
-  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { revealSlots: pendingSlotsFor("B"), slots: draft.slots });
+  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { revealSlots: pendingSlotsFor("B"), slots: draft.slots, collapsible: true });
 }
 
 // ---- Draft grade ----
@@ -2776,12 +2917,14 @@ function renderDraftComplete() {
   draftRoundLabel.textContent = "Draft complete";
   squadBannerTeam.textContent = "Rosters set";
   squadBannerDecade.textContent = "";
+  draftTurnBanner.classList.remove("turn-reveal");
   draftTurnBanner.textContent = "Both rosters are set.";
   poolSearch.hidden = true;
+  poolHelpEl.hidden = true;
   positionSelectorEl.innerHTML = "";
 
   renderRosterPanel(rosterPanelA, draft.rosterA, game.nameA, false, { slots: draft.slots });
-  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { slots: draft.slots });
+  renderRosterPanel(rosterPanelB, draft.rosterB, game.nameB, false, { slots: draft.slots, collapsible: true });
 
   poolList.innerHTML = "";
 
@@ -3248,7 +3391,6 @@ async function renderOnlineDraftRound(match) {
   // picker left open across them could otherwise submit last round's player.
   endPickTurn();
 
-  draftRoundLabel.textContent = `Round ${match.round_number}` + (match.is_friendly ? " · Friendly Match (unranked)" : "");
   squadBannerTeam.textContent = match.current_squad_team;
   squadBannerDecade.textContent = match.current_squad_decade;
   renderDraftEra(match.era);
@@ -3280,6 +3422,8 @@ async function renderOnlineDraftRound(match) {
   const { rosterA, rosterB } = buildVisibleState(picks, match.round_number, statsByKey);
   o.myRoster = o.mySide === "A" ? rosterA : rosterB;
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
+  draftRoundLabel.textContent =
+    pickCountLabel(o.myRoster, sport().slots.ranked) + (match.is_friendly ? " · Friendly Match (unranked)" : "");
 
   // The opponent's pick from the round that just finished becomes visible
   // for the first time exactly when this fires (get_visible_picks only
@@ -3295,11 +3439,13 @@ async function renderOnlineDraftRound(match) {
   setPickLive(true);
   renderOnlinePositionAndPool();
   renderRosterPanel(rosterPanelA, o.myRoster, "You", true, { slots: sport().slots.ranked });
-  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, revealSlots: oppRevealSlots });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, revealSlots: oppRevealSlots, collapsible: true });
 }
 
-function renderOnlinePositionAndPool() {
+function renderOnlinePositionAndPool({ settled = true } = {}) {
   const o = game.online;
+  // Ranked and friend drafts are recall by design: no suggestions, ever.
+  renderPoolSuggestions(null);
   const eligibleForPending = o.pendingPlayer ? eligibleOpenSlots(o.pendingPlayer, o.myRoster, sport().slots.ranked) : null;
   renderPositionSelector(positionSelectorEl, o.myRoster, eligibleForPending, (slot) => {
     finalizeOnlinePick(o.pendingPlayer, slot);
@@ -3319,7 +3465,9 @@ function renderOnlinePositionAndPool() {
       openSeasonPicker(player, seasons, onOnlinePoolPick, showStats, {
         roster: game.online.myRoster,
         slots: sport().slots.ranked,
-      })
+        onChooseSlot: (player, slot) => finalizeOnlinePick(player, slot),
+      }),
+    { settled }
   );
   // Same contract as offline. The server still holds the turn clock, so this
   // only stops the local countdown from pressuring a player who cannot search.
@@ -3363,11 +3511,12 @@ function onOnlinePoolPick(player) {
  * skips if nothing is eligible - same server-authoritative validation
  * either way, the server can't tell (and shouldn't need to) whether a pick
  * was manual or a timeout auto-pick. */
-async function handleOnlineTimeout() {
+async function handleOnlineTimeout({ forfeited = false } = {}) {
   const o = game.online;
   if (!o || !o.currentSquad) return;
   const combo = worstEligiblePick(o.currentSquad, o.myRoster, sport().slots.ranked);
   if (combo) {
+    announceAutoPick(combo, forfeited);
     await finalizeOnlinePick(combo.player, combo.slot, true);
   } else {
     await onlineSkip();
@@ -3458,7 +3607,7 @@ async function beginOnlineStrategyPhase(match) {
   o.oppRoster = o.mySide === "A" ? rosterB : rosterA;
 
   renderRosterPanel(rosterPanelA, o.myRoster, "You", false, { slots: sport().slots.ranked });
-  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked });
+  renderRosterPanel(rosterPanelB, o.oppRoster, o.oppUsername, false, { slots: sport().slots.ranked, collapsible: true });
 
   showDraftGrade(o.myRoster, {
     oppRoster: o.oppRoster,
@@ -3598,12 +3747,25 @@ function awaitSimulationStart() {
   poll();
 }
 
-poolSearch.addEventListener("input", () => {
+// Matches show as you type; a MISS waits until typing pauses (see
+// SEARCH_SETTLE_MS). Each keystroke renders unsettled and re-arms the timer, so
+// only the last one is ever judged.
+let searchSettleTimer = null;
+
+function renderSearch(settled) {
+  // The pick window may have closed between the keystroke and the pause.
+  if (poolSearch.hidden) return;
   if (game.mode === "online") {
-    if (game.online && game.online.currentSquad) renderOnlinePositionAndPool();
+    if (game.online && game.online.currentSquad) renderOnlinePositionAndPool({ settled });
   } else if (game.draft && game.draft.currentSquad) {
-    renderPoolForCurrentState();
+    renderPoolForCurrentState({ settled });
   }
+}
+
+poolSearch.addEventListener("input", () => {
+  clearTimeout(searchSettleTimer);
+  renderSearch(false);
+  searchSettleTimer = setTimeout(() => renderSearch(true), SEARCH_SETTLE_MS);
 });
 
 // ---- Game screen (live scoreboard + final box score) - shared by all modes ----

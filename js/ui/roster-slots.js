@@ -34,6 +34,23 @@ export function slotLabel(slot) {
   return slot;
 }
 
+/** The open slots a player could go into, as the buttons a picker offers.
+ *
+ * Bench spots are interchangeable, so five identical "Bench" buttons would be
+ * noise dressed up as a decision - they collapse into one, which places the
+ * player in the first of them. Shared by the slot picker and the season sheet,
+ * which both ask the same question. */
+export function slotChoices(slots) {
+  const bench = slots.filter((s) => activeSport().isBenchSlot(s));
+  const choices = slots
+    .filter((s) => !activeSport().isBenchSlot(s))
+    .map((s) => ({ label: slotLabel(s), slot: s }));
+  if (bench.length > 0) {
+    choices.push({ label: bench.length > 1 ? `Bench (${bench.length} open)` : "Bench", slot: bench[0] });
+  }
+  return choices;
+}
+
 /** The slots a roster actually filled, in canonical lineup order. Mirrors
  * engine.js's activeSlots so the box score, live table, and recap all agree
  * on both which slots exist and what order they read in. */

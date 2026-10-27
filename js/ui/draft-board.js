@@ -117,10 +117,15 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
 }
 
 /**
- * @param opts.pendingSlots slots filled this round but not yet revealed
- *   (rendered as "locked in" rather than the real player).
+ * @param opts.pendingSlots slots filled this round but not yet revealed. They
+ *   render as OPEN: the slot a hidden pick went into is itself part of the
+ *   pick. This used to print "Locked in" on that row, which told you which
+ *   position the opponent had just taken before the reveal - and read, to
+ *   everyone who saw it, as a tag landing on a random row. Whether a side has
+ *   picked is said once, by the caller, in the panel's heading.
  * @param opts.revealSlots slots that should play the flip-reveal animation
  *   on this render pass (the round that just resolved).
+ * @param opts.status a short line after the label ("picked") - see above.
  */
 /**
  * "Patrick Mahomes" -> "P. Mahomes".
@@ -141,11 +146,42 @@ export function renderPositionSelector(container, roster, eligibleSlotsForPendin
 
 
 export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
-  const { pendingSlots = [], revealSlots = [], slots = defaultSlots() } = opts;
+  const { pendingSlots = [], revealSlots = [], slots = defaultSlots(), status = "", collapsible = false } = opts;
   container.innerHTML = "";
   const h3 = document.createElement("h3");
   h3.textContent = label + (isTurn ? " •" : "");
+  if (status) {
+    const note = document.createElement("span");
+    note.className = "roster-panel-status";
+    note.textContent = status;
+    h3.appendChild(note);
+  }
   container.appendChild(h3);
+
+  // A DRAWER ON A PHONE, A COLUMN ON A DESKTOP. On a phone the opponent's
+  // roster was a second half-width column of ten rows beside yours, which
+  // halved the width of both and made every name truncate - for a panel that
+  // is reference, not the task. There it folds behind one tap. A desktop has a
+  // column to spare, so it keeps the heading and never folds.
+  //
+  // Both are emitted and CSS shows one, the same "two densities, one render"
+  // rule as the position strip. The folded state lives on the container, so a
+  // re-render (every pick) keeps whatever the player last chose.
+  container.classList.toggle("collapsible", collapsible);
+  if (collapsible) {
+    const filled = slots.filter((slot) => roster[slot] && !pendingSlots.includes(slot)).length;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "roster-panel-toggle";
+    const open = !container.classList.contains("collapsed");
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.textContent = `${label}'s picks (${filled}/${slots.length})${status ? ` · ${status}` : ""}`;
+    toggle.addEventListener("click", () => {
+      const nowOpen = container.classList.toggle("collapsed") === false;
+      toggle.setAttribute("aria-expanded", String(nowOpen));
+    });
+    container.appendChild(toggle);
+  }
 
   for (const slot of slots) {
     const row = document.createElement("div");
@@ -156,53 +192,45 @@ export function renderRosterPanel(container, roster, label, isTurn, opts = {}) {
     row.appendChild(tag);
 
     const value = document.createElement("span");
-    const player = roster[slot];
-    if (player && pendingSlots.includes(slot)) {
-      value.className = "slot-locked";
-      value.textContent = "🔒 Locked in";
-    } else if (player) {
+    const player = pendingSlots.includes(slot) ? null : roster[slot];
+    if (player) {
       value.className = "slot-filled" + (revealSlots.includes(slot) ? " slot-reveal" : "");
       // A bench slot doesn't say what the player is, so his position rides
       // next to his name - that's the information you need to judge depth.
       const pos = activeSport().isBenchSlot(slot) ? ` [${player.pos.join("/")}]` : "";
-      // COMPACT, when the sport asks for it. Football's rows carry a full name,
-      // a season and a team, and on a phone that wrapped to three lines and
-      // became unreadable at a glance - which matters most when you are trying
-      // to size up an opponent's roster. The first name becomes an initial and
-      // the season drops to its own line, so the eye gets "P. Mahomes" then
-      // "2020 Chiefs" instead of one long wrap. Declared per sport, so
-      // basketball's rows are untouched.
-      if (activeSport().compactRoster) {
-        const head = document.createElement("span");
-        head.className = "slot-name";
-        // Same rule as the roster strip: a unit's own label is its position
-        // group, and the slot tag beside it already says that, so "OL /
-        // Offensive Line / 2020 Browns" spends two of its three lines saying
-        // "OL". A unit is identified by its team and year, and that is the
-        // whole of what it needs.
-        const unit = activeSport().isUnit(player);
-        head.textContent = unit ? seasonLabel(player) : `${shortPlayerName(player)}${pos}`;
-        value.appendChild(head);
-        if (!unit) {
-          const when = document.createElement("span");
-          when.className = "slot-season";
-          when.textContent = seasonLabel(player);
-          value.appendChild(document.createElement("br"));
-          value.appendChild(when);
-        }
-      } else {
-        value.textContent = `${displayEntryName(player)}${pos} — ${seasonLabel(player)}`;
+      // TWO LINES, EVERY SPORT: who on the first, which team and year under it.
+      // One line of "Roy Hibbert — 2012-13 Pacers" truncated to "Roy Hibbert,
+      // 20..." on a phone, so the half of the pick that was a decision - the
+      // year - was the half that got cut. Football already did this (its rows
+      // are longer); basketball now does too. `compactRoster` still decides
+      // whether the first name is shortened to an initial.
+      const head = document.createElement("span");
+      head.className = "slot-name";
+      // A unit's own label is its position group, and the slot tag beside it
+      // already says that, so "OL / Offensive Line / 2020 Browns" spends two
+      // of its three lines saying "OL". A unit is identified by its team and
+      // year, and that is the whole of what it needs.
+      const unit = activeSport().isUnit(player);
+      const who = activeSport().compactRoster ? shortPlayerName(player) : displayEntryName(player);
+      head.textContent = unit ? seasonLabel(player) : `${who}${pos}`;
+      value.appendChild(head);
+      if (!unit) {
+        const when = document.createElement("span");
+        when.className = "slot-season";
+        when.textContent = seasonLabel(player);
+        value.appendChild(when);
       }
+      // The full name, for the cases the row had to truncate.
+      row.title = `${slotLabel(slot)}: ${player.name} (${seasonLabel(player)})`;
       // A drafted unit says WHO it contains. "Seattle Seahawks Cornerbacks"
       // names a slot; Sherman and Maxwell are what you actually took, and
       // after the pick is made the roster is the only place left to see it.
       const roll = Array.isArray(player.members) ? player.members : [];
       if (roll.length) {
-        const who = document.createElement("span");
-        who.className = "slot-members";
-        who.textContent = roll.slice(0, 4).map((m) => m.name || m).join(", ");
-        value.appendChild(document.createElement("br"));
-        value.appendChild(who);
+        const members = document.createElement("span");
+        members.className = "slot-members";
+        members.textContent = roll.slice(0, 4).map((m) => m.name || m).join(", ");
+        value.appendChild(members);
       }
     } else {
       value.className = "slot-empty";
@@ -440,13 +468,14 @@ export function renderPool(
   allPlayers,
   openBoard = false,
   slots = defaultSlots(),
-  onPickSeason = null
+  onPickSeason = null,
+  opts = {}
 ) {
   container.innerHTML = "";
   try {
     renderPoolContents(
       container, squad, filterText, roster, pendingPlayerName,
-      onPick, allPlayers, openBoard, slots, onPickSeason
+      onPick, allPlayers, openBoard, slots, onPickSeason, opts
     );
     return { ok: true };
   } catch (error) {
@@ -481,7 +510,8 @@ function renderPoolContents(
   allPlayers,
   openBoard,
   slots,
-  onPickSeason
+  onPickSeason,
+  { settled = true } = {}
 ) {
   // AN OPEN BOARD puts the whole squad on screen with stats - it's for
   // learning the pool, not testing recall. The search box still narrows the
@@ -551,20 +581,65 @@ function renderPoolContents(
     return;
   }
 
+  // NOT YET A MISS. While the player is still typing, a name that matches
+  // nobody is most often a name half-typed: "Not on this squad" at the third
+  // letter of the right answer read as the game telling them they were wrong.
+  // The caller re-renders with `settled` once typing pauses (SEARCH_SETTLE_MS).
+  if (!settled) return;
+
+  // SHORT, AND ABOUT THIS SQUAD. The long form named every other team in the
+  // dataset the player had been on ("Not on this squad. We do have Kevin
+  // Willis (Atlanta Hawks 1980s), ...") and ran to four lines on a phone with
+  // the clock going. What the player needs is the one fact: wrong squad, try
+  // again. The class still says which kind of miss it was.
+  const where = squadName(squad);
   if (result.tier === "elsewhere") {
-    // Grouped, or a player with six seasons elsewhere would be listed six times.
-    const named = groupBySeason(result.candidates)
-      .map(({ lead }) => `${lead.name} (${lead.team} ${lead.decade})`)
-      .join(", ");
-    renderNote(
-      container,
-      `Not on this squad. We do have ${named} — wrong team/decade for this pick, not a wrong guess.`,
-      "pool-elsewhere-note"
-    );
+    renderNote(container, `Not on the ${where}. Try again.`, "pool-elsewhere-note");
     return;
   }
 
-  renderNote(container, "No player by that name in our database. Try another name or spelling.", "pool-none-note");
+  renderNote(container, `No player by that name. Check the spelling and try again.`, "pool-none-note");
+}
+
+/** "2000s Grizzlies" - the squad as a player says it. The same nickname rule as
+ * seasonLabel: the last word of the team is how every one of them is spoken. */
+function squadName(squad) {
+  const nickname = String(squad.team || "").split(" ").pop();
+  const era = squad[activeSport().groupKey] ?? squad.decade ?? "";
+  return `${era} ${nickname}`.trim();
+}
+
+/**
+ * A few names to start from when the search box is empty.
+ *
+ * PRACTICE ONLY, and only when asked for - the caller decides both. A first
+ * draft on a phone opened on an empty box and a running clock, and testers
+ * froze. Ranked and friend matches are recall by design and never show this.
+ *
+ * Players who can fill one of your open slots, most games for this squad first:
+ * the names someone is likeliest to recognise, not the best ones. Ordering by
+ * rating would turn a hint into the answer key.
+ */
+export function renderSuggestions(container, squad, roster, slots, onPick, onPickSeason, count = 5) {
+  container.innerHTML = "";
+  const fits = groupBySeason(squad.players).filter(({ lead, pos }) =>
+    eligibleOpenSlots({ ...lead, pos }, roster, slots).length > 0
+  );
+  const games = (g) => g.seasons.reduce((sum, p) => sum + (p.games || 0), 0);
+  fits.sort((a, b) => games(b) - games(a));
+  for (const { lead, seasons } of fits.slice(0, count)) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "suggestion-chip";
+    chip.textContent = displayEntryName(lead);
+    chip.setAttribute(
+      "aria-label",
+      seasons.length > 1 ? `${lead.name} - choose a season` : `Draft ${lead.name}`
+    );
+    chip.addEventListener("click", () => (seasons.length > 1 ? onPickSeason(lead, seasons, false) : onPick(lead)));
+    container.appendChild(chip);
+  }
+  return fits.length > 0;
 }
 
 /**
