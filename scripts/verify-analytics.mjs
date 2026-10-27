@@ -29,16 +29,23 @@
 // NEEDS NO DATABASE. It reads the migration file, which is the documentation of
 // what was applied, so it runs inside `npm run verify`.
 
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderCheck, renderSection, summarize, PASS, FAIL } from "./lib/report.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MIGRATION = path.join(ROOT, "db/migrations/20260911_02_product_analytics.sql");
+const MIGRATIONS = path.join(ROOT, "db/migrations");
 
 const { EVENTS } = await import(path.join(ROOT, "js/analytics.js"));
-const sql = await readFile(MIGRATION, "utf8");
+// EVERY MIGRATION, IN ORDER, not only the one that created the tables. Later
+// files add event names (20261027_01 added the practice funnel) and re-issue
+// the prop sanitizer, so the database's allowlist is the union of every
+// seeding insert and the LAST definition of sanitize_event_props.
+const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith(".sql")).sort();
+const texts = await Promise.all(files.map((f) => readFile(path.join(MIGRATIONS, f), "utf8")));
+const sql = texts.filter((t) => t.includes("analytics_event_types") || t.includes("sanitize_event_props")).join("\n");
+const lastSanitizer = [...texts].reverse().find((t) => t.includes("function public.sanitize_event_props")) || "";
 const analyticsJs = await readFile(path.join(ROOT, "js/analytics.js"), "utf8");
 const renderJs = await readFile(path.join(ROOT, "js/admin/render.js"), "utf8");
 
@@ -48,8 +55,11 @@ const check = (title, ok, detail = "") => checks.push({ title, status: ok ? PASS
 // ---- 1. the event names match the database's allowlist ---------------------
 // Parsed out of the seeding INSERT rather than hand-listed here, so this file
 // never becomes a fourth copy to keep in step.
-const insertBlock = sql.slice(sql.indexOf("insert into public.analytics_event_types"));
-const sqlEvents = new Set([...insertBlock.matchAll(/^\s*\('([a-z0-9_]+)',/gm)].map((m) => m[1]));
+const sqlEvents = new Set();
+for (const block of sql.split("insert into public.analytics_event_types").slice(1)) {
+  const values = block.slice(0, block.indexOf(";"));
+  for (const m of values.matchAll(/^\s*\('([a-z0-9_]+)',/gm)) sqlEvents.add(m[1]);
+}
 const jsEvents = new Set(Object.values(EVENTS));
 
 const missingInSql = [...jsEvents].filter((e) => !sqlEvents.has(e));
@@ -108,8 +118,8 @@ check(
 // jsonb_typeof(...) in ('string','number','boolean') on the next line, so the
 // server's set came back with three phantom keys and this check reported a
 // mismatch that did not exist.
-const keyListStart = sql.indexOf("where key in (") + "where key in (".length;
-const sqlPropsBlock = sql.slice(keyListStart, sql.indexOf(")", keyListStart));
+const keyListStart = lastSanitizer.indexOf("where key in (") + "where key in (".length;
+const sqlPropsBlock = lastSanitizer.slice(keyListStart, lastSanitizer.indexOf(")", keyListStart));
 const sqlProps = new Set([...sqlPropsBlock.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
 const jsPropsMatch = analyticsJs.match(/const ALLOWED_PROPS = new Set\(\[([\s\S]*?)\]\)/);
 const jsProps = new Set(jsPropsMatch ? [...jsPropsMatch[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]) : []);
@@ -146,13 +156,13 @@ check(
 // carry an arbitrary object with anything inside it.
 check(
   "The server sanitizer keeps only scalar values",
-  /jsonb_typeof\(value\) in \('string', 'number', 'boolean'\)/.test(sql),
+  /jsonb_typeof\(value\) in \('string', 'number', 'boolean'\)/.test(lastSanitizer),
   "jsonb_typeof(value) in ('string','number','boolean') - an object under an allowed key would smuggle anything"
 );
 
 check(
   "The server sanitizer caps string length",
-  /left\(value #>> '\{\}', \d+\)/.test(sql),
+  /left\(value #>> '\{\}', \d+\)/.test(lastSanitizer),
   "strings are truncated, so an allowed key cannot become a free-text field"
 );
 

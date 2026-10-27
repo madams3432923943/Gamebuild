@@ -1839,8 +1839,7 @@ button.position-btn {
    beside a small timer and a dim pill. With a clock running the eye should go
    to whose pick it is and how long is left, then to the pool, and only then to
    the way out. So, while .pick-live is set (setPickLive in js/main.js):
-   the seat becomes a filled badge, the timer grows, and Forfeit recedes to an
-   outline in the muted voice - still a full-size target, just not a loud one.
+   the seat becomes a filled badge and the timer grows.
    Nothing is hidden: the position strip above the search stays, because on a
    phone it is the only view of the roster above the fold (see its note). */
 #screen-draft.pick-live .turn-banner {
@@ -1858,19 +1857,7 @@ button.position-btn {
   color: var(--buzzer);
 }
 
-#screen-draft.pick-live #btn-forfeit-pick {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-@media (hover: hover) {
-  #screen-draft.pick-live #btn-forfeit-pick:hover {
-    color: var(--text);
-    border-color: var(--buzzer);
-  }
-}
+/* Forfeit Pick has since left this row altogether - see .forfeit-btn. */
 
 @keyframes pulse-buzzer {
   0%, 100% { opacity: 1; }
@@ -10833,4 +10820,638 @@ table.box-table tfoot .box-totals td:nth-child(2) {
 
 .guest-signup-actions .link-btn {
   padding: 0.5rem;
+}
+
+/* ---- Draft board, phone UX pass (docs/ux-pass-2026-10.md, section A) -------
+   Four testers played a first guest draft on a 390px phone and called it
+   clunky: too many things competing above the pool, a clock that ran through
+   the pickers, a forfeit button beside the timer, and a roster that truncated
+   every name. These rules are the visual half of that pass; the behaviour is in
+   js/main.js and js/ui/draft-board.js. Kept together, and last, so the pass can
+   be read (and reverted) as one piece. */
+
+/* Forfeit, out of the status row. A quiet text button in the banner's top row,
+   still a 44px target, and red only once armed - see the two-tap handler. */
+.forfeit-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  cursor: pointer;
+}
+
+.forfeit-btn.armed {
+  color: var(--buzzer);
+  border-color: var(--buzzer);
+}
+
+@media (hover: hover) {
+  .forfeit-btn:hover {
+    color: var(--text);
+  }
+}
+
+/* The clock is the one number that matters while it runs. */
+#screen-draft.pick-live .pick-timer {
+  font-size: 1.7rem;
+}
+
+.pick-warning {
+  margin: 0.25rem 0 0;
+  color: var(--buzzer);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+/* The round reveal is a sentence, not a badge. */
+.turn-banner.turn-reveal {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+}
+
+/* An instruction, in the body voice: no pill, no accent, one line. */
+.knowledge-hint {
+  display: block;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.pool-help {
+  margin: 0 0 0.5rem;
+}
+
+.pool-help[hidden] {
+  display: none;
+}
+
+.pool-ideas {
+  min-height: 44px;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+.pool-ideas[hidden] {
+  display: none;
+}
+
+.pool-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pool-suggestions:empty {
+  display: none;
+}
+
+.suggestion-chip {
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .suggestion-chip:hover {
+    border-color: var(--accent);
+  }
+}
+
+/* A season that still leaves a position to choose carries the choice on its
+   own row - see openSeasonPicker. */
+.season-option-slots {
+  flex-wrap: wrap;
+  cursor: default;
+}
+
+.season-slot-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex: 1 1 100%;
+}
+
+.season-slot-buttons .modal-slot {
+  min-height: 44px;
+  flex: 1 1 5rem;
+}
+
+/* TWO-LINE ROSTER ROWS. Name, then team and year under it - see
+   renderRosterPanel. Each line truncates on its own, so a long name costs its
+   own line an ellipsis and never the year. */
+.slot-filled {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.slot-filled > .slot-name,
+.slot-filled > .slot-season,
+.slot-filled > .slot-members {
+  display: block;
+}
+
+.slot-filled > .slot-name,
+.slot-filled > .slot-season {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-season {
+  font-weight: 400;
+}
+
+.roster-panel-status {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* The opponent drawer's toggle exists only where it folds (below). */
+.roster-panel-toggle {
+  display: none;
+}
+
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: min(92vw, 28rem);
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  background: var(--surface-3);
+  border: 1px solid var(--buzzer);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.app-toast[hidden] {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  /* Both panels full width: yours under the pool, the opponent's folded into
+     a drawer under that. Side by side, each had half a phone and every name
+     truncated. */
+  .draft-body {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-body .slot-filled {
+    white-space: normal;
+  }
+
+  .roster-panel.collapsible > h3 {
+    display: none;
+  }
+
+  .roster-panel.collapsible > .roster-panel-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 0.25rem;
+    background: none;
+    border: 0;
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .roster-panel.collapsible > .roster-panel-toggle::after {
+    content: "▾";
+    color: var(--muted);
+    transition: transform var(--motion-fast) var(--ease-out);
+  }
+
+  .roster-panel.collapsible.collapsed > .roster-panel-toggle::after {
+    transform: rotate(-90deg);
+  }
+
+  .roster-panel.collapsible.collapsed > .roster-slot {
+    display: none;
+  }
+}
+
+@media (max-width: 700px), ((max-height: 520px) and (pointer: coarse)) {
+  /* THE SLOT STRIP WRAPS instead of scrolling sideways. As one scrolling line
+     the last Bench chip sat half off the right edge, which read as clipped
+     rather than as "there is more". Equal-width cells, as many rows as the
+     roster needs: two for basketball's ten, three for football's twelve. */
+  .position-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4.1rem, 1fr));
+    overflow: visible;
+  }
+
+  .position-selector .position-btn {
+    max-width: none;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  /* A cell is too narrow for a name, and the name is now one row down in your
+     roster panel, full width. The strip goes back to saying "taken". */
+  .position-selector .position-btn-name {
+    display: none;
+  }
+
+  .position-selector .position-btn-check {
+    display: inline;
+    color: var(--accent-bright);
+  }
+
+  #screen-draft.pick-live .pick-timer {
+    font-size: 1.6rem;
+  }
+
+  .knowledge-hint {
+    font-size: 0.875rem;
+  }
+
+  /* 16px, or iOS zooms the page when the box is focused. */
+  #pool-search {
+    font-size: 1rem;
+  }
+}
+
+/* ---- Post-draft steps, UX pass section B (docs/ux-pass-2026-10.md) --------
+   Rotation, matchups and game plan are numbered steps now ("Step 1 of 3"),
+   and while one is up (.setup-live on #screen-draft) the draft grade folds
+   behind one button everywhere, and both rosters fold behind it on a phone.
+   One decision per screen; the reference material is a tap away. */
+#btn-view-rosters {
+  display: none;
+  min-height: 44px;
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+#screen-draft.setup-live #btn-view-rosters {
+  display: inline-block;
+}
+
+#screen-draft.setup-live:not(.show-rosters) #draft-grade {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  #screen-draft.setup-live:not(.show-rosters) .draft-body .roster-panel {
+    display: none;
+  }
+}
+
+/* Rotation rows: two lines (who, then position and season), and a stepper
+   either side of the slider. */
+.rotation-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.35rem;
+  white-space: normal;
+}
+
+.rotation-name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rotation-meta {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: var(--text-micro);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rotation-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.rotation-control .rotation-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rotation-step {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rotation-step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rotation-value {
+  font-size: 0.9rem;
+}
+
+/* The count and the buttons, together. */
+.phase-actions .rotation-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.phase-actions-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.phase-actions-row .btn-primary {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 860px) {
+  /* A bigger thumb for the drags that remain. */
+  .rotation-slider {
+    height: 32px;
+  }
+
+  .phase-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 -0.55rem;
+    padding: 0.6rem 0.55rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    background: var(--surface-2);
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* Matchups: a sentence, "Kobe Bryant defends [their SG]". */
+.matchup-name {
+  display: block;
+  font-weight: 600;
+}
+
+.matchup-meta {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-micro);
+}
+
+.matchup-arrow {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.matchup-pick {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+@media (max-width: 520px) {
+  /* Name over the choice, so neither is squeezed to a third of a phone. */
+  .matchup-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .matchup-row .matchup-pick {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Game plan trade-offs are sentences now ("Better at: ..."), so they wrap. */
+.tactic-trade {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tactic-trade-item {
+  white-space: normal;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  border-radius: 8px;
+}
+
+/* ---- Results and live game, UX pass section C (docs/ux-pass-2026-10.md) ---
+   The result screen was eight phone screens tall, with the sign-up card above
+   the box score and Share and Play Again near the bottom. A finished game is
+   the moment people share, so on a phone the order is now: score, verdict,
+   MVP, Share / Play Again, then the account offer, then the details - with the
+   three long read-outs as tabs. */
+.result-tabs,
+.box-more-toggle {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  #screen-game > .game-stage { order: 1; }
+  #screen-game > #final-banner { order: 2; }
+  #screen-game > #mvp-callout { order: 3; }
+  #screen-game > .game-actions { order: 4; }
+  #screen-game > #btn-game-home { order: 5; }
+  #screen-game > #guest-signup-card,
+  #screen-game > #reward-toast { order: 6; }
+  #screen-game > #game-recap { order: 7; }
+  #screen-game > #result-tabs { order: 8; }
+  #screen-game > #why-breakdown,
+  #screen-game > #shot-chart,
+  #screen-game > #full-box-score { order: 9; }
+  #screen-game > .sponsor-slot { order: 10; }
+
+  #screen-game > #full-box-score {
+    margin-top: 0;
+  }
+
+  #screen-game > .game-actions {
+    margin-top: 0.5rem;
+  }
+
+  .result-tabs:not([hidden]) {
+    display: flex;
+    gap: 0.35rem;
+    margin: 1rem 0 0.6rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .result-tab {
+    flex: 1 0 auto;
+    min-height: 44px;
+    padding: 0 0.85rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .result-tab[aria-selected="true"] {
+    background: rgba(var(--accent-rgb), 0.16);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  #screen-game [data-tab-inactive] {
+    display: none !important;
+  }
+
+  /* THE BOX SCORE'S PHONE COLUMNS. The sport names the ones a phone keeps
+     (boxPhoneColumns); the rest wait behind "More stats". */
+  #full-box-score:not(.box-all) .box-extra {
+    display: none;
+  }
+
+  .box-more-toggle {
+    display: inline-block;
+    min-height: 44px;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  /* With the extra columns folded the table fits, so "swipe to see every
+     column" would be a false promise. */
+  #full-box-score:not(.box-all):has(.box-extra) .box-scroll-hint {
+    display: none;
+  }
+
+  /* A smaller live court, so the score, the floor and the feed share one
+     screen. Still horizontal and still 188:100 - see .bc-court. */
+  .basketball-court .bc-court {
+    max-width: min(100%, calc(18vh * 1.88));
+    max-width: min(100%, calc(18dvh * 1.88));
+    margin-inline: auto;
+  }
+}
+
+/* ---- First-draft intro, UX pass section D (docs/ux-pass-2026-10.md) ------ */
+.round-intro {
+  margin: 0 0 0.6rem;
+  padding: 0.7rem 0.8rem 0.3rem;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.round-intro[hidden] {
+  display: none;
+}
+
+.round-intro-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.round-intro-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.round-intro-steps strong {
+  color: var(--text);
+}
+
+.round-intro-done {
+  min-height: 44px;
+  font-size: 0.9rem;
+}
+
+/* ---- Phone floors, UX pass section E -------------------------------------
+   Measured by the testers at 390px: a 15px-tall Sign in link, 28px legal
+   links, 13px helper text. 44px for anything you tap, 14px for anything you
+   read. */
+#btn-quickplay-signin {
+  min-height: 44px;
+  padding: 0 0.4rem;
+}
+
+.legal-links a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .hint-text,
+  .legal-note,
+  .quickplay-status {
+    font-size: 0.875rem;
+  }
+
+  /* iOS Safari zooms the whole page into any focused field under 16px. A
+     floor, so a later, more specific rule cannot quietly undercut it. */
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: max(16px, 1rem) !important;
+  }
+}
+
+/* The empty middle column on a desktop draft board was a large blank panel
+   under the search box. It says what will appear there instead. */
+@media (min-width: 861px) {
+  #pool-search:not([hidden]) ~ #pool-list:empty::before {
+    content: "Matches appear here as you type.";
+    display: block;
+    padding: 1.5rem 0.5rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  .knowledge-hint {
+    font-size: 0.95rem;
+  }
 }

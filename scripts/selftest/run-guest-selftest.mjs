@@ -42,8 +42,9 @@ const VIEWPORT = { width: 375, height: 812 };
 
 // The only RPCs a signed-out page may make. Presence is the "N online"
 // ticker - a count of open tabs, not of users, and it ran on the old sign-in
-// screen too.
-const GUEST_RPCS = new Set(["heartbeat_presence", "record_guest_game"]);
+// screen too. record_guest_event is the guest funnel, which writes to its own
+// table and never to a user metric (db/migrations/20261027_01).
+const GUEST_RPCS = new Set(["heartbeat_presence", "record_guest_game", "record_guest_event"]);
 
 const LEGS = [
   { sport: "nba", convert: "signup" },
@@ -162,6 +163,17 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
       recorded.length === 1 && recorded[0].args.p_sport === sport && result.stored === 1 && result.token,
       `record_guest_game calls: ${JSON.stringify(recorded.map((r) => r.args))}, stored: ${result.stored}`
     );
+    // The funnel reached the guest table, tagged, with the guest's events and
+    // nothing that belongs to a signed-in player.
+    const events = result.rpcs.filter((r) => r.name === "record_guest_event").map((r) => r.args);
+    const names = new Set(events.map((e) => e.p_event));
+    add(
+      "guest-funnel",
+      "The guest funnel is recorded to the guest table, tagged by device",
+      ["draft_started", "pick_made", "draft_completed", "results_viewed"].every((n) => names.has(n)) &&
+        events.every((e) => e.p_device === "phone" && e.p_sport === sport && typeof e.p_claim_token === "string"),
+      `${events.length} events: ${[...names].join(", ")}`
+    );
     const strays = result.rpcs.filter((r) => !GUEST_RPCS.has(r.name));
     add(
       "no-user-metrics",
@@ -185,12 +197,15 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
       }));
       add("maybe-later", "Maybe later closes the card and puts focus on Play Again", later.cardHidden && later.focused === "btn-play-again", JSON.stringify(later));
       await page.locator("#btn-play-again").click();
-      const back = await page
-        .locator(":root[data-guest] #screen-quickplay:not(.hidden)")
+      // Straight into the next draft, same sport, still a guest. It used to go
+      // back to Quickplay, which testers read as being thrown out of the game.
+      const again = await page
+        .locator(":root[data-guest] #screen-draft:not(.hidden) #pool-search:not([hidden])")
         .waitFor({ timeout: 10000 })
         .then(() => true)
         .catch(() => false);
-      add("play-again", "Play Again takes a guest back to Quickplay, one tap from the next game", back, "");
+      const label = await page.locator("#draft-round-label").textContent().catch(() => "");
+      add("play-again", "Play Again takes a guest straight into a new draft", again && /^Pick 1 of /.test(label || ""), label || "");
       await page.locator("#btn-header-signin").click();
       await page.locator("#screen-auth:not(.hidden) #field-auth-identifier:not([hidden])").waitFor({ timeout: 10000 });
       await page.locator("#input-auth-identifier").fill("guest-selftest@example.com");

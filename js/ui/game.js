@@ -332,11 +332,51 @@ export function renderFullBoxScore(container, rosterA, boxA, labelA, rosterB, bo
     `<div class="box-scroll-hint" aria-hidden="true">${verb} to see every column<span class="hint-arrow">\u2192</span></div>` +
     boxTable(rosterA, boxA, labelA, shotsA, minutesA, final, mvpA) +
     boxTable(rosterB, boxB, labelB, shotsB, minutesB, final, mvpB);
+  markPhoneColumns(container);
   const scrollers = [...container.querySelectorAll(".box-scroll")];
   if (wasAt) for (const panel of scrollers) panel.scrollLeft = wasAt;
   // Bound to the CONTAINER, not to the scrollers: those are new elements on
   // every repaint. See the note in scroll-affordance.js.
   bindScrollAffordance(container, scrollers);
+}
+
+/**
+ * Marks the columns a phone hides until "More stats" is tapped, and adds that
+ * toggle. Read off the rendered headers rather than threaded through every row
+ * builder: which columns a narrow screen keeps is a presentation choice about
+ * the finished table, and the sport says which by header (boxPhoneColumns).
+ *
+ * The open/closed state lives on the container as .box-all, so a live table
+ * repainting every frame keeps whatever the reader chose. CSS hides the extra
+ * columns, and the toggle, above phone width.
+ */
+function markPhoneColumns(container) {
+  const keep = activeSport().boxPhoneColumns;
+  if (!Array.isArray(keep) || !keep.length) return;
+  // Slot folds too: the row's player line already says who, and on a phone
+  // its column is the width FG and 3PT need.
+  const always = new Set(["Player", ...keep]);
+  for (const table of container.querySelectorAll("table.box-table")) {
+    const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+    heads.forEach((head, i) => {
+      if (always.has(head)) return;
+      for (const row of table.rows) row.cells[i]?.classList.add("box-extra");
+    });
+  }
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "link-btn box-more-toggle";
+  const sync = () => {
+    const all = container.classList.contains("box-all");
+    toggle.textContent = all ? "Fewer stats" : "More stats";
+    toggle.setAttribute("aria-pressed", String(all));
+  };
+  toggle.addEventListener("click", () => {
+    container.classList.toggle("box-all");
+    sync();
+  });
+  sync();
+  container.prepend(toggle);
 }
 
 /**

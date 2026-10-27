@@ -52,6 +52,13 @@ export const EVENTS = {
   SPONSOR_CLICK: "sponsor_click",
   SHARE_CARD_CREATED: "share_card_created",
   SHARE_CARD_SHARED: "share_card_shared",
+  // The practice funnel (db/migrations/20261027_01). Sent through js/funnel.js,
+  // which tags the device and routes a guest's copy to its own table.
+  PICK_MADE: "pick_made",
+  DRAFT_ABANDONED: "draft_abandoned",
+  RESULTS_VIEWED: "results_viewed",
+  SHARE_TAPPED: "share_tapped",
+  PLAY_AGAIN: "play_again",
 };
 
 /** The only keys that may be sent. The server enforces the same list; this
@@ -60,6 +67,7 @@ export const EVENTS = {
 const ALLOWED_PROPS = new Set([
   "sport", "mode", "difficulty", "era", "won", "margin",
   "placement", "campaign", "format", "source", "step", "seconds",
+  "device",
 ]);
 
 /** Keys already recorded once this page session - see trackOnce. */

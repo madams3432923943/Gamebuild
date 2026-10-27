@@ -160,6 +160,12 @@ export function openModal(title, bodyNode, onDismiss, options = {}) {
   (inBody[0] || modalCloseBtn).focus();
 }
 
+/** Whether any dialog is up. The local pick clock stops while one is: a season
+ * list or a slot choice is part of making the pick, not time spent avoiding it. */
+export function isModalOpen() {
+  return !modalBackdrop.classList.contains("hidden");
+}
+
 export function closeModal({ dismissed = false } = {}) {
   modalBackdrop.classList.add("hidden");
   modalEl.removeEventListener("keydown", trapTab);

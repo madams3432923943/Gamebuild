@@ -130,6 +130,20 @@ export const DRAFT_REVEAL_DELAY_MS = 2600;
 // worst eligible option for them (or auto-skips if none are eligible).
 export const PICK_TIMER_SECONDS = 30;
 
+// A guest's FIRST draft on this device gets twice as long. Testers on a phone
+// were typing, reading a season list and choosing a slot for the first time
+// with 30 seconds that had already started, and lost picks to a clock they had
+// not yet understood. Once one game is finished they have seen the whole loop.
+export const FIRST_DRAFT_PICK_TIMER_SECONDS = 60;
+
+// When the pick clock starts warning that it is about to choose for you.
+export const PICK_WARNING_SECONDS = 5;
+
+// How long typing has to pause before a name that matches nobody on the squad
+// is called a miss. Without it "Not on this squad" fired at the third letter,
+// i.e. while the player was still in the middle of typing the right answer.
+export const SEARCH_SETTLE_MS = 450;
+
 // How long a player has to commit to a game plan once both rosters are set.
 // Longer than a pick timer on purpose: this is one decision made with full
 // information about the team you just built, so it deserves a real beat.

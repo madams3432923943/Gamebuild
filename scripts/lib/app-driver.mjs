@@ -168,7 +168,11 @@ async function makeOnePick(page, squadIndex, log) {
       // later click on the board.
       const season = page.locator("#modal-backdrop .season-option:not([disabled])").first();
       if (await season.isVisible().catch(() => false)) {
-        await season.click().catch(() => {});
+        // A season that still leaves a position to choose is a row of slot
+        // buttons rather than one button (see openSeasonPicker) - one of
+        // those is the pick.
+        const isGroup = await season.evaluate((el) => el.classList.contains("season-option-slots")).catch(() => false);
+        await (isGroup ? season.locator(".modal-slot").first() : season).click().catch(() => {});
       }
     }
     if (await modal.isVisible().catch(() => false)) {

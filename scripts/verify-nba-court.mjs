@@ -773,6 +773,11 @@ async function main() {
     );
 
     // ---- the shot chart survives the whistle ------------------------------
+    // On a phone the finished game's read-outs are tabs (renderResultTabs), so
+    // the chart is one tap away rather than on screen - take that tap.
+    await page.locator("#btn-play-again:not(.hidden)").waitFor({ state: "visible", timeout: 20000 });
+    const chartTab = page.locator('#result-tabs [aria-controls="shot-chart"]');
+    if (await chartTab.isVisible().catch(() => false)) await chartTab.click();
     await page.locator("#shot-chart:not(.hidden)").waitFor({ state: "visible", timeout: 20000 });
     const chart = await page.evaluate(() => ({
       markers: document.querySelectorAll("#shot-chart-court .bc-shot").length,
