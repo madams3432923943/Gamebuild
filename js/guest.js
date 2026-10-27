@@ -165,6 +165,31 @@ async function sendGuestGame({ sport, difficulty, era, won, scoreFor, scoreAgain
 
 // ---- Carry-over --------------------------------------------------------------
 
+/**
+ * One guest funnel event (see js/funnel.js). Its own table and RPC, never
+ * analytics_events - a guest is in no user metric. Same claim token as the
+ * games, so the events follow the browser onto the account it becomes.
+ *
+ * Fire and forget, and quiet: a server without record_guest_event yet (the
+ * migration lands by hand) logs once and the game carries on.
+ */
+export async function sendGuestEvent({ event, sport, device, step, source }) {
+  try {
+    const supabase = await getSupabase();
+    const { error } = await supabase.rpc("record_guest_event", {
+      p_event: event,
+      p_sport: sport || null,
+      p_device: device,
+      p_step: Number.isInteger(step) ? step : null,
+      p_source: source || null,
+      p_claim_token: readToken({ create: true }),
+    });
+    if (error) reportOnce("event", `funnel event not recorded: ${error.message}`);
+  } catch (e) {
+    reportOnce("event", `funnel event not recorded: ${e?.message || e}`);
+  }
+}
+
 let carrying = null;
 
 /**

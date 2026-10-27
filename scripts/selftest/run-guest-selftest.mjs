@@ -42,8 +42,9 @@ const VIEWPORT = { width: 375, height: 812 };
 
 // The only RPCs a signed-out page may make. Presence is the "N online"
 // ticker - a count of open tabs, not of users, and it ran on the old sign-in
-// screen too.
-const GUEST_RPCS = new Set(["heartbeat_presence", "record_guest_game"]);
+// screen too. record_guest_event is the guest funnel, which writes to its own
+// table and never to a user metric (db/migrations/20261027_01).
+const GUEST_RPCS = new Set(["heartbeat_presence", "record_guest_game", "record_guest_event"]);
 
 const LEGS = [
   { sport: "nba", convert: "signup" },
@@ -161,6 +162,17 @@ async function runLeg(browser, stub, baseUrl, { sport, convert }) {
       "The guest game is counted once (record_guest_game) and kept on this device",
       recorded.length === 1 && recorded[0].args.p_sport === sport && result.stored === 1 && result.token,
       `record_guest_game calls: ${JSON.stringify(recorded.map((r) => r.args))}, stored: ${result.stored}`
+    );
+    // The funnel reached the guest table, tagged, with the guest's events and
+    // nothing that belongs to a signed-in player.
+    const events = result.rpcs.filter((r) => r.name === "record_guest_event").map((r) => r.args);
+    const names = new Set(events.map((e) => e.p_event));
+    add(
+      "guest-funnel",
+      "The guest funnel is recorded to the guest table, tagged by device",
+      ["draft_started", "pick_made", "draft_completed", "results_viewed"].every((n) => names.has(n)) &&
+        events.every((e) => e.p_device === "phone" && e.p_sport === sport && typeof e.p_claim_token === "string"),
+      `${events.length} events: ${[...names].join(", ")}`
     );
     const strays = result.rpcs.filter((r) => !GUEST_RPCS.has(r.name));
     add(

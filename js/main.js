@@ -56,6 +56,8 @@ import { slotLabel, slotChoices, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
+import { funnel, deviceClass } from "./funnel.js";
+import { captureFirstVisit, saveFirstVisitSource } from "./first-visit.js";
 import { isGuest, setGuest, recordGuestGame, carryOverGuestGames, pendingGuestGames } from "./guest.js";
 import {
   MODES, FRIEND_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, difficultyById,
@@ -473,6 +475,7 @@ function renderAuthMode() {
 
 btnAuthToggle.addEventListener("click", () => {
   authMode = authMode === "signup" ? "signin" : "signup";
+  if (authMode === "signup") funnel(EVENTS.SIGNUP_STARTED, { source: "signin_form" });
   renderAuthMode();
 });
 
@@ -575,7 +578,12 @@ async function enterApp({ newAccount = false } = {}) {
   // and they sign in, possibly days later. So this fires on either path - the
   // flag from the sign-up handler, or a profile that has never been onboarded,
   // which is only ever true on an account's first entry.
-  if (newAccount || !profile?.hasSeenOnboarding) trackOnce(EVENTS.SIGNUP_COMPLETED);
+  if (newAccount || !profile?.hasSeenOnboarding) {
+    trackOnce(EVENTS.SIGNUP_COMPLETED, { device: deviceClass() });
+    // Where this account first came from - only for a NEW account, or an old
+    // one signing in on a new device would record that device's first visit.
+    void saveFirstVisitSource();
+  }
 
   // THE WELCOME, for an account that has never seen it. Last, so it opens over
   // a home screen that is already drawn rather than over an empty one, and so
@@ -692,13 +700,17 @@ function revealGuestSignupCard() {
   guestSignupCardEl.hidden = false;
 }
 
-document.getElementById("btn-quickplay-friends").addEventListener("click", () => showAuthScreen("signup"));
+document.getElementById("btn-quickplay-friends").addEventListener("click", () => {
+  funnel(EVENTS.SIGNUP_STARTED, { source: "homepage" });
+  showAuthScreen("signup");
+});
 document.getElementById("btn-quickplay-signin").addEventListener("click", () => showAuthScreen("signin"));
 btnHeaderSignin.addEventListener("click", () => {
   // The header is on every screen, including a draft in progress. Leaving one
   // must stop its clocks the same way leaving through any other door does -
   // and a game mid-playback is SETTLED, not dropped, so the result a guest was
   // watching is kept and can come with them into the account.
+  noteAbandonedDraft("sign_in");
   cleanupPlayback({ settle: true });
   cleanupPickTimer();
   cleanupTacticTimer();
@@ -709,6 +721,7 @@ btnHeaderSignin.addEventListener("click", () => {
 document.getElementById("btn-auth-guest").addEventListener("click", () => enterGuestMode());
 document.getElementById("btn-guest-signup").addEventListener("click", () => {
   cleanupPlayback();
+  funnel(EVENTS.SIGNUP_STARTED, { source: "results" });
   showAuthScreen("signup");
 });
 document.getElementById("btn-guest-signin").addEventListener("click", () => {
@@ -1791,7 +1804,17 @@ btnStartDraft.addEventListener("click", async () => {
 /** Every tab leaves whatever was running behind (a live match poller, a pick
  * clock, a game being played out) before switching, so no screen keeps ticking
  * off-screen. */
+/** draft_abandoned, when a door out of the draft board is taken mid-draft
+ * (the board includes the strategy steps after the last pick: the game has
+ * not been played until the screen moves to it). A reload or a closed tab is
+ * not counted - nothing reliable can be sent from an unloading page. */
+function noteAbandonedDraft(source) {
+  if (currentScreen() !== "draft") return;
+  funnel(EVENTS.DRAFT_ABANDONED, { sport: getSport(), mode: matchConfig().id, source });
+}
+
 function goToTab(tab, onArrive) {
+  noteAbandonedDraft("nav");
   cleanupOnlineWatcher();
   // A game left mid-quarter must stop playing, and must still be RECORDED -
   // the timers being cancelled are the same ones that reach finish().
@@ -2416,7 +2439,7 @@ function startDraft() {
   // enterOnlineMatch, which is how a ranked or friend draft starts - and the
   // mode is carried on the event so the funnel splits without a second one.
   const started = matchConfig();
-  track(EVENTS.DRAFT_STARTED, {
+  funnel(EVENTS.DRAFT_STARTED, {
     sport: getSport(),
     mode: started.id,
     difficulty: started.difficulty || undefined,
@@ -2642,11 +2665,19 @@ function onPoolPick(player) {
   );
 }
 
-function finalizePick(player, slot) {
+/** @param source what made the pick: "manual", or "auto" / "forfeit" when the
+ * clock did - recorded on the funnel's pick_made. */
+function finalizePick(player, slot, source = "manual") {
   cleanupPickTimer();
   hideRoundIntro(roundIntroEl);
   const side = game.round.activeSide;
   game.draft.makePick(side, player, slot);
+  funnel(EVENTS.PICK_MADE, {
+    sport: getSport(),
+    mode: matchConfig().id,
+    step: game.draft.slots.filter((s) => rosterFor(side)[s]).length,
+    source,
+  });
   game.round.resolved[side] = true;
   game.round.pendingSlots[side] = slot;
   game.round.pendingPlayer = null;
@@ -2675,7 +2706,7 @@ function handleLocalTimeout({ forfeited = false } = {}) {
     // Recorded before the pick lands, because from here on it is an ordinary
     // roster entry - the only thing that distinguishes it is this list.
     game.forfeits[side].push(combo.slot);
-    finalizePick(combo.player, combo.slot);
+    finalizePick(combo.player, combo.slot, forfeited ? "forfeit" : "auto");
   } else {
     // Nothing was eligible, so nobody forfeited anything - the squad simply
     // had no legal option. The empty slot is charged separately, below.
@@ -2996,7 +3027,7 @@ function showDraftGrade(roster, opts = {}) {
 function renderDraftComplete() {
   cleanupPickTimer();
   const draft = game.draft;
-  track(EVENTS.DRAFT_COMPLETED, {
+  funnel(EVENTS.DRAFT_COMPLETED, {
     sport: getSport(),
     mode: matchConfig().id,
     difficulty: matchConfig().difficulty || undefined,
@@ -3209,7 +3240,7 @@ async function enterOnlineMatch(matchId) {
   // already in progress, and a dropped connection is not a second draft.
   trackOnce(
     EVENTS.DRAFT_STARTED,
-    { sport: match.sport || getSport(), mode: game.modeConfig.id, era: match.era },
+    { sport: match.sport || getSport(), mode: game.modeConfig.id, era: match.era, device: deviceClass() },
     `draft_started:${matchId}`
   );
 
@@ -3435,6 +3466,7 @@ async function handleOnlineMatchState(match) {
  * wait out the 15-minute server-side staleness window (see cancel_match) -
  * either side can leave, at any point before simulation starts. */
 btnLeaveMatch.addEventListener("click", async () => {
+  noteAbandonedDraft("leave_match");
   // Doubles as the way out after an opponent leaves, where the online state
   // has already been torn down and there is no match left to cancel. Without
   // this the button is on screen and does nothing, which is worse than not
@@ -3598,7 +3630,7 @@ async function handleOnlineTimeout({ forfeited = false } = {}) {
   const combo = worstEligiblePick(o.currentSquad, o.myRoster, sport().slots.ranked);
   if (combo) {
     announceAutoPick(combo, forfeited);
-    await finalizeOnlinePick(combo.player, combo.slot, true);
+    await finalizeOnlinePick(combo.player, combo.slot, true, forfeited ? "forfeit" : "auto");
   } else {
     await onlineSkip();
   }
@@ -3607,9 +3639,15 @@ async function handleOnlineTimeout({ forfeited = false } = {}) {
 /** @param forfeited true when the pick clock chose this player. Sent through
  * to the server, which is where the simulation reads it back from - the
  * client never gets to declare what the penalty is, only that it applies. */
-async function finalizeOnlinePick(player, slot, forfeited = false) {
+async function finalizeOnlinePick(player, slot, forfeited = false, source = forfeited ? "auto" : "manual") {
   cleanupPickTimer();
   const o = game.online;
+  funnel(EVENTS.PICK_MADE, {
+    sport: getSport(),
+    mode: matchConfig().id,
+    step: sport().slots.ranked.filter((s) => o.myRoster[s]).length + 1,
+    source,
+  });
   o.pendingPlayer = null;
   if (forfeited) o.forfeits = [...(o.forfeits || []), slot];
   draftTurnBanner.textContent = "Locking in pick…";
@@ -3660,7 +3698,7 @@ async function beginOnlineStrategyPhase(match) {
   // reason trackOnce takes a key.
   trackOnce(
     EVENTS.DRAFT_COMPLETED,
-    { sport: getSport(), mode: matchConfig().id },
+    { sport: getSport(), mode: matchConfig().id, device: deviceClass() },
     `draft_completed:${o.matchId}`
   );
 
@@ -4241,7 +4279,10 @@ async function openShareDialog() {
   openModal("Share this result", body);
 }
 
-btnShareResult.addEventListener("click", openShareDialog);
+btnShareResult.addEventListener("click", () => {
+  funnel(EVENTS.SHARE_TAPPED, { sport: getSport(), mode: matchConfig().id });
+  openShareDialog();
+});
 
 // ---- Post-game analysis panel ----
 
@@ -5230,6 +5271,9 @@ function showShotChart(events, labelA, labelB) {
       onComplete();
       return;
     }
+    // Seen, not settled: a game left mid-playback reaches this function too
+    // (silently, above), and nobody viewed that result.
+    funnel(EVENTS.RESULTS_VIEWED, { sport: getSport(), mode: matchConfig().id });
     playBuzzer();
     if (result.winner === "A") {
       // How loud a win is depends on what was at stake. Quick Play got the
@@ -6088,6 +6132,7 @@ async function runOnlineSimulationFlow(matchId, serverWinner) {
 // Home, which made the player pick all four again, and not straight into a
 // draft, which would take away the chance to change one of them.
 btnPlayAgain.addEventListener("click", () => {
+  funnel(EVENTS.PLAY_AGAIN, { sport: getSport(), mode: matchConfig().id });
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
@@ -6914,6 +6959,7 @@ initBrandFallbacks();
   //
   // Checked FIRST: if there is no session, this is why, and there is nothing
   // to gain from asking the network before saying so.
+  captureFirstVisit();
   const linkError = authLinkError();
   if (linkError) {
     showAuthScreen("signin");

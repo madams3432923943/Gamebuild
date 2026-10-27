@@ -99,6 +99,7 @@ function breakdown(map, emptyNote) {
  * funnel. Steps with no data still appear, at zero: a stage nobody reached is
  * the most interesting row on the chart. */
 const FUNNEL_ORDER = [
+  ["signup_started", "Opened sign-up"],
   ["signup_completed", "Signed up"],
   ["onboarding_viewed", "Saw the welcome"],
   ["onboarding_completed", "Finished the welcome"],
@@ -106,9 +107,14 @@ const FUNNEL_ORDER = [
   ["mode_selected", "Chose a mode"],
   ["practice_difficulty_selected", "Chose a difficulty"],
   ["draft_started", "Started a draft"],
+  ["pick_made", "Made a pick"],
+  ["draft_abandoned", "Left a draft"],
   ["draft_completed", "Finished a draft"],
   ["simulation_started", "Watched a simulation"],
   ["game_completed", "Completed a game"],
+  ["results_viewed", "Saw the result"],
+  ["share_tapped", "Tapped Share"],
+  ["play_again", "Tapped Play Again"],
   ["ranked_queue_joined", "Queued for ranked"],
   ["ranked_match_found", "Matched with someone"],
   ["ranked_game_completed", "Completed a ranked game"],
