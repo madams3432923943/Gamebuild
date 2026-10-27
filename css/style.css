@@ -11275,3 +11275,97 @@ table.box-table tfoot .box-totals td:nth-child(2) {
   font-size: var(--text-xs);
   border-radius: 8px;
 }
+
+/* ---- Results and live game, UX pass section C (docs/ux-pass-2026-10.md) ---
+   The result screen was eight phone screens tall, with the sign-up card above
+   the box score and Share and Play Again near the bottom. A finished game is
+   the moment people share, so on a phone the order is now: score, verdict,
+   MVP, Share / Play Again, then the account offer, then the details - with the
+   three long read-outs as tabs. */
+.result-tabs,
+.box-more-toggle {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  #screen-game > .game-stage { order: 1; }
+  #screen-game > #final-banner { order: 2; }
+  #screen-game > #mvp-callout { order: 3; }
+  #screen-game > .game-actions { order: 4; }
+  #screen-game > #btn-game-home { order: 5; }
+  #screen-game > #guest-signup-card,
+  #screen-game > #reward-toast { order: 6; }
+  #screen-game > #game-recap { order: 7; }
+  #screen-game > #result-tabs { order: 8; }
+  #screen-game > #why-breakdown,
+  #screen-game > #shot-chart,
+  #screen-game > #full-box-score { order: 9; }
+  #screen-game > .sponsor-slot { order: 10; }
+
+  #screen-game > #full-box-score {
+    margin-top: 0;
+  }
+
+  #screen-game > .game-actions {
+    margin-top: 0.5rem;
+  }
+
+  .result-tabs:not([hidden]) {
+    display: flex;
+    gap: 0.35rem;
+    margin: 1rem 0 0.6rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .result-tab {
+    flex: 1 0 auto;
+    min-height: 44px;
+    padding: 0 0.85rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .result-tab[aria-selected="true"] {
+    background: rgba(var(--accent-rgb), 0.16);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  #screen-game [data-tab-inactive] {
+    display: none !important;
+  }
+
+  /* THE BOX SCORE'S PHONE COLUMNS. The sport names the ones a phone keeps
+     (boxPhoneColumns); the rest wait behind "More stats". */
+  #full-box-score:not(.box-all) .box-extra {
+    display: none;
+  }
+
+  .box-more-toggle {
+    display: inline-block;
+    min-height: 44px;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  /* With the extra columns folded the table fits, so "swipe to see every
+     column" would be a false promise. */
+  #full-box-score:not(.box-all):has(.box-extra) .box-scroll-hint {
+    display: none;
+  }
+
+  /* A smaller live court, so the score, the floor and the feed share one
+     screen. Still horizontal and still 188:100 - see .bc-court. */
+  .basketball-court .bc-court {
+    max-width: min(100%, calc(18vh * 1.88));
+    max-width: min(100%, calc(18dvh * 1.88));
+    margin-inline: auto;
+  }
+}

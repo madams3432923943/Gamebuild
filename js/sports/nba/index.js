@@ -391,6 +391,11 @@ export const NBA = {
     ["stl", "STL"], ["blk", "BLK"], ["tov", "TOV"],
   ],
   sortBoxBy: "pts",
+  // The columns a phone shows before "More stats" is tapped, by header. Eleven
+  // columns cut off after FG at 390px, so the table read as broken; these six
+  // are the line everyone quotes. Optional - a sport that declares none shows
+  // every column at every width.
+  boxPhoneColumns: ["MIN", "PTS", "REB", "AST", "FG", "3PT"],
   // The MVP line everyone already knows, fixed rather than derived. Points,
   // rebounds and assists is basketball's shorthand for a night's work, and it
   // should not reshuffle itself game to game just because somebody had four

@@ -982,6 +982,11 @@
         </div>
       </div>
 
+      <!-- On a phone the three long read-outs below (the why, the shot chart,
+           the box score) are tabs: one at a time, so the result screen is not
+           eight screens tall. Built by renderResultTabs() in js/main.js at the
+           final whistle; hidden at desktop width, where all three show. -->
+      <div id="result-tabs" class="result-tabs" role="tablist" aria-label="Game details" hidden></div>
       <!-- The coach's read, as opposed to the broadcast's: the handful of
            numbers that decided it, and what your rotation, matchups and
            gamestyle actually did. See buildWhyBreakdown() in js/recap.js. -->

@@ -483,7 +483,10 @@ export function createFeedVoice() {
     const team = (side) => (side === "a" ? labelA : labelB);
     if (event.leadChange) {
       lastRun = null;
-      return { text: `${team(event.side)} TAKE THE LEAD`, kind: "lead-change" };
+      // Conjugated for the label: "You take the lead", "Bot takes the lead".
+      // It read "Bot TAKE THE LEAD" for the opponent in every game.
+      const who = team(event.side);
+      return { text: `${who} ${who === "You" ? "take" : "takes"} the lead`, kind: "lead-change" };
     }
     if (event.runPoints) {
       // A run belongs to a side; it is the same run until the other team

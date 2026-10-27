@@ -207,7 +207,10 @@ function periodLabel(event) {
  */
 function bigPlay(event, labelA, labelB) {
   const team = (side) => (side === "a" ? labelA : labelB);
-  if (event.leadChange) return { text: `${team(event.side)} TAKE THE LEAD`, tone: "lead" };
+  if (event.leadChange) {
+    const who = team(event.side);
+    return { text: `${who} ${who === "You" ? "take" : "takes"} the lead`, tone: "lead" };
+  }
   if (event.type === "block") return { text: "BLOCK", tone: "deny" };
   if (event.type === "steal") return { text: "STEAL", tone: "deny" };
   if (event.type === "shot" && event.made && event.endOfPeriod) {

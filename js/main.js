@@ -4363,6 +4363,68 @@ function dressStage(homeSide, kitA, kitB) {
 }
 
 const shotChartEl = document.getElementById("shot-chart");
+const resultTabsEl = document.getElementById("result-tabs");
+
+/**
+ * The finished game's long read-outs as tabs, on a phone.
+ *
+ * The result screen measured eight viewports tall at 390px: the why, a court
+ * sized shot chart and two full box scores, one after another. They are three
+ * answers to "what happened", and someone reading one is not reading the
+ * others, so a phone shows one at a time. Box score first - it is what most
+ * people open the screen to check.
+ *
+ * Only panels that are actually showing get a tab (a sport with no shot chart
+ * has two). The inactive ones are marked with data-tab-inactive, and only the
+ * phone layout hides them - see .result-tabs in style.css - so a desktop, with
+ * room for all three, is unchanged.
+ */
+function renderResultTabs() {
+  const panels = [
+    { el: fullBoxScore, label: "Box score" },
+    { el: shotChartEl, label: "Shot chart" },
+    { el: whyBreakdownEl, label: whyTitleEl.textContent.trim() || "Breakdown" },
+  ].filter(({ el }) => !el.classList.contains("hidden"));
+  resultTabsEl.replaceChildren();
+  if (panels.length < 2) {
+    clearResultTabs();
+    return;
+  }
+  const select = (index) => {
+    panels.forEach(({ el }, i) => {
+      el.toggleAttribute("data-tab-inactive", i !== index);
+      const tab = resultTabsEl.children[i];
+      tab.setAttribute("aria-selected", String(i === index));
+      tab.tabIndex = i === index ? 0 : -1;
+    });
+  };
+  panels.forEach(({ el, label }, i) => {
+    if (!el.id) return;
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "result-tab";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", el.id);
+    tab.textContent = label;
+    tab.addEventListener("click", () => select(i));
+    // Arrow keys move between tabs, as a tablist is expected to.
+    tab.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const next = (i + (e.key === "ArrowRight" ? 1 : panels.length - 1)) % panels.length;
+      select(next);
+      resultTabsEl.children[next].focus();
+    });
+    resultTabsEl.appendChild(tab);
+  });
+  resultTabsEl.hidden = false;
+  select(0);
+}
+
+function clearResultTabs() {
+  resultTabsEl.hidden = true;
+  resultTabsEl.replaceChildren();
+  for (const el of [fullBoxScore, shotChartEl, whyBreakdownEl]) el.removeAttribute("data-tab-inactive");
+}
 
 function resetGameScreen() {
   // Last game's share card is last game's. Cleared here rather than on the way
@@ -4403,6 +4465,7 @@ function resetGameScreen() {
   ]) {
     el.classList.add("hidden");
   }
+  clearResultTabs();
   clearPlayFeed(playFeedEl);
   // These flash/glow classes live directly on the container elements, not on
   // content renderScoreboard rebuilds each tick - so a leftover class from a
@@ -5131,6 +5194,7 @@ function showShotChart(events, labelA, labelB) {
     if (showShotChart(ledger.events, labelA, labelB)) {
       basketballCourtEl.classList.add("hidden");
     }
+    renderResultTabs();
     // Only once there is a card to share. The abandoned path reaches finish()
     // too and builds one, so this is always true here - but a button that
     // opened an empty dialog would be the one bug worth being certain about.
@@ -5474,13 +5538,19 @@ function showShotChart(events, labelA, labelB) {
         // actually happens.
         if (scoreMoved) {
           const newLeader = runningA === runningB ? null : runningA > runningB ? "A" : "B";
-          if (newLeader && leader && newLeader !== leader) {
+          // Said ONCE. A sport whose own feed voice already announced this
+          // lead change (basketball's does) gets no second card - the feed
+          // showed "Bot takes the lead" directly above "Bot TAKE THE LEAD".
+          const alreadySaid = said?.kind === "lead-change" && event.leadChange;
+          if (newLeader && leader && newLeader !== leader && !alreadySaid) {
             const leaderLabel = newLeader === "A" ? labelA : labelB;
             pushPlayHeadline(
               playFeedEl,
               `${leaderLabel} ${subjectVerb(leaderLabel, "takes", "take")} the lead`,
               "lead-change"
             );
+            flashClass(liveScoreboard, "lead-flash");
+          } else if (newLeader && leader && newLeader !== leader) {
             flashClass(liveScoreboard, "lead-flash");
           }
           if (newLeader) leader = newLeader;
@@ -6011,10 +6081,13 @@ btnPlayAgain.addEventListener("click", () => {
   cleanupOnlineWatcher();
   cleanupPlayback();
   setActiveNav("play");
-  // A guest's setup screen is Quickplay: the same one tap that started this
-  // game. The Play screen would offer Online Ranked, which needs an account.
+  // A GUEST GOES STRAIGHT INTO THE NEXT DRAFT. Their setup screen is
+  // Quickplay, which is one tap that offers nothing to change - so sending
+  // them there read as "Play Again took me back to the start page", which is
+  // what testers reported. The Play screen would offer Online Ranked, which
+  // needs an account.
   if (isGuest()) {
-    goHome();
+    void startGuestGame(game.sport || activeSportId());
     return;
   }
   reopenLastSetup();
