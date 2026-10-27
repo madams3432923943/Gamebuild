@@ -1522,7 +1522,9 @@ async function setSport(id) {
   } catch (error) {
     // Never silent: the button stays disabled and says so, and the reason is
     // on the console for anyone debugging it.
-    console.error(`Could not load ${id} data:`, error);
+    // The id as an argument, not inside the first one: console.error treats
+    // its first string as a format string, and %s in an id would be read as one.
+    console.error("Could not load sport data:", id, error);
     if (load !== sportLoadSeq) return false;
     sportDataLoading = false;
     renderPlayability();

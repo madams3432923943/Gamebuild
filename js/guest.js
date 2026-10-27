@@ -142,7 +142,7 @@ const reported = new Set();
 function reportOnce(kind, message) {
   if (reported.has(kind)) return;
   reported.add(kind);
-  console.error(`guest: ${message}`);
+  console.error("guest:", message);
 }
 
 async function sendGuestGame({ sport, difficulty, era, won, scoreFor, scoreAgainst }) {
