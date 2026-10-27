@@ -24,6 +24,14 @@ export function deviceClass() {
   }
 }
 
+/** Events only a signed-out player can produce. Opening the sign-up form is
+ * the clearest: anyone who can do it has no account, so it belongs to the
+ * guest funnel alone and is not declared in analytics_event_types. */
+export const GUEST_EVENTS = {
+  SIGNUP_STARTED: "signup_started",
+};
+const GUEST_ONLY = new Set(Object.values(GUEST_EVENTS));
+
 /**
  * @param props.sport, props.step (pick number), props.source (what triggered
  *   it: manual / auto / forfeit for a pick, where a sign-up was opened from),
@@ -35,5 +43,6 @@ export function funnel(event, props = {}) {
     void sendGuestEvent({ event, sport: props.sport, device, step: props.step, source: props.source });
     return;
   }
+  if (GUEST_ONLY.has(event)) return;
   track(event, { ...props, device });
 }

@@ -99,7 +99,6 @@ function breakdown(map, emptyNote) {
  * funnel. Steps with no data still appear, at zero: a stage nobody reached is
  * the most interesting row on the chart. */
 const FUNNEL_ORDER = [
-  ["signup_started", "Opened sign-up"],
   ["signup_completed", "Signed up"],
   ["onboarding_viewed", "Saw the welcome"],
   ["onboarding_completed", "Finished the welcome"],

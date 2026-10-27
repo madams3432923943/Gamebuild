@@ -56,7 +56,7 @@ import { slotLabel, slotChoices, rosterSlots } from "./ui/roster-slots.js";
 import { displayEntryName } from "./ui/entry-name.js";
 import { PLACEMENTS } from "./ads/campaigns.js";
 import { track, trackOnce, markActiveToday, EVENTS } from "./analytics.js";
-import { funnel, deviceClass } from "./funnel.js";
+import { funnel, deviceClass, GUEST_EVENTS } from "./funnel.js";
 import { captureFirstVisit, saveFirstVisitSource } from "./first-visit.js";
 import { isGuest, setGuest, recordGuestGame, carryOverGuestGames, pendingGuestGames } from "./guest.js";
 import {
@@ -475,7 +475,7 @@ function renderAuthMode() {
 
 btnAuthToggle.addEventListener("click", () => {
   authMode = authMode === "signup" ? "signin" : "signup";
-  if (authMode === "signup") funnel(EVENTS.SIGNUP_STARTED, { source: "signin_form" });
+  if (authMode === "signup") funnel(GUEST_EVENTS.SIGNUP_STARTED, { source: "signin_form" });
   renderAuthMode();
 });
 
@@ -701,7 +701,7 @@ function revealGuestSignupCard() {
 }
 
 document.getElementById("btn-quickplay-friends").addEventListener("click", () => {
-  funnel(EVENTS.SIGNUP_STARTED, { source: "homepage" });
+  funnel(GUEST_EVENTS.SIGNUP_STARTED, { source: "homepage" });
   showAuthScreen("signup");
 });
 document.getElementById("btn-quickplay-signin").addEventListener("click", () => showAuthScreen("signin"));
@@ -721,7 +721,7 @@ btnHeaderSignin.addEventListener("click", () => {
 document.getElementById("btn-auth-guest").addEventListener("click", () => enterGuestMode());
 document.getElementById("btn-guest-signup").addEventListener("click", () => {
   cleanupPlayback();
-  funnel(EVENTS.SIGNUP_STARTED, { source: "results" });
+  funnel(GUEST_EVENTS.SIGNUP_STARTED, { source: "results" });
   showAuthScreen("signup");
 });
 document.getElementById("btn-guest-signin").addEventListener("click", () => {

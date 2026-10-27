@@ -11,7 +11,9 @@
 -- THREE POPULATIONS, KEPT APART ON PURPOSE.
 --
 --   * Signed-in players go where they always went: analytics_events, through
---     track_event(). Six new event names, one new prop (`device`).
+--     track_event(). Five new event names, one new prop (`device`).
+--     signup_started is a guest event only - opening the sign-up form is
+--     something only a signed-out player can do.
 --   * Guests go to a NEW table, guest_funnel_events, through
 --     record_guest_event(). CLAUDE.md is explicit that a guest is in no user
 --     metric - never profiles, analytics_events or active_days - and that is
@@ -54,8 +56,7 @@ insert into public.analytics_event_types (event, description) values
   ('draft_abandoned', 'Left the draft board, or the strategy steps after it, before the game was played.'),
   ('results_viewed',  'The final result screen was shown.'),
   ('share_tapped',    'Share Result was tapped on the result screen.'),
-  ('play_again',      'Play Again was tapped on the result screen.'),
-  ('signup_started',  'The Create Account form was opened. props.source says from where.')
+  ('play_again',      'Play Again was tapped on the result screen.')
 on conflict (event) do nothing;
 
 create or replace function public.sanitize_event_props(p_props jsonb)

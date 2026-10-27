@@ -59,7 +59,6 @@ export const EVENTS = {
   RESULTS_VIEWED: "results_viewed",
   SHARE_TAPPED: "share_tapped",
   PLAY_AGAIN: "play_again",
-  SIGNUP_STARTED: "signup_started",
 };
 
 /** The only keys that may be sent. The server enforces the same list; this
